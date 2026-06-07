@@ -173,13 +173,13 @@ class ConfigValueJsoncSpec :
             should("parse an empty object") {
                 val result = ConfigValueJsonc.parse("{}").getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.map shouldBe emptyMap()
+                result.value.get("any", ConfigValue.Str::class.java) shouldBe Property.Missing
             }
 
             should("parse an object with a single string value") {
                 val result = ConfigValueJsonc.parse("""{"key": "value"}""").getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.get<ConfigValue.Str>("key") shouldBe Property.Val(ConfigValue.Str("value"))
+                result.value.get("key", ConfigValue.Str::class.java) shouldBe Property.Val(ConfigValue.Str("value"))
             }
 
             should("parse an object with multiple value types") {
@@ -188,37 +188,37 @@ class ConfigValueJsoncSpec :
                 ).getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
                 val props = result.value
-                props.get<ConfigValue.Str>("s") shouldBe Property.Val(ConfigValue.Str("hello"))
-                props.get<ConfigValue.Num>("n") shouldBe Property.Val(ConfigValue.Num(42))
-                props.get<ConfigValue.Bool>("b") shouldBe Property.Val(ConfigValue.Bool(true))
-                props.get<ConfigValue.Dbl>("d") shouldBe Property.Val(ConfigValue.Dbl(1.5))
-                props.get<ConfigValue.Null>("nil") shouldBe Property.Val(ConfigValue.Null)
+                props.get("s", ConfigValue.Str::class.java) shouldBe Property.Val(ConfigValue.Str("hello"))
+                props.get("n", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(42))
+                props.get("b", ConfigValue.Bool::class.java) shouldBe Property.Val(ConfigValue.Bool(true))
+                props.get("d", ConfigValue.Dbl::class.java) shouldBe Property.Val(ConfigValue.Dbl(1.5))
+                props.get("nil", ConfigValue.Null::class.java) shouldBe Property.Val(ConfigValue.Null)
             }
 
             should("parse nested objects") {
                 val result = ConfigValueJsonc.parse("""{"outer": {"inner": "deep"}}""").getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                val outer = result.value.get<ConfigValue.Obj>("outer")
+                val outer = result.value.get("outer", ConfigValue.Obj::class.java)
                 outer.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
-                outer.value.value.get<ConfigValue.Str>("inner") shouldBe
+                outer.value.value.get("inner", ConfigValue.Str::class.java) shouldBe
                     Property.Val(ConfigValue.Str("deep"))
             }
 
             should("overwrite duplicate keys keeping the last value") {
                 val result = ConfigValueJsonc.parse("""{"a": 1, "a": 2}""").getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.get<ConfigValue.Num>("a") shouldBe Property.Val(ConfigValue.Num(2))
+                result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(2))
             }
 
             should("return Missing for absent keys") {
                 val result = ConfigValueJsonc.parse("""{"a": 1}""").getOrThrow() as ConfigValue.Obj
-                result.value.get<ConfigValue.Str>("b") shouldBe Property.Missing("b")
+                result.value.get("b", ConfigValue.Str::class.java) shouldBe Property.Missing
             }
 
             should("return TypeMismatch for wrong value type") {
                 val result = ConfigValueJsonc.parse("""{"a": 1}""").getOrThrow() as ConfigValue.Obj
-                result.value.get<ConfigValue.Str>("a") shouldBe
-                    Property.TypeMismatch("a", ConfigValue.Num(1))
+                result.value.get("a", ConfigValue.Str::class.java) shouldBe
+                    Property.TypeMismatch(ConfigValue.Num(1))
             }
 
             should("reject an unterminated object") {
@@ -261,8 +261,8 @@ class ConfigValueJsoncSpec :
                 result.shouldBeInstanceOf<ConfigValue.ObjArr>()
                 val arr = result.value
                 arr shouldHaveSize 2
-                arr[0].get<ConfigValue.Num>("x") shouldBe Property.Val(ConfigValue.Num(1))
-                arr[1].get<ConfigValue.Num>("x") shouldBe Property.Val(ConfigValue.Num(2))
+                arr[0].get("x", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
+                arr[1].get("x", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(2))
             }
 
             should("parse a boolean array as BoolArr") {
@@ -326,8 +326,8 @@ class ConfigValueJsoncSpec :
                     """.trimIndent()
                 ).getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.get<ConfigValue.Num>("a") shouldBe Property.Val(ConfigValue.Num(1))
-                result.value.get<ConfigValue.Num>("b") shouldBe Property.Val(ConfigValue.Num(2))
+                result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
+                result.value.get("b", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(2))
             }
 
             should("skip block comments") {
@@ -338,7 +338,7 @@ class ConfigValueJsoncSpec :
                     """.trimIndent()
                 ).getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.get<ConfigValue.Str>("key") shouldBe Property.Val(ConfigValue.Str("value"))
+                result.value.get("key", ConfigValue.Str::class.java) shouldBe Property.Val(ConfigValue.Str("value"))
             }
 
             should("skip multi-line block comments") {
@@ -354,14 +354,14 @@ class ConfigValueJsoncSpec :
                     """.trimIndent()
                 ).getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.get<ConfigValue.Num>("a") shouldBe Property.Val(ConfigValue.Num(1))
+                result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
             }
 
             should("allow trailing comma in objects") {
                 val result = ConfigValueJsonc.parse("""{"a": 1, "b": 2,}""").getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.get<ConfigValue.Num>("a") shouldBe Property.Val(ConfigValue.Num(1))
-                result.value.get<ConfigValue.Num>("b") shouldBe Property.Val(ConfigValue.Num(2))
+                result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
+                result.value.get("b", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(2))
             }
 
             should("allow trailing comma in arrays") {
@@ -378,7 +378,7 @@ class ConfigValueJsoncSpec :
             should("not treat comment syntax inside strings as comments") {
                 val result = ConfigValueJsonc.parse("""{"url": "http://example.com"}""").getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.get<ConfigValue.Str>("url") shouldBe
+                result.value.get("url", ConfigValue.Str::class.java) shouldBe
                     Property.Val(ConfigValue.Str("http://example.com"))
             }
 
@@ -399,7 +399,7 @@ class ConfigValueJsoncSpec :
                     "  { \n \"a\" \t : \r\n 1 \n } \n"
                 ).getOrThrow()
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
-                result.value.get<ConfigValue.Num>("a") shouldBe Property.Val(ConfigValue.Num(1))
+                result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
             }
         }
 
@@ -468,33 +468,33 @@ class ConfigValueJsoncSpec :
                 result.shouldBeInstanceOf<ConfigValue.Obj>()
                 val root = result.value
 
-                root.get<ConfigValue.Str>("\$schema") shouldBe
+                root.get("\$schema", ConfigValue.Str::class.java) shouldBe
                     Property.Val(ConfigValue.Str("https://example.com/wrasse.schema.json"))
 
-                val exclude = root.get<ConfigValue.StrArr>("exclude")
+                val exclude = root.get("exclude", ConfigValue.StrArr::class.java)
                 exclude.shouldBeInstanceOf<Property.Val<ConfigValue.StrArr>>()
                 exclude.value.value shouldBe listOf("**/build/**", "**/generated/**")
 
-                val rules = root.get<ConfigValue.Obj>("rules")
+                val rules = root.get("rules", ConfigValue.Obj::class.java)
                 rules.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
 
-                val noSemicolons = rules.value.value.get<ConfigValue.Obj>("no-semicolons")
+                val noSemicolons = rules.value.value.get("no-semicolons", ConfigValue.Obj::class.java)
                 noSemicolons.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
-                noSemicolons.value.value.get<ConfigValue.Bool>("enabled") shouldBe
+                noSemicolons.value.value.get("enabled", ConfigValue.Bool::class.java) shouldBe
                     Property.Val(ConfigValue.Bool(true))
-                noSemicolons.value.value.get<ConfigValue.Str>("severity") shouldBe
+                noSemicolons.value.value.get("severity", ConfigValue.Str::class.java) shouldBe
                     Property.Val(ConfigValue.Str("error"))
 
-                val maxLineLength = rules.value.value.get<ConfigValue.Obj>("max-line-length")
+                val maxLineLength = rules.value.value.get("max-line-length", ConfigValue.Obj::class.java)
                 maxLineLength.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
-                val config = maxLineLength.value.value.get<ConfigValue.Obj>("config")
+                val config = maxLineLength.value.value.get("config", ConfigValue.Obj::class.java)
                 config.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
-                config.value.value.get<ConfigValue.Num>("maxLength") shouldBe
+                config.value.value.get("maxLength", ConfigValue.Num::class.java) shouldBe
                     Property.Val(ConfigValue.Num(120))
 
-                val format = root.get<ConfigValue.Obj>("format")
+                val format = root.get("format", ConfigValue.Obj::class.java)
                 format.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
-                format.value.value.get<ConfigValue.Str>("outputDir") shouldBe
+                format.value.value.get("outputDir", ConfigValue.Str::class.java) shouldBe
                     Property.Val(ConfigValue.Str(".wrasse-format"))
             }
         }
