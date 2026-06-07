@@ -12,11 +12,9 @@ class NoSemicolonsHarnessSpec :
             {
                 "exclude": [],
                 "rules": {
-                    "no-semicolons": {
-                        "enabled": true,
-                        "severity": "error",
-                        "exclude": []
-                    }
+                    "no-semicolons": { "enabled": true, "severity": "error", "exclude": [] },
+                    "no-wildcard-imports": { "enabled": false, "severity": "warning", "exclude": [] },
+                    "trailing-newline": { "enabled": false, "severity": "warning", "exclude": [] }
                 }
             }
         """.trimIndent()

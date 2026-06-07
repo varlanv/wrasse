@@ -6,6 +6,8 @@ import com.varlanv.wrasse.lang.FileWalkUp
 import com.varlanv.wrasse.model.SplitRules
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
+import com.varlanv.wrasse.rules.NoWildcardImportsRule
+import com.varlanv.wrasse.rules.TrailingNewlineRule
 import java.nio.file.Path
 
 private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
@@ -24,7 +26,9 @@ fun wrasseMain(sourceRoots: List<Path>): Result<WrassePlugin> {
 }
 
 private fun assembleRules(config: WrasseConfig): List<WRule> = sequenceOf<Pair<Boolean, () -> WRule>>(
-    config.rulesConfigs.noSemicolons.enabled to { NoSemicolonsRule(config.rulesConfigs.noSemicolons) }
+    config.rulesConfigs.noSemicolons.enabled to { NoSemicolonsRule(config.rulesConfigs.noSemicolons) },
+    config.rulesConfigs.noWildcardImports.enabled to { NoWildcardImportsRule(config.rulesConfigs.noWildcardImports) },
+    config.rulesConfigs.trailingNewline.enabled to { TrailingNewlineRule(config.rulesConfigs.trailingNewline) },
 )
     .filter { it.first }
     .map { it.second() }

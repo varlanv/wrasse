@@ -25,11 +25,19 @@ class WrasseConfig(
 
             val noSemicolons = parseRuleToggle(rulesObj, "no-semicolons")
                 .getOrElse { return Result.failure(it) }
+            val noWildcardImports = parseRuleToggle(rulesObj, "no-wildcard-imports")
+                .getOrElse { return Result.failure(it) }
+            val trailingNewline = parseRuleToggle(rulesObj, "trailing-newline")
+                .getOrElse { return Result.failure(it) }
 
             return Result.success(
                 WrasseConfig(
                     exclude = exclude,
-                    rulesConfigs = WrasseRulesConfig(noSemicolons = noSemicolons),
+                    rulesConfigs = WrasseRulesConfig(
+                        noSemicolons = noSemicolons,
+                        noWildcardImports = noWildcardImports,
+                        trailingNewline = trailingNewline,
+                    ),
                 )
             )
         }
@@ -72,6 +80,8 @@ class WrasseConfig(
 
 class WrasseRulesConfig(
     val noSemicolons: WrasseRuleToggle,
+    val noWildcardImports: WrasseRuleToggle,
+    val trailingNewline: WrasseRuleToggle,
 )
 
 class WrasseRuleToggle(
