@@ -1,5 +1,8 @@
 [versions]
-javaVersion = "26"
+# JDK used to compile
+javaToolchainVersion = "26"
+# bytecode target for the plugin JAR
+javaTargetVersion = "1.8"
 kotlinVersion = "2.4.0"
 kotestVersion = "6.1.11"
 

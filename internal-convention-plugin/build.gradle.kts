@@ -10,7 +10,7 @@ val isCiBuild = providers.environmentVariable("CI").orNull != null
 kotlin {
     jvmToolchain {
         vendor.set(JvmVendorSpec.ADOPTIUM)
-        languageVersion.set(JavaLanguageVersion.of(versionCatalogs.named("libs").findVersion("javaVersion").getOrNull()?.requiredVersion!!))
+        languageVersion.set(JavaLanguageVersion.of(versionCatalogs.named("libs").findVersion("javaToolchainVersion").getOrNull()?.requiredVersion!!))
     }
 }
 

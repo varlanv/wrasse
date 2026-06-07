@@ -8,7 +8,7 @@ description = "Wrasse sample project"
 kotlin {
     jvmToolchain {
         vendor.set(org.gradle.jvm.toolchain.JvmVendorSpec.ADOPTIUM)
-        languageVersion.set(org.gradle.jvm.toolchain.JavaLanguageVersion.of(libs.versions.javaVersion.get()))
+        languageVersion.set(org.gradle.jvm.toolchain.JavaLanguageVersion.of(libs.versions.javaToolchainVersion.get()))
     }
 }
 

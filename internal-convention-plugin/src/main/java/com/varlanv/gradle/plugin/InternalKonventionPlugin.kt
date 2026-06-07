@@ -31,7 +31,8 @@ class InternalKonventionPlugin : Plugin<Project> {
         private val internalKonventionExtension =
             extensions.findByName(InternalKonventionExtension.NAME) as InternalKonventionExtension?
                 ?: extensions.create(InternalKonventionExtension.NAME, InternalKonventionExtension::class.java)
-        private val javaVersion = internalProperties.getVersion("javaVersion")
+        private val javaToolchainVersion = internalProperties.getVersion("javaToolchainVersion")
+        private val javaTargetVersion = internalProperties.getVersion("javaTargetVersion")
         private val kotlinVersion = internalProperties.getVersion("kotlinVersion")
         private val jvmVendor = JvmVendorSpec.ADOPTIUM
 
@@ -56,7 +57,7 @@ class InternalKonventionPlugin : Plugin<Project> {
             }
             tasks.withType(KotlinCompile::class.java) { kotlinCompile ->
                 kotlinCompile.compilerOptions {
-                    jvmTarget.set(JvmTarget.fromTarget(javaVersion))
+                    jvmTarget.set(JvmTarget.fromTarget(javaTargetVersion))
                     allWarningsAsErrors.set(true)
                     extraWarnings.set(true)
                     progressiveMode.set(true)
@@ -80,9 +81,13 @@ class InternalKonventionPlugin : Plugin<Project> {
         }
 
         fun configureKotlin() {
+            tasks.withType(org.gradle.api.tasks.compile.JavaCompile::class.java) { javaCompile ->
+                javaCompile.sourceCompatibility = javaTargetVersion
+                javaCompile.targetCompatibility = javaTargetVersion
+            }
             extensions.configure<KotlinJvmProjectExtension>("kotlin") { kotlin ->
                 kotlin.jvmToolchain { jvmToolchain ->
-                    jvmToolchain.languageVersion.set(JavaLanguageVersion.of(javaVersion))
+                    jvmToolchain.languageVersion.set(JavaLanguageVersion.of(javaToolchainVersion))
                     jvmToolchain.vendor.set(jvmVendor)
                 }
             }
