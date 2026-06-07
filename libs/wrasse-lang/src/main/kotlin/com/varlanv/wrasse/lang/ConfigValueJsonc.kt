@@ -1,6 +1,6 @@
 package com.varlanv.wrasse.lang
 
-class ConfigValueJson private constructor(private val input: String) {
+class ConfigValueJsonc private constructor(private val input: String) {
     private var pos = 0
     private var depth = 0
 
@@ -8,7 +8,7 @@ class ConfigValueJson private constructor(private val input: String) {
         const val MAX_DEPTH = 20
 
         fun parse(input: String): ConfigValue {
-            val parser = ConfigValueJson(input)
+            val parser = ConfigValueJsonc(input)
             parser.skipWsAndComments()
             if (parser.pos >= input.length) parser.error("Empty input")
             val value = parser.readValue()
