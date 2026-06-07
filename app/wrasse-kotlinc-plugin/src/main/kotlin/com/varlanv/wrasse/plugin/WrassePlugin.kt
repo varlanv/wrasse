@@ -3,6 +3,7 @@ package com.varlanv.wrasse.plugin
 import com.varlanv.wrasse.adapter.LightTreeAdapter
 import com.varlanv.wrasse.config.WrasseConfig
 import com.varlanv.wrasse.model.WRule
+import com.varlanv.wrasse.model.WViolation
 import org.jetbrains.kotlin.KtLightSourceElement
 
 class WrassePlugin(
@@ -12,21 +13,22 @@ class WrassePlugin(
 
     fun checkFile(source: KtLightSourceElement, fileName: String): List<ViolationReport> {
         val wFile = LightTreeAdapter.adapt(source, fileName)
-        val violations = mutableListOf<ViolationReport>()
+        val upstreamViolations = mutableListOf<ViolationReport>()
+        val downstreamViolations = mutableListOf<WViolation>()
         for (rule in rules) {
-            for (violation in rule.check(wFile)) {
-                violations.add(
-                    ViolationReport(
-                        message = "${violation.ruleId}: ${violation.message}",
-                        startOffset = violation.node.startOffset,
-                        endOffset = violation.node.endOffset,
-                        severity = violation.severity,
-                    )
-                )
-            }
+            rule.check(wFile, downstreamViolations)
         }
-
-        return violations
+        for (violation in downstreamViolations) {
+            upstreamViolations.add(
+                ViolationReport(
+                    message = "${violation.ruleId}: ${violation.message}",
+                    startOffset = violation.node.startOffset,
+                    endOffset = violation.node.endOffset,
+                    severity = violation.severity,
+                )
+            )
+        }
+        return upstreamViolations
     }
 
     fun checkCall(packageName: String, callableName: String): String? {

@@ -6,10 +6,8 @@ import com.varlanv.wrasse.model.*
 class NoSemicolonsRule(private val config: WrasseRuleToggle) : WRule {
     override val id: String = "no-semicolons"
 
-    override fun check(file: WFile): List<WViolation> {
-        if (!config.enabled) return emptyList()
-
-        val violations = mutableListOf<WViolation>()
+    override fun check(file: WFile, violations: MutableList<WViolation>) {
+        if (!config.enabled) return
         for (node in file.root.descendants()) {
             if (node.type != WNodeType.SEMICOLON) continue
             if (isRequiredSemicolon(node)) continue
@@ -22,16 +20,11 @@ class NoSemicolonsRule(private val config: WrasseRuleToggle) : WRule {
                 )
             )
         }
-        return violations
     }
 
-    private fun isRequiredSemicolon(node: WNode): Boolean {
-        return if (node.isInsideNodeOfType(WNodeType.FOR)) {
-            true
-        } else if (node.isInsideNodeOfType(WNodeType.ENUM_ENTRY)) {
-            true
-        } else {
-            false
-        }
+    private fun isRequiredSemicolon(node: WNode): Boolean = when {
+        node.isInsideNodeOfType(WNodeType.FOR) -> true
+        node.isInsideNodeOfType(WNodeType.ENUM_ENTRY) -> true
+        else -> false
     }
 }
