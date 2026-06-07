@@ -14,7 +14,7 @@ class WrassePlugin(
         val wFile = LightTreeAdapter.adapt(source, fileName)
         val violations = mutableListOf<ViolationReport>()
         for (rule in rules) {
-            for (violation in rule.check(wFile, config)) {
+            for (violation in rule.check(wFile)) {
                 violations.add(
                     ViolationReport(
                         message = "${violation.ruleId}: ${violation.message}",

@@ -3,6 +3,7 @@ package com.varlanv.wrasse.plugin
 import com.varlanv.wrasse.config.WrasseConfig
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
+import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import java.nio.file.Path
 
@@ -16,10 +17,17 @@ fun wrasseMain(sourceRoots: List<Path>): Result<WrassePlugin> {
     return Result.success(
         WrassePlugin(
             config = config,
-            rules = listOf(NoSemicolonsRule())
+            rules = assembleRules(config)
         )
     )
 }
+
+private fun assembleRules(config: WrasseConfig): List<WRule> = sequenceOf<Pair<Boolean, () -> WRule>>(
+    config.rulesConfigs.noSemicolons.enabled to { NoSemicolonsRule(config.rulesConfigs.noSemicolons) }
+)
+    .filter { it.first }
+    .map { it.second() }
+    .toList()
 
 private fun loadConfig(sourceRoots: List<Path>): Result<WrasseConfig> {
     for (root in sourceRoots) {

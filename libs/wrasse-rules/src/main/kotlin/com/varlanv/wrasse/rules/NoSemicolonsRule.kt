@@ -1,18 +1,13 @@
 package com.varlanv.wrasse.rules
 
-import com.varlanv.wrasse.config.WrasseConfig
-import com.varlanv.wrasse.model.WFile
-import com.varlanv.wrasse.model.WNode
-import com.varlanv.wrasse.model.WNodeType
-import com.varlanv.wrasse.model.WRule
-import com.varlanv.wrasse.model.WViolation
+import com.varlanv.wrasse.config.WrasseRuleToggle
+import com.varlanv.wrasse.model.*
 
-class NoSemicolonsRule : WRule {
+class NoSemicolonsRule(private val config: WrasseRuleToggle) : WRule {
     override val id: String = "no-semicolons"
 
-    override fun check(file: WFile, config: WrasseConfig): List<WViolation> {
-        val ruleConfig = config.rulesConfigs.noSemicolons
-        if (!ruleConfig.enabled) return emptyList()
+    override fun check(file: WFile): List<WViolation> {
+        if (!config.enabled) return emptyList()
 
         val violations = mutableListOf<WViolation>()
         for (node in file.root.descendants()) {
@@ -23,7 +18,7 @@ class NoSemicolonsRule : WRule {
                     ruleId = id,
                     message = "Unnecessary semicolon",
                     node = node,
-                    severity = ruleConfig.severity,
+                    severity = config.severity,
                 )
             )
         }
