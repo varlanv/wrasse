@@ -31,8 +31,12 @@ class NoSemicolonsRule : WRule {
     }
 
     private fun isRequiredSemicolon(node: WNode): Boolean {
-        if (node.isInsideNodeOfType(WNodeType.FOR)) return true
-        if (node.isInsideNodeOfType(WNodeType.ENUM_ENTRY)) return true
-        return false
+        return if (node.isInsideNodeOfType(WNodeType.FOR)) {
+            true
+        } else if (node.isInsideNodeOfType(WNodeType.ENUM_ENTRY)) {
+            true
+        } else {
+            false
+        }
     }
 }

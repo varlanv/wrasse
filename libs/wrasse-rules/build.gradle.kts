@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.internalConvention)
 }
 
-description = "Wrasse rule implementations. Depends only on wrasse-model."
+description = "Wrasse rules implementation"
 
 dependencies {
     api(projects.libs.wrasseModel)
