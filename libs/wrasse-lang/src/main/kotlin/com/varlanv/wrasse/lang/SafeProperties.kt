@@ -5,25 +5,58 @@ package com.varlanv.wrasse.lang
  * Parser returns ConfigValue (e.g. ConfigValue.Obj for an object root)
  */
 sealed interface ConfigValue {
+
+    fun typeName() : String
+
     @JvmInline
-    value class Str(val value: String) : ConfigValue
+    value class Str(val value: String) : ConfigValue {
+        override fun typeName() ="string"
+    }
+
     @JvmInline
-    value class Num(val value: Long) : ConfigValue
+    value class Num(val value: Long) : ConfigValue {
+        override fun typeName() = "number"
+    }
+
     @JvmInline
-    value class Obj(val value: SafeProperties) : ConfigValue
+    value class Obj(val value: SafeProperties) : ConfigValue {
+        override fun typeName() = "object"
+    }
     @JvmInline
-    value class StrArr(val value: List<String>) : ConfigValue
+    value class StrArr(val value: List<String>) : ConfigValue {
+        override fun typeName() = "string[]"
+    }
     @JvmInline
-    value class NumArr(val value: List<Long>) : ConfigValue
+    value class NumArr(val value: List<Long>) : ConfigValue {
+        override fun typeName() = "number[]"
+    }
     @JvmInline
-    value class ObjArr(val value: List<SafeProperties>) : ConfigValue
+    value class ObjArr(val value: List<SafeProperties>) : ConfigValue {
+        override fun typeName() = "object[]"
+    }
     @JvmInline
-    value class Bool(val value: Boolean) : ConfigValue
+    value class Bool(val value: Boolean) : ConfigValue {
+        override fun typeName() = "boolean"
+    }
     @JvmInline
-    value class Dbl(val value: Double) : ConfigValue
+    value class BoolArr(val value: List<Boolean>) : ConfigValue {
+        override fun typeName() = "boolean[]"
+    }
     @JvmInline
-    value class Arr(val value: List<ConfigValue>) : ConfigValue
-    data object Null : ConfigValue
+    value class Dbl(val value: Double) : ConfigValue {
+        override fun typeName() = "number"
+    }
+    @JvmInline
+    value class DblArr(val value: List<Double>) : ConfigValue {
+        override fun typeName() = "number[]"
+    }
+    @JvmInline
+    value class NullArr(val value: List<ConfigValue.Null>) : ConfigValue {
+        override fun typeName() = "null[]"
+    }
+    data object Null : ConfigValue {
+        override fun typeName() = "null"
+    }
 }
 
 /**

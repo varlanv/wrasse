@@ -126,8 +126,17 @@ class ConfigValueJsonc private constructor(private val input: String) {
             elements.all { it is ConfigValue.Obj } ->
                 ConfigValue.ObjArr(elements.map { (it as ConfigValue.Obj).value })
 
+            elements.all { it is ConfigValue.Bool } ->
+                ConfigValue.BoolArr(elements.map { (it as ConfigValue.Bool).value })
+
+            elements.all { it is ConfigValue.Dbl } ->
+                ConfigValue.DblArr(elements.map { (it as ConfigValue.Dbl).value })
+
+            elements.all { it is ConfigValue.Null } ->
+                ConfigValue.NullArr(elements.map { it as ConfigValue.Null })
+
             else ->
-                ConfigValue.Arr(elements)
+                error("Mixed array element types")
         }
     }
 
@@ -244,7 +253,6 @@ class ConfigValueJsonc private constructor(private val input: String) {
                     continue
                 }
                 if (input[pos + 1] == '*') {
-                    val start = pos
                     pos += 2
                     var found = false
                     while (pos + 1 < input.length) {
@@ -255,7 +263,7 @@ class ConfigValueJsonc private constructor(private val input: String) {
                         }
                         pos++
                     }
-                    if (!found) error("Unterminated block comment at position $start")
+                    if (!found) error("Unterminated block comment")
                     continue
                 }
             }
@@ -264,6 +272,16 @@ class ConfigValueJsonc private constructor(private val input: String) {
     }
 
     private fun error(msg: String): Nothing {
-        throw IllegalArgumentException("$msg (at position $pos)")
+        var line = 1
+        var col = 1
+        for (i in 0 until pos.coerceAtMost(input.length)) {
+            if (input[i] == '\n') {
+                line++
+                col = 1
+            } else {
+                col++
+            }
+        }
+        throw IllegalArgumentException("$msg (line $line, column $col)")
     }
 }

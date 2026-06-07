@@ -51,31 +51,31 @@ class ConfigValueJsoncSpec :
             should("reject an unterminated string") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("\"hello").getOrThrow()
-                }
+                }.message shouldBe "Unterminated string (line 1, column 7)"
             }
 
             should("reject an invalid escape sequence") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("\"\\x\"").getOrThrow()
-                }
+                }.message shouldBe "Invalid escape: \\x (line 1, column 3)"
             }
 
             should("reject an unescaped control character") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("\"hello" + "\u0001" + "world\"").getOrThrow()
-                }
+                }.message shouldBe "Unescaped control character in string (line 1, column 7)"
             }
 
             should("reject an incomplete unicode escape") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("\"\\u00\"").getOrThrow()
-                }
+                }.message shouldBe "Incomplete unicode escape (line 1, column 3)"
             }
 
             should("reject an invalid unicode escape") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("\"\\uZZZZ\"").getOrThrow()
-                }
+                }.message shouldBe "Invalid unicode escape: \\uZZZZ (line 1, column 3)"
             }
         }
 
@@ -131,25 +131,25 @@ class ConfigValueJsoncSpec :
             should("reject leading zeros") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("01").getOrThrow()
-                }
+                }.message shouldBe "Leading zeros not allowed (line 1, column 2)"
             }
 
             should("reject a bare minus sign") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("-").getOrThrow()
-                }
+                }.message shouldBe "Unexpected end in number (line 1, column 2)"
             }
 
             should("reject a decimal point without following digit") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("1.").getOrThrow()
-                }
+                }.message shouldBe "Expected digit after '.' (line 1, column 3)"
             }
 
             should("reject an exponent without following digit") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("1e").getOrThrow()
-                }
+                }.message shouldBe "Expected digit in exponent (line 1, column 3)"
             }
         }
 
@@ -224,19 +224,19 @@ class ConfigValueJsoncSpec :
             should("reject an unterminated object") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("""{"a": 1""").getOrThrow()
-                }
+                }.message shouldBe "Unterminated object (line 1, column 8)"
             }
 
             should("reject a non-string key") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("""{42: "value"}""").getOrThrow()
-                }
+                }.message shouldBe "Expected string key, got '4' (line 1, column 2)"
             }
 
             should("reject a missing colon") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("""{"a" 1}""").getOrThrow()
-                }
+                }.message shouldBe "Expected ':' (line 1, column 6)"
             }
         }
 
@@ -265,31 +265,25 @@ class ConfigValueJsoncSpec :
                 arr[1].get<ConfigValue.Num>("x") shouldBe Property.Val(ConfigValue.Num(2))
             }
 
-            should("parse a boolean array as Arr") {
+            should("parse a boolean array as BoolArr") {
                 val result = ConfigValueJsonc.parse("[true, false, true]").getOrThrow()
-                result.shouldBeInstanceOf<ConfigValue.Arr>()
-                result.value shouldBe listOf(
-                    ConfigValue.Bool(true),
-                    ConfigValue.Bool(false),
-                    ConfigValue.Bool(true),
-                )
+                result shouldBe ConfigValue.BoolArr(listOf(true, false, true))
             }
 
-            should("parse a double array as Arr") {
+            should("parse a double array as DblArr") {
                 val result = ConfigValueJsonc.parse("[1.5, 2.5]").getOrThrow()
-                result.shouldBeInstanceOf<ConfigValue.Arr>()
-                result.value shouldBe listOf(ConfigValue.Dbl(1.5), ConfigValue.Dbl(2.5))
+                result shouldBe ConfigValue.DblArr(listOf(1.5, 2.5))
             }
 
-            should("parse a mixed-type array as Arr") {
-                val result = ConfigValueJsonc.parse("""[1, "two", true, null]""").getOrThrow()
-                result.shouldBeInstanceOf<ConfigValue.Arr>()
-                result.value shouldBe listOf(
-                    ConfigValue.Num(1),
-                    ConfigValue.Str("two"),
-                    ConfigValue.Bool(true),
-                    ConfigValue.Null,
-                )
+            should("parse a null array as NullArr") {
+                val result = ConfigValueJsonc.parse("[null, null]").getOrThrow()
+                result shouldBe ConfigValue.NullArr(listOf(ConfigValue.Null, ConfigValue.Null))
+            }
+
+            should("reject a mixed-type array") {
+                shouldThrow<IllegalArgumentException> {
+                    ConfigValueJsonc.parse("""[1, "two", true, null]""").getOrThrow()
+                }.message shouldBe "Mixed array element types (line 1, column 23)"
             }
 
             should("parse a single-element string array as StrArr") {
@@ -297,18 +291,16 @@ class ConfigValueJsoncSpec :
                 result shouldBe ConfigValue.StrArr(listOf("only"))
             }
 
-            should("parse nested arrays as Arr") {
-                val result = ConfigValueJsonc.parse("[[1, 2], [3, 4]]").getOrThrow()
-                result.shouldBeInstanceOf<ConfigValue.Arr>()
-                result.value shouldHaveSize 2
-                result.value[0] shouldBe ConfigValue.NumArr(listOf(1L, 2L))
-                result.value[1] shouldBe ConfigValue.NumArr(listOf(3L, 4L))
+            should("reject nested arrays") {
+                shouldThrow<IllegalArgumentException> {
+                    ConfigValueJsonc.parse("[[1, 2], [3, 4]]").getOrThrow()
+                }.message shouldBe "Mixed array element types (line 1, column 17)"
             }
 
             should("reject an unterminated array") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("[1, 2").getOrThrow()
-                }
+                }.message shouldBe "Unterminated array (line 1, column 6)"
             }
         }
 
@@ -380,7 +372,7 @@ class ConfigValueJsoncSpec :
             should("reject unterminated block comments") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("/* never closed").getOrThrow()
-                }
+                }.message shouldBe "Unterminated block comment (line 1, column 15)"
             }
 
             should("not treat comment syntax inside strings as comments") {
@@ -426,7 +418,7 @@ class ConfigValueJsoncSpec :
                     "}".repeat(ConfigValueJsonc.MAX_DEPTH + 1)
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse(json).getOrThrow()
-                }.message shouldBe "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (at position ${(ConfigValueJsonc.MAX_DEPTH) * 5})"
+                }.message shouldBe "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH * 5 + 1})"
             }
 
             should("reject arrays nested beyond the maximum depth") {
@@ -435,7 +427,7 @@ class ConfigValueJsoncSpec :
                     "]".repeat(ConfigValueJsonc.MAX_DEPTH + 1)
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse(json).getOrThrow()
-                }.message shouldBe "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (at position ${ConfigValueJsonc.MAX_DEPTH})"
+                }.message shouldBe "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH + 1})"
             }
 
             should("track depth independently for parallel branches") {
@@ -511,25 +503,25 @@ class ConfigValueJsoncSpec :
             should("reject empty input") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("").getOrThrow()
-                }
+                }.message shouldBe "Empty input (line 1, column 1)"
             }
 
             should("reject whitespace-only input") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("   \n\t  ").getOrThrow()
-                }
+                }.message shouldBe "Empty input (line 2, column 4)"
             }
 
             should("reject trailing content after a valid value") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("42 24").getOrThrow()
-                }
+                }.message shouldBe "Unexpected trailing content (line 1, column 4)"
             }
 
             should("reject an unexpected character at root level") {
                 shouldThrow<IllegalArgumentException> {
                     ConfigValueJsonc.parse("@").getOrThrow()
-                }
+                }.message shouldBe "Unexpected character '@' (line 1, column 1)"
             }
         }
     })

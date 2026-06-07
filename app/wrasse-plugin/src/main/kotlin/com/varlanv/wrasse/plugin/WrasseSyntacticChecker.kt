@@ -28,7 +28,7 @@ object WrasseSyntacticChecker : FirFileChecker(MppCheckerKind.Common) {
             noSemicolons = WrasseRuleToggle(
                 enabled = true,
                 severity = WrasseSeverity.WARNING,
-                exclude = listOf(WrasseConfig.pathMatcher("**/generated/**")),
+                exclude = listOf(WrasseConfig.pathMatcher("**/generated/**").getOrThrow()/*todo*/),
             ),
         ),
     )
