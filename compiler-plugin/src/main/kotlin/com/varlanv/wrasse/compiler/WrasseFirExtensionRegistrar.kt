@@ -7,5 +7,6 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
 class WrasseFirExtensionRegistrar : FirExtensionRegistrar() {
     override fun ExtensionRegistrarContext.configurePlugin() {
         +::WrasseFirChecker
+        registerDiagnosticContainers(WrasseErrors)
     }
 }

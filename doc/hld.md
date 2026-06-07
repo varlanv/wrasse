@@ -445,6 +445,69 @@ reporter.reportOn(declaration.source, WrasseErrors.WRASSE_WARNING, "Use logger i
 Quickfixes (click-to-fix in IDE) require a separate IntelliJ plugin and are out of scope
 for initial release.
 
+Diagnostic containers must be registered in the FIR extension registrar:
+```kotlin
+override fun ExtensionRegistrarContext.configurePlugin() {
+    +::WrasseFirChecker
+    registerDiagnosticContainers(WrasseErrors)  // required for IDE to render diagnostics
+}
+```
+
+## Patterns from kotlinx-serialization (reference)
+
+The kotlinx-serialization compiler plugin is the most battle-tested third-party-style
+Kotlin compiler plugin. Key patterns worth reusing:
+
+### Session-scoped caching via `firCachesFactory`
+
+Use `session.firCachesFactory.createCache { ... }` for thread-safe caches that live for
+the compilation session. Wrasse config (parsed `wrasse.json`) should be loaded once and
+cached as a `FirExtensionSessionComponent`:
+
+```kotlin
+class WrasseConfigProvider(session: FirSession) : FirExtensionSessionComponent(session) {
+    val config by session.firCachesFactory.createLazyValue {
+        loadWrasseConfig(session)
+    }
+}
+
+val FirSession.wrasseConfig: WrasseConfigProvider
+    by FirSession.sessionComponentAccessor()
+```
+
+Every checker accesses config via `session.wrasseConfig.config` — loaded once, shared
+across all checkers and files within a compilation.
+
+### Predicate-based filtering
+
+FIR supports declaration predicates that let the compiler skip calling extensions
+entirely for non-matching declarations. Useful for semantic rules that only care about
+specific annotations or call targets:
+
+```kotlin
+override fun registerPredicates() {
+    register(annotatedWith(setOf(myAnnotationFqName)))
+}
+```
+
+For wrasse, most rules are syntactic (walk WNode, not FIR declarations), so predicates
+are less relevant. But for semantic rules (restricted-api, enforce-result), the
+`FirFunctionCallChecker` already only fires on calls — no predicate needed.
+
+### IDE-aware behavior
+
+Serialization skips expensive operations (like reading JAR manifests for version checks)
+when running in IDE mode. Wrasse should be aware:
+- Config file lookup (walk-up-dirs) should be aggressively cached in IDE mode
+- Rule execution should remain fast — IDE fires analysis on every keystroke
+- `session.moduleData.platform` can distinguish JVM/JS/Native if needed
+
+### Diagnostic container registration
+
+Diagnostic containers must be registered via `registerDiagnosticContainers()` in the
+`FirExtensionRegistrar`. Without this, the IDE's Kotlin plugin may not know about
+wrasse's diagnostic types and won't render them.
+
 ## Kotlinc APIs to wrap in adapter layer
 
 These are all the kotlinc types that the adapter touches. Everything below this line
@@ -786,3 +849,62 @@ Runs in CI before publishing a new wrasse release.
 ./gradlew testMinors  → Layer 1 + 2 + 3
 ./gradlew testAll     → Layer 1 + 2 + 3 + 4
 ```
+
+## Milestones
+
+### Milestone 0: Proof of concept (done)
+
+Compiler plugin loads, FIR checker fires via `FirFunctionCallChecker`, proper
+`KtDiagnostic` reported with file/line/column. Compilation fails on `println`/`print`
+usage. IntelliJ integration testable with "Kotlin External FIR Support" plugin.
+
+### Milestone 1: Foundation
+
+- `WNode` interface (lazy over LightTree)
+- `WFile`, `WResolvedCall` data types
+- Hand-rolled JSON config parser (zero deps)
+- Rule dispatch engine (dispatch table by node type, per-file glob filtering)
+- Test harness (marker-comment based, `kotlin-compile-testing`)
+- 3-5 rules working end-to-end
+
+### Milestone 2: Rule coverage
+
+- Port ktlint rules (complexity 1 and 2 first)
+- Port detekt rules (ones not needing Analysis API)
+- Port unique diktat rules worth keeping
+- JSON Schema for config autocomplete (hosted on GitHub Pages)
+
+### Milestone 3: Formatting
+
+- Read-only CST → reconstructed source text
+- Temp file output pipeline (one file per changed source, diff-only)
+- Before/after golden file tests
+- Format-only rules (indentation, spacing, wrapping)
+
+### Milestone 4: Semantic rules
+
+- Restricted API (configurable FQN list)
+- Enforce Result
+- No recursion
+- Split compound assertions (+ require assertion message)
+- Explicit library defaults
+- Function visual line limit
+
+### Milestone 5: Hardening
+
+- Kotlin version matrix testing (layers 3 + 4)
+- Fuzz testing on real-world Kotlin projects
+- Performance benchmarks vs ktlint + detekt
+- Publish to Maven Central
+
+## Design decisions
+
+### Decided
+
+- **Module boundaries:** decide as we go; start monolithic, split when it hurts
+- **Publish adapter separately:** later, not day one
+- **Default severity:** error; configurable per rule later
+- **`$schema` hosting:** GitHub Pages
+- **EditorConfig support:** no. Will provide a one-time migration CLI flag
+  (`--port-from=editorconfig` or `--port-from=detekt`) that reads the old config
+  and outputs `wrasse.json`. Not a runtime compatibility layer.

@@ -1,18 +1,14 @@
 package com.varlanv.wrasse.sample
 
-// A greeting function
-fun greet(name: String): String {
-    return "Hello, $name!"
-}
+import com.varlanv.wrasse.sample.service.UserService
 
-/**
- * Entry point
- */
 fun main() {
-    println(greet("Wrasse"))
-    println(add(2, 3))
-}
+    val service = UserService()
 
-/* inline comment */ fun add(a: Int, b: Int): Int {
-    return a + b
+    // These should trigger wrasse errors:
+    println("Starting app")
+    print("Loading...")
+
+    // This is fine — it's our own function, not kotlin.io.println:
+    service.log("App started")
 }
