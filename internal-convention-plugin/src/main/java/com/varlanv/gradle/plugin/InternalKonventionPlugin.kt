@@ -57,7 +57,11 @@ class InternalKonventionPlugin : Plugin<Project> {
             }
             tasks.withType(KotlinCompile::class.java) { kotlinCompile ->
                 kotlinCompile.compilerOptions {
-                    jvmTarget.set(JvmTarget.fromTarget(javaTargetVersion))
+                    if (kotlinCompile.name.contains("Test")) {
+                        jvmTarget.set(JvmTarget.fromTarget(javaToolchainVersion))
+                    } else {
+                        jvmTarget.set(JvmTarget.fromTarget(javaTargetVersion))
+                    }
                     allWarningsAsErrors.set(true)
                     extraWarnings.set(true)
                     progressiveMode.set(true)
@@ -67,9 +71,18 @@ class InternalKonventionPlugin : Plugin<Project> {
         }
 
         fun configureCommonDependencies() {
+            val kotestVersion = internalProperties.getVersion("kotestVersion")
             dependencies.add(
                 "testImplementation",
                 dependencies.create("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
+            )
+            dependencies.add(
+                "testImplementation",
+                dependencies.create("io.kotest:kotest-assertions-core-jvm:$kotestVersion")
+            )
+            dependencies.add(
+                "testImplementation",
+                dependencies.create("io.kotest:kotest-runner-junit5-jvm:$kotestVersion")
             )
         }
 
@@ -82,8 +95,13 @@ class InternalKonventionPlugin : Plugin<Project> {
 
         fun configureKotlin() {
             tasks.withType(org.gradle.api.tasks.compile.JavaCompile::class.java) { javaCompile ->
-                javaCompile.sourceCompatibility = javaTargetVersion
-                javaCompile.targetCompatibility = javaTargetVersion
+                if (javaCompile.name.contains("Test")) {
+                    javaCompile.sourceCompatibility = javaToolchainVersion
+                    javaCompile.targetCompatibility = javaToolchainVersion
+                } else {
+                    javaCompile.sourceCompatibility = javaTargetVersion
+                    javaCompile.targetCompatibility = javaTargetVersion
+                }
             }
             extensions.configure<KotlinJvmProjectExtension>("kotlin") { kotlin ->
                 kotlin.jvmToolchain { jvmToolchain ->

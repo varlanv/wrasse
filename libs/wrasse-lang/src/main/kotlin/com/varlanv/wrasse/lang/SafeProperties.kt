@@ -1,63 +1,49 @@
 package com.varlanv.wrasse.lang
 
-import kotlin.reflect.KType
-import kotlin.reflect.typeOf
+/**
+ * Type-safe access to parsed config values.
+ * Parser returns ConfigValue (e.g. ConfigValue.Obj for an object root)
+ */
+sealed interface ConfigValue {
+    @JvmInline
+    value class Str(val value: String) : ConfigValue
+    @JvmInline
+    value class Num(val value: Long) : ConfigValue
+    @JvmInline
+    value class Obj(val value: SafeProperties) : ConfigValue
+    @JvmInline
+    value class StrArr(val value: List<String>) : ConfigValue
+    @JvmInline
+    value class NumArr(val value: List<Long>) : ConfigValue
+    @JvmInline
+    value class ObjArr(val value: List<SafeProperties>) : ConfigValue
+    @JvmInline
+    value class Bool(val value: Boolean) : ConfigValue
+    @JvmInline
+    value class Dbl(val value: Double) : ConfigValue
+    @JvmInline
+    value class Arr(val value: List<ConfigValue>) : ConfigValue
+    data object Null : ConfigValue
+}
 
-class SafeProperties(private val map: Map<String, *>) {
-
-    private fun <T> getProp(key: String, propType: PropType<T>): Property<T> {
-        val res = map[key]?: return Property.Missing<T>(key)
-        val actualType = res::class.java
-        if (actualType != propType.javaType) {
-            return Property.TypeMismatch(key = key, expectedType = propType.javaType, actualType = actualType)
-        }
-        when (propType) {
-            PropType.LongArrayType -> TODO()
-            PropType.LongType -> TODO()
-            PropType.NestedArrayType -> TODO()
-            PropType.NestedType -> TODO()
-            PropType.StringArrayType -> TODO()
-            PropType.StringType -> TODO()
-        }
+/**
+ * Navigates object nodes.
+ */
+class SafeProperties(@PublishedApi internal val map: Map<String, ConfigValue>) {
+    inline fun <reified V : ConfigValue> get(key: String): Property<V> {
+        val value = map[key] ?: return Property.Missing(key)
+        if (value !is V) return Property.TypeMismatch(key, actual = value)
+        return Property.Val(value)
     }
 }
 
-sealed interface PropType<T> {
-    val javaType: Class<T>
-
-    data object LongType : PropType<Long> {
-        override val javaType = Long::class.java
-    }
-
-    data object StringType : PropType<String> {
-        override val javaType = String::class.java
-    }
-
-    data object LongArrayType : PropType<Array<Long>> {
-        override val javaType = Array<Long>::class.java
-    }
-
-    data object StringArrayType : PropType<Array<Long>> {
-        override val javaType = Array<Long>::class.java
-    }
-
-    data object NestedType : PropType<SafeProperties> {
-        override val javaType = SafeProperties::class.java
-    }
-
-    data object NestedArrayType : PropType<Array<SafeProperties>> {
-        override val javaType = Array<SafeProperties>::class.java
-    }
-}
-
-
-sealed interface Property<T> {
-
+/**
+ * Property access result
+ */
+sealed interface Property<out T> {
     @JvmInline
     value class Val<T>(val value: T) : Property<T>
-
     @JvmInline
-    value class Missing<T>(val key: String):Property<T>
-
-    data class TypeMismatch<T>(val key: String, val expectedType: Class<T>, val actualType: Class<Any>): Property<T>
+    value class Missing(val key: String) : Property<Nothing>
+    data class TypeMismatch(val key: String, val actual: ConfigValue) : Property<Nothing>
 }
