@@ -3,6 +3,7 @@ package com.varlanv.wrasse.plugin
 import com.varlanv.wrasse.config.WrasseConfig
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
+import com.varlanv.wrasse.model.SplitRules
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import java.nio.file.Path
@@ -17,7 +18,7 @@ fun wrasseMain(sourceRoots: List<Path>): Result<WrassePlugin> {
     return Result.success(
         WrassePlugin(
             config = config,
-            rules = assembleRules(config)
+            rules = SplitRules(assembleRules(config))
         )
     )
 }

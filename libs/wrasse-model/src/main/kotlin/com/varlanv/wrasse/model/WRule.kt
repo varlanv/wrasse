@@ -6,12 +6,16 @@ package com.varlanv.wrasse.model
  * If a rule genuinely needs to perform heavy work and requires allocation, design should be revisited to pass
  * pre-computed data from upstream.
  */
-interface WRule {
+sealed interface WRule {
     val id: String
+}
 
-    /**
-     * Checks file for constraints violations.
-     * Receives mutable list by design to avoid extra per-rule allocations.
-     */
-    fun check(file: WFile, violations: MutableList<WViolation>)
+interface NodeVisitorWRule : WRule {
+    val targetTypes: Set<WNodeType>
+
+    fun visit(node: WNode, violations: MutableCollection<WViolation>)
+}
+
+interface FileVisitorWRule : WRule {
+    fun visit(file: WFile, violations: MutableCollection<WViolation>)
 }
