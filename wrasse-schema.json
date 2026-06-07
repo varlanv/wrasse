@@ -1,0 +1,69 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Wrasse Configuration",
+    "description": "Configuration file for the Wrasse Kotlin compiler plugin",
+    "type": "object",
+    "required": [
+        "exclude",
+        "rules"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "$schema": {
+            "type": "string"
+        },
+        "exclude": {
+            "type": "array",
+            "description": "Glob patterns for files to exclude from all rules",
+            "items": {
+                "type": "string"
+            }
+        },
+        "rules": {
+            "type": "object",
+            "description": "Rule configurations",
+            "additionalProperties": false,
+            "properties": {
+                "no-semicolons": {
+                    "$ref": "#/$defs/ruleToggle",
+                    "description": "Disallow unnecessary semicolons"
+                }
+            },
+            "required": [
+                "no-semicolons"
+            ]
+        }
+    },
+    "$defs": {
+        "ruleToggle": {
+            "type": "object",
+            "required": [
+                "enabled",
+                "severity",
+                "exclude"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Whether this rule is active"
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": [
+                        "error",
+                        "warning"
+                    ],
+                    "description": "Diagnostic severity when the rule fires"
+                },
+                "exclude": {
+                    "type": "array",
+                    "description": "Additional glob patterns to exclude for this rule",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

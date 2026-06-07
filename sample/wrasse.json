@@ -1,0 +1,14 @@
+{
+    "$schema": "../wrasse-schema.json",
+    "exclude": [
+        "**/build/**",
+        "**/generated/**"
+    ],
+    "rules": {
+        "no-semicolons": {
+            "enabled": true,
+            "severity": "error",
+            "exclude": []
+        }
+    }
+}

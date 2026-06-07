@@ -1,7 +1,6 @@
 package com.varlanv.wrasse.config
 
 import com.varlanv.wrasse.lang.ConfigValue
-import com.varlanv.wrasse.lang.Property
 import com.varlanv.wrasse.lang.SafeProperties
 import java.nio.file.FileSystems
 import java.nio.file.PathMatcher
@@ -12,65 +11,62 @@ class WrasseConfig(
 ) {
     companion object {
 
-        fun from(configValue: ConfigValue): Result<WrasseConfig> = when (configValue) {
-            is ConfigValue.Obj -> {
-                val rootProps = configValue.value
-                val exclude = rootProps.require(key = "exclude", ConfigValue.StrArr::class.java).getOrElse {
-                    return Result.failure(it)
-                }
-                val excludeGlobs =
-                    exclude.value.map { glob -> pathMatcher(glob = glob).getOrElse { ex -> return Result.failure(ex) } }
-                val rulesConfig = WrasseRulesConfig(
-                    noSemicolons = commonRuleToggle(
-                        key = "no-semicolons",
-                        props = rootProps
-                    ).getOrElse { ex -> return Result.failure(ex) }
-                )
-                return Result.success(
-                    WrasseConfig(
-                        exclude = excludeGlobs,
-                        rules = rulesConfig
-                    )
-                )
+        fun from(configValue: ConfigValue): Result<WrasseConfig> {
+            if (configValue !is ConfigValue.Obj) {
+                return Result.failure(Exception("Expected object at root, got ${configValue.typeName()}"))
             }
+            val root = configValue.value
 
-            else -> Result.failure(Exception("Expected object on root level"))
-        }
+            val exclude = root.require("exclude", ConfigValue.StrArr::class.java)
+                .fold({ it.value.map { glob -> pathMatcher(glob) } }, { return Result.failure(it) })
 
-        private fun commonRuleToggle(key: String, props: SafeProperties): Result<WrasseRuleToggle> {
-            val prop = props.get(
-                key,
-                ConfigValue.Obj::class.java
+            val rulesObj = root.require("rules", ConfigValue.Obj::class.java)
+                .fold({ it.value }, { return Result.failure(it) })
+
+            val noSemicolons = parseRuleToggle(rulesObj, "no-semicolons")
+                .getOrElse { return Result.failure(it) }
+
+            return Result.success(
+                WrasseConfig(
+                    exclude = exclude,
+                    rules = WrasseRulesConfig(noSemicolons = noSemicolons),
+                )
             )
-            when (prop) {
-                is Property.Missing -> return Result.failure(Exception("Missing"))
-                is Property.TypeMismatch -> return Result.failure(Exception(""))
-                is Property.Val<ConfigValue.Obj> -> {
-                    val enabled = prop.value.value.require("enabled", ConfigValue.Str::class.java)
-                        .getOrElse { ex -> return Result.failure(ex) }
-                    val exclude = prop.value.value.require("exclude", ConfigValue.StrArr::class.java)
-                        .getOrElse { ex -> return Result.failure(ex) }
-                    val severity = prop.value.value.require("severity", ConfigValue.Str::class.java)
-                        .getOrElse { ex -> return Result.failure(ex) }
-                    val severityEnum = runCatching { WrasseSeverity.valueOf(severity.value) }.getOrElse { ex ->
-                        return Result.failure(ex)
-                    }
-                    val excludeGlobs = exclude.value
-                        .map { glob -> pathMatcher(glob).getOrElse { ex -> return Result.failure(ex) } }
-                    return Result.success(
-                        WrasseRuleToggle(
-                            enabled = enabled.value == "true",
-                            severity = severityEnum,
-                            exclude = excludeGlobs
-                        )
-                    )
-                }
-            }
         }
 
-        fun pathMatcher(glob: String): Result<PathMatcher> = runCatching {
-            FileSystems.getDefault().getPathMatcher("glob:$glob")
+        private fun parseRuleToggle(rulesProps: SafeProperties, key: String): Result<WrasseRuleToggle> {
+            val ruleObj = rulesProps.require(key, ConfigValue.Obj::class.java)
+                .fold({ it.value }, { return Result.failure(it) })
+
+            val enabled = ruleObj.require("enabled", ConfigValue.Bool::class.java)
+                .fold({ it.value }, { return Result.failure(it) })
+
+            val severityStr = ruleObj.require("severity", ConfigValue.Str::class.java)
+                .fold({ it.value }, { return Result.failure(it) })
+
+            val severity = WrasseSeverity.byLower[severityStr]
+                ?: return Result.failure(
+                    Exception(
+                        "Invalid severity '$severityStr' for rule '$key'. Expected: ${
+                            WrasseSeverity.entries.joinToString { it.name.lowercase() }
+                        }"
+                    )
+                )
+
+            val exclude = ruleObj.require("exclude", ConfigValue.StrArr::class.java)
+                .fold({ it.value.map { glob -> pathMatcher(glob) } }, { return Result.failure(it) })
+
+            return Result.success(
+                WrasseRuleToggle(
+                    enabled = enabled,
+                    severity = severity,
+                    exclude = exclude,
+                )
+            )
         }
+
+        private fun pathMatcher(glob: String): PathMatcher =
+            FileSystems.getDefault().getPathMatcher("glob:$glob")
     }
 }
 
@@ -86,5 +82,14 @@ class WrasseRuleToggle(
 
 enum class WrasseSeverity {
     ERROR,
-    WARNING,
+    WARNING;
+
+    companion object {
+
+        val byLower: Map<String, WrasseSeverity> =
+            WrasseSeverity.entries.fold(mutableMapOf(), { res, item ->
+                res[item.name.lowercase()] = item
+                res
+            })
+    }
 }

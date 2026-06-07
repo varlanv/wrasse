@@ -11,6 +11,7 @@ dependencies {
     implementation(projects.libs.wrasseKotlincAdapter)
     implementation(projects.libs.wrasseRules)
     implementation(projects.libs.wrasseFormat)
+    implementation(projects.libs.wrasseLang)
     compileOnly(libs.kotlin.compiler.embeddable)
     compileOnly(libs.kotlin.reflect)
 }
