@@ -41,4 +41,5 @@ include(
     "app:wrasse-kotlinc-plugin",
     "testing:common-test",
     "testing:wrasse-test-harness",
+    "testing:wrasse-kotlinc-plugin-tests",
 )

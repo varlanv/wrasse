@@ -1,6 +1,10 @@
-package com.varlanv.wrasse.testing.harness
+package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.testing.BaseSpec
+import com.varlanv.wrasse.testing.harness.FixtureParser
+import com.varlanv.wrasse.testing.harness.TestSource
+import com.varlanv.wrasse.testing.harness.WrasseTestHarness
+import com.varlanv.wrasse.testing.harness.assertMatchesExpectations
 
 class NoSemicolonsHarnessSpec :
     BaseSpec({

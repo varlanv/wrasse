@@ -5,6 +5,6 @@ plugins {
 description = "Wrasse adapter — LightTree to WNode translation. Depends on kotlinc."
 
 dependencies {
-    api(projects.libs.wrasseModel)
+    implementation(projects.libs.wrasseModel)
     compileOnly(libs.kotlin.compiler.embeddable)
 }

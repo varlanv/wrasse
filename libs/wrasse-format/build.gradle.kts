@@ -2,9 +2,9 @@ plugins {
     alias(libs.plugins.internalConvention)
 }
 
-description = "Wrasse formatting engine. Depends only on wrasse-model."
+description = "Wrasse formatting engine"
 
 dependencies {
-    api(projects.libs.wrasseModel)
-    api(projects.libs.wrasseConfig)
+    implementation(projects.libs.wrasseModel)
+    implementation(projects.libs.wrasseConfig)
 }

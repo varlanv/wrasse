@@ -3,7 +3,7 @@ plugins {
 }
 
 dependencies {
-    api(projects.testing.commonTest)
-    implementation(libs.kotlin.compiler.embeddable)
+    implementation(projects.testing.wrasseTestHarness)
+    implementation(projects.testing.commonTest)
     implementation(projects.app.wrasseKotlincPlugin)
 }

@@ -1,6 +1,7 @@
-package com.varlanv.wrasse.testing.harness
+package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.testing.BaseSpec
+import com.varlanv.wrasse.testing.harness.FixtureParser
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize

@@ -5,6 +5,6 @@ plugins {
 description = "Wrasse rules implementation"
 
 dependencies {
-    api(projects.libs.wrasseModel)
-    api(projects.libs.wrasseConfig)
+    implementation(projects.libs.wrasseModel)
+    implementation(projects.libs.wrasseConfig)
 }
