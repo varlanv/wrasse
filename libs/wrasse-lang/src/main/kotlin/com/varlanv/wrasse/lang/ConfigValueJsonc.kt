@@ -7,14 +7,14 @@ class ConfigValueJsonc private constructor(private val input: String) {
     companion object {
         const val MAX_DEPTH = 20
 
-        fun parse(input: String): ConfigValue {
+        fun parse(input: String): Result<ConfigValue> = runCatching {
             val parser = ConfigValueJsonc(input)
             parser.skipWsAndComments()
             if (parser.pos >= input.length) parser.error("Empty input")
             val value = parser.readValue()
             parser.skipWsAndComments()
             if (parser.pos < input.length) parser.error("Unexpected trailing content")
-            return value
+            value
         }
     }
 
@@ -64,10 +64,12 @@ class ConfigValueJsonc private constructor(private val input: String) {
                         break
                     }
                 }
+
                 '}' -> {
                     pos++
                     break
                 }
+
                 else -> error("Expected ',' or '}'")
             }
         }
@@ -99,10 +101,12 @@ class ConfigValueJsonc private constructor(private val input: String) {
                         break
                     }
                 }
+
                 ']' -> {
                     pos++
                     break
                 }
+
                 else -> error("Expected ',' or ']'")
             }
         }
@@ -115,10 +119,13 @@ class ConfigValueJsonc private constructor(private val input: String) {
         return when {
             elements.all { it is ConfigValue.Str } ->
                 ConfigValue.StrArr(elements.map { (it as ConfigValue.Str).value })
+
             elements.all { it is ConfigValue.Num } ->
                 ConfigValue.NumArr(elements.map { (it as ConfigValue.Num).value })
+
             elements.all { it is ConfigValue.Obj } ->
                 ConfigValue.ObjArr(elements.map { (it as ConfigValue.Obj).value })
+
             else ->
                 ConfigValue.Arr(elements)
         }
@@ -133,6 +140,7 @@ class ConfigValueJsonc private constructor(private val input: String) {
                     pos++
                     return sb.toString()
                 }
+
                 '\\' -> {
                     pos++
                     if (pos >= input.length) error("Unterminated string escape")
@@ -153,10 +161,12 @@ class ConfigValueJsonc private constructor(private val input: String) {
                             sb.append(code.toChar())
                             pos += 4
                         }
+
                         else -> error("Invalid escape: \\$esc")
                     }
                     pos++
                 }
+
                 else -> {
                     if (c < ' ') error("Unescaped control character in string")
                     sb.append(c)
