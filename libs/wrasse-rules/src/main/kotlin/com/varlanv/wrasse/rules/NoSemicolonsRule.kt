@@ -25,6 +25,14 @@ class NoSemicolonsRule(private val config: WrasseRuleToggle) : WRule {
     private fun isRequiredSemicolon(node: WNode): Boolean = when {
         node.isInsideNodeOfType(WNodeType.FOR) -> true
         node.isInsideNodeOfType(WNodeType.ENUM_ENTRY) -> true
+        isSeparator(node) -> true
         else -> false
+    }
+
+    private fun isSeparator(node: WNode): Boolean {
+        val nextLeaf = node.nextLeaf() ?: return false
+        if (nextLeaf.type != WNodeType.WHITE_SPACE) return true
+        if (nextLeaf.isNewline) return false
+        return node.nextCodeLeaf() != null
     }
 }
