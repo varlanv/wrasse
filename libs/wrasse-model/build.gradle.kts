@@ -2,4 +2,8 @@ plugins {
     alias(libs.plugins.internalConvention)
 }
 
-description = "Wrasse model — WNode, WNodeType, WFile. Zero dependencies."
+description = "Wrasse model — WNode, WNodeType, WFile, WRule."
+
+dependencies {
+    api(projects.libs.wrasseConfig)
+}

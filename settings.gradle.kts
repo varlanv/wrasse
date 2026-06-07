@@ -37,6 +37,7 @@ include(
     "libs:wrasse-kotlinc-adapter",
     "libs:wrasse-rules",
     "libs:wrasse-format",
+    "libs:wrasse-lang",
     "app:wrasse-plugin",
     "sample",
 )

@@ -1,8 +1,13 @@
 package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.adapter.LightTreeAdapter
-import com.varlanv.wrasse.model.WFile
-import com.varlanv.wrasse.model.WNodeType
+import com.varlanv.wrasse.config.WrasseConfig
+import com.varlanv.wrasse.config.WrasseRuleToggle
+import com.varlanv.wrasse.config.WrasseRulesConfig
+import com.varlanv.wrasse.config.WrasseSeverity
+import com.varlanv.wrasse.model.WRule
+import com.varlanv.wrasse.model.WViolation
+import com.varlanv.wrasse.rules.NoSemicolonsRule
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -13,29 +18,42 @@ import org.jetbrains.kotlin.fir.declarations.FirFile
 
 object WrasseSyntacticChecker : FirFileChecker(MppCheckerKind.Common) {
 
+    private val rules: List<WRule> = listOf(
+        NoSemicolonsRule(),
+    )
+
+    private val config = WrasseConfig(
+        exclude = emptyList(),
+        rules = WrasseRulesConfig(
+            noSemicolons = WrasseRuleToggle(
+                enabled = true,
+                severity = WrasseSeverity.WARNING,
+                exclude = listOf(WrasseConfig.pathMatcher("**/generated/**")),
+            ),
+        ),
+    )
+
     context(context: CheckerContext, reporter: DiagnosticReporter)
     override fun check(declaration: FirFile) {
         val source = declaration.source ?: return
         if (source !is KtLightSourceElement) return
 
-        val filePath = declaration.name
-        val wFile = LightTreeAdapter.adapt(source, filePath)
+        val wFile = LightTreeAdapter.adapt(source, declaration.name)
 
-        checkNoSemicolons(wFile, declaration)
-    }
-
-    context(context: CheckerContext, reporter: DiagnosticReporter)
-    private fun checkNoSemicolons(wFile: WFile, firFile: FirFile) {
-        wFile.root.descendants()
-            .filter { it.type == WNodeType.SEMICOLON }
-            .filter { !it.isInsideNodeOfType(WNodeType.FOR) }
-            .filter { !it.isInsideNodeOfType(WNodeType.ENUM_ENTRY) }
-            .forEach { node ->
+        for (rule in rules) {
+            for (violation in rule.check(wFile, config)) {
+                val line = wFile.sourceText.subSequence(0, violation.node.startOffset).count { it == '\n' } + 1
+                val col = violation.node.column + 1
+                val diagnostic = when (violation.severity) {
+                    WrasseSeverity.ERROR -> WrasseErrors.RESTRICTED_API
+                    WrasseSeverity.WARNING -> WrasseErrors.WRASSE_WARNING
+                }
                 reporter.reportOn(
-                    firFile.source,
-                    WrasseErrors.WRASSE_WARNING,
-                    "Unnecessary semicolon at column ${node.column}",
+                    declaration.source,
+                    diagnostic,
+                    "${violation.ruleId}: ${violation.message} ($line:$col)",
                 )
             }
+        }
     }
 }
