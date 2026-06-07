@@ -42,16 +42,20 @@ object WrasseSyntacticChecker : FirFileChecker(MppCheckerKind.Common) {
 
         for (rule in rules) {
             for (violation in rule.check(wFile, config)) {
-                val line = wFile.sourceText.subSequence(0, violation.node.startOffset).count { it == '\n' } + 1
-                val col = violation.node.column + 1
                 val diagnostic = when (violation.severity) {
                     WrasseSeverity.ERROR -> WrasseErrors.RESTRICTED_API
                     WrasseSeverity.WARNING -> WrasseErrors.WRASSE_WARNING
                 }
+                val violationSource = KtLightSourceElement(
+                    source.lighterASTNode,
+                    violation.node.startOffset,
+                    violation.node.endOffset,
+                    source.treeStructure,
+                )
                 reporter.reportOn(
-                    declaration.source,
+                    violationSource,
                     diagnostic,
-                    "${violation.ruleId}: ${violation.message} ($line:$col)",
+                    "${violation.ruleId}: ${violation.message}",
                 )
             }
         }
