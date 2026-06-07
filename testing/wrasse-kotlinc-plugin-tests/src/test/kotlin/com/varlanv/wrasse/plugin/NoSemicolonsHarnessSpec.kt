@@ -48,4 +48,11 @@ class NoSemicolonsHarnessSpec :
             val result = harness.compile(listOf(TestSource("sample/test.kt", fixture.strippedSource)))
             result.assertMatchesExpectations(fixture)
         }
+
+        should("allow semicolons on inline declarations") {
+            val source = loadFixture("inline-declarations-ok.kt")
+            val fixture = FixtureParser.parse(source)
+            val result = harness.compile(listOf(TestSource("sample/test.kt", fixture.strippedSource)))
+            result.assertMatchesExpectations(fixture)
+        }
     })
