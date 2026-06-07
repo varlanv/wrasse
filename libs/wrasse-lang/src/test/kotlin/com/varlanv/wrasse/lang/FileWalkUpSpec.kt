@@ -1,5 +1,7 @@
 package com.varlanv.wrasse.lang
 
+import com.varlanv.wrasse.testing.BaseSpec
+import com.varlanv.wrasse.testing.useTempDir
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

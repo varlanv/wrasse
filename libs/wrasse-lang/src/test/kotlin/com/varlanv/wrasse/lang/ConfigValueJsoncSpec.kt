@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.lang
 
+import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe

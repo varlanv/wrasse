@@ -39,5 +39,6 @@ include(
     "libs:wrasse-format",
     "libs:wrasse-lang",
     "app:wrasse-plugin",
+    "testing:common-test",
     "sample",
 )

@@ -71,19 +71,16 @@ class InternalKonventionPlugin : Plugin<Project> {
         }
 
         fun configureCommonDependencies() {
-            val kotestVersion = internalProperties.getVersion("kotestVersion")
             dependencies.add(
                 "testImplementation",
                 dependencies.create("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
             )
-            dependencies.add(
-                "testImplementation",
-                dependencies.create("io.kotest:kotest-assertions-core-jvm:$kotestVersion")
-            )
-            dependencies.add(
-                "testImplementation",
-                dependencies.create("io.kotest:kotest-runner-junit5-jvm:$kotestVersion")
-            )
+            if (project.name != "common-test") {
+                dependencies.add(
+                    "testImplementation",
+                    dependencies.project(mapOf("path" to ":testing:common-test"))
+                )
+            }
         }
 
         fun configureRepositories() {

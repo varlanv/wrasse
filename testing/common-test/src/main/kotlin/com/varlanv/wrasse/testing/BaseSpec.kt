@@ -1,4 +1,4 @@
-package com.varlanv.wrasse.lang
+package com.varlanv.wrasse.testing
 
 import io.kotest.core.spec.IsolationMode
 import io.kotest.core.spec.style.ShouldSpec
