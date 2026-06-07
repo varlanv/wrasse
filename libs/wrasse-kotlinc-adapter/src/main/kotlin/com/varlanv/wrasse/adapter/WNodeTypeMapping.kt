@@ -1,0 +1,206 @@
+package com.varlanv.wrasse.adapter
+
+import com.varlanv.wrasse.model.WNodeType
+import org.jetbrains.kotlin.KtNodeTypes
+import org.jetbrains.kotlin.com.intellij.psi.tree.IElementType
+import org.jetbrains.kotlin.kdoc.lexer.KDocTokens
+import org.jetbrains.kotlin.lexer.KtTokens
+
+object WNodeTypeMapping {
+
+    private val map: Map<IElementType, WNodeType> = buildMap {
+        // File structure
+        put(KtNodeTypes.KT_FILE, WNodeType.FILE)
+        put(KtNodeTypes.PACKAGE_DIRECTIVE, WNodeType.PACKAGE_DIRECTIVE)
+        put(KtNodeTypes.IMPORT_LIST, WNodeType.IMPORT_LIST)
+        put(KtNodeTypes.IMPORT_DIRECTIVE, WNodeType.IMPORT_DIRECTIVE)
+
+        // Declarations
+        put(KtNodeTypes.FUN, WNodeType.FUN)
+        put(KtNodeTypes.CLASS, WNodeType.CLASS)
+        put(KtNodeTypes.OBJECT_DECLARATION, WNodeType.OBJECT_DECLARATION)
+        put(KtNodeTypes.PROPERTY, WNodeType.PROPERTY)
+        put(KtNodeTypes.TYPEALIAS, WNodeType.TYPEALIAS)
+        put(KtNodeTypes.VALUE_PARAMETER_LIST, WNodeType.VALUE_PARAMETER_LIST)
+        put(KtNodeTypes.VALUE_PARAMETER, WNodeType.VALUE_PARAMETER)
+        put(KtNodeTypes.TYPE_PARAMETER_LIST, WNodeType.TYPE_PARAMETER_LIST)
+        put(KtNodeTypes.TYPE_PARAMETER, WNodeType.TYPE_PARAMETER)
+        put(KtNodeTypes.CLASS_BODY, WNodeType.CLASS_BODY)
+        put(KtNodeTypes.ENUM_ENTRY, WNodeType.ENUM_ENTRY)
+        put(KtNodeTypes.PRIMARY_CONSTRUCTOR, WNodeType.PRIMARY_CONSTRUCTOR)
+        put(KtNodeTypes.SECONDARY_CONSTRUCTOR, WNodeType.SECONDARY_CONSTRUCTOR)
+        put(KtNodeTypes.PROPERTY_ACCESSOR, WNodeType.PROPERTY_ACCESSOR)
+
+        // Modifiers & annotations
+        put(KtNodeTypes.MODIFIER_LIST, WNodeType.MODIFIER_LIST)
+        put(KtNodeTypes.ANNOTATION_ENTRY, WNodeType.ANNOTATION_ENTRY)
+        put(KtNodeTypes.ANNOTATION_TARGET, WNodeType.ANNOTATION_TARGET)
+
+        // Type references
+        put(KtNodeTypes.TYPE_REFERENCE, WNodeType.TYPE_REFERENCE)
+        put(KtNodeTypes.USER_TYPE, WNodeType.USER_TYPE)
+        put(KtNodeTypes.NULLABLE_TYPE, WNodeType.NULLABLE_TYPE)
+        put(KtNodeTypes.FUNCTION_TYPE, WNodeType.FUNCTION_TYPE)
+        put(KtNodeTypes.TYPE_ARGUMENT_LIST, WNodeType.TYPE_ARGUMENT_LIST)
+        put(KtNodeTypes.TYPE_PROJECTION, WNodeType.TYPE_PROJECTION)
+
+        // Expressions
+        put(KtNodeTypes.BLOCK, WNodeType.BLOCK)
+        put(KtNodeTypes.LAMBDA_EXPRESSION, WNodeType.LAMBDA_EXPRESSION)
+        put(KtNodeTypes.FUNCTION_LITERAL, WNodeType.FUNCTION_LITERAL)
+        put(KtNodeTypes.CALL_EXPRESSION, WNodeType.CALL_EXPRESSION)
+        put(KtNodeTypes.VALUE_ARGUMENT_LIST, WNodeType.VALUE_ARGUMENT_LIST)
+        put(KtNodeTypes.VALUE_ARGUMENT, WNodeType.VALUE_ARGUMENT)
+        put(KtNodeTypes.REFERENCE_EXPRESSION, WNodeType.REFERENCE_EXPRESSION)
+        put(KtNodeTypes.DOT_QUALIFIED_EXPRESSION, WNodeType.DOT_QUALIFIED_EXPRESSION)
+        put(KtNodeTypes.SAFE_ACCESS_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION)
+        put(KtNodeTypes.BINARY_EXPRESSION, WNodeType.BINARY_EXPRESSION)
+        put(KtNodeTypes.PREFIX_EXPRESSION, WNodeType.PREFIX_EXPRESSION)
+        put(KtNodeTypes.POSTFIX_EXPRESSION, WNodeType.POSTFIX_EXPRESSION)
+        put(KtNodeTypes.IF, WNodeType.IF)
+        put(KtNodeTypes.WHEN, WNodeType.WHEN)
+        put(KtNodeTypes.WHEN_ENTRY, WNodeType.WHEN_ENTRY)
+        put(KtNodeTypes.WHEN_CONDITION_EXPRESSION, WNodeType.WHEN_CONDITION_EXPRESSION)
+        put(KtNodeTypes.WHEN_CONDITION_IS_PATTERN, WNodeType.WHEN_CONDITION_IS_PATTERN)
+        put(KtNodeTypes.FOR, WNodeType.FOR)
+        put(KtNodeTypes.WHILE, WNodeType.WHILE)
+        put(KtNodeTypes.DO_WHILE, WNodeType.DO_WHILE)
+        put(KtNodeTypes.TRY, WNodeType.TRY)
+        put(KtNodeTypes.CATCH, WNodeType.CATCH)
+        put(KtNodeTypes.FINALLY, WNodeType.FINALLY)
+        put(KtNodeTypes.RETURN, WNodeType.RETURN)
+        put(KtNodeTypes.THROW, WNodeType.THROW)
+        put(KtNodeTypes.BREAK, WNodeType.BREAK)
+        put(KtNodeTypes.CONTINUE, WNodeType.CONTINUE)
+        put(KtNodeTypes.IS_EXPRESSION, WNodeType.IS_EXPRESSION)
+        put(KtNodeTypes.BINARY_WITH_TYPE, WNodeType.AS_EXPRESSION)
+        put(KtNodeTypes.OBJECT_LITERAL, WNodeType.OBJECT_LITERAL)
+        put(KtNodeTypes.THIS_EXPRESSION, WNodeType.THIS_EXPRESSION)
+        put(KtNodeTypes.SUPER_EXPRESSION, WNodeType.SUPER_EXPRESSION)
+        put(KtNodeTypes.PARENTHESIZED, WNodeType.PARENTHESIZED)
+        put(KtNodeTypes.LABELED_EXPRESSION, WNodeType.LABELED_EXPRESSION)
+
+        // Literals
+        put(KtNodeTypes.INTEGER_CONSTANT, WNodeType.INTEGER_CONSTANT)
+        put(KtNodeTypes.FLOAT_CONSTANT, WNodeType.FLOAT_CONSTANT)
+        put(KtNodeTypes.CHARACTER_CONSTANT, WNodeType.CHARACTER_CONSTANT)
+        put(KtNodeTypes.BOOLEAN_CONSTANT, WNodeType.BOOLEAN_CONSTANT)
+        put(KtNodeTypes.NULL, WNodeType.NULL)
+        put(KtNodeTypes.STRING_TEMPLATE, WNodeType.STRING_TEMPLATE)
+        put(KtNodeTypes.LONG_STRING_TEMPLATE_ENTRY, WNodeType.LONG_STRING_TEMPLATE_ENTRY)
+        put(KtNodeTypes.SHORT_STRING_TEMPLATE_ENTRY, WNodeType.SHORT_STRING_TEMPLATE_ENTRY)
+        put(KtNodeTypes.LITERAL_STRING_TEMPLATE_ENTRY, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY)
+        put(KtNodeTypes.ESCAPE_STRING_TEMPLATE_ENTRY, WNodeType.ESCAPE_STRING_TEMPLATE_ENTRY)
+
+        // Tokens - string parts
+        put(KtTokens.OPEN_QUOTE, WNodeType.OPEN_QUOTE)
+        put(KtTokens.CLOSING_QUOTE, WNodeType.CLOSING_QUOTE)
+        put(KtTokens.REGULAR_STRING_PART, WNodeType.REGULAR_STRING_PART)
+
+        // Tokens - identifiers and whitespace
+        put(KtTokens.IDENTIFIER, WNodeType.IDENTIFIER)
+        put(KtTokens.WHITE_SPACE, WNodeType.WHITE_SPACE)
+
+        // Tokens - comments
+        put(KtTokens.EOL_COMMENT, WNodeType.EOL_COMMENT)
+        put(KtTokens.BLOCK_COMMENT, WNodeType.BLOCK_COMMENT)
+        put(KDocTokens.KDOC, WNodeType.KDOC)
+
+        // Tokens - braces and brackets
+        put(KtTokens.LPAR, WNodeType.LPAR)
+        put(KtTokens.RPAR, WNodeType.RPAR)
+        put(KtTokens.LBRACE, WNodeType.LBRACE)
+        put(KtTokens.RBRACE, WNodeType.RBRACE)
+        put(KtTokens.LBRACKET, WNodeType.LBRACKET)
+        put(KtTokens.RBRACKET, WNodeType.RBRACKET)
+
+        // Tokens - punctuation
+        put(KtTokens.COMMA, WNodeType.COMMA)
+        put(KtTokens.DOT, WNodeType.DOT)
+        put(KtTokens.SAFE_ACCESS, WNodeType.SAFE_ACCESS)
+        put(KtTokens.ELVIS, WNodeType.ELVIS)
+        put(KtTokens.RANGE, WNodeType.RANGE)
+        put(KtTokens.COLONCOLON, WNodeType.COLONCOLON)
+        put(KtTokens.COLON, WNodeType.COLON)
+        put(KtTokens.SEMICOLON, WNodeType.SEMICOLON)
+        put(KtTokens.ARROW, WNodeType.ARROW)
+        put(KtTokens.DOUBLE_ARROW, WNodeType.DOUBLE_ARROW)
+
+        // Tokens - operators
+        put(KtTokens.EQ, WNodeType.EQ)
+        put(KtTokens.EQEQ, WNodeType.EQEQ)
+        put(KtTokens.EXCLEQ, WNodeType.EXCLEQ)
+        put(KtTokens.LT, WNodeType.LT)
+        put(KtTokens.GT, WNodeType.GT)
+        put(KtTokens.LTEQ, WNodeType.LTEQ)
+        put(KtTokens.GTEQ, WNodeType.GTEQ)
+        put(KtTokens.PLUS, WNodeType.PLUS)
+        put(KtTokens.MINUS, WNodeType.MINUS)
+        put(KtTokens.MUL, WNodeType.MUL)
+        put(KtTokens.DIV, WNodeType.DIV)
+        put(KtTokens.PERC, WNodeType.PERC)
+        put(KtTokens.PLUSEQ, WNodeType.PLUSEQ)
+        put(KtTokens.MINUSEQ, WNodeType.MINUSEQ)
+        put(KtTokens.MULTEQ, WNodeType.MULEQ)
+        put(KtTokens.DIVEQ, WNodeType.DIVEQ)
+        put(KtTokens.PERCEQ, WNodeType.PERCEQ)
+        put(KtTokens.ANDAND, WNodeType.ANDAND)
+        put(KtTokens.OROR, WNodeType.OROR)
+        put(KtTokens.EXCL, WNodeType.EXCL)
+        put(KtTokens.PLUSPLUS, WNodeType.PLUSPLUS)
+        put(KtTokens.MINUSMINUS, WNodeType.MINUSMINUS)
+
+        // Tokens - keywords
+        put(KtTokens.FUN_KEYWORD, WNodeType.KW_FUN)
+        put(KtTokens.VAL_KEYWORD, WNodeType.KW_VAL)
+        put(KtTokens.VAR_KEYWORD, WNodeType.KW_VAR)
+        put(KtTokens.CLASS_KEYWORD, WNodeType.KW_CLASS)
+        put(KtTokens.INTERFACE_KEYWORD, WNodeType.KW_INTERFACE)
+        put(KtTokens.OBJECT_KEYWORD, WNodeType.KW_OBJECT)
+        put(KtTokens.IF_KEYWORD, WNodeType.KW_IF)
+        put(KtTokens.ELSE_KEYWORD, WNodeType.KW_ELSE)
+        put(KtTokens.WHEN_KEYWORD, WNodeType.KW_WHEN)
+        put(KtTokens.FOR_KEYWORD, WNodeType.KW_FOR)
+        put(KtTokens.WHILE_KEYWORD, WNodeType.KW_WHILE)
+        put(KtTokens.DO_KEYWORD, WNodeType.KW_DO)
+        put(KtTokens.RETURN_KEYWORD, WNodeType.KW_RETURN)
+        put(KtTokens.THROW_KEYWORD, WNodeType.KW_THROW)
+        put(KtTokens.BREAK_KEYWORD, WNodeType.KW_BREAK)
+        put(KtTokens.CONTINUE_KEYWORD, WNodeType.KW_CONTINUE)
+        put(KtTokens.TRY_KEYWORD, WNodeType.KW_TRY)
+        put(KtTokens.CATCH_KEYWORD, WNodeType.KW_CATCH)
+        put(KtTokens.FINALLY_KEYWORD, WNodeType.KW_FINALLY)
+        put(KtTokens.IN_KEYWORD, WNodeType.KW_IN)
+        put(KtTokens.IS_KEYWORD, WNodeType.KW_IS)
+        put(KtTokens.AS_KEYWORD, WNodeType.KW_AS)
+        put(KtTokens.NULL_KEYWORD, WNodeType.KW_NULL)
+        put(KtTokens.TRUE_KEYWORD, WNodeType.KW_TRUE)
+        put(KtTokens.FALSE_KEYWORD, WNodeType.KW_FALSE)
+        put(KtTokens.THIS_KEYWORD, WNodeType.KW_THIS)
+        put(KtTokens.SUPER_KEYWORD, WNodeType.KW_SUPER)
+        put(KtTokens.PACKAGE_KEYWORD, WNodeType.KW_PACKAGE)
+        put(KtTokens.IMPORT_KEYWORD, WNodeType.KW_IMPORT)
+        put(KtTokens.PUBLIC_KEYWORD, WNodeType.KW_PUBLIC)
+        put(KtTokens.PRIVATE_KEYWORD, WNodeType.KW_PRIVATE)
+        put(KtTokens.PROTECTED_KEYWORD, WNodeType.KW_PROTECTED)
+        put(KtTokens.INTERNAL_KEYWORD, WNodeType.KW_INTERNAL)
+        put(KtTokens.OPEN_KEYWORD, WNodeType.KW_OPEN)
+        put(KtTokens.ABSTRACT_KEYWORD, WNodeType.KW_ABSTRACT)
+        put(KtTokens.SEALED_KEYWORD, WNodeType.KW_SEALED)
+        put(KtTokens.DATA_KEYWORD, WNodeType.KW_DATA)
+        put(KtTokens.OVERRIDE_KEYWORD, WNodeType.KW_OVERRIDE)
+        put(KtTokens.SUSPEND_KEYWORD, WNodeType.KW_SUSPEND)
+        put(KtTokens.INLINE_KEYWORD, WNodeType.KW_INLINE)
+        put(KtTokens.TAILREC_KEYWORD, WNodeType.KW_TAILREC)
+        put(KtTokens.OPERATOR_KEYWORD, WNodeType.KW_OPERATOR)
+        put(KtTokens.INFIX_KEYWORD, WNodeType.KW_INFIX)
+        put(KtTokens.COMPANION_KEYWORD, WNodeType.KW_COMPANION)
+        put(KtTokens.CONST_KEYWORD, WNodeType.KW_CONST)
+        put(KtTokens.LATEINIT_KEYWORD, WNodeType.KW_LATEINIT)
+        put(KtTokens.ENUM_KEYWORD, WNodeType.KW_ENUM)
+        // KW_TYPEALIAS mapped via soft keyword match in map() fallback if needed
+    }
+
+    fun map(elementType: IElementType): WNodeType =
+        map[elementType] ?: WNodeType.UNKNOWN
+}

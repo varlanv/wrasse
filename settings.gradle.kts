@@ -32,7 +32,11 @@ enableFeaturePreview("STABLE_CONFIGURATION_CACHE")
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 include(
-    "compiler-plugin",
+    "libs:wrasse-model",
+    "libs:wrasse-config",
     "libs:wrasse-kotlinc-adapter",
+    "libs:wrasse-rules",
+    "libs:wrasse-format",
+    "app:wrasse-plugin",
     "sample",
 )

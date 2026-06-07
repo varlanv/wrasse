@@ -21,5 +21,5 @@ application {
 }
 
 dependencies {
-    kotlinCompilerPluginClasspath(project(":compiler-plugin"))
+    kotlinCompilerPluginClasspath(project(":app:wrasse-plugin"))
 }
