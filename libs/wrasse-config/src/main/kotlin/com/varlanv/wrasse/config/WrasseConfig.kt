@@ -7,7 +7,7 @@ import java.nio.file.PathMatcher
 
 class WrasseConfig(
     val exclude: List<PathMatcher>,
-    val rules: WrasseRulesConfig,
+    val rulesConfigs: WrasseRulesConfig,
 ) {
     companion object {
 
@@ -29,7 +29,7 @@ class WrasseConfig(
             return Result.success(
                 WrasseConfig(
                     exclude = exclude,
-                    rules = WrasseRulesConfig(noSemicolons = noSemicolons),
+                    rulesConfigs = WrasseRulesConfig(noSemicolons = noSemicolons),
                 )
             )
         }

@@ -37,7 +37,7 @@ gradlePlugin {
     plugins {
         create("internalGradleConventionPlugin") {
             id = libs.plugins.internalConvention.get().pluginId
-            implementationClass = "com.varlanv.gradle.plugin.InternalKonventionPlugin"
+            implementationClass = "com.varlanv.gradle.plugin.InternalConventionPlugin"
         }
     }
 }

@@ -16,9 +16,10 @@ abstract class BaseSpec(
 
 suspend fun useTempDir(block: suspend (Path) -> Unit) {
     val dir = Files.createTempDirectory("wrasse-test-")
+    val file = dir.toFile()
     try {
         block(dir)
     } finally {
-        dir.toFile().deleteRecursively()
+        file.deleteRecursively()
     }
 }

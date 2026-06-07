@@ -11,7 +11,7 @@ class NoSemicolonsRule : WRule {
     override val id: String = "no-semicolons"
 
     override fun check(file: WFile, config: WrasseConfig): List<WViolation> {
-        val ruleConfig = config.rules.noSemicolons
+        val ruleConfig = config.rulesConfigs.noSemicolons
         if (!ruleConfig.enabled) return emptyList()
 
         val violations = mutableListOf<WViolation>()
