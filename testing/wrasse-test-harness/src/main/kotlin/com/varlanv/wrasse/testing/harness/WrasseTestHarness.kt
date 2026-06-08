@@ -52,6 +52,8 @@ class WrasseTestHarness(
             freeArgs = sources.map { srcDir.resolve(it.path).toString() }
             pluginClasspaths = arrayOf(pluginClasspath)
             noReflect = true
+            noJdk = true
+            jvmTarget = "1.8"
             destination = workDir.resolve("out").toString()
             val cp = kotlinStdlibPath
             if (cp != null) {

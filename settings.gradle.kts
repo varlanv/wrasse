@@ -43,5 +43,9 @@ include(
     "app:wrasse-kotlinc-internal-k22",
     "testing:common-test",
     "testing:wrasse-test-harness",
-    "testing:wrasse-kotlinc-plugin-tests",
+    "testing:wrasse-kotlinc-plugin-tests-base",
+    "testing:wrasse-kotlinc-plugin-tests-2-1-x",
+    "testing:wrasse-kotlinc-plugin-tests-2-2-x",
+    "testing:wrasse-kotlinc-plugin-tests-2-3-x",
+    "testing:wrasse-kotlinc-plugin-tests-2-4-x",
 )
