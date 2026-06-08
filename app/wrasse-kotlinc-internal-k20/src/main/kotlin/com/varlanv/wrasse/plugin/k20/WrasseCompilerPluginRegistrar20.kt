@@ -1,4 +1,4 @@
-package com.varlanv.wrasse.plugin.internal
+package com.varlanv.wrasse.plugin.k20
 
 import com.varlanv.wrasse.config.WrasseSeverity
 import com.varlanv.wrasse.plugin.KEY_ENABLED
@@ -9,12 +9,12 @@ import org.jetbrains.kotlin.cli.jvm.config.javaSourceRoots
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import java.nio.file.Paths
 
 @OptIn(ExperimentalCompilerApi::class)
-class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
+class WrasseCompilerPluginRegistrar20 : CompilerPluginRegistrar() {
     override val supportsK2: Boolean = true
-    override val pluginId: String = PLUGIN_ID
 
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
         val enabled = configuration[KEY_ENABLED, true]
@@ -27,23 +27,6 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
         val plugin = wrasseMain(sourceRoots, severity).getOrThrow()
 
-        if (hasContextParameterCheckerApi()) {
-            K22Registrar.register(this, plugin)
-        } else {
-            val k20 = Class.forName("com.varlanv.wrasse.plugin.k20.WrasseCompilerPluginRegistrar20")
-                .getDeclaredConstructor()
-                .newInstance() as CompilerPluginRegistrar
-            with(k20) { registerExtensions(configuration) }
-        }
-    }
-
-    private fun hasContextParameterCheckerApi(): Boolean {
-        return try {
-            val checkerClass = Class.forName("org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirDeclarationChecker")
-            val contextClass = Class.forName("org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext")
-            checkerClass.declaredMethods.any { it.name == "check" && it.parameterTypes.firstOrNull() == contextClass }
-        } catch (_: Throwable) {
-            false
-        }
+        FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar20(plugin))
     }
 }

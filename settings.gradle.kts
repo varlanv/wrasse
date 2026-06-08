@@ -39,6 +39,7 @@ include(
     "libs:wrasse-format",
     "libs:wrasse-lang",
     "app:wrasse-kotlinc-plugin",
+    "app:wrasse-kotlinc-internal-k20",
     "testing:common-test",
     "testing:wrasse-test-harness",
     "testing:wrasse-kotlinc-plugin-tests",
