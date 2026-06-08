@@ -1,4 +1,4 @@
-package com.varlanv.wrasse.plugin.k20
+package com.varlanv.wrasse.plugin.k22
 
 import com.varlanv.wrasse.plugin.WrassePlugin
 import org.jetbrains.kotlin.KtLightSourceElement
@@ -10,12 +10,13 @@ import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirFileChecker
 import org.jetbrains.kotlin.fir.declarations.FirFile
 
-class FirSyntacticChecker20(
+class FirSyntacticChecker22(
     private val plugin: WrassePlugin,
     private val diagnostic: KtDiagnosticFactory1<String>,
 ) : FirFileChecker(MppCheckerKind.Common) {
 
-    override fun check(declaration: FirFile, context: CheckerContext, reporter: DiagnosticReporter) {
+    context(context: CheckerContext, reporter: DiagnosticReporter)
+    override fun check(declaration: FirFile) {
         val source = declaration.source as? KtLightSourceElement ?: return
 
         for (violation in plugin.checkFile(source, declaration.name)) {
@@ -25,7 +26,7 @@ class FirSyntacticChecker20(
                 violation.endOffset,
                 source.treeStructure,
             )
-            reporter.reportOn(violationSource, diagnostic, violation.message, context)
+            reporter.reportOn(violationSource, diagnostic, violation.message)
         }
     }
 }

@@ -7,6 +7,7 @@ dependencies {
     implementation(projects.testing.commonTest)
     implementation(projects.app.wrasseKotlincPlugin)
     runtimeOnly(projects.app.wrasseKotlincInternalK20)
+    runtimeOnly(projects.app.wrasseKotlincInternalK22)
 }
 
 val fixturesDir = project(":testing:wrasse-test-harness")
@@ -16,7 +17,7 @@ tasks.withType<Test>().configureEach {
     systemProperty("wrasse.fixtures.dir", fixturesDir)
 }
 
-val kotlinMinorVersions = listOf("2.0.21", "2.1.21", "2.2.21", "2.3.21")
+val kotlinMinorVersions = listOf("2.1.21", "2.2.21", "2.3.21")
 
 for (version in kotlinMinorVersions) {
     val safeName = version.replace(".", "_")

@@ -27,22 +27,32 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
         val plugin = wrasseMain(sourceRoots, severity).getOrThrow()
 
-        if (hasContextParameterCheckerApi()) {
-            K22Registrar.register(this, plugin)
-        } else {
-            val k20 = Class.forName("com.varlanv.wrasse.plugin.k20.WrasseCompilerPluginRegistrar20")
-                .getDeclaredConstructor()
-                .newInstance() as CompilerPluginRegistrar
-            with(k20) { registerExtensions(configuration) }
+        val cl = this::class.java.classLoader
+        when {
+            classExists(cl, "org.jetbrains.kotlin.extensions.ExtensionPointDescriptor") -> {
+                K22Registrar.register(this, plugin)
+            }
+            classExists(cl, "org.jetbrains.kotlin.diagnostics.KtDiagnosticsContainer") -> {
+                delegateToRegistrar("com.varlanv.wrasse.plugin.k22.WrasseCompilerPluginRegistrar22", configuration)
+            }
+            else -> {
+                delegateToRegistrar("com.varlanv.wrasse.plugin.k20.WrasseCompilerPluginRegistrar20", configuration)
+            }
         }
     }
 
-    private fun hasContextParameterCheckerApi(): Boolean {
+    private fun ExtensionStorage.delegateToRegistrar(className: String, configuration: CompilerConfiguration) {
+        val registrar = Class.forName(className)
+            .getDeclaredConstructor()
+            .newInstance() as CompilerPluginRegistrar
+        with(registrar) { this@delegateToRegistrar.registerExtensions(configuration) }
+    }
+
+    private fun classExists(cl: ClassLoader, name: String): Boolean {
         return try {
-            val checkerClass = Class.forName("org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirDeclarationChecker")
-            val contextClass = Class.forName("org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext")
-            checkerClass.declaredMethods.any { it.name == "check" && it.parameterTypes.firstOrNull() == contextClass }
-        } catch (_: Throwable) {
+            cl.loadClass(name)
+            true
+        } catch (_: ClassNotFoundException) {
             false
         }
     }
