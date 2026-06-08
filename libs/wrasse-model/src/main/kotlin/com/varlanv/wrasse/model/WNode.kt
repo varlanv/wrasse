@@ -39,6 +39,10 @@ class WNode constructor(
     var parent: WNode? = null
         @JvmSynthetic set
 
+    /** Index of this node in its parent's children list. Set by the adapter during construction. */
+    var childIndex: Int = -1
+        @JvmSynthetic set
+
     /** Direct child nodes. Empty for leaf nodes. Set by the adapter during construction. */
     var children: List<WNode> = emptyList()
         @JvmSynthetic set
@@ -91,10 +95,20 @@ class WNode constructor(
         this.type == type || findParentOfType(type) != null
 
     /** All descendant nodes, depth-first. */
-    fun descendants(): Sequence<WNode> = sequence {
-        for (child in children) {
-            yield(child)
-            yieldAll(child.descendants())
+    fun descendants(): Sequence<WNode> = Sequence { DescendantsIterator(this) }
+
+    private class DescendantsIterator(root: WNode) : Iterator<WNode> {
+        private val stack = ArrayDeque<WNode>()
+        init {
+            val children = root.children
+            for (i in children.lastIndex downTo 0) stack.addLast(children[i])
+        }
+        override fun hasNext(): Boolean = stack.isNotEmpty()
+        override fun next(): WNode {
+            val node = stack.removeLast()
+            val children = node.children
+            for (i in children.lastIndex downTo 0) stack.addLast(children[i])
+            return node
         }
     }
 
@@ -220,9 +234,7 @@ class WNode constructor(
 
     private fun siblingAt(offset: Int): WNode? {
         val siblings = parent?.children ?: return null
-        val idx = siblings.indexOf(this)
-        if (idx < 0) return null
-        val targetIdx = idx + offset
+        val targetIdx = childIndex + offset
         return if (targetIdx in siblings.indices) siblings[targetIdx] else null
     }
 

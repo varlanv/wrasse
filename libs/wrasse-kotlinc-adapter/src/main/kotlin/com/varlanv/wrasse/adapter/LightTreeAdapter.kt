@@ -38,6 +38,7 @@ object LightTreeAdapter {
                 val child = childArray[i] ?: continue
                 val childWNode = toWNode(child, sourceText)
                 childWNode.parent = wNode
+                childWNode.childIndex = children.size
                 children.add(childWNode)
                 if (child !is LighterASTTokenNode) {
                     stack.addLast(child to childWNode)
