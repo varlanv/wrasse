@@ -49,25 +49,12 @@ class WrasseConfig(
             val enabled = ruleObj.require("enabled", ConfigValue.Bool::class.java)
                 .fold({ it.value }, { return Result.failure(it) })
 
-            val severityStr = ruleObj.require("severity", ConfigValue.Str::class.java)
-                .fold({ it.value }, { return Result.failure(it) })
-
-            val severity = WrasseSeverity.byLower[severityStr]
-                ?: return Result.failure(
-                    Exception(
-                        "Invalid severity '$severityStr' for rule '$key'. Expected: ${
-                            WrasseSeverity.entries.joinToString { it.name.lowercase() }
-                        }"
-                    )
-                )
-
             val exclude = ruleObj.require("exclude", ConfigValue.StrArr::class.java)
                 .fold({ it.value.map { glob -> pathMatcher(glob) } }, { return Result.failure(it) })
 
             return Result.success(
                 WrasseRuleToggle(
                     enabled = enabled,
-                    severity = severity,
                     exclude = exclude,
                 )
             )
@@ -86,20 +73,10 @@ class WrasseRulesConfig(
 
 class WrasseRuleToggle(
     val enabled: Boolean,
-    val severity: WrasseSeverity,
     val exclude: List<PathMatcher>,
 )
 
 enum class WrasseSeverity {
     ERROR,
-    WARNING;
-
-    companion object {
-
-        val byLower: Map<String, WrasseSeverity> =
-            WrasseSeverity.entries.fold(mutableMapOf(), { res, item ->
-                res[item.name.lowercase()] = item
-                res
-            })
-    }
+    WARNING,
 }

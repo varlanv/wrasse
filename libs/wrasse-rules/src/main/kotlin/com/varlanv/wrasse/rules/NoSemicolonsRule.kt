@@ -14,7 +14,6 @@ class NoSemicolonsRule(private val config: WrasseRuleToggle) : NodeVisitorWRule 
                 ruleId = id,
                 message = "Unnecessary semicolon",
                 node = node,
-                severity = config.severity,
             )
         )
     }

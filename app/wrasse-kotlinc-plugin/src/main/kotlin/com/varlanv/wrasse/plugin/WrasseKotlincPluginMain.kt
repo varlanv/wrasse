@@ -1,6 +1,7 @@
 package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.config.WrasseConfig
+import com.varlanv.wrasse.config.WrasseSeverity
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
 import com.varlanv.wrasse.model.SplitRules
@@ -15,12 +16,13 @@ private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 /**
  * Wrasse plugin entrypoint, decoupled from kotlinc lifecycle.
  */
-fun wrasseMain(sourceRoots: List<Path>): Result<WrassePlugin> {
+fun wrasseMain(sourceRoots: List<Path>, severity: WrasseSeverity = WrasseSeverity.ERROR): Result<WrassePlugin> {
     val config = loadConfig(sourceRoots).getOrElse { return Result.failure(it) }
     return Result.success(
         WrassePlugin(
             config = config,
-            rules = SplitRules(assembleRules(config))
+            rules = SplitRules(assembleRules(config)),
+            severity = severity,
         )
     )
 }

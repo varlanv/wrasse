@@ -1,6 +1,8 @@
 package com.varlanv.wrasse.plugin.internal
 
+import com.varlanv.wrasse.config.WrasseSeverity
 import com.varlanv.wrasse.plugin.KEY_ENABLED
+import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
 import com.varlanv.wrasse.plugin.PLUGIN_ID
 import com.varlanv.wrasse.plugin.wrasseMain
 import org.jetbrains.kotlin.cli.jvm.config.javaSourceRoots
@@ -21,10 +23,12 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
             return
         }
 
+        val warnOnly = configuration[KEY_WARN_ONLY, false]
+        val severity = if (warnOnly) WrasseSeverity.WARNING else WrasseSeverity.ERROR
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
         // Give up in case "main" could not be initialized. This can be potentially changed if
         // kotlinc exposes api for more graceful failure than just throwing
-        val plugin = wrasseMain(sourceRoots).getOrThrow()
+        val plugin = wrasseMain(sourceRoots, severity).getOrThrow()
 
         FirExtensionRegistrarAdapter.registerExtension(
             WrasseFirExtensionRegistrar(plugin)

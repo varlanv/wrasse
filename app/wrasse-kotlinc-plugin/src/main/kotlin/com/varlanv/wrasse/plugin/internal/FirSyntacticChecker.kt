@@ -18,13 +18,12 @@ class FirSyntacticChecker(
     override fun check(declaration: FirFile) {
         val source = declaration.source as? KtLightSourceElement ?: return
 
-        val violations = plugin.checkFile(source, declaration.name)
+        val diagnostic = when (plugin.severity) {
+            WrasseSeverity.ERROR -> WrasseErrors.WRASSE_ERROR
+            WrasseSeverity.WARNING -> WrasseErrors.WRASSE_WARNING
+        }
 
-        for (violation in violations) {
-            val diagnostic = when (violation.severity) {
-                WrasseSeverity.ERROR -> WrasseErrors.RESTRICTED_API
-                WrasseSeverity.WARNING -> WrasseErrors.WRASSE_WARNING
-            }
+        for (violation in plugin.checkFile(source, declaration.name)) {
             val violationSource = KtLightSourceElement(
                 source.lighterASTNode,
                 violation.startOffset,

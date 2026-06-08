@@ -2,13 +2,15 @@ package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.adapter.LightTreeAdapter
 import com.varlanv.wrasse.config.WrasseConfig
+import com.varlanv.wrasse.config.WrasseSeverity
 import com.varlanv.wrasse.model.SplitRules
 import com.varlanv.wrasse.model.WViolation
 import org.jetbrains.kotlin.KtLightSourceElement
 
 class WrassePlugin(
     private val config: WrasseConfig,
-    private val rules: SplitRules
+    private val rules: SplitRules,
+    val severity: WrasseSeverity,
 ) {
 
     fun checkFile(source: KtLightSourceElement, fileName: String): List<ViolationReport> {
@@ -35,7 +37,6 @@ class WrassePlugin(
                     message = "${violation.ruleId}: ${violation.message}",
                     startOffset = violation.node.startOffset,
                     endOffset = violation.node.endOffset,
-                    severity = violation.severity,
                 )
             )
         }

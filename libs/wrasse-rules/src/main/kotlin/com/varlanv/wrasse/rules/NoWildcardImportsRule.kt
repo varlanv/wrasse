@@ -14,7 +14,6 @@ class NoWildcardImportsRule(private val config: WrasseRuleToggle) : NodeVisitorW
                     ruleId = id,
                     message = "Replace wildcard import with explicit imports",
                     node = node,
-                    severity = config.severity,
                 )
             )
         }

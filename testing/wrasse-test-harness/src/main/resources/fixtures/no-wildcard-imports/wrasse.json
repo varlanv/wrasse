@@ -1,5 +1,5 @@
 {
     "rules": {
-        "no-wildcard-imports": { "enabled": true, "severity": "error" }
+        "no-wildcard-imports": { "enabled": true }
     }
 }

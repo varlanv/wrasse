@@ -1,5 +1,5 @@
 {
     "rules": {
-        "trailing-newline": { "enabled": true, "severity": "error" }
+        "trailing-newline": { "enabled": true }
     }
 }

@@ -14,7 +14,6 @@ class TrailingNewlineRule(private val config: WrasseRuleToggle) : FileVisitorWRu
                     ruleId = id,
                     message = "File must end with a newline",
                     node = file.root,
-                    severity = config.severity,
                 )
             )
         }
