@@ -12,6 +12,7 @@ kotlin-gradle-main = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", ver
 kotlin-kotest-assertions = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotestVersion" }
 kotlin-kotest-junit5Runner = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotestVersion" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlinVersion" }
+org-json = { module = "org.json:json", version = "20250517" }
 
 [plugins]
 internalConvention = { id = "com.varlanv.wrasse.gradle.internal-gradle-convention-plugin" }

@@ -1,0 +1,22 @@
+package com.varlanv.wrasse.plugin
+
+import com.varlanv.wrasse.testing.BaseSpec
+import com.varlanv.wrasse.testing.harness.FixtureLoader
+import com.varlanv.wrasse.testing.harness.TestSource
+import com.varlanv.wrasse.testing.harness.WrasseTestHarness
+import com.varlanv.wrasse.testing.harness.assertMatchesExpectations
+import java.nio.file.Path
+
+class WrasseFixtureSpec : BaseSpec({
+    val fixturesDir = Path.of(System.getProperty("wrasse.fixtures.dir")
+        ?: error("System property 'wrasse.fixtures.dir' not set"))
+    val fixtures = FixtureLoader.load(fixturesDir)
+
+    for (fixture in fixtures) {
+        should("handle spec - ${fixture.ruleId} -> ${fixture.fixtureId}") {
+            val harness = WrasseTestHarness(fixture.config)
+            val result = harness.compile(listOf(TestSource("sample/test.kt", fixture.source)))
+            result.assertMatchesExpectations(fixture)
+        }
+    }
+})

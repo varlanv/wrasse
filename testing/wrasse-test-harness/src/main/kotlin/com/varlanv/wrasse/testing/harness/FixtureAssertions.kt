@@ -5,7 +5,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 
-fun CompilationResult.assertMatchesExpectations(fixture: ParsedFixture) {
+fun CompilationResult.assertMatchesExpectations(fixture: Fixture) {
     val wrasse = wrasseDiagnostics
     if (fixture.expectClean) {
         withClue("Expected no wrasse diagnostics but got:\n${formatDiagnostics(wrasse)}") {

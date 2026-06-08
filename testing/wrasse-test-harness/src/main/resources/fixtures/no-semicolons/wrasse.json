@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "no-semicolons": { "enabled": true, "severity": "error" }
+    }
+}

@@ -1,0 +1,8 @@
+{
+    "exclude": [],
+    "rules": {
+        "no-semicolons": { "enabled": false, "severity": "warning", "exclude": [] },
+        "no-wildcard-imports": { "enabled": false, "severity": "warning", "exclude": [] },
+        "trailing-newline": { "enabled": false, "severity": "warning", "exclude": [] }
+    }
+}
