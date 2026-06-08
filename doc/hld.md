@@ -1,500 +1,284 @@
 # Wrasse — High-Level Design
 
-Kotlin compiler plugin for linting and formatting that rides the compiler's own parse,
-avoiding the double/triple compilation overhead of detekt and ktlint.
+A Kotlin linter and formatter that rides the compiler's own parse instead of re-parsing
+the world. One tool to replace ktlint + detekt, faster, with type-resolution-powered
+fixes (notably import optimization) that resolution-free formatters cannot do.
 
-## Motivation
+> This document is **architecture only**. For the phased plan see [roadmap.md](roadmap.md);
+> for the rationale behind specific choices (and what was rejected) see [decisions.md](decisions.md).
 
-1. **Zero parse overhead.** ktlint and detekt each embed `kotlin-compiler-embeddable` and parse
-   every source file independently. On large projects (2000+ files) this adds 30-80s of redundant
-   work on top of compilation. Wrasse hooks into the compiler's FIR analysis phase and reads the
-   LightTree that kotlinc already built — no second parse.
+## Why it exists
 
-2. **No Gradle plugin API dependency.** Gradle's API churn (configuration cache, isolated projects,
-   build cache changes) forces ktlint and detekt maintainers to spend significant effort on Gradle
-   compatibility. Wrasse ships as a compiler plugin JAR — users add it to `kotlinCompilerPluginClasspath`
-   and pass options via `CommandLineProcessor`. Works with Gradle, Amper, Bazel, or raw kotlinc.
+1. **Zero parse overhead for linting.** ktlint and detekt each embed `kotlin-compiler-embeddable`
+   and parse every source file independently — on large projects that is tens of seconds of
+   redundant work on top of compilation. Wrasse hooks the compiler's FIR analysis phase and reads
+   the LightTree kotlinc already built. No second parse.
 
-3. **Decoupled from kotlinc internals.** All rule logic operates on an intermediate model that wrasse
-   controls. An adapter layer translates kotlinc's LightTree into this model. When kotlinc APIs change
-   (and they will — K2 APIs are unstable), only the adapter needs updating; rules stay untouched.
+2. **No build-tool plugin coupling.** Gradle's API churn (configuration cache, isolated projects,
+   build-cache changes) forces ktlint/detekt maintainers into constant compatibility work. Wrasse
+   ships as a compiler-plugin JAR added to `kotlinCompilerPluginClasspath`, with options passed via
+   `CommandLineProcessor`. Works under Gradle, Amper, Bazel, or raw kotlinc.
 
-## Architecture
+3. **Decoupled from kotlinc internals.** Rules operate on an intermediate model wrasse owns. An
+   adapter translates kotlinc's LightTree (and, for resolution rules, FIR) into that model. When
+   kotlinc APIs shift — and K2 APIs do — only the adapter moves; rules stay put.
+
+## The two-host model
+
+Linting is a **read-only** activity; formatting and fixing are **writes**. A compiler plugin
+observing a live compile cannot rewrite the files being compiled. So wrasse is one rule library
+behind two hosts:
+
+| | Host A — compiler plugin | Host B — standalone tool |
+|---|---|---|
+| Mode | Read-only observer | Read-write |
+| Runs | During a real `kotlinc` compile | On demand (CLI / format task / pre-commit) |
+| Output | `KtDiagnostic`s (IDE + build) | Rewritten files / patches / reports |
+| Parse cost | None (rides the compile) | Its own parse (LightTree, standalone) |
+| Has FIR resolution | Yes (intrinsic to the compile) | Only if it runs its own frontend |
+
+Both build the same `WNode` tree and run the same rules. The split is the spine of the design:
+the read-only lint path is the free, always-on surface; the write path is a separate, explicitly
+invoked tool.
+
+## Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│ kotlinc                                                             │
-│                                                                     │
+┌─ kotlinc ─────────────────────────────────────────────────────────┐
 │  Source → [LightTree] → FIR → IR → Bytecode                        │
-│               │           │                                         │
-│               │     ┌─────┘                                         │
-│               ▼     ▼                                               │
-│     ┌─────────────────────┐                                         │
-│     │ internal package     │   Thin kotlinc shells — extend FIR      │
-│     │ (FirSyntacticChecker │   classes, extract data, delegate to    │
-│     │  FirRestrictedApi...)│   WrassePlugin immediately              │
-│     └────────┬────────────┘                                         │
-└──────────────┼──────────────────────────────────────────────────────┘
-               │
-               ▼
-     ┌─────────────────────┐
-     │ WrassePlugin         │  "main" — owns config, rules, severity.
-     │ (outer package)      │  Builds WNode tree via adapter, runs
-     │                      │  dispatch table, returns ViolationReports.
-     └────────┬────────────┘
-               │
-               ▼
-     ┌─────────────────────┐
-     │ Adapter Layer        │  LightTreeAdapter: iterative stack-based
-     │ (wrasse-kotlinc-     │  conversion of LighterASTNode → WNode.
-     │  adapter)            │  WNodeTypeMapping: IElementType → WNodeType.
-     └────────┬────────────┘
-               │
-               ▼
-     ┌─────────────────────┐
-     │ Rule Engine          │  SplitRules: dispatch table indexed by
-     │ (wrasse-model +     │  WNodeType ordinal. Single tree traversal,
-     │  wrasse-rules)      │  O(nodes × avg-matching-rules).
-     └─────────────────────┘
+│               │           │                                        │
+│               ▼           ▼                                        │
+│      internal/ shells  (FirFileChecker, FirFunctionCallChecker)    │
+│      thin kotlinc glue, extract data, delegate out immediately     │
+└──────────────────────────────┬─────────────────────────────────────┘
+                               ▼
+                       WrassePlugin            owns config + rules; builds WNode
+                               │               via adapter; runs dispatch; returns reports
+                               ▼
+                       Adapter layer           LightTreeAdapter: LighterASTNode → WNode
+                               │               WNodeTypeMapping: IElementType → WNodeType
+                               ▼
+                       Rule engine             SplitRules: dispatch table by WNodeType ordinal,
+                                               single traversal
 ```
 
-### Plugin lifecycle
+The `internal/` package is pure kotlinc glue (FIR shells, registrars, command-line processor,
+diagnostics container) and holds zero wrasse logic. `WrassePlugin`, `wrasseMain()`, and the
+report types live in the outer package. Everything below the shells is kotlinc-free.
 
-1. **WrasseCommandLineProcessor** (SPI) — parses CLI options (`enabled`, `warnOnly`),
-   writes to `CompilerConfiguration`. Runs first.
-2. **WrasseCompilerPluginRegistrar** (SPI) — reads config, extracts source roots from
-   `CompilerConfiguration`, calls `wrasseMain()` to build `WrassePlugin` with config,
-   rules, and global severity. Registers FIR extensions.
-3. **WrasseFirExtensionRegistrar** — registers `WrasseFirChecker` and diagnostic containers.
-4. **WrasseFirChecker** — instantiated per FIR session (per module). Declares
-   `FirSyntacticChecker` and `FirRestrictedApiChecker`, both receiving `WrassePlugin`.
-5. **FirSyntacticChecker** — per file: extracts `KtLightSourceElement`, calls
-   `plugin.checkFile()`, maps `ViolationReport` results to `reportOn()`.
-6. **FirRestrictedApiChecker** — per function call: extracts resolved callee, calls
-   `plugin.checkCall()`.
-
-All of 1-6 live in `app/wrasse-kotlinc-plugin`. Items 1-4 plus the FIR checker shells are
-in the `internal` subpackage — pure kotlinc glue with zero wrasse logic. `WrassePlugin`,
-`wrasseMain()`, `ViolationReport`, and constants live in the outer package.
-
-### Module structure
-
-```
-wrasse/
-├── libs/
-│   ├── wrasse-model/            # WNode, WNodeType, WRule, WFile, WViolation — zero kotlinc deps
-│   ├── wrasse-config/           # WrasseConfig, WrasseRuleToggle, WrasseSeverity — depends on wrasse-lang
-│   ├── wrasse-rules/            # Rule implementations — depends on wrasse-model + wrasse-config
-│   ├── wrasse-kotlinc-adapter/  # LightTreeAdapter, WNodeTypeMapping — depends on kotlinc + wrasse-model
-│   ├── wrasse-lang/             # ConfigValueJsonc, FileWalkUp — zero-dep utilities
-│   └── wrasse-format/           # (placeholder) formatting pipeline
-├── app/
-│   └── wrasse-kotlinc-plugin/   # Plugin entry points, WrassePlugin, internal/ kotlinc shells
-│       └── compileOnly: kotlin-compiler-embeddable
-├── testing/
-│   ├── common-test/             # BaseSpec, shared test utilities
-│   ├── wrasse-test-harness/     # WrasseTestHarness, FixtureLoader, FixtureParser
-│   └── wrasse-kotlinc-plugin-tests/  # Auto-discovery fixture tests
-└── doc/
-    ├── hld.md                   # This file
-    ├── ktlint-rules-catalog.md  # 105 rules
-    ├── detekt-rules-catalog.md  # 94 rules
-    └── diktat-unique-rules.md   # 42 unique rules
-```
-
-`wrasse-model` and `wrasse-rules` have zero dependency on kotlinc.
-Rules are testable without a compiler and portable to other hosts
-(e.g., a future IntelliJ plugin could use a PSI → WNode adapter instead).
-
-## Intermediate Model (wrasse-model)
+## Intermediate model
 
 ### WNode — concrete CST node
 
-```kotlin
-class WNode(
-    val type: WNodeType,
-    val startOffset: Int,
-    val endOffset: Int,
-    val leafText: CharSequence?,   // non-null only for leaf (token) nodes
-    private val sourceText: CharSequence,
-) {
-    var parent: WNode?
-    var children: List<WNode>
+A concrete class (not an interface), built eagerly by `LightTreeAdapter` with an explicit stack
+(no recursion). Every node — whitespace, comments, punctuation, keywords — is preserved: this is a
+concrete syntax tree, not an AST. All nodes in a file share one `sourceText: CharSequence` backed
+by the compiler's char buffer; leaf text delegates to kotlinc's token slice. No copies.
 
-    // Navigation
-    val firstChild / lastChild / nextSibling / prevSibling
-    fun childrenOfType(type) / firstChildOfType(type) / lastChildOfType(type)
-    fun findParentOfType(type) / isInsideNodeOfType(type)
-    fun descendants() / descendantsOfType(type) / leaves()
-    fun nextLeaf() / prevLeaf() / nextCodeLeaf() / prevCodeLeaf()
-    fun nextCodeSibling() / prevCodeSibling()
-
-    // Properties
-    val isLeaf / isWhitespaceOrComment / isNewline
-    val column (lazy) / indent (lazy)
-    fun hasModifier(modifier)
-}
+```
+class WNode(type, startOffset, endOffset, leafText, sourceText)
+  parent / childIndex / children            (set during construction)
+  firstChild / lastChild / nextSibling / prevSibling   (siblings lazy)
+  childrenOfType / firstChildOfType / lastChildOfType
+  findParentOfType / isInsideNodeOfType
+  descendants / descendantsOfType / leaves
+  nextLeaf / prevLeaf / nextCodeLeaf / prevCodeLeaf / nextCodeSibling / prevCodeSibling
+  isLeaf / isWhitespaceOrComment / isNewline
+  column / indent          (lazy; scan backward through sourceText)
+  hasModifier(modifier)
 ```
 
-`WNode` is a concrete class, not an interface. The tree is built eagerly by
-`LightTreeAdapter` using an iterative stack-based traversal (no recursion).
-All nodes share a single `sourceText: CharSequence` backed by the compiler's
-char buffer — one reference per file, no copies.
-
-`nextSibling` / `prevSibling` are lazy (computed on first access from `parent.children`).
-`column` and `indent` are lazy (scan backward through `sourceText`).
-
-```kotlin
-data class WFile(
-    val path: String,
-    val root: WNode,              // FILE node — the full tree
-    val sourceText: CharSequence, // whole file source, backed by compiler's char buffer
-)
+```
+WFile(path, root: WNode /* FILE node */, sourceText)
 ```
 
-### WRule — sealed rule hierarchy
+### WRule — sealed hierarchy
 
-```kotlin
-sealed interface WRule {
-    val id: String
-}
+```
+sealed interface WRule { val id: String }
 
-interface NodeVisitorWRule : WRule {
+interface NodeVisitorWRule : WRule {        // syntactic, node-targeted
     val targetTypes: Set<WNodeType>
     fun visit(node: WNode, violations: MutableCollection<WViolation>)
 }
 
-interface FileVisitorWRule : WRule {
+interface FileVisitorWRule : WRule {        // syntactic, whole-file
     fun visit(file: WFile, violations: MutableCollection<WViolation>)
 }
+
+interface SemanticWRule : WRule { ... }     // PLANNED — receives a resolution facade
+                                            // alongside the WNode (see below)
 ```
 
-Rules are split by the information they need:
+- **NodeVisitorWRule** declares the `WNodeType`s it targets; the engine walks the tree once and
+  dispatches each node to matching rules via an array indexed by `WNodeType.ordinal` (O(1), no
+  hashing). If 5 of 100 rules target `SEMICOLON`, only 5 fire per semicolon.
+- **FileVisitorWRule** gets the whole `WFile` (trailing newline, import ordering, file length).
+- **SemanticWRule** (planned) is the resolution-aware family — see *Resolution*.
 
-- **NodeVisitorWRule** — declares which `WNodeType` values it targets. The engine walks
-  the tree once and dispatches each node to matching rules via a dispatch table indexed
-  by `WNodeType.ordinal`. O(1) lookup per node.
-- **FileVisitorWRule** — receives the whole `WFile`. For rules that need file-level context
-  (trailing newline, import ordering, file length).
-
-Rules receive a `WrasseRuleToggle` (enabled + exclude globs) at construction time.
-Disabled rules are never instantiated — `assembleRules()` filters by `enabled` before
-creating rule objects.
-
-### WViolation
-
-```kotlin
-class WViolation(
-    val ruleId: String,
-    val message: String,
-    val node: WNode,
-)
+```
+WViolation(ruleId, message, node)           // no severity field
 ```
 
-No severity field. Severity is a global plugin setting, not per-violation.
+Severity is not stored on the violation. Each rule has a configured `level` (off/warn/error);
+the reporter maps `ruleId → level` at report time and picks the diagnostic factory accordingly.
+
+## Inbound vs outbound — what the architecture can and cannot do cheaply
+
+This frame decides what is feasible.
+
+- **Inbound** — *what does this file depend on, resolved*: what `Foo` refers to, its type, what
+  `foo.bar.*` exposes, whether a call resolves to itself. The compiler hands this to you per file,
+  and it **survives incremental compilation** — a recompiled file's dependencies are available as
+  compiled metadata even when their source isn't recompiled.
+- **Outbound** — *who depends on this file's symbols*: dead code, find-usages, API-surface,
+  architecture/cycles. Needs the whole program, an end-of-compilation aggregation, and **breaks
+  under incremental** (a changed file recompiles only itself plus its dirty set; the plugin never
+  sees unchanged referencing files).
+
+Wrasse's flagship work — import optimization, type-aware single-file checks — is **inbound**. It
+ships without any whole-program machinery and works in the incremental inner loop. Outbound rules
+are a separate, deferred tier (see [roadmap.md](roadmap.md)); if ever built they live in full
+builds only.
+
+## Resolution and the moat
+
+Riding FIR gives resolution against the full module + classpath. That enables IDE-grade fixes that
+resolution-free tools structurally cannot do — chiefly **import optimization**: expanding
+`import foo.bar.*` into explicit imports, and removing genuinely-unused imports. ktlint can only
+flag wildcards; google-java-format can't expand them and removes unused only heuristically; the
+one tool that does it correctly (IntelliJ) is the one with resolution. Wrasse is in IntelliJ's
+position, at build time.
+
+The model gap today is that `WNode`/`WFile` are purely syntactic — no types or symbols. The
+`checkCall(...)` hook on `WrassePlugin` is a stubbed, separate FIR entry point, not yet unified
+into `WRule`. Closing the gap is the `SemanticWRule` family plus a resolution facade. The hard
+part is the **adapter**: correlating a LightTree-built `WNode` with its FIR element (by offset, or
+by building the semantic view from FIR) — not the visitor shape.
+
+## Fix application
+
+Fixes split by whether they need resolution:
+
+- **Syntactic fixes** (formatting, semicolons, trailing newline) → Host B writes files directly:
+  standalone parse → `WNode` → transform → write. Cheap; no resolution.
+- **Semantic fixes** (import expansion, unused-import removal) need resolution, which exists only
+  during the read-only compile. They are emitted as an **edit-list**, then applied by a dumb
+  patcher:
+  - Exact, offset-based edits: `(file, startOffset, endOffset, replacement, sourceHash)`. Not
+    fuzzy unified/IntelliJ diff (git diff is an optional *export* for review, never the storage).
+  - **One patch file per compile task / module** in its build dir (e.g.
+    `build/wrasse/autofix.patch`) — never one global file, because modules compile in parallel
+    processes. Apply globs `**/build/wrasse/autofix.patch` and merges.
+  - **Idempotent by content hash:** apply skips any edit whose recorded `sourceHash` no longer
+    matches the file. A stale or undeleted patch is a no-op; after a successful fix the next
+    compile emits an empty patch (self-cleaning).
+  - Mid-write safety: temp file + atomic rename. Within a file: edits are non-overlapping, applied
+    in descending offset order, with a loud failure on overlap. Flush in bounded batches so the
+    compiler daemon's heap is never asked to hold a whole module.
+  - Gated behind a `wrasse.fix` flag; apply is an **explicit** step, never auto-run in a normal
+    build.
+
+Resolution for the edit-list is free when riding a build you're running anyway; a standalone
+resolving pass is the no-build (pre-commit) fallback.
+
+Formatting is a *terminal, whole-file* stage (rebuild layout from a doc-IR, single pass,
+idempotent), so it composes after any structural fix without convergence loops — unlike the
+multi-pass fixpoint ktlint needs from many interacting local rewrites.
 
 ## Config
 
-Walk up directories from source root until a `wrasse.json` (or `wrasse.jsonc`) is found.
-Config is loaded once in `WrasseCompilerPluginRegistrar.registerExtensions()` using
-source roots from `CompilerConfiguration.javaSourceRoots`. Parsed by a hand-rolled
-JSONC parser (`ConfigValueJsonc`) — zero external dependencies.
+Discovered by walking up from the source root to the nearest `wrasse.json` / `wrasse.jsonc`,
+parsed by a hand-rolled zero-dependency JSONC reader. Loaded once at registration time from
+`CompilerConfiguration.javaSourceRoots`.
 
-```json
-{
-  "$schema": "https://varlanv.github.io/wrasse/schema.json",
-  "exclude": ["**/build/**", "**/generated/**"],
-  "rules": {
-    "no-semicolons": { "enabled": true, "exclude": [] },
-    "no-wildcard-imports": { "enabled": true, "exclude": [] },
-    "trailing-newline": { "enabled": true, "exclude": [] }
-  }
-}
-```
+- **Effective config via `extends`** — a config may extend a base; scalars override, `exclude`
+  lists union. Replaces the old "every rule must be listed" mandate. A rule absent from the
+  effective config is off/inherited, not an error. Malformed config still fails fast.
+- **`level: off | warn | error`** per rule — a single tri-state axis (not separate enable +
+  severity). A global `warnOnly` CLI flag layers on top as a blanket error→warn downgrade.
+- **Exclude-only**, globs precompiled to `PathMatcher`. Global `exclude` unions with per-rule
+  `exclude`. No `include` (avoids precedence ambiguity).
+- **`formatting-` key prefix** groups formatting rules in the single `rules` block (no separate
+  lint/format sections). `formatting-opinionated` is a whole-file formatter; enabling it errors if
+  any other purely-formatting rule is also set.
+- **Suppression** via `@Suppress("rule-id")` only (expression and declaration scope) — no comment
+  directives, no baseline.
 
-### Config design decisions
-
-- **No per-rule severity.** A rule is either enabled or disabled. The global `warnOnly`
-  CLI flag (`-P plugin:com.varlanv.wrasse:warnOnly=true`) switches all violations to
-  warnings for rollout purposes.
-- **Exclude-only.** No `include` field. A rule runs on all files unless excluded.
-  Include + exclude together create precedence ambiguity.
-- **Globs pre-compiled** to `java.nio.file.PathMatcher` at config parse time.
-- **Autofix** (future): fixable rules will get an `autofix: true/false` property.
-  Baked into schema, only allowed on rules that support it.
-- **Nursery** (future): `nursery` block alongside `rules` for explicitly non-stable rules.
-
-### Exclude semantics
-
-- **Global `exclude`:** applies to all rules. Union with per-rule excludes.
-- **Per-rule `exclude`:** additional excludes for a specific rule.
-- **No `include` field.** A rule runs on all files unless excluded.
+> Today's code still encodes the older model (mandatory keys, `enabled` boolean, global severity).
+> Migrating it is Phase A in [roadmap.md](roadmap.md).
 
 ## Diagnostics (IDE integration)
 
-Wrasse reports `KtDiagnostic` instances so IntelliJ shows violations inline.
-No separate IntelliJ plugin needed for basic error/warning display (requires
-"Kotlin External FIR Support" plugin installed in the IDE).
+Violations are reported as `KtDiagnostic`s so IntelliJ shows them inline (with the "Kotlin External
+FIR Support" plugin). `WrasseErrors` declares `WRASSE_ERROR` and `WRASSE_WARNING` factories; the
+reporter picks one per violation from that rule's configured `level`.
 
-```kotlin
-object WrasseErrors : KtDiagnosticsContainer() {
-    val WRASSE_ERROR   by error1<KtElement, String>(SourceElementPositioningStrategies.DEFAULT)
-    val WRASSE_WARNING by warning1<KtElement, String>(SourceElementPositioningStrategies.DEFAULT)
+## Performance design
 
-    // Must stay a function (not property) to avoid cyclic init — see KtDiagnosticsContainer docs
-    override fun getRendererFactory() = Renderers
-}
-```
-
-The `internal` package picks `WRASSE_ERROR` or `WRASSE_WARNING` based on the global
-`WrassePlugin.severity` (set from CLI `warnOnly` flag). All violations in a compilation
-share the same severity level.
-
-Diagnostic containers are registered via `registerDiagnosticContainers(WrasseErrors)` in
-`WrasseFirExtensionRegistrar.configurePlugin()`.
-
-## Novel rules (beyond ktlint/detekt)
-
-These checks are uniquely possible or significantly better in wrasse because of
-FIR access and LightTree fidelity.
-
-### Function visual line limit
-
-Enforce a hard limit on visual lines in a function body (e.g., 70 lines).
-Count actual rendered lines including blank lines and comments.
-
-### Split compound boolean conditions
-
-Warn when `if`/`when` conditions contain deeply nested `&&`/`||` operators.
-Inspired by TigerStyle.
-
-### Split compound assertions
-
-Warn when `require()`, `check()`, `assert()` is called with a compound boolean argument.
-`require(a && b)` should be `require(a); require(b)`.
-
-### No recursion
-
-Warn when a function calls itself. Uses FIR resolved callee symbol — no false positives
-from name shadowing. Inspired by TigerStyle / NASA's Power of Ten.
-
-### Explicit library defaults
-
-Warn when a function call uses default parameter values for a configurable set of library
-functions. Uses FIR resolved parameter defaults. Impossible without type resolution.
-
-### Design implication
-
-All semantic rules share a pattern: match a resolved function call by `CallableId` and
-inspect arguments/context. `FirFunctionCallChecker` in the `internal` package handles this,
-delegating to `WrassePlugin.checkCall()`.
-
-## Kotlinc APIs wrapped in adapter layer
-
-These are internal to the adapter — rule code never imports any of these.
-
-### LightTree traversal
-
-| kotlinc type | Used for |
-|---|---|
-| `KtLightSourceElement` | Access `treeStructure` and `lighterASTNode` from FIR `source` |
-| `FlyweightCapableTreeStructure<LighterASTNode>` | Walk tree: `root`, `getChildren(node, ref)` |
-| `LighterASTNode` | Node interface: `tokenType`, `startOffset`, `endOffset` |
-| `LighterASTTokenNode` | Leaf node with `.text` |
-| `Ref<Array<LighterASTNode?>>` | Output param for `getChildren` |
-| `IElementType` | Node/token type identifier |
-
-### FIR checker registration
-
-| kotlinc type | Used for |
-|---|---|
-| `CompilerPluginRegistrar` | Plugin entry point |
-| `CommandLineProcessor` | CLI options |
-| `CompilerConfiguration` | Read plugin options |
-| `FirExtensionRegistrar` | Register FIR extensions |
-| `FirExtensionRegistrarAdapter` | IDE-safe adapter for registrar |
-| `FirAdditionalCheckersExtension` | Declare checkers |
-| `FirFileChecker` | Per-file syntactic check |
-| `FirFunctionCallChecker` | Per-call semantic check |
-
-### Diagnostics
-
-| kotlinc type | Used for |
-|---|---|
-| `KtDiagnosticsContainer` | Declare diagnostic factories |
-| `DiagnosticReporter` / `reportOn` | Report diagnostics |
-| `error1` / `warning1` | Factory DSL functions |
-
-## Comparison with ktlint and detekt
-
-| Aspect | wrasse | ktlint | detekt |
-|---|---|---|---|
-| Parse overhead | None (rides compiler) | Full PSI parse | Full PSI parse + optional type resolution |
-| Tree type | LightTree (read-only, flyweight) | PSI (mutable, heavy) | PSI (mutable, heavy) |
-| Rule input | WNode (own model) | ASTNode (kotlinc PSI) | KtElement (kotlinc PSI) |
-| Rule dispatch | Dispatch table by node type | Visitor per rule | Visitor per rule |
-| Severity | Global (error or warn-only) | Per-rule | Per-rule |
-| IDE integration | KtDiagnostic (native) | Separate IntelliJ plugin | Separate IntelliJ plugin |
-| Gradle coupling | None (compiler plugin) | Gradle plugin | Gradle plugin |
-| Type resolution | FIR (for semantic rules) | None | Analysis API (optional) |
-| Build tool support | Any kotlinc host | Gradle, Maven, CLI | Gradle, CLI |
+- **LightTree, not PSI.** Both ktlint and detekt build PSI (heavy). Wrasse reads the LightTree
+  (flyweight) the compiler already built. The standalone host (B) builds LightTree itself —
+  expected to be lighter than PSI, but the **load-bearing unknown** is whether the LightTree parser
+  can run without the heavy `KotlinCoreEnvironment` startup. Benchmark this first (see roadmap).
+- **Dispatch table** by `WNodeType.ordinal` — array index, no hashing, one traversal.
+- **Eager, stack-based tree build** — no recursion, no lazy proxies; the `getChildren` `Ref` is
+  reused; leaf tokens never hit the stack.
+- **Incremental compilation is free filtering for lint** — kotlinc only recompiles changed files,
+  so the lint checker only fires on what changed. (This is exactly why outbound rules don't fit the
+  incremental path — see *Inbound vs outbound*.)
+- **Honest perf claims:** the wins are (a) lint rides the compile for free, (b) one parse for
+  lint+format vs running two or three separate tools, (c) single-pass formatting vs ktlint's
+  multi-pass. We do **not** claim to beat ktfmt's pure-format throughput head-to-head.
 
 ## Build target
 
-**JVM target: Java 8 bytecode.** The plugin JAR loads into the kotlinc daemon's
-classloader. That daemon runs on whatever JDK the build tool uses. Every bundled Kotlin
-compiler plugin (compose, serialization, all-open, no-arg) targets JVM 8.
+- **JVM 8 bytecode** for the plugin JAR (loads into the kotlinc daemon's classloader, like every
+  bundled compiler plugin).
+- **Single JAR, runtime compatibility across a Kotlin range.** Compiled against the latest
+  supported Kotlin (currently 2.4); cross-version API differences are absorbed by the adapter and
+  by version-specific registrar shells selected at runtime (`k20` / `k22`).
+- Gradle toolchain uses the latest JDK; target/toolchain versions are centralized in
+  `libs.versions.toml`.
 
-**Gradle toolchain: JDK 26.** The build itself uses the latest JDK for compilation.
-The `javaTargetVersion` and `javaToolchainVersion` are configured centrally in
-`libs.versions.toml`.
+## Module structure
 
-**Kotlin version: single JAR, runtime compatibility across a range.** Wrasse compiles
-against the latest Kotlin in its supported range (currently 2.4.0). API differences
-across versions are handled inside the adapter layer.
+```
+libs/
+  wrasse-model/            WNode, WNodeType, WRule, WFile, WViolation, SplitRules — no kotlinc deps
+  wrasse-config/           WrasseConfig + parsing — depends on wrasse-lang
+  wrasse-rules/            rule implementations — depends on wrasse-model + wrasse-config
+  wrasse-kotlinc-adapter/  LightTreeAdapter, WNodeTypeMapping — depends on kotlinc + wrasse-model
+  wrasse-lang/             ConfigValue (JSONC), FileWalkUp — zero-dep utilities
+  wrasse-format/           (planned) formatting pipeline
+app/
+  wrasse-kotlinc-plugin/   entry points, WrassePlugin, internal/ kotlinc shells (compileOnly kotlinc)
+  wrasse-kotlinc-internal-k20 / -k22   version-specific registrar shells
+testing/
+  common-test/             BaseSpec, shared utilities
+  wrasse-test-harness/     fixture loader/parser, test harness
+  wrasse-kotlinc-plugin-tests-2-1-x … -2-4-x   per-version fixture runs
+```
 
-## Performance design decisions
-
-### Eager WNode tree — stack-based, no recursion
-
-`LightTreeAdapter` builds the full WNode tree using an explicit `ArrayDeque` stack.
-No recursion, no lazy proxies. The `Ref` for `getChildren()` is reused across iterations.
-Leaf nodes (`LighterASTTokenNode`) are never pushed onto the stack.
-
-On a 2000-line file (~10K nodes), tree construction is ~1ms. The tree is immutable
-after construction — safe to share across rules.
-
-### Source text: one CharSequence per file
-
-`WFile.sourceText` holds the whole file's source as a `CharSequence` backed by the
-compiler's existing char buffer. `WNode.leafText` on tokens delegates to the kotlinc
-`LighterASTTokenNode.text` — already a slice, not a copy.
-
-### Rule dispatch: array indexed by WNodeType ordinal
-
-`SplitRules` builds an `Array<List<NodeVisitorWRule>>` at startup, indexed by
-`WNodeType.ordinal`. Per-node dispatch is an array index lookup — O(1), no hashing.
-If 5 out of 100 rules target SEMICOLON, only 5 are invoked per semicolon node.
-
-### Incremental compilation: free filtering
-
-kotlinc only recompiles changed files. Wrasse's FIR checker only fires on files the
-compiler visits. On a million-LOC codebase where one file changes, wrasse processes
-one file.
+`wrasse-model` and `wrasse-rules` have zero dependency on kotlinc — rules are testable without a
+compiler and portable to other hosts (e.g. a future PSI → WNode adapter for an IntelliJ plugin).
 
 ## Test strategy
 
-### Fixture-based auto-discovery harness
+- **Fixture auto-discovery.** Tests are `.kt` files on disk; adding a test = adding a file.
+  `// expect-error <line>:<col> <ruleId> "<message>"`, `// expect-clean`, and `// fixture-option:`
+  directives drive expectations. Config inheritance: a base `wrasse.json` (all off) plus per-rule
+  overrides.
+- **Kotlin version matrix.** The same fixtures run against multiple `kotlin-compiler-embeddable`
+  versions (currently 2.1–2.4, with per-patch coverage planned) via a Gradle system property —
+  version-agnostic by construction. This is the primary mitigation against FIR API instability.
 
-Tests are fixture files on disk, auto-discovered at runtime. Adding a test = adding
-a `.kt` file to the right directory. No spec code to touch.
+## Kotlinc surface (adapter-only)
 
-```
-fixtures/
-├── wrasse.json                  # Base config (all rules disabled)
-├── no-semicolons/
-│   ├── wrasse.json              # Override: enable no-semicolons
-│   ├── unnecessary-trailing.kt  # // expect-error 3:10 no-semicolons "..."
-│   └── clean.kt                 # // expect-clean
-├── no-wildcard-imports/
-│   ├── wrasse.json
-│   ├── wildcard-flagged.kt
-│   └── explicit-ok.kt
-└── trailing-newline/
-    ├── wrasse.json
-    ├── missing-newline.kt
-    └── has-newline.kt           # // fixture-option: trailing-newline
-```
+Rule code never imports these; they are confined to the adapter and the `internal/` shells.
 
-**Config inheritance:** root `wrasse.json` has all rules disabled. Per-rule subdirectory
-overrides only what changes (deep merge via `org.json` — test-only dependency).
-
-**`FixtureLoader.load(dir)`** scans once, reads everything into memory, returns
-`List<Fixture>`. Each `Fixture` holds ruleId, fixtureId, merged config, source,
-expectations.
-
-**`FixtureParser`** extracts directives from fixture files:
-- `// expect-error <line>:<col> <ruleId> "<message>"` — expected violation
-- `// expect-clean` — no violations expected
-- `// fixture-option: trailing-newline` — append `\n` to stripped source
-
-**Fixture spec** (`WrasseFixtureSpec`): one `ShouldSpec` that iterates all fixtures.
-Test names: `should handle spec - no-semicolons -> clean`.
-
-### Kotlin version matrix (planned)
-
-Four layers:
-1. **Unit tests** — rule logic against WNode trees, no compiler
-2. **Current kotlinc** — fixture tests with wrasse plugin loaded (current: 2.4.0)
-3. **Minor versions** — same fixtures across Kotlin 2.0-2.4, one test task per version
-4. **All patches** — every published patch in supported range, pre-release only
-
-Fixtures dir is passed via Gradle system property `wrasse.fixtures.dir`. Version-agnostic
-by design — same fixtures, different `kotlin-compiler-embeddable` on classpath.
-
-## Milestones
-
-### Milestone 0: Proof of concept ✓
-
-Compiler plugin loads, FIR checker fires, `KtDiagnostic` reported with file/line/column.
-
-### Milestone 1: Foundation ✓
-
-- WNode concrete class (eager, stack-based build)
-- LightTreeAdapter (iterative, no recursion)
-- WNodeTypeMapping (~160 entries)
-- Hand-rolled JSONC config parser (zero deps)
-- WRule sealed hierarchy (NodeVisitorWRule + FileVisitorWRule)
-- Dispatch table by WNodeType ordinal
-- Global severity with `warnOnly` CLI flag
-- Config loaded from source roots at registration time
-- Plugin structure: `internal` package (kotlinc shells) + outer package (wrasse logic)
-- 3 rules: no-semicolons, no-wildcard-imports, trailing-newline
-- Fixture-based auto-discovery test harness
-- Test config inheritance (base + per-rule override, deep merge)
-
-### Milestone 2: Rule coverage
-
-- Port ktlint rules (complexity 1 and 2 first)
-- Port detekt rules (ones not needing Analysis API)
-- Port unique diktat rules worth keeping
-- JSON Schema for config autocomplete
-
-### Milestone 3: Formatting
-
-- Read-only CST → reconstructed source text
-- Temp file output pipeline
-- `autofix` property on fixable rules
-- Format-only rules (indentation, spacing, wrapping)
-
-### Milestone 4: Semantic rules
-
-- Restricted API (configurable FQN list)
-- No recursion
-- Split compound assertions
-- Explicit library defaults
-- Function visual line limit
-
-### Milestone 5: Hardening
-
-- Kotlin version matrix testing (layers 3 + 4)
-- Fuzz testing on real-world Kotlin projects
-- Performance benchmarks vs ktlint + detekt
-- Nursery rules block
-- Publish to Maven Central
-
-## Design decisions
-
-### Decided
-
-- **WNode:** concrete class, not interface. Eager tree build, no lazy proxies.
-- **Rule dispatch:** sealed hierarchy (NodeVisitor + FileVisitor), dispatch table by node type ordinal.
-- **Severity:** global only (ERROR default, `warnOnly` CLI flag). No per-rule severity in config.
-- **Config:** `rules` block only. No `lint`/`format` split. Fixable rules get `autofix` property.
-- **Module boundaries:** `libs/` (model, config, rules, adapter, lang), `app/` (plugin), `testing/`.
-- **Plugin structure:** `internal` package for kotlinc shells, outer package for wrasse logic.
-- **Tree traversal:** iterative stack-based (ArrayDeque), no recursion.
-- **Config loading:** at registration time from `CompilerConfiguration.javaSourceRoots`, not per-file.
-- **Test harness:** fixture auto-discovery, config inheritance with deep merge.
-- **`$schema` hosting:** GitHub Pages.
-- **EditorConfig support:** no. Migration CLI flag instead.
+- LightTree: `KtLightSourceElement`, `FlyweightCapableTreeStructure<LighterASTNode>`,
+  `LighterASTNode`, `LighterASTTokenNode`, `IElementType`.
+- FIR registration: `CompilerPluginRegistrar`, `CommandLineProcessor`, `CompilerConfiguration`,
+  `FirExtensionRegistrar(Adapter)`, `FirAdditionalCheckersExtension`, `FirFileChecker`,
+  `FirFunctionCallChecker`.
+- Diagnostics: `KtDiagnosticsContainer`, `DiagnosticReporter` / `reportOn`, `error1` / `warning1`.
