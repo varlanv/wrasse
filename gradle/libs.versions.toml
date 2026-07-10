@@ -1,10 +1,11 @@
 [versions]
-# JDK version used to compile
-javaToolchainVersion = "26"
 # bytecode target for the plugin JAR
 javaTargetVersion = "1.8"
+# JDK version used to compile
+javaToolchainVersion = "26"
+kotestVersion = "6.2.2"
 kotlinVersion = "2.4.0"
-kotestVersion = "6.1.11"
+versionCatalogPluginVersion = "1.1.0"
 
 [libraries]
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlinVersion" }
@@ -12,8 +13,9 @@ kotlin-gradle-main = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", ver
 kotlin-kotest-assertions = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotestVersion" }
 kotlin-kotest-junit5Runner = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotestVersion" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlinVersion" }
-org-json = { module = "org.json:json", version = "20250517" }
+org-json = "org.json:json:20260522"
 
 [plugins]
 internalConvention = { id = "com.varlanv.wrasse.gradle.internal-gradle-convention-plugin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinVersion" }
+versionCatalogPlugin = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogPluginVersion" }

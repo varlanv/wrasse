@@ -1,3 +1,18 @@
+plugins {
+    alias(libs.plugins.versionCatalogPlugin)
+}
+
+repositories {
+    mavenCentral()
+    gradlePluginPortal()
+}
+
+versionCatalogUpdate {
+    keep {
+        keepUnusedVersions = true
+    }
+}
+
 tasks.register("testMinorHarness") {
     group = "verification"
     description = "Run fixture tests against all supported Kotlin minor versions"
