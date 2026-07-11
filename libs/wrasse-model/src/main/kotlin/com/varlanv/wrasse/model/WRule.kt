@@ -6,16 +6,23 @@ package com.varlanv.wrasse.model
  * If a rule genuinely needs to perform heavy work and requires allocation, design should be revisited to pass
  * pre-computed data from upstream.
  */
+interface WUninitializedRule {
+    val id: String
+
+    fun initRule(config: WrasseRuleConfig): WRule
+}
+
 sealed interface WRule {
     val id: String
+    val config: WrasseRuleConfig
 }
 
-interface NodeVisitorWRule : WRule {
+interface WNodeRule : WRule {
     val targetTypes: Set<WNodeType>
 
-    fun visit(node: WNode, violations: MutableCollection<WViolation>)
+    fun visit(node: WNode, reporter: WReporter)
 }
 
-interface FileVisitorWRule : WRule {
-    fun visit(file: WFile, violations: MutableCollection<WViolation>)
+interface WFileRule : WRule {
+    fun visit(file: WFile, reporter: WReporter)
 }

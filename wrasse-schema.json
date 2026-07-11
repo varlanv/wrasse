@@ -25,36 +25,37 @@
             "additionalProperties": false,
             "properties": {
                 "no-semicolons": {
-                    "$ref": "#/$defs/ruleToggle",
+                    "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow unnecessary semicolons"
+                },
+                "no-wildcard-imports": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow wildcard imports"
+                },
+                "trailing-newline": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require a trailing newline at end of file"
                 }
-            },
-            "required": [
-                "no-semicolons"
-            ]
+            }
         }
     },
     "$defs": {
-        "ruleToggle": {
+        "ruleConfig": {
             "type": "object",
             "required": [
-                "enabled",
-                "severity",
+                "level",
                 "exclude"
             ],
             "additionalProperties": false,
             "properties": {
-                "enabled": {
-                    "type": "boolean",
-                    "description": "Whether this rule is active"
-                },
-                "severity": {
+                "level": {
                     "type": "string",
                     "enum": [
-                        "error",
-                        "warning"
+                        "off",
+                        "warn",
+                        "error"
                     ],
-                    "description": "Diagnostic severity when the rule fires"
+                    "description": "Rule severity: 'off' disables, 'warn' reports as warning, 'error' reports as error"
                 },
                 "exclude": {
                     "type": "array",

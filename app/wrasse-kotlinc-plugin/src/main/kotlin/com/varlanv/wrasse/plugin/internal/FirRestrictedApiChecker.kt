@@ -1,6 +1,5 @@
 package com.varlanv.wrasse.plugin.internal
 
-import com.varlanv.wrasse.config.WrasseSeverity
 import com.varlanv.wrasse.plugin.WrassePlugin
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -24,10 +23,6 @@ class FirRestrictedApiChecker(
         val message = plugin.checkCall(callableId.packageName.asString(), callableId.callableName.asString())
             ?: return
 
-        val diagnostic = when (plugin.severity) {
-            WrasseSeverity.ERROR -> WrasseErrors.WRASSE_ERROR
-            WrasseSeverity.WARNING -> WrasseErrors.WRASSE_WARNING
-        }
-        reporter.reportOn(expression.source, diagnostic, message)
+        reporter.reportOn(expression.source, WrasseErrors.WRASSE_ERROR, message)
     }
 }

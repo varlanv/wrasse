@@ -7,7 +7,7 @@ dependencies {
     compileOnly(projects.app.wrasseKotlincPlugin) {
         exclude(group = "org.jetbrains.kotlin", module = "kotlin-compiler-embeddable")
     }
-    compileOnly(projects.libs.wrasseConfig)
+    compileOnly(projects.libs.wrasseModel)
 }
 
 configurations.named("compileClasspath") {

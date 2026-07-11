@@ -1,5 +1,6 @@
 {
     "rules": {
+        "no-semicolons": { "level": "error" },
         "no-wildcard-imports": { "level": "error" }
     }
 }

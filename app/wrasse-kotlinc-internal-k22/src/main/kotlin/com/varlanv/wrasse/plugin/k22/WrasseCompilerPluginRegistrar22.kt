@@ -1,9 +1,7 @@
 package com.varlanv.wrasse.plugin.k22
 
-import com.varlanv.wrasse.config.WrasseSeverity
 import com.varlanv.wrasse.plugin.KEY_ENABLED
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
-import com.varlanv.wrasse.plugin.PLUGIN_ID
 import com.varlanv.wrasse.plugin.wrasseMain
 import org.jetbrains.kotlin.cli.jvm.config.javaSourceRoots
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
@@ -21,9 +19,8 @@ class WrasseCompilerPluginRegistrar22 : CompilerPluginRegistrar() {
         if (!enabled) return
 
         val warnOnly = configuration[KEY_WARN_ONLY, false]
-        val severity = if (warnOnly) WrasseSeverity.WARNING else WrasseSeverity.ERROR
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
-        val plugin = wrasseMain(sourceRoots, severity).getOrThrow()
+        val plugin = wrasseMain(sourceRoots, warnOnly).getOrThrow()
 
         FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar22(plugin))
     }

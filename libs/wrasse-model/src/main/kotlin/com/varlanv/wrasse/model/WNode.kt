@@ -99,10 +99,12 @@ class WNode constructor(
 
     private class DescendantsIterator(root: WNode) : Iterator<WNode> {
         private val stack = ArrayDeque<WNode>()
+
         init {
             val children = root.children
             for (i in children.lastIndex downTo 0) stack.addLast(children[i])
         }
+
         override fun hasNext(): Boolean = stack.isNotEmpty()
         override fun next(): WNode {
             val node = stack.removeLast()
@@ -181,14 +183,16 @@ class WNode constructor(
     }
 
     /** True if this node is WHITE_SPACE, EOL_COMMENT, BLOCK_COMMENT, or KDOC. */
-    val isWhitespaceOrComment: Boolean get() = type == WNodeType.WHITE_SPACE ||
-        type == WNodeType.EOL_COMMENT ||
-        type == WNodeType.BLOCK_COMMENT ||
-        type == WNodeType.KDOC
+    val isWhitespaceOrComment: Boolean
+        get() = type == WNodeType.WHITE_SPACE ||
+            type == WNodeType.EOL_COMMENT ||
+            type == WNodeType.BLOCK_COMMENT ||
+            type == WNodeType.KDOC
 
     /** True if this is a WHITE_SPACE leaf whose text contains a newline. */
-    val isNewline: Boolean get() = type == WNodeType.WHITE_SPACE &&
-        leafText != null && leafText.contains('\n')
+    val isNewline: Boolean
+        get() = type == WNodeType.WHITE_SPACE &&
+            leafText != null && leafText.contains('\n')
 
     /**
      * Zero-based column of this node's start position on its line.

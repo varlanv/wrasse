@@ -12,6 +12,7 @@ import java.nio.file.Path
 
 class WrasseTestHarness(
     private val wrasseConfig: String,
+    private val warnOnly: Boolean = false,
 ) {
 
     companion object {
@@ -26,6 +27,8 @@ class WrasseTestHarness(
             val location = marker.protectionDomain?.codeSource?.location ?: return@lazy null
             File(location.toURI()).absolutePath
         }
+
+        private const val PLUGIN_ID = "com.varlanv.wrasse"
     }
 
     fun compile(sources: List<TestSource>): CompilationResult {
@@ -46,11 +49,19 @@ class WrasseTestHarness(
         }
         Files.write(workDir.resolve("wrasse.json"), wrasseConfig.toByteArray())
 
+        val wrassePluginOptions = mutableListOf<String>()
+        if (warnOnly) {
+            wrassePluginOptions.add("plugin:$PLUGIN_ID:warnOnly=true")
+        }
+
         val collector = DiagnosticCollector()
         val compiler = K2JVMCompiler()
         val args = K2JVMCompilerArguments().apply {
             freeArgs = sources.map { srcDir.resolve(it.path).toString() }
             pluginClasspaths = arrayOf(pluginClasspath)
+            if (wrassePluginOptions.isNotEmpty()) {
+                pluginOptions = wrassePluginOptions.toTypedArray()
+            }
             noReflect = true
             noJdk = true
             jvmTarget = "1.8"

@@ -1,42 +1,47 @@
 package com.varlanv.wrasse.plugin
 
-import com.varlanv.wrasse.config.WrasseConfig
-import com.varlanv.wrasse.config.WrasseSeverity
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
 import com.varlanv.wrasse.model.SplitRules
+import com.varlanv.wrasse.model.WConfig
 import com.varlanv.wrasse.model.WRule
+import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoWildcardImportsRule
-import com.varlanv.wrasse.rules.TrailingNewlineRule
+import com.varlanv.wrasse.rules.TrailingNewlineVisitor
+import org.jetbrains.kotlin.backend.common.push
 import java.nio.file.Path
 
 private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
-/**
- * Wrasse plugin entrypoint, decoupled from kotlinc lifecycle.
- */
-fun wrasseMain(sourceRoots: List<Path>, severity: WrasseSeverity = WrasseSeverity.ERROR): Result<WrassePlugin> {
-    val config = loadConfig(sourceRoots).getOrElse { return Result.failure(it) }
+fun wrasseMain(sourceRoots: List<Path>, warnOnly: Boolean = false): Result<WrassePlugin> {
+    val uninitializedRules = sequenceOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineVisitor())
+        .associateBy { it.id }
+    val config =
+        loadConfig(
+            sourceRoots = sourceRoots,
+            uninitializedRules = uninitializedRules,
+            warnOnly = warnOnly
+        ).getOrElse { return Result.failure(it) }
+    val rules = mutableListOf<WRule>()
+    for ((ruleId, ruleConfig) in config.rulesConfigs.idToConfig) {
+        val uninitRule = uninitializedRules[ruleId] ?: continue
+        val rule = uninitRule.initRule(ruleConfig)
+        rules.push(rule)
+    }
     return Result.success(
         WrassePlugin(
-            config = config,
-            rules = SplitRules(assembleRules(config)),
-            severity = severity,
+            rules = SplitRules(rules),
         )
     )
 }
 
-private fun assembleRules(config: WrasseConfig): List<WRule> = sequenceOf<Pair<Boolean, () -> WRule>>(
-    config.rulesConfigs.noSemicolons.enabled to { NoSemicolonsRule(config.rulesConfigs.noSemicolons) },
-    config.rulesConfigs.noWildcardImports.enabled to { NoWildcardImportsRule(config.rulesConfigs.noWildcardImports) },
-    config.rulesConfigs.trailingNewline.enabled to { TrailingNewlineRule(config.rulesConfigs.trailingNewline) },
-)
-    .filter { it.first }
-    .map { it.second() }
-    .toList()
 
-private fun loadConfig(sourceRoots: List<Path>): Result<WrasseConfig> {
+private fun loadConfig(
+    sourceRoots: List<Path>,
+    uninitializedRules: Map<String, WUninitializedRule>,
+    warnOnly: Boolean
+): Result<WConfig> {
     for (root in sourceRoots) {
         val startDir = if (root.toFile().isFile) root.parent ?: continue else root
         val configPath = FileWalkUp.find(startDir) { it in configFileNames }
@@ -50,9 +55,9 @@ private fun loadConfig(sourceRoots: List<Path>): Result<WrasseConfig> {
             }
             ?: continue
         val text = configPath.toFile().readText()
-        val configValue = ConfigValueJsonc.parse(text)
+        val configValue = ConfigValueJsonc.parse(input = text)
             .getOrElse { return Result.failure(Exception("wrasse: failed to parse $configPath: ${it.message}", it)) }
-        return WrasseConfig.from(configValue)
+        return WConfig.from(configValue = configValue, ruleIds = uninitializedRules.keys, warnOnly = warnOnly)
             .getOrElse { return Result.failure(Exception("wrasse: invalid config in $configPath: ${it.message}", it)) }
             .let { Result.success(it) }
     }

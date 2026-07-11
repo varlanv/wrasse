@@ -16,6 +16,7 @@ class Fixture(
     val source: String,
     val expectations: List<ExpectedDiagnostic>,
     val expectClean: Boolean,
+    val warnOnly: Boolean,
 )
 
 object FixtureLoader {
@@ -49,6 +50,7 @@ object FixtureLoader {
                         source = parsed.strippedSource,
                         expectations = parsed.expectations,
                         expectClean = parsed.expectClean,
+                        warnOnly = parsed.warnOnly,
                     )
                 )
             }

@@ -4,6 +4,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 
 fun CompilationResult.assertMatchesExpectations(fixture: Fixture) {
     val wrasse = wrasseDiagnostics
@@ -30,8 +31,14 @@ fun CompilationResult.assertMatchesExpectations(fixture: Fixture) {
             actual.location?.line shouldBe expected.line
             actual.location?.column shouldBe expected.column
             actual.message shouldBe "wrasse: ${expected.ruleId}: ${expected.message}"
+            actual.severity shouldBe expected.severity.toCompilerSeverity()
         }
     }
+}
+
+private fun ExpectedSeverity.toCompilerSeverity(): CompilerMessageSeverity = when (this) {
+    ExpectedSeverity.ERROR -> CompilerMessageSeverity.ERROR
+    ExpectedSeverity.WARNING -> CompilerMessageSeverity.WARNING
 }
 
 private fun formatDiagnostics(diagnostics: List<TestDiagnostic>): String =
@@ -41,5 +48,5 @@ private fun formatDiagnostics(diagnostics: List<TestDiagnostic>): String =
 
 private fun formatExpectations(expectations: List<ExpectedDiagnostic>): String =
     expectations.joinToString("\n") { e ->
-        "  ${e.line}:${e.column} ${e.ruleId} \"${e.message}\""
+        "  ${e.severity} ${e.line}:${e.column} ${e.ruleId} \"${e.message}\""
     }

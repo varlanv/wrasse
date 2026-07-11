@@ -7,7 +7,6 @@ description = "Wrasse compiler plugin — the published JAR users add to kotlinC
 
 dependencies {
     implementation(projects.libs.wrasseModel)
-    implementation(projects.libs.wrasseConfig)
     implementation(projects.libs.wrasseKotlincAdapter)
     implementation(projects.libs.wrasseRules)
     implementation(projects.libs.wrasseFormat)

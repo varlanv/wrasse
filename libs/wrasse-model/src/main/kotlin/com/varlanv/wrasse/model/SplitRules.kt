@@ -2,18 +2,18 @@ package com.varlanv.wrasse.model
 
 class SplitRules(rules: List<WRule>) {
 
-    val fileVisitorRules: List<FileVisitorWRule>
+    val fileVisitorRules: List<WFileRule>
     val hasNodeRules: Boolean
-    private val nodeDispatch: Array<List<NodeVisitorWRule>>
+    private val nodeDispatch: Array<List<WNodeRule>>
 
     init {
-        val fileVisitors = ArrayList<FileVisitorWRule>()
-        val dispatch = Array<MutableList<NodeVisitorWRule>?>(WNodeType.entries.size) { null }
+        val fileVisitors = ArrayList<WFileRule>()
+        val dispatch = Array<MutableList<WNodeRule>?>(WNodeType.entries.size) { null }
 
         for (rule in rules) {
             when (rule) {
-                is FileVisitorWRule -> fileVisitors.add(rule)
-                is NodeVisitorWRule -> {
+                is WFileRule -> fileVisitors.add(rule)
+                is WNodeRule -> {
                     for (type in rule.targetTypes) {
                         val list = dispatch[type.ordinal]
                         if (list != null) {
@@ -31,5 +31,5 @@ class SplitRules(rules: List<WRule>) {
         this.hasNodeRules = nodeDispatch.any { it.isNotEmpty() }
     }
 
-    fun rulesForType(type: WNodeType): List<NodeVisitorWRule> = nodeDispatch[type.ordinal]
+    fun rulesForType(type: WNodeType): List<WNodeRule> = nodeDispatch[type.ordinal]
 }

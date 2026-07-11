@@ -5,5 +5,5 @@ plugins {
 description = "Wrasse model — WNode, WNodeType, WFile, WRule."
 
 dependencies {
-    implementation(projects.libs.wrasseConfig)
+    implementation(projects.libs.wrasseLang)
 }

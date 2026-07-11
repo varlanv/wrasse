@@ -1,6 +1,6 @@
 package com.varlanv.wrasse.plugin.internal
 
-import com.varlanv.wrasse.config.WrasseSeverity
+import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.plugin.WrassePlugin
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
@@ -18,12 +18,12 @@ class FirSyntacticChecker(
     override fun check(declaration: FirFile) {
         val source = declaration.source as? KtLightSourceElement ?: return
 
-        val diagnostic = when (plugin.severity) {
-            WrasseSeverity.ERROR -> WrasseErrors.WRASSE_ERROR
-            WrasseSeverity.WARNING -> WrasseErrors.WRASSE_WARNING
-        }
-
         for (violation in plugin.checkFile(source, declaration.name)) {
+            val diagnostic = when (violation.level) {
+                RuleLevel.ERROR -> WrasseErrors.WRASSE_ERROR
+                RuleLevel.WARN -> WrasseErrors.WRASSE_WARNING
+                RuleLevel.OFF -> continue
+            }
             val violationSource = KtLightSourceElement(
                 source.lighterASTNode,
                 violation.startOffset,

@@ -2,17 +2,19 @@ package com.varlanv.wrasse.testing.harness
 
 object FixtureParser {
 
-    private val EXPECT_ERROR_PATTERN = Regex(
-        """^//\s*expect-error\s+(\d+):(\d+)\s+([\w-]+)\s+"([^"]*)"$"""
+    private val EXPECT_DIAGNOSTIC_PATTERN = Regex(
+        """^//\s*expect-(error|warning)\s+(\d+):(\d+)\s+([\w-]+)\s+"([^"]*)"$"""
     )
     private const val EXPECT_CLEAN = "// expect-clean"
     private const val OPTION_TRAILING_NEWLINE = "// fixture-option: trailing-newline"
+    private const val OPTION_WARN_ONLY = "// fixture-option: warn-only"
 
     fun parse(source: String): ParsedFixture {
         val lines = source.lines()
         val expectations = mutableListOf<ExpectedDiagnostic>()
         var expectClean = false
         var trailingNewline = false
+        var warnOnly = false
         val sourceLines = mutableListOf<String>()
 
         for (line in lines) {
@@ -25,14 +27,22 @@ object FixtureParser {
                 trailingNewline = true
                 continue
             }
-            val match = EXPECT_ERROR_PATTERN.matchEntire(trimmed)
+            if (trimmed == OPTION_WARN_ONLY) {
+                warnOnly = true
+                continue
+            }
+            val match = EXPECT_DIAGNOSTIC_PATTERN.matchEntire(trimmed)
             if (match != null) {
                 expectations.add(
                     ExpectedDiagnostic(
-                        line = match.groupValues[1].toInt(),
-                        column = match.groupValues[2].toInt(),
-                        ruleId = match.groupValues[3],
-                        message = match.groupValues[4],
+                        severity = when (match.groupValues[1]) {
+                            "warning" -> ExpectedSeverity.WARNING
+                            else -> ExpectedSeverity.ERROR
+                        },
+                        line = match.groupValues[2].toInt(),
+                        column = match.groupValues[3].toInt(),
+                        ruleId = match.groupValues[4],
+                        message = match.groupValues[5],
                     )
                 )
                 continue
@@ -45,10 +55,10 @@ object FixtureParser {
         }
 
         require(expectClean || expectations.isNotEmpty()) {
-            "Fixture must have at least one // expect-error or // expect-clean directive"
+            "Fixture must have at least one // expect-error, // expect-warning, or // expect-clean directive"
         }
         require(!(expectClean && expectations.isNotEmpty())) {
-            "Fixture cannot have both // expect-clean and // expect-error directives"
+            "Fixture cannot have both // expect-clean and // expect-error/expect-warning directives"
         }
 
         var strippedSource = sourceLines.joinToString("\n")
@@ -60,6 +70,7 @@ object FixtureParser {
             strippedSource = strippedSource,
             expectations = expectations,
             expectClean = expectClean,
+            warnOnly = warnOnly,
         )
     }
 }
@@ -68,9 +79,16 @@ class ParsedFixture(
     val strippedSource: String,
     val expectations: List<ExpectedDiagnostic>,
     val expectClean: Boolean,
+    val warnOnly: Boolean = false,
 )
 
+enum class ExpectedSeverity {
+    ERROR,
+    WARNING,
+}
+
 class ExpectedDiagnostic(
+    val severity: ExpectedSeverity,
     val line: Int,
     val column: Int,
     val ruleId: String,

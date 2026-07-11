@@ -6,5 +6,4 @@ description = "Wrasse rules implementation"
 
 dependencies {
     implementation(projects.libs.wrasseModel)
-    implementation(projects.libs.wrasseConfig)
 }
