@@ -21,10 +21,16 @@ Scope discipline is the point of this file. Anything not in a phase below is **p
 
 **Goal:** a config model that scales to hundreds of rules without breaking on every release.
 
+Done:
+- ~~Replace per-rule `enabled: Boolean` with `level: off | warn | error`.~~ Rules carry their
+  configured level; the reporter reads `rule.config.effectiveLevel` per violation and picks the
+  diagnostic factory accordingly. Global `warnOnly` CLI flag downgrades error→warn.
+- ~~Data-driven config parsing.~~ `WConfig.from()` takes the set of known rule IDs; adding a rule
+  no longer requires editing the config parser.
+
+Remaining:
 - Effective config with `extends` (base + override; scalars override, `exclude` unions). Drop the
   mandatory-all-rules requirement; keep fail-fast on *malformed* config.
-- Replace per-rule `enabled: Boolean` with `level: off | warn | error`; reporter maps
-  `ruleId → level` per violation. Keep global `warnOnly` as a blanket downgrade.
 - Honor `@Suppress("rule-id")` at expression and declaration scope.
 - `--list-rules` / effective-config dump + JSON schema for editor autocomplete (the
   discoverability story that replaces a `recommended` preset).

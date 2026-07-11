@@ -94,34 +94,49 @@ WFile(path, root: WNode /* FILE node */, sourceText)
 
 ### WRule — sealed hierarchy
 
-```
-sealed interface WRule { val id: String }
+Rules are constructed in two steps: an `WUninitializedRule` declares its `id`, then `initRule(config)`
+produces a configured rule instance bound to its `WrasseRuleConfig`.
 
-interface NodeVisitorWRule : WRule {        // syntactic, node-targeted
-    val targetTypes: Set<WNodeType>
-    fun visit(node: WNode, violations: MutableCollection<WViolation>)
+```
+interface WUninitializedRule {
+    val id: String
+    fun initRule(config: WrasseRuleConfig): WRule
 }
 
-interface FileVisitorWRule : WRule {        // syntactic, whole-file
-    fun visit(file: WFile, violations: MutableCollection<WViolation>)
+sealed interface WRule {
+    val id: String
+    val config: WrasseRuleConfig
+}
+
+interface WNodeRule : WRule {               // syntactic, node-targeted
+    val targetTypes: Set<WNodeType>
+    fun visit(node: WNode, reporter: WReporter)
+}
+
+interface WFileRule : WRule {               // syntactic, whole-file
+    fun visit(file: WFile, reporter: WReporter)
 }
 
 interface SemanticWRule : WRule { ... }     // PLANNED — receives a resolution facade
                                             // alongside the WNode (see below)
 ```
 
-- **NodeVisitorWRule** declares the `WNodeType`s it targets; the engine walks the tree once and
+- **WNodeRule** declares the `WNodeType`s it targets; the engine walks the tree once and
   dispatches each node to matching rules via an array indexed by `WNodeType.ordinal` (O(1), no
   hashing). If 5 of 100 rules target `SEMICOLON`, only 5 fire per semicolon.
-- **FileVisitorWRule** gets the whole `WFile` (trailing newline, import ordering, file length).
+- **WFileRule** gets the whole `WFile` (trailing newline, import ordering, file length).
 - **SemanticWRule** (planned) is the resolution-aware family — see *Resolution*.
 
-```
-WViolation(ruleId, message, node)           // no severity field
-```
+Rules report violations through `WReporter`, passing themselves alongside the violation so the
+reporter can read `rule.config.effectiveLevel` to pick the diagnostic severity:
 
-Severity is not stored on the violation. Each rule has a configured `level` (off/warn/error);
-the reporter maps `ruleId → level` at report time and picks the diagnostic factory accordingly.
+```
+WViolation(ruleId, message, node)
+
+interface WReporter {
+    fun report(violation: WViolation, rule: WRule)
+}
+```
 
 ## Inbound vs outbound — what the architecture can and cannot do cheaply
 
@@ -205,9 +220,6 @@ parsed by a hand-rolled zero-dependency JSONC reader. Loaded once at registratio
 - **Suppression** via `@Suppress("rule-id")` only (expression and declaration scope) — no comment
   directives, no baseline.
 
-> Today's code still encodes the older model (mandatory keys, `enabled` boolean, global severity).
-> Migrating it is Phase A in [roadmap.md](roadmap.md).
-
 ## Diagnostics (IDE integration)
 
 Violations are reported as `KtDiagnostic`s so IntelliJ shows them inline (with the "Kotlin External
@@ -244,9 +256,8 @@ reporter picks one per violation from that rule's configured `level`.
 
 ```
 libs/
-  wrasse-model/            WNode, WNodeType, WRule, WFile, WViolation, SplitRules — no kotlinc deps
-  wrasse-config/           WrasseConfig + parsing — depends on wrasse-lang
-  wrasse-rules/            rule implementations — depends on wrasse-model + wrasse-config
+  wrasse-model/            WNode, WNodeType, WRule, WFile, WViolation, WConfig, SplitRules — depends on wrasse-lang, no kotlinc deps
+  wrasse-rules/            rule implementations — depends on wrasse-model
   wrasse-kotlinc-adapter/  LightTreeAdapter, WNodeTypeMapping — depends on kotlinc + wrasse-model
   wrasse-lang/             ConfigValue (JSONC), FileWalkUp — zero-dep utilities
   wrasse-format/           (planned) formatting pipeline
