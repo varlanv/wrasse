@@ -5,8 +5,24 @@ import com.varlanv.wrasse.testing.useTempDir
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import java.nio.file.AccessDeniedException
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
+
+private val symlinksSupported: Boolean by lazy {
+    try {
+        val probe = Files.createTempDirectory("wrasse-symlink-probe-")
+        try {
+            val target = Files.createDirectory(probe.resolve("target"))
+            Files.createSymbolicLink(probe.resolve("link"), target)
+            true
+        } finally {
+            probe.toFile().deleteRecursively()
+        }
+    } catch (_: AccessDeniedException) {
+        false
+    }
+}
 
 class FileWalkUpSpec :
     BaseSpec({
@@ -67,7 +83,7 @@ class FileWalkUpSpec :
                 }
             }
 
-            should("follow symlinks in start directory") {
+            should("follow symlinks in start directory").config(enabledIf = { symlinksSupported }) {
                 useTempDir { root ->
                     val real = Files.createDirectories(root.resolve("real"))
                     Files.createFile(real.resolve("wrasse.json"))

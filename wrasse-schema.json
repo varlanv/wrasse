@@ -3,14 +3,14 @@
     "title": "Wrasse Configuration",
     "description": "Configuration file for the Wrasse Kotlin compiler plugin",
     "type": "object",
-    "required": [
-        "exclude",
-        "rules"
-    ],
     "additionalProperties": false,
     "properties": {
         "$schema": {
             "type": "string"
+        },
+        "extends": {
+            "type": "string",
+            "description": "Path to a base config file (relative to this file). Child values override base values."
         },
         "exclude": {
             "type": "array",
@@ -21,7 +21,7 @@
         },
         "rules": {
             "type": "object",
-            "description": "Rule configurations",
+            "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",
             "additionalProperties": false,
             "properties": {
                 "no-semicolons": {
@@ -42,10 +42,6 @@
     "$defs": {
         "ruleConfig": {
             "type": "object",
-            "required": [
-                "level",
-                "exclude"
-            ],
             "additionalProperties": false,
             "properties": {
                 "level": {

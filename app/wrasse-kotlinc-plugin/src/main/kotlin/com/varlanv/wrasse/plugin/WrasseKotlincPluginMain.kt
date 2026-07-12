@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.plugin
 
+import com.varlanv.wrasse.lang.ConfigValue
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
 import com.varlanv.wrasse.model.SplitRules
@@ -54,12 +55,33 @@ private fun loadConfig(
                 )
             }
             ?: continue
+        val configDir = configPath.parent
         val text = configPath.toFile().readText()
         val configValue = ConfigValueJsonc.parse(input = text)
             .getOrElse { return Result.failure(Exception("wrasse: failed to parse $configPath: ${it.message}", it)) }
-        return WConfig.from(configValue = configValue, ruleIds = uninitializedRules.keys, warnOnly = warnOnly)
+        val resolveExtends = resolveExtendsFrom(configDir)
+        return WConfig.from(
+            configValue = configValue,
+            ruleIds = uninitializedRules.keys,
+            warnOnly = warnOnly,
+            resolveExtends = resolveExtends,
+        )
             .getOrElse { return Result.failure(Exception("wrasse: invalid config in $configPath: ${it.message}", it)) }
             .let { Result.success(it) }
     }
     throw Exception("wrasse: config file not found. Searched upward from source roots: $sourceRoots for: $configFileNames")
+}
+
+private fun resolveExtendsFrom(baseDir: Path): (String) -> Result<ConfigValue> = { relativePath ->
+    val resolved = baseDir.resolve(relativePath).normalize()
+    if (!resolved.toFile().isFile) {
+        Result.failure(Exception("wrasse: extended config not found: $resolved"))
+    } else {
+        val text = resolved.toFile().readText()
+        ConfigValueJsonc.parse(input = text)
+            .fold(
+                { Result.success(it) },
+                { Result.failure(Exception("wrasse: failed to parse $resolved: ${it.message}", it)) }
+            )
+    }
 }

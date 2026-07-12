@@ -73,6 +73,8 @@ sealed interface ConfigValue {
  */
 class SafeProperties(private val map: Map<String, ConfigValue>) {
 
+    fun keys(): Set<String> = map.keys
+
     fun <V : ConfigValue> get(key: String, type: Class<V>): Property<V> {
         val value = map[key] ?: return Property.Missing
         if (!type.isInstance(value)) return Property.TypeMismatch(actual = value)

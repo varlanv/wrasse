@@ -27,10 +27,11 @@ Done:
   diagnostic factory accordingly. Global `warnOnly` CLI flag downgrades error→warn.
 - ~~Data-driven config parsing.~~ `WConfig.from()` takes the set of known rule IDs; adding a rule
   no longer requires editing the config parser.
+- ~~Effective config with `extends`.~~ A config can extend a base via `"extends": "path"`;
+  child values override base values. Absent rules default to off. Malformed config still
+  fails fast; circular/deep extends chains are caught.
 
 Remaining:
-- Effective config with `extends` (base + override; scalars override, `exclude` unions). Drop the
-  mandatory-all-rules requirement; keep fail-fast on *malformed* config.
 - Honor `@Suppress("rule-id")` at expression and declaration scope.
 - `--list-rules` / effective-config dump + JSON schema for editor autocomplete (the
   discoverability story that replaces a `recommended` preset).

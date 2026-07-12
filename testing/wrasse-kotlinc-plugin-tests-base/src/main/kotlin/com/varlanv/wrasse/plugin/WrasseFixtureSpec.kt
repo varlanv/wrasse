@@ -16,7 +16,11 @@ open class WrasseFixtureSpec : BaseSpec({
 
     for (fixture in fixtures) {
         should("handle spec - ${fixture.ruleId} -> ${fixture.fixtureId}") {
-            val harness = WrasseTestHarness(fixture.config, warnOnly = fixture.warnOnly)
+            val harness = WrasseTestHarness(
+                wrasseConfig = fixture.config,
+                warnOnly = fixture.warnOnly,
+                extraConfigFiles = fixture.extraConfigFiles
+            )
             val result = harness.compile(listOf(TestSource("sample/test.kt", fixture.source)))
             result.assertMatchesExpectations(fixture)
         }

@@ -3,11 +3,7 @@ package com.varlanv.wrasse.testing.harness
 import org.json.JSONObject
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.io.path.isDirectory
-import kotlin.io.path.isRegularFile
-import kotlin.io.path.name
-import kotlin.io.path.nameWithoutExtension
-import kotlin.io.path.readText
+import kotlin.io.path.*
 
 class Fixture(
     val ruleId: String,
@@ -17,6 +13,7 @@ class Fixture(
     val expectations: List<ExpectedDiagnostic>,
     val expectClean: Boolean,
     val warnOnly: Boolean,
+    val extraConfigFiles: Map<String, String> = emptyMap(),
 )
 
 object FixtureLoader {
@@ -39,7 +36,18 @@ object FixtureLoader {
                 baseConfig.toString()
             }
 
-            for (fixtureFile in Files.list(ruleDir).use { it.filter { p -> p.isRegularFile() && p.name.endsWith(".kt") }.toList() }) {
+            val extraConfigs = mutableMapOf<String, String>()
+            for (jsonFile in Files.list(ruleDir).use {
+                it.filter { p ->
+                    p.isRegularFile() && (p.name.endsWith(".json") || p.name.endsWith(".jsonc")) && p.name != "wrasse.json"
+                }.toList()
+            }) {
+                extraConfigs[jsonFile.name] = jsonFile.readText()
+            }
+
+            for (fixtureFile in Files.list(ruleDir)
+                .use { it.filter {
+                    p -> p.isRegularFile() && p.name.endsWith(".kt") }.toList() }) {
                 val fixtureId = fixtureFile.nameWithoutExtension
                 val parsed = FixtureParser.parse(fixtureFile.readText())
                 fixtures.add(
@@ -51,6 +59,7 @@ object FixtureLoader {
                         expectations = parsed.expectations,
                         expectClean = parsed.expectClean,
                         warnOnly = parsed.warnOnly,
+                        extraConfigFiles = extraConfigs,
                     )
                 )
             }

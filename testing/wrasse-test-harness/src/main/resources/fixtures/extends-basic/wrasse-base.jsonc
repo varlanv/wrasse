@@ -1,0 +1,9 @@
+// Base config for extends test
+{
+    "exclude": [],
+    "rules": {
+        "no-semicolons": { "level": "off", "exclude": [] },
+        "no-wildcard-imports": { "level": "off", "exclude": [] },
+        "trailing-newline": { "level": "off", "exclude": [] }
+    }
+}

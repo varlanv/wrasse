@@ -207,8 +207,8 @@ Discovered by walking up from the source root to the nearest `wrasse.json` / `wr
 parsed by a hand-rolled zero-dependency JSONC reader. Loaded once at registration time from
 `CompilerConfiguration.javaSourceRoots`.
 
-- **Effective config via `extends`** — a config may extend a base; scalars override, `exclude`
-  lists union. Replaces the old "every rule must be listed" mandate. A rule absent from the
+- **Effective config via `extends`** — a config may extend a base; child values override base
+  values. Replaces the old "every rule must be listed" mandate. A rule absent from the
   effective config is off/inherited, not an error. Malformed config still fails fast.
 - **`level: off | warn | error`** per rule — a single tri-state axis (not separate enable +
   severity). A global `warnOnly` CLI flag layers on top as a blanket error→warn downgrade.

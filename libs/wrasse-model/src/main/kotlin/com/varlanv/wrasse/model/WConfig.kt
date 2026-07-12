@@ -12,90 +12,178 @@ class WConfig(
 ) {
     companion object {
 
-        fun from(configValue: ConfigValue, ruleIds: Set<String>, warnOnly: Boolean): Result<WConfig> {
+        private const val MAX_EXTENDS_DEPTH = 10
+
+        fun from(
+            configValue: ConfigValue,
+            ruleIds: Set<String>,
+            warnOnly: Boolean,
+            resolveExtends: ((String) -> Result<ConfigValue>)? = null,
+        ): Result<WConfig> {
+            val raw = resolveRaw(configValue, resolveExtends, depth = 0)
+                .getOrElse { return Result.failure(it) }
+            return buildConfig(raw, ruleIds, warnOnly)
+        }
+
+        private fun resolveRaw(
+            configValue: ConfigValue,
+            resolveExtends: ((String) -> Result<ConfigValue>)?,
+            depth: Int,
+        ): Result<RawConfig> {
+            if (depth > MAX_EXTENDS_DEPTH) {
+                return Result.failure(Exception("'extends' chain exceeds $MAX_EXTENDS_DEPTH levels (circular reference?)"))
+            }
             if (configValue !is ConfigValue.Obj) {
                 return Result.failure(Exception("Expected object at root, got ${configValue.typeName()}"))
             }
             val root = configValue.value
 
-            val exclude = root.require("exclude", ConfigValue.StrArr::class.java)
-                .fold({ it.value.map { glob -> pathMatcher(glob) } }, { return Result.failure(it) })
+            val base = when (val extendsProp = root.get("extends", ConfigValue.Str::class.java)) {
+                is Property.Val -> {
+                    if (resolveExtends == null) {
+                        return Result.failure(Exception("'extends' is not supported in this context"))
+                    }
+                    val baseValue = resolveExtends(extendsProp.value.value)
+                        .getOrElse { return Result.failure(it) }
+                    resolveRaw(baseValue, resolveExtends, depth + 1)
+                        .getOrElse { return Result.failure(it) }
+                }
+                is Property.TypeMismatch -> {
+                    return Result.failure(Exception("'extends' must be a string, got ${extendsProp.actual.typeName()}"))
+                }
+                is Property.Missing -> null
+            }
 
-            val rulesObj = root.require("rules", ConfigValue.Obj::class.java)
-                .fold({ it.value }, { return Result.failure(it) })
+            var excludeSet = false
+            val exclude = when (val prop = root.get("exclude", ConfigValue.StrArr::class.java)) {
+                is Property.Val -> { excludeSet = true; prop.value.value }
+                is Property.Missing -> emptyList()
+                is Property.TypeMismatch -> return Result.failure(
+                    Exception("'exclude' must be a string array, got ${prop.actual.typeName()}")
+                )
+            }
 
-            val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
-            for (ruleId in ruleIds) {
-                val ruleConfig = parseRuleConfig(rulesProps = rulesObj, key = ruleId, warnOnly = warnOnly)
-                    .getOrElse { return Result.failure(it) }
-                if (ruleConfig.level != RuleLevel.OFF) {
-                    ruleIdToConfig[ruleId] = ruleConfig
+            val rules = mutableMapOf<String, RawRuleConfig>()
+            when (val rulesProp = root.get("rules", ConfigValue.Obj::class.java)) {
+                is Property.Val -> {
+                    val rulesObj = rulesProp.value.value
+                    for (ruleId in rulesObj.keys()) {
+                        val rawRule = parseRawRuleConfig(rulesObj, ruleId)
+                            .getOrElse { return Result.failure(it) }
+                        rules[ruleId] = rawRule
+                    }
+                }
+                is Property.Missing -> {}
+                is Property.TypeMismatch -> return Result.failure(
+                    Exception("'rules' must be an object, got ${rulesProp.actual.typeName()}")
+                )
+            }
+
+            return if (base != null) {
+                Result.success(mergeRaw(base, RawConfig(exclude, excludeSet, rules)))
+            } else {
+                Result.success(RawConfig(exclude, excludeSet, rules))
+            }
+        }
+
+        private fun mergeRaw(base: RawConfig, child: RawConfig): RawConfig {
+            val exclude = if (child.excludeSet) child.exclude else base.exclude
+            val rules = LinkedHashMap<String, RawRuleConfig>(base.rules)
+            for ((id, childRule) in child.rules) {
+                val baseRule = rules[id]
+                if (baseRule != null) {
+                    rules[id] = RawRuleConfig(
+                        level = childRule.level ?: baseRule.level,
+                        exclude = if (childRule.excludeSet) childRule.exclude else baseRule.exclude,
+                        excludeSet = childRule.excludeSet || baseRule.excludeSet,
+                    )
+                } else {
+                    rules[id] = childRule
                 }
             }
+            return RawConfig(exclude, excludeSet = true, rules)
+        }
+
+        private fun buildConfig(
+            raw: RawConfig,
+            ruleIds: Set<String>,
+            warnOnly: Boolean,
+        ): Result<WConfig> {
+            val globalExclude = raw.exclude.map { pathMatcher(it) }
+            val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
+
+            for (ruleId in ruleIds) {
+                val rawRule = raw.rules[ruleId] ?: continue
+                val level = rawRule.level ?: RuleLevel.OFF
+                if (level == RuleLevel.OFF) continue
+                val effectiveLevel = if (warnOnly && level == RuleLevel.ERROR) RuleLevel.WARN else level
+                ruleIdToConfig[ruleId] = WrasseRuleConfig(
+                    level = level,
+                    exclude = rawRule.exclude.map { pathMatcher(it) },
+                    effectiveLevel = effectiveLevel,
+                )
+            }
+
             return Result.success(
                 WConfig(
-                    exclude = exclude,
-                    rulesConfigs = WrasseRulesConfig(
-                        idToConfig = ruleIdToConfig
-                    ),
+                    exclude = globalExclude,
+                    rulesConfigs = WrasseRulesConfig(idToConfig = ruleIdToConfig),
                 )
             )
         }
 
-        private fun parseRuleConfig(
-            rulesProps: SafeProperties,
-            key: String,
-            warnOnly: Boolean
-        ): Result<WrasseRuleConfig> {
-            val ruleObj = rulesProps.require(key, ConfigValue.Obj::class.java)
-                .fold({ it.value }, { return Result.failure(it) })
-
-            val level = parseLevel(ruleObj, key)
-                .getOrElse { return Result.failure(it) }
-
-            val exclude = ruleObj.require("exclude", ConfigValue.StrArr::class.java)
-                .fold({ it.value.map { glob -> pathMatcher(glob) } }, { return Result.failure(it) })
-
-            var configuredLevel = level
-            if (warnOnly && configuredLevel == RuleLevel.ERROR) {
-                configuredLevel = RuleLevel.WARN
+        private fun parseRawRuleConfig(rulesProps: SafeProperties, key: String): Result<RawRuleConfig> {
+            val ruleObj = when (val prop = rulesProps.get(key, ConfigValue.Obj::class.java)) {
+                is Property.Val -> prop.value.value
+                is Property.Missing -> return Result.success(RawRuleConfig(level = null, exclude = emptyList(), excludeSet = false))
+                is Property.TypeMismatch -> return Result.failure(
+                    Exception("Rule '$key' must be an object, got ${prop.actual.typeName()}")
+                )
             }
 
-            return Result.success(
-                WrasseRuleConfig(
-                    level = level,
-                    exclude = exclude,
-                    effectiveLevel = configuredLevel
-                )
-            )
-        }
-
-        private fun parseLevel(props: SafeProperties, ruleKey: String): Result<RuleLevel> {
-            val prop = props.get("level", ConfigValue.Str::class.java)
-            return when (prop) {
+            val level = when (val prop = ruleObj.get("level", ConfigValue.Str::class.java)) {
                 is Property.Val -> when (prop.value.value) {
-                    "off" -> Result.success(RuleLevel.OFF)
-                    "warn" -> Result.success(RuleLevel.WARN)
-                    "error" -> Result.success(RuleLevel.ERROR)
-                    else -> Result.failure(
-                        Exception("Invalid level '${prop.value.value}' for rule '$ruleKey'; expected 'off', 'warn', or 'error'")
+                    "off" -> RuleLevel.OFF
+                    "warn" -> RuleLevel.WARN
+                    "error" -> RuleLevel.ERROR
+                    else -> return Result.failure(
+                        Exception("Invalid level '${prop.value.value}' for rule '$key'; expected 'off', 'warn', or 'error'")
                     )
                 }
-
-                is Property.Missing -> Result.failure(
-                    Exception("Missing required property 'level' for rule '$ruleKey'")
-                )
-
-                is Property.TypeMismatch -> Result.failure(
-                    Exception("Property 'level' for rule '$ruleKey' must be a string, got ${prop.actual.typeName()}")
+                is Property.Missing -> null
+                is Property.TypeMismatch -> return Result.failure(
+                    Exception("Property 'level' for rule '$key' must be a string, got ${prop.actual.typeName()}")
                 )
             }
+
+            var excludeSet = false
+            val exclude = when (val prop = ruleObj.get("exclude", ConfigValue.StrArr::class.java)) {
+                is Property.Val -> { excludeSet = true; prop.value.value }
+                is Property.Missing -> emptyList()
+                is Property.TypeMismatch -> return Result.failure(
+                    Exception("Property 'exclude' for rule '$key' must be a string array, got ${prop.actual.typeName()}")
+                )
+            }
+
+            return Result.success(RawRuleConfig(level = level, exclude = exclude, excludeSet = excludeSet))
         }
 
         private fun pathMatcher(glob: String): PathMatcher =
             FileSystems.getDefault().getPathMatcher("glob:$glob")
     }
 }
+
+private class RawConfig(
+    val exclude: List<String>,
+    val excludeSet: Boolean,
+    val rules: Map<String, RawRuleConfig>,
+)
+
+private class RawRuleConfig(
+    val level: RuleLevel?,
+    val exclude: List<String>,
+    val excludeSet: Boolean,
+)
 
 class WrasseRulesConfig(
     val idToConfig: Map<String, WrasseRuleConfig>,
@@ -104,7 +192,7 @@ class WrasseRulesConfig(
 class WrasseRuleConfig(
     val level: RuleLevel,
     val exclude: List<PathMatcher>,
-    val effectiveLevel: RuleLevel
+    val effectiveLevel: RuleLevel,
 )
 
 enum class RuleLevel {

@@ -1,0 +1,6 @@
+{
+    "extends": "wrasse-base.jsonc",
+    "rules": {
+        "no-semicolons": { "level": "warn" }
+    }
+}

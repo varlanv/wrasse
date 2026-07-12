@@ -13,6 +13,7 @@ import java.nio.file.Path
 class WrasseTestHarness(
     private val wrasseConfig: String,
     private val warnOnly: Boolean = false,
+    private val extraConfigFiles: Map<String, String> = emptyMap(),
 ) {
 
     companion object {
@@ -48,6 +49,11 @@ class WrasseTestHarness(
             Files.write(file, source.content.toByteArray())
         }
         Files.write(workDir.resolve("wrasse.json"), wrasseConfig.toByteArray())
+        for ((name, content) in extraConfigFiles) {
+            val file = workDir.resolve(name)
+            Files.createDirectories(file.parent)
+            Files.write(file, content.toByteArray())
+        }
 
         val wrassePluginOptions = mutableListOf<String>()
         if (warnOnly) {
