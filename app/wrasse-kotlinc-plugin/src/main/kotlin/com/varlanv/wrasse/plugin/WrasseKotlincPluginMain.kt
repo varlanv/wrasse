@@ -9,14 +9,14 @@ import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoWildcardImportsRule
-import com.varlanv.wrasse.rules.TrailingNewlineVisitor
+import com.varlanv.wrasse.rules.TrailingNewlineRule
 import org.jetbrains.kotlin.backend.common.push
 import java.nio.file.Path
 
 private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
 fun wrasseMain(sourceRoots: List<Path>, warnOnly: Boolean = false): Result<WrassePlugin> {
-    val uninitializedRules = sequenceOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineVisitor())
+    val uninitializedRules = sequenceOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule())
         .associateBy { it.id }
     val config =
         loadConfig(

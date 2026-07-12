@@ -84,7 +84,7 @@ class SafeProperties(private val map: Map<String, ConfigValue>) {
     }
 
     fun <V : ConfigValue> require(key: String, type: Class<V>): Result<V> {
-        val r = get(key, type);
+        val r = get(key, type)
         return when (r) {
             is Property.Missing -> Result.failure(Exception("Missing required property $key"))
             is Property.TypeMismatch -> Result.failure(Exception("Unexpected type for $key - ${r.actual.typeName()}"))

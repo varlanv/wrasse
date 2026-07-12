@@ -1,6 +1,12 @@
 package com.varlanv.wrasse.rules
 
-import com.varlanv.wrasse.model.*
+import com.varlanv.wrasse.model.WNode
+import com.varlanv.wrasse.model.WNodeRule
+import com.varlanv.wrasse.model.WNodeType
+import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WUninitializedRule
+import com.varlanv.wrasse.model.WViolation
+import com.varlanv.wrasse.model.WrasseRuleConfig
 
 class NoSemicolonsRule : WUninitializedRule {
     override val id: String = "no-semicolons"

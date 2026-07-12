@@ -1,8 +1,13 @@
 package com.varlanv.wrasse.rules
 
-import com.varlanv.wrasse.model.*
+import com.varlanv.wrasse.model.WFile
+import com.varlanv.wrasse.model.WFileRule
+import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WUninitializedRule
+import com.varlanv.wrasse.model.WViolation
+import com.varlanv.wrasse.model.WrasseRuleConfig
 
-class TrailingNewlineVisitor : WUninitializedRule {
+class TrailingNewlineRule : WUninitializedRule {
     override val id: String = "trailing-newline"
     override fun initRule(config: WrasseRuleConfig): WFileRule {
         val ruleId = id

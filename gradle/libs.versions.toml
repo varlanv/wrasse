@@ -3,6 +3,7 @@
 javaTargetVersion = "1.8"
 # JDK version used to compile
 javaToolchainVersion = "26"
+wrasseVersion = "0.0.1-SNAPSHOT"
 kotestVersion = "6.2.2"
 kotlinVersion = "2.4.0"
 versionCatalogPluginVersion = "1.1.0"
@@ -14,6 +15,7 @@ kotlin-kotest-assertions = { module = "io.kotest:kotest-assertions-core-jvm", ve
 kotlin-kotest-junit5Runner = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotestVersion" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlinVersion" }
 org-json = "org.json:json:20260522"
+wrasse-compiler-plugin = { module = "com.varlanv.wrasse:compiler-plugin", version.ref = "wrasseVersion" }
 
 [plugins]
 internalConvention = { id = "com.varlanv.wrasse.gradle.internal-gradle-convention-plugin" }

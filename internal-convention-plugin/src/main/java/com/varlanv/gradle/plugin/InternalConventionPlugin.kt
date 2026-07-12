@@ -34,11 +34,14 @@ class InternalConventionPlugin : Plugin<Project> {
         fun run() {
             configureRepositories()
             pluginManager.apply(internalCatalog.getPlugin("kotlin-jvm").get().pluginId)
+            pluginManager.apply("maven-publish")
             project.afterEvaluate {
                 applyCommonPlugins()
                 configureKotlin()
                 configureCommonDependencies()
                 configureTests()
+                configureWrasse()
+                configurePublishing()
             }
         }
 
@@ -113,6 +116,24 @@ class InternalConventionPlugin : Plugin<Project> {
                     logging.showStackTraces = true
                 }
             }
+        }
+
+        fun configurePublishing() {
+            extensions.configure<org.gradle.api.publish.PublishingExtension>("publishing") { publishing ->
+                if (publishing.publications.findByName("maven") == null) {
+                    publishing.publications.create("maven", org.gradle.api.publish.maven.MavenPublication::class.java) {
+                        it.from(project.components.getByName("java"))
+                    }
+                }
+            }
+        }
+
+        fun configureWrasse() {
+            if (!providers.gradleProperty("wrasseCheck").isPresent) {
+                return
+            }
+            val wrasseLib = internalCatalog.getLib("wrasse-compiler-plugin")
+            dependencies.add("kotlinCompilerPluginClasspath", wrasseLib)
         }
     }
 

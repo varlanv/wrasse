@@ -1,0 +1,8 @@
+{
+    "$schema": "./wrasse-schema.json",
+    "rules": {
+        "no-semicolons": { "level": "error" },
+        "no-wildcard-imports": { "level": "error" },
+        "trailing-newline": { "level": "error" }
+    }
+}
