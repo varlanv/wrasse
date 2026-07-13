@@ -15,7 +15,12 @@ import java.nio.file.Path
 
 private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
-fun wrasseMain(sourceRoots: List<Path>, warnOnly: Boolean = false): Result<WrassePlugin> {
+fun wrasseMain(
+    sourceRoots: List<Path>,
+    warnOnly: Boolean = false,
+    fixEnabled: Boolean = false,
+    fixOutputDir: Path? = null,
+): Result<WrassePlugin> {
     val uninitializedRules = sequenceOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule())
         .associateBy { it.id }
     val config =
@@ -33,6 +38,8 @@ fun wrasseMain(sourceRoots: List<Path>, warnOnly: Boolean = false): Result<Wrass
     return Result.success(
         WrassePlugin(
             dispatch = StreamDispatch(rules),
+            fixEnabled = fixEnabled,
+            fixOutputDir = fixOutputDir,
         )
     )
 }

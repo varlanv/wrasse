@@ -1,6 +1,13 @@
 package com.varlanv.wrasse.rules
 
-import com.varlanv.wrasse.model.*
+import com.varlanv.wrasse.lang.WEdit
+import com.varlanv.wrasse.model.WContext
+import com.varlanv.wrasse.model.WNodeType
+import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WStreamRule
+import com.varlanv.wrasse.model.WUninitializedRule
+import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 class NoSemicolonsRule : WUninitializedRule {
     override val id: String = "no-semicolons"
@@ -34,11 +41,7 @@ class NoSemicolonsRule : WUninitializedRule {
                 when {
                     ctx.type == WNodeType.WHITE_SPACE -> {
                         if (ctx.leafText?.contains('\n') == true) {
-                            reporter.report(
-                                ruleId, "Unnecessary semicolon",
-                                pendingStart, pendingEnd, this
-                            )
-                            pendingStart = -1
+                            reportUnnecessarySemicolon(reporter, ruleId)
                         }
                     }
 
@@ -57,13 +60,18 @@ class NoSemicolonsRule : WUninitializedRule {
                 return false
             }
 
+            private fun reportUnnecessarySemicolon(reporter: WReporter, ruleId: String) {
+                reporter.report(
+                    ruleId, "Unnecessary semicolon",
+                    pendingStart, pendingEnd, this,
+                    edits = listOf(WEdit(pendingStart, pendingEnd, ""))
+                )
+                pendingStart = -1
+            }
+
             override fun afterFile(ctx: WContext, reporter: WReporter) {
                 if (pendingStart >= 0) {
-                    reporter.report(
-                        ruleId, "Unnecessary semicolon",
-                        pendingStart, pendingEnd, this
-                    )
-                    pendingStart = -1
+                    reportUnnecessarySemicolon(reporter, ruleId)
                 }
             }
         }

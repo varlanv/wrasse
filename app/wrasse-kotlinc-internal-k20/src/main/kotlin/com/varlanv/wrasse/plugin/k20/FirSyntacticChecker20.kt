@@ -16,8 +16,9 @@ class FirSyntacticChecker20(
 
     override fun check(declaration: FirFile, context: CheckerContext, reporter: DiagnosticReporter) {
         val source = declaration.source as? KtLightSourceElement ?: return
+        val sourceFilePath = declaration.sourceFile?.path ?: declaration.name
 
-        for (violation in plugin.checkFile(source, declaration.name)) {
+        for (violation in plugin.checkFile(source, declaration.name, sourceFilePath)) {
             val diagnostic = when (violation.level) {
                 RuleLevel.ERROR -> WrasseErrors20.WRASSE_ERROR
                 RuleLevel.WARN -> WrasseErrors20.WRASSE_WARNING

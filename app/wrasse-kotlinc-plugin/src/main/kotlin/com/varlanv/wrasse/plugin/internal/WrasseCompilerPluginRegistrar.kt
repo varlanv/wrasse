@@ -1,6 +1,8 @@
 package com.varlanv.wrasse.plugin.internal
 
 import com.varlanv.wrasse.plugin.KEY_ENABLED
+import com.varlanv.wrasse.plugin.KEY_FIX
+import com.varlanv.wrasse.plugin.KEY_FIX_OUTPUT_DIR
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
 import com.varlanv.wrasse.plugin.PLUGIN_ID
 import com.varlanv.wrasse.plugin.wrasseMain
@@ -22,8 +24,10 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
         }
 
         val warnOnly = configuration[KEY_WARN_ONLY, false]
+        val fixEnabled = configuration[KEY_FIX, false]
+        val fixOutputDir = configuration[KEY_FIX_OUTPUT_DIR]?.let { Paths.get(it) }
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
-        val plugin = wrasseMain(sourceRoots, warnOnly).getOrThrow()
+        val plugin = wrasseMain(sourceRoots, warnOnly, fixEnabled, fixOutputDir).getOrThrow()
 
         val cl = this::class.java.classLoader
         when {

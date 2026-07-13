@@ -3,6 +3,7 @@ package com.varlanv.gradle.plugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.api.tasks.JavaExec
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.gradle.plugins.ide.idea.IdeaPlugin
@@ -41,6 +42,7 @@ class InternalConventionPlugin : Plugin<Project> {
                 configureCommonDependencies()
                 configureTests()
                 configureWrasse()
+                configureWrasseApply()
                 configurePublishing()
             }
         }
@@ -128,12 +130,41 @@ class InternalConventionPlugin : Plugin<Project> {
             }
         }
 
+        fun configureWrasseApply() {
+            tasks.register("wrasseApply", JavaExec::class.java) { task ->
+                task.group = "verification"
+                task.classpath = project.files(
+                    project.tasks.named("jar"),
+                    project.configurations.getByName("runtimeClasspath")
+                )
+                task.mainClass.set("com.varlanv.wrasse.lang.WPatchApplierKt")
+                task.args(project.layout.buildDirectory.dir("wrasse").get().asFile.absolutePath)
+                task.isIgnoreExitValue = false
+                task.onlyIf {
+                    java.io.File(project.layout.buildDirectory.dir("wrasse").get().asFile, "wrasse-fixes.txt").exists()
+                }
+            }
+        }
+
         fun configureWrasse() {
             if (!providers.gradleProperty("wrasseCheck").isPresent) {
                 return
             }
             val wrasseLib = internalCatalog.getLib("wrasse-compiler-plugin")
             dependencies.add("kotlinCompilerPluginClasspath", wrasseLib)
+
+            val wrasseFix = providers.gradleProperty("wrasseFix")
+            if (wrasseFix.isPresent) {
+                val fixOutputDir = project.layout.buildDirectory.dir("wrasse").get().asFile.absolutePath
+                tasks.withType(KotlinCompile::class.java) { kotlinCompile ->
+                    kotlinCompile.compilerOptions {
+                        freeCompilerArgs.addAll(
+                            "-P", "plugin:com.varlanv.wrasse:fix=true",
+                            "-P", "plugin:com.varlanv.wrasse:fixOutputDir=$fixOutputDir",
+                        )
+                    }
+                }
+            }
         }
     }
 
