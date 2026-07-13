@@ -1,7 +1,6 @@
-package com.varlanv.wrasse.plugin
+package com.varlanv.wrasse.model
 
-import com.varlanv.wrasse.model.RuleLevel
-
+/** A reported violation with its source location and severity. Produced by [WReporter]. */
 class ViolationReport(
     val message: String,
     val startOffset: Int,

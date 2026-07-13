@@ -190,4 +190,13 @@ enum class WNodeType {
 
     // -- Fallback for unmapped kotlinc types --
     UNKNOWN,
+    ;
+
+    companion object {
+        @JvmField
+        val VALUES: Array<WNodeType> = entries.toTypedArray()
+
+        @JvmField
+        val SIZE: Int = VALUES.size
+    }
 }

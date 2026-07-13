@@ -1,10 +1,9 @@
 package com.varlanv.wrasse.rules
 
-import com.varlanv.wrasse.model.WFile
+import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFileRule
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
-import com.varlanv.wrasse.model.WViolation
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
 class TrailingNewlineRule : WUninitializedRule {
@@ -15,17 +14,11 @@ class TrailingNewlineRule : WUninitializedRule {
             override val id = ruleId
             override val config = config
 
-            override fun visit(file: WFile, reporter: WReporter) {
-                val text = file.sourceText
-                if (text.isEmpty() || text[text.length - 1] != '\n') {
-                    reporter.report(
-                        WViolation(
-                            ruleId = id,
-                            message = "File must end with a newline",
-                            node = file.root,
-                        ),
-                        rule = this
-                    )
+            override fun visit(ctx: WContext, reporter: WReporter) {
+                val lastText = ctx.prevLeafText
+                if (lastText.isNullOrEmpty() || lastText[lastText.length - 1] != '\n') {
+                    reporter.report(ruleId, "File must end with a newline",
+                        0, maxOf(ctx.prevLeafEnd, 1), this)
                 }
             }
         }

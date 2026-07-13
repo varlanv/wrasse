@@ -3,7 +3,7 @@ package com.varlanv.wrasse.plugin
 import com.varlanv.wrasse.lang.ConfigValue
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
-import com.varlanv.wrasse.model.SplitRules
+import com.varlanv.wrasse.model.StreamDispatch
 import com.varlanv.wrasse.model.WConfig
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WUninitializedRule
@@ -32,7 +32,7 @@ fun wrasseMain(sourceRoots: List<Path>, warnOnly: Boolean = false): Result<Wrass
     }
     return Result.success(
         WrassePlugin(
-            rules = SplitRules(rules),
+            dispatch = StreamDispatch(rules),
         )
     )
 }
