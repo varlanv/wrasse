@@ -1,12 +1,6 @@
 package com.varlanv.wrasse.rules
 
-import com.varlanv.wrasse.model.WContext
-import com.varlanv.wrasse.model.WNodeType
-import com.varlanv.wrasse.model.WReporter
-import com.varlanv.wrasse.model.WStreamRule
-import com.varlanv.wrasse.model.WUninitializedRule
-import com.varlanv.wrasse.model.WrasseRuleConfig
-import com.varlanv.wrasse.model.isWhitespaceOrComment
+import com.varlanv.wrasse.model.*
 
 class NoSemicolonsRule : WUninitializedRule {
     override val id: String = "no-semicolons"
@@ -25,7 +19,7 @@ class NoSemicolonsRule : WUninitializedRule {
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 if (ctx.type == WNodeType.SEMICOLON) {
-                    if (ctx.hasAncestor(WNodeType.FOR) || ctx.hasAncestor(WNodeType.ENUM_ENTRY)) {
+                    if (isRequiredSemicolon(ctx)) {
                         return
                     }
                     pendingStart = ctx.startOffset
@@ -40,11 +34,14 @@ class NoSemicolonsRule : WUninitializedRule {
                 when {
                     ctx.type == WNodeType.WHITE_SPACE -> {
                         if (ctx.leafText?.contains('\n') == true) {
-                            reporter.report(ruleId, "Unnecessary semicolon",
-                                pendingStart, pendingEnd, this)
+                            reporter.report(
+                                ruleId, "Unnecessary semicolon",
+                                pendingStart, pendingEnd, this
+                            )
                             pendingStart = -1
                         }
                     }
+
                     ctx.type.isWhitespaceOrComment -> {}
                     else -> {
                         pendingStart = -1
@@ -52,10 +49,20 @@ class NoSemicolonsRule : WUninitializedRule {
                 }
             }
 
+            private fun isRequiredSemicolon(ctx: WContext): Boolean {
+                if (ctx.ancestors.isEmpty) return false
+                if (ctx.ancestors.peekType() == WNodeType.CLASS_BODY) return true
+                if (ctx.hasAncestor(WNodeType.FOR)) return true
+                if (ctx.hasAncestor(WNodeType.ENUM_ENTRY)) return true
+                return false
+            }
+
             override fun afterFile(ctx: WContext, reporter: WReporter) {
                 if (pendingStart >= 0) {
-                    reporter.report(ruleId, "Unnecessary semicolon",
-                        pendingStart, pendingEnd, this)
+                    reporter.report(
+                        ruleId, "Unnecessary semicolon",
+                        pendingStart, pendingEnd, this
+                    )
                     pendingStart = -1
                 }
             }
