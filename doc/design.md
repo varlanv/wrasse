@@ -734,9 +734,9 @@ one run; `@Suppress` silences one rule.
    counts array (latent trap for pooling).
 4. **EditPlan + `takeEditsIn` (D18)** — proven end-to-end with one nested rule pair; overlap
    check moved to compile time; expose the source buffer on `WContext`.
-5. **Walk perf punch list** (§9). The JMH benchmark is deferred by owner decision (2026-07-19) —
-   revisit before Phase B volume porting begins, since the walk-overhead budget still needs a
-   tripwire eventually.
+5. **Walk perf punch list + JMH benchmark** (§9). JMH reinstated by owner decision (2026-07-19,
+   same day it was deferred) with an explicit quality bar: the Gradle integration must be cleanly
+   shaped (convention-plugin-consistent, no band-aid wiring) or not land at all.
 6. **Mapping-completeness test** per Kotlin minor (zero `UNKNOWN` on representative fixtures);
    map `KW_TYPEALIAS` (currently silently unmapped — the claimed soft-keyword fallback doesn't
    exist).
