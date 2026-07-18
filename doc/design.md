@@ -570,6 +570,16 @@ Known walk-level punch list (fix in A.5, verify with the benchmark):
   `UNKNOWN` — rules just stop firing); registrar selection probes internal compiler class names;
   the three near-identical checker shells must be edited in triplicate on signature changes. Add
   the next Kotlin EAP to the patch harness early — breakage appears there first.
+- **Test-harness classpath skew is a real failure mode, not just a plugin one**: kotlinc's own
+  `GroupingMessageCollector` drops every WARNING-severity diagnostic from a compile that has *any*
+  ERROR (regardless of source), unless `-Xreport-all-warnings` is passed — a stock CLI behavior,
+  not a wrasse bug. Per-minor test modules must resolve a `kotlin-stdlib` matching the forced
+  `kotlin-compiler-embeddable` version for the sources under compilation; letting Gradle's default
+  "highest version wins" conflict resolution hand the fixture compile a newer toolchain stdlib
+  produces a real "incompatible metadata version" error that then silently swallows unrelated
+  WARN-level assertions. Any future per-minor/per-patch harness wiring must keep the compiled
+  sources' library classpath pinned to the same minor as the compiler, separately from the test
+  JVM's own classpath (which does need the toolchain's stdlib for kotest/JUnit to run at all).
 
 Kotlinc surface (adapter-only; rule code never imports these): LightTree
 (`KtLightSourceElement`, `FlyweightCapableTreeStructure<LighterASTNode>`, `LighterASTNode`,
@@ -801,14 +811,6 @@ a separate `ktlint -F` invocation on the same files.
 
 ## 14. Known issues & tech debt (beyond the A.5 list)
 
-- **WARN-severity diagnostics are silently dropped on Kotlin 2.1 and 2.2** (ERROR works; 2.3/2.4
-  fine). Confirmed pre-existing against the pre-A.5 baseline: the same 5 warn-level fixtures fail
-  on both minors (`mixed-levels/warn-only-downgrades-all`,
-  `extends-exclude-union/child-overrides-level-from-base`, `no-semicolons-warn/*`,
-  `no-semicolons-warn-only/*`), so `testMinorHarness` is currently red on 2.1/2.2. Root-cause
-  hypothesis: `WrasseErrors20` (used by the k20 shell) does not extend `KtDiagnosticsContainer`,
-  unlike the k22/main containers — a cross-version FIR diagnostics-registration difference. Needs
-  its own investigation in the k20 registrar internals.
 - `ctx.childIndex` is stale during `exitNode` (holds the last child's index, not the exiting
   node's own) — restore before exit dispatch or document loudly.
 - `ActiveNodeEntry.depth` is dead — remove or use.
@@ -818,6 +820,9 @@ a separate `ktlint -F` invocation on the same files.
   matrix is the safety net.
 - Patch file stores absolute paths — not portable across machines/CI. Not solved, tracked.
 - `wrasseApply` task registered for all subprojects (`onlyIf`-guarded noise in `./gradlew tasks`).
+- The per-minor test modules' `build.gradle.kts` are near-identical (patch-config wiring, testMinor
+  registration, and now the stdlib-pinning block, tripled verbatim) — centralize into the
+  convention plugin or a shared script in a dedicated chore.
 - Incremental-compilation DX: warnings in files that didn't recompile don't reappear in output;
   `-PwrasseCheck`/`-Pwrasse.fix` changing compiler args forces full recompilation — currently
   accidental, should be documented as the intended "full sweep" mechanism.

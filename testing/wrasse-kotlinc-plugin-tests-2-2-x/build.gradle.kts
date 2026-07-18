@@ -16,6 +16,21 @@ if (!isCurrentKotlin) {
     }
 }
 
+val targetStdlibConfigs = (patchVersions + latestMinor).distinct().associateWith { version ->
+    configurations.create("targetStdlib_${version.replace('.', '_')}") {
+        isCanBeConsumed = false
+        isCanBeResolved = true
+    }
+}
+dependencies {
+    for ((version, config) in targetStdlibConfigs) {
+        add(config.name, "org.jetbrains.kotlin:kotlin-stdlib:$version")
+    }
+}
+
+fun stdlibJarPath(version: String): String =
+    targetStdlibConfigs.getValue(version).filter { it.name.startsWith("kotlin-stdlib-") }.singleFile.absolutePath
+
 val fixturesDir = rootProject.file("testing/wrasse-test-harness/src/main/resources/fixtures").absolutePath
 
 tasks.withType<Test>().configureEach {
@@ -38,6 +53,9 @@ if (isCurrentKotlin) {
         description = "Run fixture tests against Kotlin $latestMinor"
         testClassesDirs = sourceSets["test"].output.classesDirs
         classpath = sourceSets["test"].runtimeClasspath
+        doFirst {
+            systemProperty("wrasse.harness.stdlibPath", stdlibJarPath(latestMinor))
+        }
     }
 }
 
@@ -56,6 +74,9 @@ for (version in patchVersions) {
         testClassesDirs = sourceSets["test"].output.classesDirs
         classpath = files(patchConfig) + sourceSets["test"].runtimeClasspath.filter {
             !it.name.startsWith("kotlin-compiler-embeddable")
+        }
+        doFirst {
+            systemProperty("wrasse.harness.stdlibPath", stdlibJarPath(version))
         }
     }
 }
