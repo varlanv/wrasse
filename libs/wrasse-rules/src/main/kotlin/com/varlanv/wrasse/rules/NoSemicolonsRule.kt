@@ -19,13 +19,34 @@ class NoSemicolonsRule : WUninitializedRule {
 
             private var pendingStart = -1
             private var pendingEnd = -1
+            private val classBodyOwnerEnumStack = mutableListOf<Boolean>()
 
             override fun beforeFile(ctx: WContext) {
                 pendingStart = -1
+                classBodyOwnerEnumStack.clear()
+            }
+
+            override fun enterNode(ctx: WContext) {
+                if (ctx.type == WNodeType.CLASS || ctx.type == WNodeType.OBJECT_DECLARATION) {
+                    classBodyOwnerEnumStack.add(false)
+                }
+            }
+
+            override fun exitNode(ctx: WContext) {
+                if (ctx.type == WNodeType.CLASS || ctx.type == WNodeType.OBJECT_DECLARATION) {
+                    classBodyOwnerEnumStack.removeAt(classBodyOwnerEnumStack.size - 1)
+                }
             }
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
+                if (ctx.type == WNodeType.KW_ENUM && classBodyOwnerEnumStack.isNotEmpty()) {
+                    classBodyOwnerEnumStack[classBodyOwnerEnumStack.size - 1] = true
+                }
+
                 if (ctx.type == WNodeType.SEMICOLON) {
+                    if (pendingStart >= 0) {
+                        reportUnnecessarySemicolon(reporter, ruleId)
+                    }
                     if (isRequiredSemicolon(ctx)) {
                         return
                     }
@@ -54,7 +75,9 @@ class NoSemicolonsRule : WUninitializedRule {
 
             private fun isRequiredSemicolon(ctx: WContext): Boolean {
                 if (ctx.ancestors.isEmpty) return false
-                if (ctx.ancestors.peekType() == WNodeType.CLASS_BODY) return true
+                if (ctx.ancestors.peekType() == WNodeType.CLASS_BODY) {
+                    return classBodyOwnerEnumStack.lastOrNull() == true
+                }
                 if (ctx.hasAncestor(WNodeType.FOR)) return true
                 if (ctx.hasAncestor(WNodeType.ENUM_ENTRY)) return true
                 return false

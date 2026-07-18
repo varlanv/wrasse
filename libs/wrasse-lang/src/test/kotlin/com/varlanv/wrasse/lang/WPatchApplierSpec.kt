@@ -84,7 +84,25 @@ class WPatchApplierSpec : BaseSpec({
                 val result = WPatchApplier.apply(dir)
 
                 result.files[0].shouldBeInstanceOf<FileApplyResult.Skipped>()
+                (result.files[0] as FileApplyResult.Skipped).reason shouldBe "source changed since compilation"
                 Files.readString(sourceFile) shouldBe "val x = 1;"
+            }
+        }
+
+        should("skip with a CRLF-specific reason when disk line endings differ from the hashed buffer") {
+            useTempDir { dir ->
+                val sourceFile = dir.resolve("Crlf.kt")
+                val crlfContent = "package sample\r\n\r\nval x = 1;\r\n"
+                Files.write(sourceFile, crlfContent.toByteArray(Charsets.UTF_8))
+                val normalizedHash = WPatchApplier.sha256(crlfContent.replace("\r\n", "\n"))
+                writePatch(dir, FileEdits(sourceFile.toString(), normalizedHash, listOf(WEdit(25, 26, ""))))
+
+                val result = WPatchApplier.apply(dir)
+
+                result.files[0].shouldBeInstanceOf<FileApplyResult.Skipped>()
+                (result.files[0] as FileApplyResult.Skipped).reason shouldBe
+                    "source line endings differ from what the compiler analyzed (CRLF vs LF); re-run the build to refresh the patch"
+                Files.readString(sourceFile) shouldBe crlfContent
             }
         }
 

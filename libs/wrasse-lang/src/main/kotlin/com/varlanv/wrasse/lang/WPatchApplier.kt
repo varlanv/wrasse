@@ -44,7 +44,12 @@ object WPatchApplier {
         val content = Files.readString(filePath)
         val currentHash = sha256(content)
         if (currentHash != fileEdits.sourceHash) {
-            return FileApplyResult.Skipped(filePath, "source changed since compilation")
+            val reason = if (sha256(content.replace("\r\n", "\n")) == fileEdits.sourceHash) {
+                "source line endings differ from what the compiler analyzed (CRLF vs LF); re-run the build to refresh the patch"
+            } else {
+                "source changed since compilation"
+            }
+            return FileApplyResult.Skipped(filePath, reason)
         }
 
         val sorted = fileEdits.edits.sortedByDescending { it.startOffset }

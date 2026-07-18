@@ -14,6 +14,7 @@ class WrasseTestHarness(
     private val wrasseConfig: String,
     private val warnOnly: Boolean = false,
     private val extraConfigFiles: Map<String, String> = emptyMap(),
+    private val fixOutputDir: Path? = null,
 ) {
 
     companion object {
@@ -41,6 +42,12 @@ class WrasseTestHarness(
         }
     }
 
+    fun compile(sources: List<TestSource>, workDir: Path): CompilationResult =
+        doCompile(workDir, sources)
+
+    fun sourcePath(workDir: Path, source: TestSource): Path =
+        workDir.resolve("src").resolve(source.path)
+
     private fun doCompile(workDir: Path, sources: List<TestSource>): CompilationResult {
         val srcDir = Files.createDirectories(workDir.resolve("src"))
         for (source in sources) {
@@ -58,6 +65,10 @@ class WrasseTestHarness(
         val wrassePluginOptions = mutableListOf<String>()
         if (warnOnly) {
             wrassePluginOptions.add("plugin:$PLUGIN_ID:warnOnly=true")
+        }
+        if (fixOutputDir != null) {
+            wrassePluginOptions.add("plugin:$PLUGIN_ID:fix=true")
+            wrassePluginOptions.add("plugin:$PLUGIN_ID:fixOutputDir=$fixOutputDir")
         }
 
         val collector = DiagnosticCollector()

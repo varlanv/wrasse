@@ -27,9 +27,21 @@ object WNodeTypeMapping {
         put(KtNodeTypes.TYPE_PARAMETER, WNodeType.TYPE_PARAMETER)
         put(KtNodeTypes.CLASS_BODY, WNodeType.CLASS_BODY)
         put(KtNodeTypes.ENUM_ENTRY, WNodeType.ENUM_ENTRY)
+        put(KtNodeTypes.ENUM_ENTRY_SUPERCLASS_REFERENCE_EXPRESSION, WNodeType.ENUM_ENTRY_SUPERCLASS_REFERENCE_EXPRESSION)
         put(KtNodeTypes.PRIMARY_CONSTRUCTOR, WNodeType.PRIMARY_CONSTRUCTOR)
         put(KtNodeTypes.SECONDARY_CONSTRUCTOR, WNodeType.SECONDARY_CONSTRUCTOR)
         put(KtNodeTypes.PROPERTY_ACCESSOR, WNodeType.PROPERTY_ACCESSOR)
+        put(KtNodeTypes.CLASS_INITIALIZER, WNodeType.CLASS_INITIALIZER)
+        put(KtNodeTypes.CONSTRUCTOR_CALLEE, WNodeType.CONSTRUCTOR_CALLEE)
+        put(KtNodeTypes.CONSTRUCTOR_DELEGATION_CALL, WNodeType.CONSTRUCTOR_DELEGATION_CALL)
+        put(KtNodeTypes.CONSTRUCTOR_DELEGATION_REFERENCE, WNodeType.CONSTRUCTOR_DELEGATION_REFERENCE)
+        put(KtNodeTypes.PROPERTY_DELEGATE, WNodeType.PROPERTY_DELEGATE)
+        put(KtNodeTypes.SUPER_TYPE_LIST, WNodeType.SUPER_TYPE_LIST)
+        put(KtNodeTypes.SUPER_TYPE_ENTRY, WNodeType.SUPER_TYPE_ENTRY)
+        put(KtNodeTypes.SUPER_TYPE_CALL_ENTRY, WNodeType.SUPER_TYPE_CALL_ENTRY)
+        put(KtNodeTypes.INITIALIZER_LIST, WNodeType.INITIALIZER_LIST)
+        put(KtNodeTypes.IMPORT_ALIAS, WNodeType.IMPORT_ALIAS)
+        put(KtNodeTypes.FILE_ANNOTATION_LIST, WNodeType.FILE_ANNOTATION_LIST)
 
         // Modifiers & annotations
         put(KtNodeTypes.MODIFIER_LIST, WNodeType.MODIFIER_LIST)
@@ -79,6 +91,18 @@ object WNodeTypeMapping {
         put(KtNodeTypes.SUPER_EXPRESSION, WNodeType.SUPER_EXPRESSION)
         put(KtNodeTypes.PARENTHESIZED, WNodeType.PARENTHESIZED)
         put(KtNodeTypes.LABELED_EXPRESSION, WNodeType.LABELED_EXPRESSION)
+        put(KtNodeTypes.OPERATION_REFERENCE, WNodeType.OPERATION_REFERENCE)
+        put(KtNodeTypes.LABEL, WNodeType.LABEL)
+        put(KtNodeTypes.LABEL_QUALIFIER, WNodeType.LABEL_QUALIFIER)
+        put(KtNodeTypes.CONDITION, WNodeType.CONDITION)
+        put(KtNodeTypes.THEN, WNodeType.THEN)
+        put(KtNodeTypes.ELSE, WNodeType.ELSE)
+        put(KtNodeTypes.BODY, WNodeType.BODY)
+        put(KtNodeTypes.LOOP_RANGE, WNodeType.LOOP_RANGE)
+        put(KtNodeTypes.WHEN_CONDITION_IN_RANGE, WNodeType.WHEN_CONDITION_IN_RANGE)
+        put(KtNodeTypes.LAMBDA_ARGUMENT, WNodeType.LAMBDA_ARGUMENT)
+        put(KtNodeTypes.DESTRUCTURING_DECLARATION, WNodeType.DESTRUCTURING_DECLARATION)
+        put(KtNodeTypes.DESTRUCTURING_DECLARATION_ENTRY, WNodeType.DESTRUCTURING_DECLARATION_ENTRY)
 
         // Literals
         put(KtNodeTypes.INTEGER_CONSTANT, WNodeType.INTEGER_CONSTANT)
@@ -96,6 +120,12 @@ object WNodeTypeMapping {
         put(KtTokens.OPEN_QUOTE, WNodeType.OPEN_QUOTE)
         put(KtTokens.CLOSING_QUOTE, WNodeType.CLOSING_QUOTE)
         put(KtTokens.REGULAR_STRING_PART, WNodeType.REGULAR_STRING_PART)
+        put(KtTokens.SHORT_TEMPLATE_ENTRY_START, WNodeType.SHORT_TEMPLATE_ENTRY_START)
+        put(KtTokens.LONG_TEMPLATE_ENTRY_START, WNodeType.LONG_TEMPLATE_ENTRY_START)
+        put(KtTokens.LONG_TEMPLATE_ENTRY_END, WNodeType.LONG_TEMPLATE_ENTRY_END)
+        put(KtTokens.INTEGER_LITERAL, WNodeType.INTEGER_LITERAL)
+        put(KtTokens.FLOAT_LITERAL, WNodeType.FLOAT_LITERAL)
+        put(KtTokens.CHARACTER_LITERAL, WNodeType.CHARACTER_LITERAL)
 
         // Tokens - identifiers and whitespace
         put(KtTokens.IDENTIFIER, WNodeType.IDENTIFIER)
@@ -149,6 +179,10 @@ object WNodeTypeMapping {
         put(KtTokens.EXCL, WNodeType.EXCL)
         put(KtTokens.PLUSPLUS, WNodeType.PLUSPLUS)
         put(KtTokens.MINUSMINUS, WNodeType.MINUSMINUS)
+        put(KtTokens.EXCLEXCL, WNodeType.EXCLEXCL)
+        put(KtTokens.AT, WNodeType.AT)
+        put(KtTokens.QUEST, WNodeType.QUEST)
+        put(KtTokens.AS_SAFE, WNodeType.AS_SAFE)
 
         // Tokens - keywords
         put(KtTokens.FUN_KEYWORD, WNodeType.KW_FUN)
@@ -198,7 +232,18 @@ object WNodeTypeMapping {
         put(KtTokens.CONST_KEYWORD, WNodeType.KW_CONST)
         put(KtTokens.LATEINIT_KEYWORD, WNodeType.KW_LATEINIT)
         put(KtTokens.ENUM_KEYWORD, WNodeType.KW_ENUM)
-        // KW_TYPEALIAS mapped via soft keyword match in map() fallback if needed
+        put(KtTokens.TYPE_ALIAS_KEYWORD, WNodeType.KW_TYPEALIAS)
+        put(KtTokens.FILE_KEYWORD, WNodeType.KW_FILE)
+        put(KtTokens.FIELD_KEYWORD, WNodeType.KW_FIELD)
+        put(KtTokens.BY_KEYWORD, WNodeType.KW_BY)
+        put(KtTokens.CONSTRUCTOR_KEYWORD, WNodeType.KW_CONSTRUCTOR)
+        put(KtTokens.INIT_KEYWORD, WNodeType.KW_INIT)
+        put(KtTokens.OUT_KEYWORD, WNodeType.KW_OUT)
+        put(KtTokens.VARARG_KEYWORD, WNodeType.KW_VARARG)
+        put(KtTokens.REIFIED_KEYWORD, WNodeType.KW_REIFIED)
+        put(KtTokens.ANNOTATION_KEYWORD, WNodeType.KW_ANNOTATION)
+        put(KtTokens.GET_KEYWORD, WNodeType.KW_GET)
+        put(KtTokens.SET_KEYWORD, WNodeType.KW_SET)
     }
 
     fun map(elementType: IElementType): WNodeType =

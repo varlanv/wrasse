@@ -16,9 +16,9 @@ class TrailingNewlineRule : WUninitializedRule {
             override val config = config
 
             override fun visit(ctx: WContext, reporter: WReporter) {
-                val lastText = ctx.prevLeafText
-                if (lastText.isNullOrEmpty() || lastText[lastText.length - 1] != '\n') {
-                    val endOffset = if (ctx.prevLeafEnd > 0) ctx.prevLeafEnd else 0
+                val lastText = ctx.prevLeafText ?: return
+                if (lastText.isEmpty() || lastText[lastText.length - 1] != '\n') {
+                    val endOffset = ctx.prevLeafEnd
                     reporter.report(
                         ruleId, "File must end with a newline",
                         0, maxOf(endOffset, 1), this,

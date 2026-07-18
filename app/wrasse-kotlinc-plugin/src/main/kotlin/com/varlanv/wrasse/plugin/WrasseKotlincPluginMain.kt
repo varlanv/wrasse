@@ -40,6 +40,8 @@ fun wrasseMain(
             dispatch = StreamDispatch(rules),
             fixEnabled = fixEnabled,
             fixOutputDir = fixOutputDir,
+            globalExclude = config.exclude,
+            configDir = config.configDir,
         )
     )
 }
@@ -71,6 +73,7 @@ private fun loadConfig(
             configValue = configValue,
             ruleIds = uninitializedRules.keys,
             warnOnly = warnOnly,
+            configDir = configDir,
             resolveExtends = resolveExtends,
         )
             .getOrElse { return Result.failure(Exception("wrasse: invalid config in $configPath: ${it.message}", it)) }

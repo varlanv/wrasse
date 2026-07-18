@@ -45,6 +45,9 @@ class WNodeStack {
     fun endOffsetAt(i: Int): Int = endOffsets[i]
 
     fun clear() {
+        for (i in 0 until _size) {
+            counts[types[i]] = 0
+        }
         _size = 0
     }
 

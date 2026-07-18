@@ -799,6 +799,14 @@ a separate `ktlint -F` invocation on the same files.
 
 ## 14. Known issues & tech debt (beyond the A.5 list)
 
+- **WARN-severity diagnostics are silently dropped on Kotlin 2.1 and 2.2** (ERROR works; 2.3/2.4
+  fine). Confirmed pre-existing against the pre-A.5 baseline: the same 5 warn-level fixtures fail
+  on both minors (`mixed-levels/warn-only-downgrades-all`,
+  `extends-exclude-union/child-overrides-level-from-base`, `no-semicolons-warn/*`,
+  `no-semicolons-warn-only/*`), so `testMinorHarness` is currently red on 2.1/2.2. Root-cause
+  hypothesis: `WrasseErrors20` (used by the k20 shell) does not extend `KtDiagnosticsContainer`,
+  unlike the k22/main containers — a cross-version FIR diagnostics-registration difference. Needs
+  its own investigation in the k20 registrar internals.
 - `ctx.childIndex` is stale during `exitNode` (holds the last child's index, not the exiting
   node's own) — restore before exit dispatch or document loudly.
 - `ActiveNodeEntry.depth` is dead — remove or use.

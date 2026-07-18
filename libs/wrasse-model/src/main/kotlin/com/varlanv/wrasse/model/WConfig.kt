@@ -4,11 +4,13 @@ import com.varlanv.wrasse.lang.ConfigValue
 import com.varlanv.wrasse.lang.Property
 import com.varlanv.wrasse.lang.SafeProperties
 import java.nio.file.FileSystems
+import java.nio.file.Path
 import java.nio.file.PathMatcher
 
 class WConfig(
     val exclude: List<PathMatcher>,
     val rulesConfigs: WrasseRulesConfig,
+    val configDir: Path?,
 ) {
     companion object {
 
@@ -18,11 +20,12 @@ class WConfig(
             configValue: ConfigValue,
             ruleIds: Set<String>,
             warnOnly: Boolean,
+            configDir: Path? = null,
             resolveExtends: ((String) -> Result<ConfigValue>)? = null,
         ): Result<WConfig> {
             val raw = resolveRaw(configValue, resolveExtends, depth = 0)
                 .getOrElse { return Result.failure(it) }
-            return buildConfig(raw, ruleIds, warnOnly)
+            return buildConfig(raw, ruleIds, warnOnly, configDir)
         }
 
         private fun resolveRaw(
@@ -108,6 +111,7 @@ class WConfig(
             raw: RawConfig,
             ruleIds: Set<String>,
             warnOnly: Boolean,
+            configDir: Path?,
         ): Result<WConfig> {
             val globalExclude = raw.exclude.map { pathMatcher(it) }
             val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
@@ -128,6 +132,7 @@ class WConfig(
                 WConfig(
                     exclude = globalExclude,
                     rulesConfigs = WrasseRulesConfig(idToConfig = ruleIdToConfig),
+                    configDir = configDir,
                 )
             )
         }
