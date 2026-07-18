@@ -1,0 +1,154 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Wrasse is a Kotlin compiler-plugin linter/formatter meant to replace ktlint + detekt: it rides
+kotlinc's own FIR analysis and reads the LightTree the compiler already built, instead of each tool
+re-parsing the world. **[doc/design.md](doc/design.md) is the single source of truth** — architecture,
+the decision log D1–D21 (**read §12 before reopening any settled decision**), the roadmap, and known
+issues, all in one document. Its §3 describes what is implemented today; §5 (fix/format pipeline with
+the printer, EditPlan, idempotence invariant) is the decided target — **not implemented yet**, don't
+treat it as current behavior. [doc/autoformat-scope.md](doc/autoformat-scope.md) classifies all 255
+ktlint/detekt/diktat rules into formatter/fix/lint-only buckets — consult it before porting any rule.
+The remaining doc/ files (ktlint/detekt/diktat catalogs) are reference data only.
+
+The project is currently pre-Phase-B: 3 rules shipped (`no-semicolons`, `no-wildcard-imports`,
+`trailing-newline`), MVP autofix (offset-patch edit-list) working end-to-end.
+
+## Commands
+
+Build/test via the Gradle wrapper only (`./gradlew`, never a bare `gradle`).
+
+```
+./gradlew build                     # compile everything
+./gradlew test                      # unit tests in libs/* (kotest, JUnit platform)
+./gradlew testMinorHarness           # fixture tests against all supported Kotlin minors (2.1–2.4)
+./gradlew testPatchHarness           # fixture tests against all tracked Kotlin patch versions
+./gradlew :testing:wrasse-kotlinc-plugin-tests-2-4-x:test   # fixture tests for one Kotlin minor
+./gradlew wrasseLint                 # self-lint: republish plugin, then compile this repo with wrasse checks on
+./gradlew wrasseFix                  # self-fix: run with -PwrasseFix, then apply the emitted patch (wrasseApply)
+```
+
+- `-Prepublish` on `wrasseLint`/`wrasseFix` forces `publishToMavenLocal` first — needed after changing
+  rule/plugin code before wrasse can lint itself with the new build.
+- There is no per-test CLI filter for a single fixture (Kotest generates one dynamic test per fixture,
+  named `"handle spec - ${ruleId} -> ${fixtureId}"`). To add a test, **add a fixture file** — see below.
+  To scope a Gradle run to one Kotlin minor, target that submodule's `test`/`testMinor` task directly.
+- Per-patch-version tasks are `testPatch_<version>` (e.g. `testPatch_2_4_0`) inside each
+  `testing:wrasse-kotlinc-plugin-tests-<minor>-x` module.
+
+### Adding a test = adding a fixture file
+
+Fixture tests are auto-discovered `.kt` files under
+`testing/wrasse-test-harness/src/main/resources/fixtures/<fixture-dir>/`, each paired with a
+`wrasse.json` in that directory (or inherited via `"extends"`). Directives inside the `.kt` file drive
+expectations (see `FixtureParser`):
+
+- `// expect-error <line>:<col> <rule-id> "<message>"` / `// expect-warning ...`
+- `// expect-clean` — file must produce zero diagnostics (mutually exclusive with expect-error/warning)
+- `// fixture-option: trailing-newline` / `// fixture-option: warn-only` — harness options
+
+The same fixture set runs against every supported Kotlin minor (2.1–2.4) via the per-minor test
+modules — fixtures are Kotlin-version-agnostic by construction.
+
+## Architecture
+
+### Two-host model (the spine of the design)
+
+Linting is read-only; fixing/formatting is read-write. A compiler plugin observing a live compile
+can't rewrite the files being compiled, so there are two hosts sharing one rule library:
+
+- **Host A — compiler plugin** (`app/wrasse-kotlinc-plugin`): runs during a real `kotlinc` compile,
+  rides the LightTree kotlinc already parsed, reports `KtDiagnostic`s. Zero extra parse cost.
+- **Host B — patch applier** (`wrasseApply`, e.g. via `./gradlew wrasseFix`): runs after that same
+  compile and writes what Host A already decided. Pure byte-splicing against the patch file — no
+  parse, no tree, at all. There is no standalone, build-independent entry point (no CLI tool, no IDE
+  format-on-save, no pre-commit-without-Gradle) — every real usage is Gradle-mediated, so `libs/
+  wrasse-format` (planned) never needs its own parser (see `doc/design.md` §12, D16).
+
+### Module layout
+
+```
+libs/
+  wrasse-model/            WNode/WContext, WNodeType, WRule hierarchy, StreamDispatch, WConfig — no kotlinc dep
+  wrasse-rules/             rule implementations — depends only on wrasse-model (+ wrasse-lang for WEdit)
+  wrasse-kotlinc-adapter/   LightTreeStreamAdapter, WNodeTypeMapping — the only place kotlinc LightTree
+                            types are visible outside app/*/internal/
+  wrasse-lang/              zero-dep utilities: JSONC config reader, FileWalkUp, WEdit/patch read-write-apply
+  wrasse-format/            (Phase C) Doc IR + DocBuilder + Layout — the opinionated printer,
+                            Gradle-mediated only — no standalone parser (see doc/design.md §12, D16)
+app/
+  wrasse-kotlinc-plugin/    WrassePlugin (dispatch entry point), wrasseMain(); internal/ = pure kotlinc
+                            glue (FIR checkers, registrars, CommandLineProcessor) — zero wrasse rule logic
+  wrasse-kotlinc-internal-k20 / -k22   version-specific FIR registrar shells, selected at runtime
+testing/
+  common-test/                          BaseSpec (kotest ShouldSpec base), useTempDir
+  wrasse-test-harness/                  FixtureLoader/Parser, WrasseTestHarness, and the fixtures/ resources
+  wrasse-kotlinc-plugin-tests-base/     WrasseFixtureSpec — iterates all fixtures, one `should` per fixture
+  wrasse-kotlinc-plugin-tests-2-{1,2,3,4}-x/   thin subclasses that run the base spec against each Kotlin minor
+```
+
+`wrasse-model` and `wrasse-rules` have **zero dependency on kotlinc** — rules are unit-testable
+without a compiler and portable to other hosts (e.g. a hypothetical PSI adapter for an IDE plugin).
+Rule code must never import kotlinc/LightTree types directly; those are confined to
+`wrasse-kotlinc-adapter` and `app/*/internal/`.
+
+### Rule model — SAX-style, single traversal
+
+Rules are two-phase: a `WUninitializedRule` declares an `id` and produces a configured `WRule` via
+`initRule(config)`. The sealed `WRule` hierarchy (`libs/wrasse-model/.../WRule.kt`) has four leaf
+kinds, dispatched by `StreamDispatch` off one SAX-style walk (`LightTreeStreamAdapter.walk`) — not a
+built tree of node objects:
+
+- **`WLeafRule`** — fires on leaf tokens whose type is in `targetTypes`, ordinal-indexed array
+  dispatch (O(1)). The common case (~most rules): comment-spacing, naming, nullable-type-spacing.
+- **`WNodeRule`** — enter/exit on interior nodes by `targetTypes`; `enterNode` returning `true` opts
+  into `onChildLeaf` callbacks for every descendant leaf plus a matching `exitNode`.
+  `WBufferedNodeRule` extends it to auto-buffer direct children into a `ChildBuffer` for exit-time
+  inspection (wrapping rules, argument lists).
+- **`WStreamRule`** — receives every leaf event unfiltered, plus enter/exit node boundaries. Most
+  expensive kind, kept to a small count; used for cross-cutting concerns (spacing, indentation,
+  `no-semicolons`' deferred forward-lookup for the statement-separator case).
+- **`WFileRule`** — called once after the walk with the final `WContext` (trailing-newline, max-line-
+  length via offset tracking).
+
+Rules report through `WReporter.report(ruleId, message, startOffset, endOffset, rule, edits)`; the
+reporter reads `rule.config.effectiveLevel` to pick error vs. warning. Rules that can autofix attach
+`WEdit(start, end, replacement)`s to the report.
+
+### Fix pipeline (MVP, offset-patch)
+
+`WrassePlugin.checkFile` collects `WEdit`s from the walk and, when `-Pwrasse.fix=true`, appends them
+to `build/wrasse/wrasse-fixes.txt` per module (`FileEdits` = file + SHA-256 source hash + edits),
+written via `WPatchWriter`. Applying (`wrasseApply` task → `WPatchApplierKt`) is a separate, explicit
+step, hash-guarded (a stale patch whose recorded hash no longer matches the file is a no-op) — never
+auto-run during a normal build. This is what `./gradlew wrasseFix` wires together.
+
+### Config
+
+`wrasse.json`/`wrasse.jsonc` is discovered by walking up from the source root, parsed by the
+hand-rolled JSONC reader in `wrasse-lang`. Per-rule `"level": "off" | "warn" | "error"`; a config can
+`"extends"` a base (child overrides base; a rule absent from the effective config is off, not an
+error). `wrasse-schema.json` is the editor-autocomplete schema referenced by `$schema` in
+`wrasse.json`. This repo lints itself (`wrasseLint`/`wrasseFix`) using its own `wrasse.json`.
+
+### Kotlin version matrix
+
+The plugin ships as a single JAR compiled against the latest supported Kotlin (2.4, see
+`gradle/libs.versions.toml`), targeting JVM 8 bytecode so it loads into the kotlinc daemon
+classloader like any bundled compiler plugin. Cross-version FIR API differences are absorbed by
+runtime-selected registrar shells (`app/wrasse-kotlinc-internal-k20`, `-k22`) plus the adapter layer
+— rule code and `wrasse-model` never see version-specific kotlinc APIs directly. The same fixture set
+is replayed against each supported minor via the `testing/wrasse-kotlinc-plugin-tests-<minor>-x`
+modules and their `testMinor`/`testPatch_*` tasks.
+
+### Build conventions
+
+All modules apply the local `internal-convention-plugin` (an included build, not published), which
+centralizes: Kotlin/Java toolchain + target version wiring (from `gradle/libs.versions.toml`),
+`allWarningsAsErrors`/`progressiveMode` on non-test source sets, JUnit Platform test execution, the
+`wrasseApply` task registration, and wiring `-Pwrasse.fix`/`wrasseCheck` Gradle properties into
+`kotlinCompilerPluginClasspath` and compiler free-args. Don't duplicate this logic in a module's own
+`build.gradle.kts` — extend the convention plugin instead.
