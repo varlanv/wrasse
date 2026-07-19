@@ -5,11 +5,9 @@ import com.varlanv.wrasse.model.WCallableUsage
 import com.varlanv.wrasse.model.WResolvedImport
 
 /**
- * A `import P.*` star directive is either entirely out of `no-unused-imports`'s scope (no report
- * at all — it may still be used, or removing it might be unsafe for a reason this rule cannot
- * verify) or genuinely unused, in which case the report always fires and [edit] carries the
- * whole-line removal when one can be emitted safely, `null` otherwise (report-only, same D19
- * survivor policy as an unused explicit import sharing its line with something else).
+ * Verdict for a zero-attribution `import P.*` star under `no-unused-imports`. [OutOfScope] means
+ * no report. [Unused.edit] carries the whole-line removal when it can be emitted safely, `null`
+ * when the directive shares its line with something else (report still fires either way).
  */
 sealed interface UnusedStarVerdict {
     data object OutOfScope : UnusedStarVerdict
@@ -17,43 +15,21 @@ sealed interface UnusedStarVerdict {
 }
 
 /**
- * Pure verdict logic for a zero-attribution `import P.*` star under `no-unused-imports`,
- * compiler-free so it is unit-testable without a kotlinc dependency. Reuses
- * [StarAttribution.attributedSymbols] exactly as [WildcardExpansionDecision] does — same
- * written-identifier gating, same ungated top-level-callable/operator-convention rule — so a star
- * used only via an operator convention or destructuring is attributed and therefore never flagged
- * here.
+ * Decides whether a zero-attribution `import P.*` star is safely removable, compiler-free and
+ * unit-testable without kotlinc.
  *
- * A star is removed iff **all** hold:
- * 1. [StarAttribution.classify] does not return [StarClassification.UNRESOLVED_OR_AMBIGUOUS] — an
- *    unresolved or ambiguously-classified star is left completely alone (no report), same
- *    direction as [WildcardExpansionDecision]'s bail.
- * 2. Its attributed set is empty, after excluding symbols already covered by a non-aliased
- *    explicit import of the same FQN (the identical filter [WildcardExpansionDecision.decide]
- *    applies before its own emptiness check) — [StarAttribution.attributedSymbols] for a
- *    [StarClassification.PACKAGE] star, [StarAttribution.attributedMembers] for a
- *    [StarClassification.MEMBER] one. A member-star whose only associated usage is a non-static
- *    instance member (skipped by [StarAttribution.attributedMembers], never legally reachable
- *    through a member-star in the first place) therefore has an empty attributed set and *is*
- *    removable — that usage never needed this star.
- * 3. [star]'s own package does not equal the file's own package — an own-package star is
- *    redundancy, not unusedness, deferred to a future engine (design.md).
+ * [decide] returns [UnusedStarVerdict.Unused] only when all hold for [star]:
+ * 1. [StarAttribution.classify] is not [StarClassification.UNRESOLVED_OR_AMBIGUOUS].
+ * 2. Its attributed set — [StarAttribution.attributedSymbols] for [StarClassification.PACKAGE],
+ *    [StarAttribution.attributedMembers] for [StarClassification.MEMBER] — is empty after
+ *    excluding symbols already covered by a non-aliased explicit import of the same FQN.
+ * 3. [star]'s own package does not equal the file's own package.
  * 4. No KDoc bracket reference's leading segment is left uncovered by every *other* source (the
- *    file's explicit imports and every other star's own attribution, package or member alike) —
- *    since this star has zero attribution of its own, its only remaining source of coverage would
- *    be exactly a KDoc reference FIR cannot see; an uncovered one means removal might not be safe,
- *    so the star is left completely alone (no report), the same conservative direction as
- *    [WildcardExpansionDecision]'s own bail 8, inverted consequence (there: don't expand; here:
- *    don't even report).
+ *    file's explicit imports and every other star's own attribution) — this star's own
+ *    attribution is empty, so a KDoc reference is otherwise-invisible usage FIR cannot see.
  *
- * Duplicate identical zero-attribution stars are **not** specially bailed (unlike
- * [WildcardExpansionDecision]'s duplicate-package bail, which exists only to pick one expansion
- * target) — each is decided independently, so two duplicates both come back [UnusedStarVerdict.Unused]
- * with their own disjoint whole-line edits.
- *
- * Whether an edit is attached once a star clears 1-4 is [ImportRemovalSpan]'s existing alone-on-line
- * policy — same behavior as any other unused import: report always fires, edit is `null` when the
- * directive shares its line with something else.
+ * Otherwise returns [UnusedStarVerdict.OutOfScope]. Duplicate identical zero-attribution stars are
+ * decided independently, each producing its own disjoint whole-line edit via [ImportRemovalSpan].
  */
 object UnusedStarDecision {
 

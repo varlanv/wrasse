@@ -11,15 +11,9 @@ import java.nio.file.Files
 
 /**
  * Dedicated real-compile safety net for `no-empty-class-body`'s anonymous-object-expression bail
- * (design.md §13 B.2) — the one shape where deleting an empty body is a syntax error, not merely a
- * restyle, since kotlinc's grammar mandates a body on an object literal.
- *
- * [IdempotenceCycle]'s general `assertNoNewCompileErrors` guard is now wired into every fixture's
- * cycle and already catches a regression here (proven by sabotaging the bail and watching
- * `no-empty-class-body/object-literal-bail-error` fail with exactly the syntax error this spec
- * guards against). This spec is the explicit, fixture-independent lock named for this one bail,
- * mirroring [FqnImportInsertionSafetySpec]: the real bail means report without an edit, so the
- * file is byte-identical after "applying" whatever patch exists, and still compiles.
+ * — the one shape where deleting an empty body is a syntax error, since kotlinc's grammar mandates
+ * a body on an object literal. The bail means report without an edit, so the file must stay
+ * byte-identical after applying whatever patch exists, and still compile.
  */
 open class EmptyClassBodySafetySpec : BaseSpec({
 

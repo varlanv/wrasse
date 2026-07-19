@@ -15,112 +15,46 @@ class StarImportRecord(
 )
 
 /**
- * Pure verdict logic for the `no-wildcard-imports` expansion fix, compiler-free so it is
- * unit-testable without a kotlinc dependency. The report always fires regardless of this
- * function's outcome (design.md §8) — a `null` result means "report only, no edit", never
- * "nothing wrong".
+ * Pure verdict logic for the `no-wildcard-imports` expansion fix, compiler-free and unit-testable
+ * without kotlinc. The report always fires regardless of this decision (design.md §8) — a `null`
+ * result means "report only, no edit", never "nothing wrong".
  *
- * **Attribution** — a used symbol attributes to `import P.*` iff resolving it needs exactly one
- * top-level name under `P`:
- * - a classifier `P.X[.Y...]` (nested-class access is always written qualified through its
- *   top-level owner, e.g. `Outer.Nested` — only `Outer` needs importing) attributes `P.X`;
- * - a top-level callable (`classFqName == null`) with `packageFqName == P` attributes `P.name`;
- * - a member callable with `classFqName == P.X[.Y...]` (covers constructors, whose
- *   `classFqName`/`name` are the class's own FQN/simple name; companion/enum members; Java
- *   statics) attributes `P.X`.
+ * A used symbol attributes to `import P.*` iff resolving it needs exactly one top-level name
+ * under `P`: a classifier `P.X[.Y...]` attributes `P.X` (nested access is always written through
+ * its top-level owner); a top-level callable with `packageFqName == P` attributes `P.name`; a
+ * member callable with `classFqName == P.X[.Y...]` attributes `P.X`.
  *
- * **Syntactic gate — a name must actually be written to be worth importing.** `WResolvedUsage`
- * records every type the compiler's inference touches, not just the ones the author typed: a
- * member chain (`x.y.z()`) resolves through every intermediate type's members without the
- * intermediate types themselves ever appearing as identifiers, and an implicit local/loop/lambda
- * parameter type is a real classifier reference with no token in the source at all. Importing a
- * class whose name is never written is over-expansion no IDE would produce, even though it is
- * harmless (compilable, idempotent) — so classifier attribution and member-callable attribution
- * additionally require `X` (the attributed symbol's own simple name) to appear as a written
- * `IDENTIFIER` somewhere in the file body (outside import directives and the package directive —
- * those can't self-justify an import). A constructor call needs no special case: writing
- * `Widget()` writes the identifier `Widget`, so the gate passes naturally for the common case.
- * Top-level callable attribution is **not** gated: operator conventions (`+` desugars to a member
- * named `plus`, destructuring to `componentN`, `()` call syntax to `invoke`) legitimately need an
- * import whose name never appears as a written identifier at all — gating those would silently
- * drop imports the file actually needs, trading over-expansion for a broken compile, a strictly
- * worse outcome.
+ * Classifier and member-callable attribution additionally require the symbol's own simple name to
+ * appear as a written `IDENTIFIER` somewhere in the file body (outside import/package directives);
+ * top-level callable attribution is never gated this way, since operator/destructuring/`invoke`
+ * conventions legitimately need an import whose name is never written as an identifier. A symbol
+ * already covered by a non-aliased explicit import of the same FQN is excluded; an aliased import
+ * (binds only the alias, never the plain name) does not exclude it.
  *
- * A symbol already covered by an existing **non-aliased** explicit import of the same FQN is
- * excluded — that import already brings its plain simple name into scope. An *aliased* explicit
- * import (`import a.b.X as Y`) does **not** exclude `a.b.X` — it only binds the name `Y`, never
- * the plain `X` — but if the file never writes plain `X` either (only ever `Y`), the syntactic
- * gate above already drops `X` from attribution on its own; the two mechanisms are independent
- * and either alone is sufficient once both exist. A plain `import a.b.X` and an aliased
- * `import a.b.X as Y` of the same target legally coexist (empirically confirmed: harness-driven
- * real-compile probe, zero diagnostics), so on the rare occasion both survive (alias present,
- * plain name also written via some other qualified reference) this is a normal expansion, never
- * a bail. Symbols reachable only via Kotlin's default imports still attribute if their resolved
- * parent is `P`: expanding a redundant star of a default-imported package (e.g.
- * `import kotlin.collections.*`) into explicit imports is compile-preserving and harmless, so no
- * special-casing is done for default-import packages.
+ * [StarAttribution.classify] additionally distinguishes a package-star from a member-star (`C` a
+ * class/object/enum) via the file's [WResolvedImport]s. For a member-star,
+ * [StarAttribution.attributedMembers] computes the attributed set — nested classifiers plus
+ * callable members whose [WCallableUsage.isStatic] is true — under the same rules above.
  *
- * **Member-star (`import C.*`) expansion — the authoritative-resolved-import extension.**
- * [StarAttribution.classify] decides, from the file's own [WResolvedImport]s, whether a star is a
- * package-star (unchanged behavior above) or a member-star (`C` a class/object/enum) —
- * cross-checked against the cheap usage-based [StarAttribution.isMemberStar] inference, bailing
- * on any disagreement or on an unresolved star (never guessing, design.md §8). For a member-star,
- * [StarAttribution.attributedMembers] computes the legally explicit-importable attributed set —
- * nested classifiers and callable members whose [WCallableUsage.isStatic] is true (enum entries,
- * Java statics) — expanded exactly like a package-star's attributed set (same exclusion,
- * collision, and KDoc checks below, same ASCII-sorted `import C.member` replacement). A non-static
- * member sharing `classFqName == C` is silently skipped rather than disqualifying anything: a
- * member-star can never legally bring such a member into scope in the first place, so its
- * appearance in the file's usage always means it resolved some other way (a receiver, or a
- * same-named constructor call needing `C` itself in scope) and has nothing to do with this star.
- * A member-star's own package/class syntactically can never be an `object`/companion (that star
- * shape is a hard compiler error — `import Singleton.*` — confirmed empirically, so it can never
- * reach this decision in a file whose resolution didn't already error), so [WCallableUsage.isStatic]
- * alone is both necessary and sufficient here; no separate object/companion case exists to handle.
+ * [decide] bails (returns `null`, no edit — every ambiguity resolves toward "don't touch it")
+ * when:
+ * 1. [StarAttribution.classify] returns [StarClassification.UNRESOLVED_OR_AMBIGUOUS] — no
+ *    resolved-import counterpart for this star, or its usage-based cross-check disagrees.
+ * 2. Attribution is empty once already-imported symbols are excluded.
+ * 3. The star's directive shares its line with something else ([ImportLineSpan.isAloneOnLine]).
+ * 4. `P == filePackageFqName`, or another identical `import P.*` directive exists in the file.
+ * 5. An attributed symbol's simple name maps, across every classifier/callable used anywhere in
+ *    the file, to any FQN other than itself ([SimpleNameCollisionIndex]) — `FirResolvedQualifier`
+ *    cannot distinguish "resolved via this star" from "resolved via full qualification", so any
+ *    ambiguity here (including cross-star collisions) bails rather than risk emitting a wrong or
+ *    behavior-flipping import.
+ * 6. A KDoc `[Name]`/`[qualified.Name]` reference's leading segment isn't covered by an explicit
+ *    import's visible name or this star's own attributed names
+ *    ([StarAttribution.kdocReferencesUncovered]) — such references resolve through imports
+ *    invisibly to FIR, so an uncovered one can't be verified safe.
  *
- * **Bails** (report fires, no edit — every ambiguity resolves toward "don't touch it"):
- * 1. Whole-file bail on missing/errored resolution is the caller's job (no resolved usage
- *    facade passed in at all means "don't call [decide]").
- * 2. **Unresolved or ambiguous star classification.** [StarAttribution.classify] returning
- *    [StarClassification.UNRESOLVED_OR_AMBIGUOUS] — no resolved-import counterpart for this star,
- *    or the authoritative package/member answer disagrees with the usage-based cross-check.
- * 3. **Zero attribution.** An unused star is `no-unused-imports`/engine territory, not expansion.
- * 4. **Shared line.** Same policy and rationale as [ImportRemovalSpan]'s bail: something else on
- *    the directive's line is a signal to leave the region alone.
- * 5. **Own package.** `P == filePackageFqName` is a degenerate star (everything in it already
- *    resolves without any import).
- * 6. **Duplicate stars.** Two identical `import P.*` directives in one file both bail — which one
- *    is "the" import of `P` is ambiguous.
- * 7. **Simple-name collision.** [WResolvedUsage][com.varlanv.wrasse.model.WResolvedUsage]'s
- *    classifier set cannot distinguish "resolved because this star brought the name into scope"
- *    from "resolved via full qualification, needing no import at all" — `FirResolvedQualifier`
- *    records a classifier for `P.X.member()` (fully qualified) exactly the same way it would for
- *    a bare `X` the star actually provides. Emitting `import P.X` for a qualified-only usage can
- *    (a) conflict with an existing explicit import of some other `Q.X` (a real, empirically
- *    confirmed compiler error: "Conflicting import: imported name 'X' is ambiguous", followed by
- *    "Unresolved reference" at every use), or (b) silently *flip* what bare `X` already resolves
- *    to — away from a default import or another package's same-named symbol — the worst outcome,
- *    a behavior change with no diagnostic at all pointing back at the fix (also empirically
- *    confirmed: a bare generic reference resolving to `kotlin.collections.List` before the fix
- *    resolves to a same-named non-generic class after, producing "No type arguments expected").
- *    The facade cannot tell these apart, so treat any ambiguity as disqualifying: build a
- *    simple-name → FQNs map from *every* used classifier (last segment) and callable (top-level
- *    callables by name; member callables by `classFqName`'s last segment) in the whole file, not
- *    just this star's own attribution. If an attributed symbol's simple name maps to any FQN
- *    other than itself in that map, bail the whole star. This also covers cross-star collisions
- *    (two stars attributing the same simple name from different packages) for free, since the
- *    map is built once over the whole file's usage, not per star. Over-bailing here is intended —
- *    a wrong expansion is the one outcome this rule may never produce.
- * 8. **KDoc bracket references.** KDoc `[Name]`/`[qualified.Name]` links resolve through imports
- *    invisibly to FIR (they never appear in [WCallableUsage]/classifier usage), so a reference
- *    that might have resolved only through this star cannot be verified safe. A reference's
- *    leading segment (the part before its first `.`, since that is the name that must be in
- *    scope) must be covered by explicit imports' visible names (alias if present, else simple
- *    name) or this star's own attributed simple names, else bail. Coverage does *not* include the
- *    file's own top-level declaration names — a second declaration-collecting pass over the file
- *    is not "cheaply available" from this rule's leaf-stream assembly, so that source is skipped
- *    entirely rather than approximated; the only effect of skipping it is more bails, never a
- *    false "covered".
+ * Otherwise the star directive is replaced with one ASCII-sorted `import P.x` per attributed
+ * symbol.
  */
 object WildcardExpansionDecision {
 

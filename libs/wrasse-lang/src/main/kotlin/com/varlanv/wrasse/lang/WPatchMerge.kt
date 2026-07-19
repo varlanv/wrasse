@@ -1,7 +1,7 @@
 package com.varlanv.wrasse.lang
 
 /**
- * Pure merge-on-write logic for one compilation's in-memory patch state (D22).
+ * Pure merge-on-write logic for one compilation's in-memory patch state.
  *
  * A compilation loads its existing [FileEdits] once, then for every file it recompiles either
  * [upsert]s a fresh entry (replacing any stale one for that path) or [remove]s the entry entirely

@@ -100,11 +100,9 @@ object IdempotenceCycle {
     }
 
     /**
-     * D22 reconciliation: emission now rides check mode unconditionally, so the patch file itself
-     * may still exist (header-only) after a fully clean recompile — merge-on-write only guarantees
-     * that a recompiled file's own entry is *removed* (self-cleaning), not that the file vanishes.
-     * The idempotence invariant (D19) is therefore checked against the parsed entries, not file
-     * presence: `fix(fix(x)) == fix(x)` holds iff the patch holds zero file entries.
+     * `fix(fix(x)) == fix(x)` holds iff the patch holds zero file entries. Checked against the
+     * parsed entries, not file existence — merge-on-write guarantees a recompiled file's own entry
+     * is removed, but the patch file itself may still exist (header-only) after a clean recompile.
      */
     fun assertNoResidualEdits(patchFile: Path) {
         val residualEntries = if (Files.exists(patchFile)) WPatchReader.read(Files.readString(patchFile)) else emptyList()
@@ -122,17 +120,10 @@ object IdempotenceCycle {
         entries.joinToString("\n") { "  ${it.filePath} (${it.edits.size} edits)" }.ifEmpty { "  (none)" }
 
     /**
-     * General systemic guard (not specific to any one rule): compares the *sets* of non-wrasse
-     * `e:`-severity diagnostic messages between round 1 (before the fix) and round 2 (after
-     * applying round 1's edits and recompiling). A message present in round 2 but absent from
-     * round 1 means the fix introduced a genuine compiler error the original file never had —
-     * "autofix broke the compile" — and must fail loudly here, not be silently absorbed by D19's
-     * survivor bookkeeping (which only tracks *wrasse* diagnostics and has no opinion on whether
-     * the patched file still compiles at all). Comparing message *sets* rather than asserting
-     * `round2NonWrasseErrors.isEmpty()` outright avoids false positives from fixtures that
-     * legitimately compile with `noJdk = true` and already carry pre-existing classpath
-     * diagnostics (e.g. `Cannot access '...'`) in *both* rounds — those cancel out here instead of
-     * failing every such fixture.
+     * Fails if applying the fix introduced a non-wrasse `e:`-severity diagnostic message present in
+     * [round2] but absent from [round1]. Compares message *sets* rather than requiring [round2] to
+     * be error-free, so pre-existing classpath diagnostics shared by both rounds (e.g. fixtures
+     * compiled with `noJdk = true`) don't false-positive.
      */
     fun assertNoNewCompileErrors(round1: List<TestDiagnostic>, round2: List<TestDiagnostic>) {
         val round1Messages = nonWrasseErrorMessages(round1)
@@ -155,13 +146,9 @@ object IdempotenceCycle {
             .toSet()
 
     /**
-     * Not wired into [runIfFixEmitted] by default: several existing fixtures compile with
-     * `noJdk = true` and trip pre-existing, unrelated `Cannot access '...'`/`Unresolved
-     * reference 'java'` diagnostics from that classpath choice alone, which this would flag as
-     * false positives across the whole fixture suite. Called explicitly by specs that need the
-     * stronger guarantee that an emitted edit never introduces a genuine (non-wrasse) compiler
-     * error — e.g. a resolution-powered fix whose facade cannot fully distinguish safe from
-     * unsafe rewrites.
+     * Stronger check than [assertNoNewCompileErrors]: fails on any non-wrasse compiler error,
+     * without exempting `noJdk = true` fixtures. Not wired into [runIfFixEmitted] by default — call
+     * explicitly from specs that need this guarantee.
      */
     fun assertPatchedFileCompiles(diagnostics: List<TestDiagnostic>) {
         val nonWrasseErrors = diagnostics.filter { it.severity.isError && !it.message.startsWith("wrasse:") }

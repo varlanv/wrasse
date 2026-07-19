@@ -68,18 +68,13 @@ object ImportOrderingDecision {
     }
 
     /**
-     * Applies [edits] (attributed to other, already-run import rules) to a local copy of
+     * Applies [edits] (from other, already-run import rules) to a local copy of
      * `sourceText[regionStart, regionEnd)`, then re-splits and re-sorts the result, folding in
-     * [extraLines] — brand-new `import <fqn>` directives `no-unnecessary-fqn` (D.3) needs to add,
-     * which never correspond to a span in the original text and so cannot be represented as a
-     * [WEdit] against it (unlike [edits], which each replace an existing directive's own span).
-     * This is how a new import's sorted position "falls out naturally" from the same composed
-     * whole-list rewrite ordering already performs (design.md §8) instead of needing its own
-     * offset-based insertion logic. Returns the replacement text for the whole region, or `null`
-     * if [edits] overlap each other or the result does not parse as "zero or more `import ...`
-     * lines separated by `\n`" — the caller must not guess in that case and must leave [edits] in
-     * place instead of using this result ([extraLines] is caller-owned either way, so there is
-     * nothing of its own to put back).
+     * [extraLines] — additional bare `import <fqn>` directive lines with no corresponding span in
+     * the original text (unlike [edits], which each replace an existing directive's own span).
+     * Returns the replacement text for the whole region, or `null` if [edits] overlap each other
+     * or the result does not parse as zero or more `import ...` lines separated by `\n` — callers
+     * must leave [edits] unapplied in that case ([extraLines] remains caller-owned either way).
      */
     fun composeRegion(
         sourceText: CharSequence,

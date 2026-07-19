@@ -11,42 +11,25 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 /**
  * An empty `()` argument list immediately before a trailing lambda is redundant — `list.map() {
- * it }` and `list.map { it }` call the exact same overload — and, where deleting it stays
- * compile-legal, autofixed to remove it entirely.
+ * it }` and `list.map { it }` call the same overload — and, where deleting it stays compile-legal,
+ * autofixed to remove it entirely.
  *
- * Matched purely syntactically on a `CALL_EXPRESSION`'s own direct children, exactly like
- * upstream ktlint's `unnecessary-parentheses-before-trailing-lambda` (empirically ground-truthed
- * against upstream's own real behavior via a probe harness built against the actual
- * ktlint-ruleset-standard/rule-engine jars, since upstream's own shipped test suite covers only
- * three shapes): the `VALUE_ARGUMENT_LIST` child's own source span must be the literal two
- * characters `"()"` — nothing else, not even whitespace or a comment, which is also why
- * `foo(   )` and `foo(/* x */)` are never candidates at all (empirically verified: upstream
- * itself does not flag either, matching a plain AST-children check with no special-casing) — and
- * the next significant sibling (skipping whitespace/comments) must be a `LAMBDA_ARGUMENT`.
+ * Matched purely syntactically on a `CALL_EXPRESSION`'s own direct children: the
+ * `VALUE_ARGUMENT_LIST` child's own source span must be exactly `"()"` (nothing else, not even
+ * whitespace or a comment), and the next significant sibling (skipping whitespace/comments) must
+ * be a `LAMBDA_ARGUMENT`.
  *
- * Two shapes are exempt entirely (not reported, not fixed), both empirically confirmed against
- * upstream's own real behavior and both because removing the parentheses would silently resolve
- * to a *different* call, not merely restyle this one: whenever the significant sibling
- * immediately before the argument list is itself a `CALL_EXPRESSION` — an invoke-operator chain
- * (`foo()() { }`, upstream issue #3016) or a call already ending in its own trailing lambda
- * (`fooBar { "Hello" }() { "world" }`, upstream issue #2884) — the empty parentheses are the only
- * thing distinguishing "invoke the previous call's result" from "call the previous callee
- * directly with this trailing lambda", so they are load-bearing, not redundant.
+ * Exempt entirely (not reported, not fixed) whenever the significant sibling immediately before
+ * the argument list is itself a `CALL_EXPRESSION` — an invoke-operator chain (`foo()() { }`) or a
+ * call already ending in its own trailing lambda (`fooBar { "Hello" }() { "world" }`) — since the
+ * empty parentheses there are the only thing distinguishing "invoke the previous call's result"
+ * from "call the previous callee directly with this trailing lambda", so they are load-bearing.
  *
- * Reported but never autofixed whenever any whitespace or comment token between the argument
- * list and the lambda contains a newline: deleting the parentheses in that shape is not provably
- * safe — probing a real compile of the fixed output surfaced a genuine, upstream-native
- * corruption bug (upstream applies the deletion anyway): losing the call syntax marker `()`
- * turns what follows into "bare reference, then a newline, then a lambda literal" instead of a
- * trailing-lambda call, which either fails to reparse at all (a property initializer at file
- * scope) or fails to recompile with a genuine compiler error ("Function invocation '<name>(...)'
- * expected", verified with a real `K2JVMCompiler` run) inside a function body. Since an
- * `EOL_COMMENT` between the parentheses and the lambda always forces a newline before the next
- * token, this single newline check also covers that shape without a separate comment-type
- * enumeration (unlike `no-unit-return`'s equivalent bail, which needed one). A same-line block
- * comment or KDoc between the parentheses and the lambda carries no such risk and is autofixed
- * normally, preserving the comment (empirically verified against upstream's own real formatted
- * output).
+ * Reported but never autofixed whenever any whitespace or comment token between the argument list
+ * and the lambda contains a newline: deleting the parentheses there is not provably safe, since
+ * losing the `()` call-syntax marker can turn what follows into a bare reference followed by a
+ * separate lambda literal rather than a trailing-lambda call. A same-line block comment or KDoc in
+ * that gap carries no such risk and is autofixed normally, preserving the comment.
  */
 class NoEmptyParensBeforeTrailingLambdaRule : WUninitializedRule {
     override val id: String = "no-empty-parens-before-trailing-lambda"

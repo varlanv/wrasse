@@ -158,7 +158,7 @@ class WrassePlugin(
         }
     }
 
-    /** Stub for the FirFunctionCallChecker hook. Will dispatch to SemanticWRules once the resolution facade lands (Phase B.3). */
+    /** Hook for the `FirFunctionCallChecker`; currently always returns null (no rule wired to it yet). */
     fun checkCall(packageName: String, callableName: String): String? {
         return null
     }

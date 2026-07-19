@@ -9,10 +9,10 @@ import kotlin.streams.asSequence
 /**
  * Reads wrasse patch files and applies the edits to source files on disk.
  *
- * Per-compilation patch files live at `<parentDir>/<compilation>/wrasse-fixes.txt` (D22) — [apply]
+ * Per-compilation patch files live at `<parentDir>/<compilation>/wrasse-fixes.txt` — [apply]
  * walks the whole tree under the directory it is given and applies every patch file it finds, so a
- * directly-passed directory containing a single `wrasse-fixes.txt` (the pre-D22 single-file layout,
- * still used by the fixture harness) keeps working unchanged.
+ * directly-passed directory containing a single `wrasse-fixes.txt` (the single-file layout still
+ * used by the fixture harness) keeps working unchanged.
  *
  * For each file in a patch:
  * 1. Validates the source hash — skips if the file changed since compilation.

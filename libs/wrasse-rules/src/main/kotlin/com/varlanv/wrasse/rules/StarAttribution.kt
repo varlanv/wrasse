@@ -4,11 +4,10 @@ import com.varlanv.wrasse.model.WCallableUsage
 import com.varlanv.wrasse.model.WResolvedImport
 
 /**
- * Which shape a `import P.*` star directive is, decided authoritatively from the file's own
- * [WResolvedImport]s (design.md §8) rather than inferred from usage. [UNRESOLVED_OR_AMBIGUOUS]
- * means "don't guess" — either this star has no resolved counterpart at all (an unresolved
- * import), or the authoritative answer and the cheap usage-based cross-check
- * ([StarAttribution.isMemberStar]) disagree; callers must bail entirely in that case.
+ * Which shape a `import P.*` star directive is, decided from the file's own [WResolvedImport]s
+ * rather than inferred from usage. [UNRESOLVED_OR_AMBIGUOUS] means "don't guess" — either the
+ * star has no resolved counterpart, or the resolved answer disagrees with the cheap usage-based
+ * cross-check ([StarAttribution.isMemberStar]); callers must bail entirely in that case.
  */
 enum class StarClassification {
     PACKAGE,
@@ -18,14 +17,9 @@ enum class StarClassification {
 
 /**
  * Pure attribution logic for a `import P.*` star directive, shared by [WildcardExpansionDecision]
- * (which star's attributed symbols to expand into) and [UnusedStarDecision] (whether a star
- * attributes nothing at all and is therefore unused). Compiler-free, unit-testable without
- * kotlinc.
- *
- * See [WildcardExpansionDecision]'s KDoc for the full attribution rationale (the written-identifier
- * gate, the ungated top-level-callable/operator-convention case, why default-imported packages
- * still attribute). This object only holds the computation itself; the two callers apply different
- * verdict logic on top of the same result.
+ * (which attributed symbols to expand into) and [UnusedStarDecision] (whether a star attributes
+ * nothing and is therefore unused). Compiler-free, unit-testable without kotlinc; see
+ * [WildcardExpansionDecision] for the full attribution rules this object implements.
  */
 object StarAttribution {
 
@@ -35,15 +29,13 @@ object StarAttribution {
         callables.any { it.classFqName == packageFqName }
 
     /**
-     * The authoritative classification for a star whose own package/class FQN is
-     * [starFqName], cross-checked against the cheap usage-based [isMemberStar] inference.
-     * A star with zero, or inconsistent, matching [WResolvedImport]s (fqn + `isStarImport`) is
-     * [StarClassification.UNRESOLVED_OR_AMBIGUOUS] — an unresolved import, per the compiler's own
-     * `is FirResolvedImport` signal (design.md §8). Disagreement in the direction that matters
-     * (authoritative says package, inference says member) is also
+     * Authoritative classification for a star whose own package/class FQN is [starFqName],
+     * cross-checked against the cheap usage-based [isMemberStar] inference. A star with zero, or
+     * inconsistent, matching [WResolvedImport]s (`fqn` + `isStarImport`, unresolved per
+     * `FirResolvedImport`) is [StarClassification.UNRESOLVED_OR_AMBIGUOUS]. Disagreement in the
+     * direction that matters (authoritative says package, inference says member) is also
      * [StarClassification.UNRESOLVED_OR_AMBIGUOUS]; the reverse is not a contradiction — a
-     * member-star with zero used members (only a nested classifier, or genuinely unused) is
-     * still [StarClassification.MEMBER].
+     * member-star with zero used members is still [StarClassification.MEMBER].
      */
     fun classify(
         starFqName: String,
@@ -64,25 +56,17 @@ object StarAttribution {
     }
 
     /**
-     * Attribution for a member-star `import C.*`: a used nested classifier `C.X[.Y...]`
-     * attributes `C.X` (same top-level-owner rule as a package-star's nested-class access); a
-     * used callable member with `classFqName == C` exactly attributes `C.member` when
-     * [WCallableUsage.isStatic] is true. Both are gated by the same written-identifier requirement
-     * as [attributedSymbols] (a member's own simple name must appear as a written `IDENTIFIER`
-     * somewhere in the file body) — unlike package-star attribution, member attribution here has
-     * no ungated operator-convention exception, since a member-star can never legally expose an
-     * operator/`componentN`/`invoke` convention member bare in the first place (those are always
-     * instance members, never static or enum-entry shaped).
+     * Attribution for a member-star `import C.*`: a used nested classifier `C.X[.Y...]` attributes
+     * `C.X`; a used callable member with `classFqName == C` attributes `C.member` when
+     * [WCallableUsage.isStatic] is true. Both require the member's own simple name to appear as a
+     * written `IDENTIFIER` somewhere in the file body, same as [attributedSymbols] — unlike
+     * package-star attribution, there is no ungated operator-convention exception here, since a
+     * member-star can never expose an operator/`componentN`/`invoke` convention member bare (those
+     * are always instance members).
      *
-     * A callable member with `classFqName == C` whose [WCallableUsage.isStatic] is false is
-     * **skipped**, not treated as disqualifying: Kotlin's import-on-demand from a classifier
-     * exposes only statics/enum entries/nested classifiers (empirically confirmed — a member-star
-     * never legally brings a non-static member into scope, bare or otherwise, under any
-     * circumstance), so any such usage recorded against `C` is, by construction, resolved through
-     * something other than this star — a receiver (`x.instanceMember()`, which needs no import of
-     * `C` at all) or, degenerately, a same-classFqName constructor call (`C()`, which needs `C`
-     * itself in scope via some other mechanism, never this star, since the star imports `C`'s
-     * members, not `C`). It is therefore simply not this star's business either way.
+     * A non-static callable member with `classFqName == C` is skipped, not disqualifying:
+     * import-on-demand from a classifier only ever exposes statics/enum entries/nested classifiers,
+     * so any such usage is resolved through something other than this star.
      */
     fun attributedMembers(
         classFqName: String,

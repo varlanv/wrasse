@@ -10,13 +10,12 @@ import io.kotest.matchers.collections.shouldHaveSize
 import java.nio.file.Files
 
 /**
- * Dedicated real-compile safety net for `no-unnecessary-fqn`'s D.3 fix (design.md §8) — the
- * trickiest import-insertion shapes, each driven through a real compile → fix → reapply →
- * recompile cycle exactly like [WildcardExpansionAmbiguitySafetySpec], since
- * [IdempotenceCycle.assertPatchedFileCompiles] is deliberately not wired into the shared fixture
- * cycle (several fixtures compile with `noJdk = true` and trip unrelated classpath diagnostics of
- * their own). Every shape below emits at least one edit, so every one of them has a real
- * post-fix compile proof, not just a diagnostic-message assertion.
+ * Real-compile safety net for `no-unnecessary-fqn`'s import-insertion fix — the trickiest
+ * insertion shapes, each driven through a real compile → fix → reapply → recompile cycle, like
+ * [WildcardExpansionAmbiguitySafetySpec], since [IdempotenceCycle.assertPatchedFileCompiles] is not
+ * wired into the shared fixture cycle (several fixtures compile with `noJdk = true` and trip
+ * unrelated classpath diagnostics of their own). Every shape below emits at least one edit, so
+ * each has a real post-fix compile proof, not just a diagnostic-message assertion.
  */
 open class FqnImportInsertionSafetySpec : BaseSpec({
 

@@ -10,18 +10,12 @@ import io.kotest.matchers.collections.shouldHaveSize
 import java.nio.file.Files
 
 /**
- * Dedicated real-compile safety net for the two ambiguity shapes `WildcardExpansionDecision`'s
- * simple-name collision bail exists to prevent (design.md §8): the resolved-usage facade cannot
- * distinguish "resolved because this star brought the name into scope" from "resolved via full
- * qualification, needing no import at all", so a naive attribution can emit an edit that either
- * breaks compilation outright (conflicting import) or silently changes what a bare name resolves
- * to (a flip with no diagnostic pointing back at the fix). Kept separate from the fixture-driven
- * `IdempotenceCycle` cycle every other fixture goes through: `IdempotenceCycle.assertPatchedFileCompiles`
- * is deliberately not wired into that shared path (several existing fixtures compile with
- * `noJdk = true` and trip unrelated classpath diagnostics of their own), so this spec drives the
- * compile → fix → reapply → recompile cycle directly and applies that stronger check only here,
- * where a false positive from an unrelated pre-existing fixture can't drown it out. When the bail
- * fires correctly, no edit is emitted at all — no patch file, nothing further to check.
+ * Real-compile safety net for `WildcardExpansionDecision`'s simple-name collision bail (design.md
+ * §8): a naive attribution could otherwise emit an edit that breaks compilation via a conflicting
+ * import, or silently changes what a bare name resolves to. Drives compile → fix → reapply →
+ * recompile directly and applies [IdempotenceCycle.assertPatchedFileCompiles]'s stronger check —
+ * not the shared [IdempotenceCycle.runIfFixEmitted] path, which skips that check to tolerate other
+ * fixtures' unrelated `noJdk = true` classpath diagnostics.
  */
 open class WildcardExpansionAmbiguitySafetySpec : BaseSpec({
 

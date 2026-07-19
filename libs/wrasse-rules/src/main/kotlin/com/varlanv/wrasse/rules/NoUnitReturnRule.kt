@@ -10,27 +10,20 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 /**
- * A function's own `: Unit` return type is redundant — Kotlin already infers `Unit` for a
- * function with no declared return type — and, where deleting it stays compile-legal, autofixed
- * to remove it entirely.
+ * A function's own `: Unit` return type is redundant and, where deleting it stays compile-legal,
+ * autofixed to remove it entirely.
  *
- * Matched purely syntactically, exactly like upstream ktlint: the return-type `TYPE_REFERENCE`'s
- * own source span must equal the literal text `"Unit"`. No semantic resolution is involved, and
- * none is needed — this single exact-text check is also what keeps the rule from ever firing on
- * `Unit?`, `kotlin.Unit`, an annotated return type (`@JvmSuppressWildcards Unit`), or a `Unit`-
- * typed parameter (whose `TYPE_REFERENCE`'s parent is `VALUE_PARAMETER`, never `FUN`, so it is
- * never even a candidate) — all empirically verified never to match upstream ktlint's own rule
- * either. An expression-body function (`fun f(): Unit = expr`) is bailed entirely — not reported,
- * not fixed — matching upstream ktlint's own current (stable, shipped) scope, which explicitly
- * does not flag that shape; only a block-body function (return type's next significant sibling is
- * a `BLOCK`) is in scope.
+ * Matched purely syntactically: the return-type `TYPE_REFERENCE`'s own source span must equal the
+ * literal text `"Unit"`. This also excludes `Unit?`, `kotlin.Unit`, an annotated return type
+ * (`@JvmSuppressWildcards Unit`), and a `Unit`-typed parameter (never a candidate, since its
+ * `TYPE_REFERENCE`'s parent is `VALUE_PARAMETER`, not `FUN`). An expression-body function
+ * (`fun f(): Unit = expr`) is out of scope entirely — not reported, not fixed; only a block-body
+ * function (return type's next significant sibling is a `BLOCK`) is matched.
  *
  * Reported but never autofixed when a comment sits between the colon and `Unit`, or between
  * `Unit` and the block: deleting the whitespace around a comment is not provably safe in every
  * such shape — an `EOL_COMMENT` immediately before `Unit`, for one, would swallow the following
- * `{` onto the comment's own line, corrupting the file (verified against a real compile of that
- * exact shape). Upstream ktlint autocorrects some but not all of these shapes; wrasse never
- * autofixes any of them, staying a subset of upstream rather than replicating that risk.
+ * `{` onto the comment's own line, corrupting the file.
  */
 class NoUnitReturnRule : WUninitializedRule {
     override val id: String = "no-unit-return"

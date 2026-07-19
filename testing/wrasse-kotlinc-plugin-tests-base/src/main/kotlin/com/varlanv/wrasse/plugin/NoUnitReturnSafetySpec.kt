@@ -10,10 +10,9 @@ import io.kotest.matchers.shouldBe
 import java.nio.file.Files
 
 /**
- * Dedicated real-compile safety net for `no-unit-return`'s EOL-comment bail (design.md §13 B.2) —
- * found empirically while probing upstream ktlint's own real behavior (not from its test suite):
- * deleting the whitespace between an EOL comment and the `Unit` type reference pulls the newline
- * out from under that comment, merging whatever follows (here, the function's `{`) onto the
+ * Dedicated real-compile safety net for `no-unit-return`'s EOL-comment bail: deleting the
+ * whitespace between an EOL comment and the `Unit` type reference would pull the newline out
+ * from under that comment, merging whatever follows (here, the function's `{`) onto the
  * comment's own line and corrupting the file. wrasse never autofixes any comment-adjacent shape
  * (block comment, KDoc, or EOL comment) for exactly this reason — see
  * [com.varlanv.wrasse.rules.NoUnitReturnRule]'s KDoc — but this spec locks the one shape where

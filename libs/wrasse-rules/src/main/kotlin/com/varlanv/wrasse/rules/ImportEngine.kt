@@ -12,35 +12,26 @@ import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
 /**
- * One fused decision-maker behind four user-facing rule ids — `no-unused-imports`,
- * `no-wildcard-imports`, `import-ordering`, `no-unnecessary-fqn` — replacing what were
- * originally three independent `WStreamRule`s that composed only via `afterFile` registration
- * order plus `EditPlan.takeEditsIn` self-consumption (design.md §5.1, §8, the interim mechanism
- * retired for the first three). Users still configure each id independently in `wrasse.json`;
- * [initGroup] receives exactly the enabled, non-excluded-for-this-file ids and their own
- * [WrasseRuleConfig] (D20 unchanged: fresh per file). An id absent from `configs` behaves as
- * if that rule does not exist for this file — every decision below is individually gated on
- * its own id being present.
+ * Fuses four user-facing rule ids into one decision-maker: `no-unused-imports`,
+ * `no-wildcard-imports`, `import-ordering`, `no-unnecessary-fqn`. Each id is configured
+ * independently in `wrasse.json`; [initGroup] receives only the enabled, non-excluded-for-this-file
+ * ids with their own [WrasseRuleConfig] (a fresh config per file). An id absent from `configs` is
+ * inert for this file — every decision below is individually gated on its own id being present.
  *
- * `no-unnecessary-fqn` (D.2/D.3, design.md §8) is the reason [requiresQualifiedUsages] exists on
- * this engine at all — it is the first and, so far, only id needing
- * [com.varlanv.wrasse.model.WResolvedUsage.qualifiedUsages]. Since D.3, every one of its reports
- * carries its own package-prefix-deletion [PendingImportReport.edit] (always at a usage site,
- * outside the import list's own span by construction — a usage can never sit inside
- * `IMPORT_LIST`), plus, for at most one usage per distinct import target, a brand-new `import
- * <fqn>` addition resolved by [resolveImportListChanges] into that report's
- * [PendingImportReport.extraEdit] — composed into `import-ordering`'s own whole-list rewrite when
- * available, placed standalone otherwise (see [resolveImportListChanges] and
+ * `no-unnecessary-fqn` is the only id needing
+ * [com.varlanv.wrasse.model.WResolvedUsage.qualifiedUsages] ([requiresQualifiedUsages]). Every one
+ * of its reports carries a package-prefix-deletion [PendingImportReport.edit] at its usage site,
+ * plus, for at most one usage per distinct import target, a new `import <fqn>` addition in that
+ * report's [PendingImportReport.extraEdit] — composed into `import-ordering`'s whole-list rewrite
+ * when available, placed standalone otherwise (see [resolveImportListChanges] and
  * [ImportInsertionDecision]).
  *
- * A single walk-side assembly (directives, star imports, comment/KDoc spans, written
- * identifiers, package FQN, every import directive's own span for ordering, and — only when
- * `no-unnecessary-fqn` is enabled — every written identifier's own offset) replaces the
- * per-rule near-duplicated bookkeeping. The pure decision objects
- * ([UnusedImportDecision], [UnusedStarDecision], [WildcardExpansionDecision], [StarAttribution],
- * [ImportOrderingDecision], [ImportRemovalSpan], [ImportLineSpan], [ImportDirectiveAssembler],
- * [QualifiedUsageDecision]) are unchanged — this engine only calls them, once each, in
- * `afterFile`, then composes their results itself instead of relying on the generic
+ * A single walk-side assembly collects directives, star imports, comment/KDoc spans, written
+ * identifiers, the package FQN, and (only when `no-unnecessary-fqn` is enabled) every written
+ * identifier's own offset. The pure decision objects ([UnusedImportDecision], [UnusedStarDecision],
+ * [WildcardExpansionDecision], [StarAttribution], [ImportOrderingDecision], [ImportRemovalSpan],
+ * [ImportLineSpan], [ImportDirectiveAssembler], [QualifiedUsageDecision]) are each called once in
+ * `afterFile`; this engine composes their results itself rather than routing through
  * [com.varlanv.wrasse.model.EditPlan] as an inter-rule bus.
  */
 class ImportEngine : WUninitializedRuleGroup {
@@ -278,24 +269,17 @@ class ImportEngine : WUninitializedRuleGroup {
             }
 
             /**
-             * Decides both `import-ordering`'s own composed rewrite and, since D.3, where any
-             * brand-new `import <fqn>` [importInsertions] land — the two decisions are fused
-             * because a new import's sorted position "falls out naturally" from the identical
-             * composed whole-list rewrite ordering already performs when it's available (design.md
-             * §8), and because [directiveSpans]/[hasCommentInList]/[listStart]/[listEnd] are this
-             * one walk-side assembly's data either way. Runs even when `import-ordering` itself is
-             * disabled, exactly when there is an insertion to place at all (guarded at the call
-             * site) — in that case only the insertion-placement branches below ever fire; nothing
-             * about sort order is ever reported.
+             * Decides `import-ordering`'s composed rewrite and, when there are new-import
+             * insertions to place, where they land — fused because an insertion's sorted position
+             * falls out of the same composed rewrite. Runs even with `import-ordering` disabled,
+             * solely to place insertions; no sort-order report is ever emitted in that case.
              *
-             * **Truthfulness invariant:** the `import-ordering` *report* fires if and only if
+             * **Truthfulness invariant:** the `import-ordering` report fires if and only if
              * [ImportOrderingDecision.firstOutOfOrder] finds a genuine violation in the file's own,
-             * pre-edit directive order — never merely because a composed rewrite happened to run.
-             * Composition (folding other ids' edits and/or a new import into one whole-list rewrite)
-             * is orthogonal to whether the *existing* list was sorted: an already-sorted list plus a
-             * pure insertion, or plus a pure removal/expansion, still composes one edit, but that
-             * edit rides an existing, genuinely-true report ([carrierFor]) instead of a fabricated
-             * "Imports are not sorted" one.
+             * pre-edit directive order — never merely because a composed rewrite ran. An
+             * already-sorted list plus a pure insertion, or plus a pure removal/expansion, still
+             * composes one edit, but that edit rides an existing, genuinely-true report
+             * ([carrierFor]) instead of a fabricated one.
              */
             private fun resolveImportListChanges(
                 sourceText: CharSequence,
@@ -356,17 +340,11 @@ class ImportEngine : WUninitializedRuleGroup {
             }
 
             /**
-             * The composed edit must ride a report whose own message is genuinely true — never a
-             * fabricated `import-ordering` diagnostic on an already-sorted list (a real diagnostic-
-             * truthfulness bug: composition running is not evidence of disorder, it can equally be
-             * triggered by a pure insertion or a pure removal/expansion on a list that was already
-             * sorted). When [newFqns] is non-empty, the earliest-sorting new target's own
-             * `no-unnecessary-fqn` anchor report carries it (that usage's own message — "Unnecessary
-             * fully qualified name" — is true regardless of which physical edit object attaches to
-             * it). Otherwise every candidate in [taken] already has a true message of its own
-             * (`no-unused-imports`/`no-wildcard-imports`); the first one in span order is as
-             * arbitrary — and as safe — a choice as any, so it is the one whose `.edit` the
-             * `for (p in taken) p.edit = null` loop just cleared.
+             * Picks which existing report the composed edit attaches to, so the report's own
+             * message stays true regardless of which edit rides it. When [newFqns] is non-empty,
+             * the earliest-sorting target's `no-unnecessary-fqn` anchor report carries it;
+             * otherwise any report in [taken] already has a true message of its own
+             * (`no-unused-imports`/`no-wildcard-imports`), so the choice among them is arbitrary.
              */
             private fun carrierFor(
                 taken: List<PendingImportReport>,
@@ -380,19 +358,16 @@ class ImportEngine : WUninitializedRuleGroup {
                 }
 
             /**
-             * The path used whenever a new import can't ride `import-ordering`'s composed rewrite
-             * (ordering disabled, the list isn't clean, or composition itself bailed): each
-             * insertion group from [ImportInsertionDecision.standaloneEdits] becomes the
-             * [PendingImportReport.extraEdit] of one of its own target's anchor reports.
+             * Used whenever a new import can't ride `import-ordering`'s composed rewrite (ordering
+             * disabled, the list isn't clean, or composition bailed): each insertion group from
+             * [ImportInsertionDecision.standaloneEdits] becomes the [PendingImportReport.extraEdit]
+             * of one of its own target's anchor reports.
              *
-             * One hazard: "after the last directive" seams land exactly at [listEnd], which is
-             * always exactly the last directive's own `endOffset` (design.md §8) — if that same
-             * directive is *also* being removed as unused, its whole-line deletion consumes past
-             * [listEnd] into the directive's own trailing `\n` (the same hazard `import-ordering`'s
-             * own `probeEnd` exists to handle for its composed path), so a zero-width insert
-             * exactly at [listEnd] would land *inside* that deletion's span — an `EditPlan`
-             * overlap. [adjustForSwallowingEdit] pushes such an insertion past whatever pending
-             * edit would otherwise swallow it.
+             * [listEnd] equals the last directive's own `endOffset`; if that directive is also
+             * being removed as unused, its deletion span extends past [listEnd] into the trailing
+             * newline, so a zero-width insert exactly at [listEnd] would land inside that deletion
+             * — an overlap. [adjustForSwallowingEdit] pushes such an insertion past whatever
+             * pending edit would otherwise swallow it.
              */
             private fun attachStandaloneInsertions(
                 sourceText: CharSequence,

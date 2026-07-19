@@ -11,18 +11,14 @@ import io.kotest.matchers.shouldBe
 import java.nio.file.Files
 
 /**
- * D22 self-cleaning interaction (design.md §22, matrix item 5): a suppressed fixable violation
- * must neither report nor emit an edit at all — the suppression collector's gate lives directly
- * in `WReporter.report`, before any [com.varlanv.wrasse.model.EditPlan.add] call, so a suppressed
- * report's edits are never added to the plan in the first place (see `WrassePlugin.checkFile`).
- * This drives the genuine two-compile sequence D22's merge-on-write depends on: round 1 (no
- * suppression) emits a real patch entry for the file; round 2, same `fixOutputDir`, same file path,
- * now annotated `@file:Suppress("no-unused-imports")`, must report nothing and — via merge-on-write
- * — leave that file with zero edits after the recompile, not merely absent from round 1's own
- * output. Kept as a dedicated spec (the `WildcardExpansionAmbiguitySafetySpec` pattern) rather than
- * a plain fixture: `WrasseFixtureSpec` drives exactly one compile per fixture, plus `IdempotenceCycle`'s
- * own apply-and-recompile cycle on the *same* content — neither expresses "recompile the file after
- * editing its source between rounds", which is what self-cleaning actually depends on.
+ * Verifies suppressed-violation self-cleaning: a suppressed fixable violation neither reports nor
+ * emits an edit — the suppression gate lives in `WReporter.report`, before any
+ * [com.varlanv.wrasse.model.EditPlan.add] call. Drives two real compiles of the same file path
+ * against the same `fixOutputDir`: round 1 (unsuppressed) emits a patch entry; round 2, with the
+ * violation now suppressed, must leave that file with zero edits via merge-on-write — not merely
+ * absent from round 1's own output. Neither `WrasseFixtureSpec` (one compile per fixture) nor
+ * `IdempotenceCycle` (apply-and-recompile on the same content) expresses this two-round,
+ * edited-between-rounds sequence, hence a dedicated spec.
  */
 open class SuppressionEditsDroppedSpec : BaseSpec({
 

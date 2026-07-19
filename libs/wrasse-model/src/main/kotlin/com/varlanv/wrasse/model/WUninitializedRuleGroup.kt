@@ -3,9 +3,8 @@ package com.varlanv.wrasse.model
 /**
  * Declares several user-facing rule ids backed by one fused implementation (an "engine") —
  * for rules that would otherwise fight over the same region if ported as independent
- * rewriters (design.md §5.1, "fighting rules get fused"). Users still see each id as its own
- * entry in `wrasse.json`, with its own `level`/`exclude`; [initGroup] is handed exactly the
- * surviving ones for the current file.
+ * rewriters. Users still see each id as its own entry in `wrasse.json`, with its own
+ * `level`/`exclude`; [initGroup] is handed exactly the surviving ones for the current file.
  *
  * Mirrors [WUninitializedRule]'s two-phase construction: which ids are enabled and their
  * configs are decided once per compilation, [initGroup] runs fresh per file (same seam as

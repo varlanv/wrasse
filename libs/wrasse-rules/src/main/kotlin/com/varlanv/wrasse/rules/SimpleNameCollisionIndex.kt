@@ -4,10 +4,9 @@ import com.varlanv.wrasse.model.WCallableUsage
 
 /**
  * Simple-name → FQNs index built from a file's whole resolved usage (every [WCallableUsage] and
- * classifier FQN), shared by [WildcardExpansionDecision] (bail 7, star-expansion ambiguity) and
- * [QualifiedUsageDecision] (`no-unnecessary-fqn`'s import-viability check) — both need the
- * identical question answered: "does this simple name resolve to more than one FQN anywhere in
- * this file's usage?" Compiler-free, unit-testable without kotlinc.
+ * classifier FQN). Shared by [WildcardExpansionDecision] and [QualifiedUsageDecision], both of
+ * which need to know whether a simple name resolves to more than one FQN anywhere in the file's
+ * usage. Compiler-free, unit-testable without kotlinc.
  */
 object SimpleNameCollisionIndex {
 

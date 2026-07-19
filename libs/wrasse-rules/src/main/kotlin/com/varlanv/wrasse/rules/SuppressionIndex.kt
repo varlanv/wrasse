@@ -1,8 +1,8 @@
 package com.varlanv.wrasse.rules
 
 /**
- * Per-file accumulator of `@Suppress` regions (design.md §7, D8), fed by
- * [SuppressionCollectorRule] during the walk and consulted by [isSuppressed] at report time.
+ * Per-file accumulator of `@Suppress` regions, fed by [SuppressionCollectorRule] during the walk
+ * and consulted by [isSuppressed] at report time.
  * Pure data plus containment matching — no kotlinc dependency, unit-testable standalone.
  *
  * Three region kinds, all uniform positional containment: file-wide (`@file:Suppress`, [markFile]),

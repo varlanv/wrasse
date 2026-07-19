@@ -4,12 +4,9 @@ import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.matchers.shouldBe
 
 /**
- * [registeredRules] no longer has a registration-order constraint to lock — that constraint
- * existed only because `no-unused-imports`/`no-wildcard-imports`/`import-ordering` were three
- * independent rules composing via `afterFile` order (design.md §8, retired). Now that they are
- * one fused [com.varlanv.wrasse.rules.ImportEngine] behind [registeredRuleGroups], what still
- * needs locking is the engine's declared id set, so an accidental id typo or omission fails
- * loudly here rather than silently going unconfigurable.
+ * Locks the declared id set for single-id rules and for the fused
+ * [com.varlanv.wrasse.rules.ImportEngine] behind [registeredRuleGroups], so an accidental id
+ * typo or omission fails loudly here rather than silently going unconfigurable.
  */
 class RuleRegistrationOrderSpec : BaseSpec({
 

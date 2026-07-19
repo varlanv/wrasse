@@ -14,10 +14,8 @@ import org.jetbrains.kotlin.com.intellij.openapi.util.Ref
 import org.jetbrains.kotlin.com.intellij.util.diff.FlyweightCapableTreeStructure
 
 /**
- * SAX-style single-pass walker that translates kotlinc's LightTree into rule events.
- *
- * Replaces the old two-pass approach (build WNode tree, then traverse). Instead, walks
- * the LightTree recursively and emits events directly to rules via [StreamDispatch]:
+ * SAX-style single-pass walker that translates kotlinc's LightTree into rule events,
+ * dispatched directly via [StreamDispatch] with no intermediate tree built:
  *
  * 1. For leaf tokens — dispatches to matching [WLeafRule]s, all [WStreamRule]s, and
  *    any active [WNodeRule]s that requested child forwarding.
@@ -25,12 +23,10 @@ import org.jetbrains.kotlin.com.intellij.util.diff.FlyweightCapableTreeStructure
  *    [WStreamRule]s. For [WBufferedNodeRule]s, the framework collects direct children
  *    into a [ChildBuffer] between enter and exit.
  *
- * No WNode objects are created, and no source text string is allocated. The [WContext]
- * is a single mutable struct reused across all events — zero heap allocation per event.
- * Line position state (column, indent) is tracked incrementally during the walk.
- *
- * Uses recursion (not an explicit stack). Kotlin file depth is typically 20-30, well
- * within JVM default stack limits.
+ * The [WContext] is a single mutable struct reused across all events — zero heap
+ * allocation per event. Line position state (column, indent) is tracked incrementally
+ * during the walk. Uses recursion (not an explicit stack); Kotlin file depth is
+ * typically 20-30, well within JVM default stack limits.
  */
 object LightTreeStreamAdapter {
 

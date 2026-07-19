@@ -8,41 +8,28 @@ import com.varlanv.wrasse.model.WStreamRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
 /**
- * Framework-owned, always-on `WStreamRule` (design.md §7, D8) that rides the same single walk as
- * every user rule, collecting every `@Suppress`/`@file:Suppress`/`@kotlin.Suppress` region into
- * [index] as it goes. Not user-configurable — [com.varlanv.wrasse.model.WRuleSet.dispatchForFile]'s
- * `alwaysOn` param injects one fresh instance per file regardless of which real rules are active.
+ * Framework-owned, always-on `WStreamRule` that rides the same single walk as every user rule,
+ * collecting every `@Suppress`/`@file:Suppress`/`@kotlin.Suppress` region into [index] as it goes.
+ * Not user-configurable — [com.varlanv.wrasse.model.WRuleSet.dispatchForFile]'s `alwaysOn` param
+ * injects one fresh instance per file regardless of which real rules are active.
  *
- * **Ordering property this design leans on:** an annotation entry always sits, syntactically,
- * before the content it can suppress (a modifier list precedes its declaration's body; a file
- * annotation list is the file's first construct; an annotated expression's own entry precedes its
- * base expression) — and the LightTree is already fully parsed before the walk starts, so an
- * ancestor's *final* `[start, end)` span is known the moment it is pushed (`WNodeStack.push`),
- * not just once its children are later visited. So by the time [SuppressionIndex.isSuppressed] is
- * consulted for *any* offset — whether from an ordinary leaf-driven report or a `WFileRule`/
- * `afterFile`-deferred one (the import engine) — every region that could cover it has already been
- * registered here. No two-phase pre-scan, no deferred re-filtering of already-collected reports:
- * the gate lives directly in `WReporter.report` (see `WrassePlugin.checkFile`), checked
- * synchronously against whatever this collector has accumulated so far.
+ * Every annotation entry is registered in [index] before any content it can suppress is visited
+ * (an ancestor's final span is known the moment it is pushed onto the stack, not just once its
+ * children are visited), so [SuppressionIndex.isSuppressed] can be checked synchronously in
+ * `WReporter.report` against whatever has been accumulated so far — no two-phase pre-scan, no
+ * deferred re-filtering.
  *
- * **Scope resolution (owner span):** at `ANNOTATION_ENTRY` enter, before it is pushed onto
- * [WContext.ancestors], the current top of that stack is the entry's own immediate parent:
- * `FILE_ANNOTATION_LIST` → file scope; `ANNOTATED_EXPRESSION` → that node's own span; `MODIFIER_LIST`
- * → the modifier list's *own* parent's span (the declaration/parameter/constructor it modifies, one
- * level further up the stack) — anything else (including the bracket `@[A B]` multi-annotation
- * form, whose wrapping `ANNOTATION` node is intentionally left unmapped) resolves no scope at all,
- * so such an entry is inert rather than wrongly wired — conservative, matching the "unknown entries
- * suppress nothing" stance for that unusual syntax.
+ * **Scope resolution:** at `ANNOTATION_ENTRY` enter, the entry's immediate parent decides the
+ * scope: `FILE_ANNOTATION_LIST` → file scope; `ANNOTATED_EXPRESSION` → that node's own span;
+ * `MODIFIER_LIST` → the modifier list's own parent's span (the declaration/parameter/constructor it
+ * modifies). Anything else — including the bracket `@[A B]` multi-annotation form — resolves no
+ * scope, so such an entry is inert rather than wrongly wired.
  *
  * **Argument matching:** only a directly-written, non-interpolated string literal counts —
- * `VALUE_ARGUMENT`'s sole direct child must be a `STRING_TEMPLATE` whose own direct children are at
- * most one `LITERAL_STRING_TEMPLATE_ENTRY` (empty string, or plain text with no escape/interpolation
- * entries of any kind). Anything else — concatenation, a const reference, a named argument, an
- * escape sequence, string interpolation — is conservatively treated as non-literal and ignored,
- * never partially evaluated. The callee name is matched syntactically off `CONSTRUCTOR_CALLEE`'s
- * identifiers: simple `Suppress`, or exactly the two segments `kotlin.Suppress` — a user's own
- * class also named `Suppress` (or a differently-resolving `kotlin.Suppress` alias) would false-match
- * here too, since this is a syntactic check, not a resolved one (documented limitation, design.md §7).
+ * concatenation, a const reference, a named argument, an escape sequence, or string interpolation
+ * is conservatively treated as non-literal and ignored. The callee name is matched syntactically:
+ * simple `Suppress`, or exactly `kotlin.Suppress` — this is a syntactic check, not a resolved one,
+ * so a user's own class named `Suppress` would false-match too.
  */
 class SuppressionCollectorRule : WStreamRule {
     override val id = "suppress-collector"

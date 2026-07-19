@@ -3,10 +3,9 @@ package com.varlanv.wrasse.benchmarks
 import kotlin.random.Random
 
 /**
- * Deterministic synthetic corpus for the walk-throughput tripwire (design.md §9) — replaces the
- * old "concatenate this repo's own `.kt` sources" corpus, which grew every session and made
- * cross-session comparison meaningless. Same [SEED] + same [CORPUS_VERSION] always produces the
- * same [Corpus]: no filesystem read, no dependency on anything outside this object.
+ * Deterministic synthetic corpus for the walk-throughput tripwire (design.md §9). Same [SEED] +
+ * same [CORPUS_VERSION] always produces the same [Corpus]: no filesystem read, no dependency on
+ * anything outside this object.
  *
  * [CORPUS_VERSION] is part of the benchmark contract — bump it whenever [generateFile]'s output
  * shape changes, so a historical comparison against an older run is knowingly invalidated rather

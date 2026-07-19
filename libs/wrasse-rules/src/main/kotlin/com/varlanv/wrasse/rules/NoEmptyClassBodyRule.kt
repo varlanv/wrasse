@@ -12,8 +12,7 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * A class/interface/object/enum/nested-class body containing nothing but whitespace is reported
  * and, where deleting it stays compile-legal, autofixed to remove it entirely.
  *
- * Companion object bodies are exempt entirely (not reported, not fixed) — matching upstream
- * ktlint's own exemption rather than going further just because deletion is provably safe there.
+ * Companion object bodies are exempt entirely (not reported, not fixed).
  *
  * Bails to report-only for an anonymous object expression's body (`object : Foo {}`, `object {}`)
  * — unlike every other empty-body shape, kotlinc's grammar requires that body syntactically; an

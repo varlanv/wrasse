@@ -30,10 +30,10 @@ internal fun registeredRules(): List<WUninitializedRule> =
     )
 
 /**
- * Every fused multi-id engine wrasse ships (design.md §5.1, "fighting rules get fused") —
- * currently just [ImportEngine], backing `no-unused-imports`/`no-wildcard-imports`/
- * `import-ordering` behind one decision-maker. Composition is internal to the engine, so unlike
- * [registeredRules] this list carries no registration-order constraint.
+ * Every fused multi-id engine wrasse ships — currently just [ImportEngine], backing
+ * `no-unused-imports`/`no-wildcard-imports`/`import-ordering` behind one decision-maker.
+ * Composition is internal to the engine, so unlike [registeredRules] this list carries no
+ * registration-order constraint.
  */
 internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> = listOf(ImportEngine())
 

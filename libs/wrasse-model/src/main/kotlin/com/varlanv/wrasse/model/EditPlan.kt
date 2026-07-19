@@ -3,7 +3,7 @@ package com.varlanv.wrasse.model
 import com.varlanv.wrasse.lang.WEdit
 
 /**
- * Per-file collector of attributed fix edits (D18). Rules never touch this directly for
+ * Per-file collector of attributed fix edits. Rules never touch this directly for
  * reporting — [WReporter.report] forwards each attached [WEdit] here, tagged with the
  * reporting rule's id and its collection sequence.
  *

@@ -4,8 +4,8 @@ package com.varlanv.wrasse.model
  * File-level facade over what a file's FIR resolution already knows: every classifier and
  * callable it resolved a reference to, and whether resolution hit an error anywhere.
  *
- * Built once per file by the compiler-plugin host (Phase B.3, [WContext.resolvedUsage]) and
- * carries zero kotlinc types, so it is usable from [wrasse-rules] without a kotlinc dependency.
+ * Built once per file by the compiler-plugin host ([WContext.resolvedUsage]) and carries zero
+ * kotlinc types, so it is usable from [wrasse-rules] without a kotlinc dependency.
  */
 class WResolvedUsage(
     /** Fully-qualified names (e.g. "kotlin.collections.List") of every classifier the file references, including type arguments, annotation types, and qualifier references. */
@@ -16,7 +16,7 @@ class WResolvedUsage(
     val hasResolutionErrors: Boolean,
     /** The file's own import directives as FIR resolved them, in source order, one entry per directive (duplicates included). */
     val resolvedImports: List<WResolvedImport>,
-    /** Every qualifier/type-ref FIR resolved to a real source span, collected only when [WContext.resolvedUsage] collection is gated on for qualified usages (D.1 spike, design.md §8) — empty when not collected. */
+    /** Every qualifier/type-ref FIR resolved to a real source span, collected only when qualified-usage collection is gated on for this file — empty when not collected. */
     val qualifiedUsages: List<WQualifiedUsage> = emptyList(),
 )
 
@@ -66,14 +66,11 @@ class WResolvedImport(
     /** True for `import fqn.*`. */
     val isStarImport: Boolean,
     /**
-     * Non-null iff the import's parent resolves to a class/object: for a star import, this is
-     * the FIR compiler's own answer to "is [fqn] itself a class/object" (empirically confirmed
-     * always equal to [fqn] when non-null, from `FirImportResolveTransformer`'s use of the star's
-     * own FQN, unlike an explicit import's parent which is `fqn`'s parent); for an explicit
-     * import, non-null means [fqn]'s parent is a class/object (a member import — enum entry,
+     * Non-null iff the import's parent resolves to a class/object: for a star import, this
+     * equals [fqn] itself; for an explicit import, [fqn]'s parent (a member import — enum entry,
      * object/companion member, Java static, or nested class). Null means the parent is a package.
      */
     val resolvedParentClassFqName: String?,
-    /** False when this import never became a `FirResolvedImport` (best-effort; a syntactically valid, non-root import is wrapped as `FirResolvedImport` regardless of whether it actually resolves — see design.md §8). Consumers must bail on false. */
+    /** False when this import never became a resolved import (best-effort — a syntactically valid, non-root import is wrapped regardless of whether it actually resolves). Consumers must bail on false. */
     val resolved: Boolean,
 )
