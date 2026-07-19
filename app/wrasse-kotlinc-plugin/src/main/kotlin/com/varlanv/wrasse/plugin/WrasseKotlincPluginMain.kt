@@ -3,10 +3,10 @@ package com.varlanv.wrasse.plugin
 import com.varlanv.wrasse.lang.ConfigValue
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
-import com.varlanv.wrasse.model.StreamDispatch
 import com.varlanv.wrasse.model.WConfig
-import com.varlanv.wrasse.model.WRule
+import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
+import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoWildcardImportsRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
@@ -29,15 +29,14 @@ fun wrasseMain(
             uninitializedRules = uninitializedRules,
             warnOnly = warnOnly
         ).getOrElse { return Result.failure(it) }
-    val rules = mutableListOf<WRule>()
+    val activeRules = mutableListOf<Pair<WUninitializedRule, WrasseRuleConfig>>()
     for ((ruleId, ruleConfig) in config.rulesConfigs.idToConfig) {
         val uninitRule = uninitializedRules[ruleId] ?: continue
-        val rule = uninitRule.initRule(ruleConfig)
-        rules.push(rule)
+        activeRules.push(uninitRule to ruleConfig)
     }
     return Result.success(
         WrassePlugin(
-            dispatch = StreamDispatch(rules),
+            ruleSet = WRuleSet(activeRules),
             fixEnabled = fixEnabled,
             fixOutputDir = fixOutputDir,
             globalExclude = config.exclude,

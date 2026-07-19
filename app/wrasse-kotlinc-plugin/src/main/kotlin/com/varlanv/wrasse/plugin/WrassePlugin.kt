@@ -4,10 +4,10 @@ import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
 import com.varlanv.wrasse.lang.FileEdits
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.lang.WPatchWriter
-import com.varlanv.wrasse.model.StreamDispatch
 import com.varlanv.wrasse.model.ViolationReport
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WRule
+import com.varlanv.wrasse.model.WRuleSet
 import org.jetbrains.kotlin.KtLightSourceElement
 import java.nio.file.Files
 import java.nio.file.Path
@@ -16,7 +16,7 @@ import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 
 class WrassePlugin(
-    private val dispatch: StreamDispatch,
+    private val ruleSet: WRuleSet,
     private val fixEnabled: Boolean = false,
     private val fixOutputDir: Path? = null,
     private val globalExclude: List<PathMatcher> = emptyList(),
@@ -36,6 +36,8 @@ class WrassePlugin(
             return emptyList()
         }
 
+        val dispatch = ruleSet.dispatchForFile { config -> matchesAny(config.exclude, filePath) }
+
         val collectedEdits = mutableListOf<WEdit>()
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
@@ -48,9 +50,6 @@ class WrassePlugin(
                 rule: WRule,
                 edits: List<WEdit>,
             ) {
-                if (matchesAny(rule.config.exclude, filePath)) {
-                    return
-                }
                 reports.add(
                     ViolationReport(
                         message = "${rule.id}: $message",

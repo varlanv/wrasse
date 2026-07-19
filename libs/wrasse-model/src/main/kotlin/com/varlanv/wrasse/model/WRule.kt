@@ -3,7 +3,9 @@ package com.varlanv.wrasse.model
 /**
  * Two-phase rule construction: declares a rule id, then produces a configured
  * rule instance via [initRule]. The split lets the config layer decide which
- * rules are active before any rule logic is instantiated.
+ * rules are active before any rule logic is instantiated. [initRule] is called
+ * fresh for every file (see [WRuleSet.dispatchForFile]), so each returned instance
+ * owns private per-file mutable state that no other file ever sees.
  */
 interface WUninitializedRule {
     val id: String
@@ -20,17 +22,19 @@ interface WUninitializedRule {
  * - [WStreamRule] — receives every leaf (cross-cutting; for spacing and indentation).
  * - [WFileRule] — called once after the walk with the post-walk context.
  *
- * [beforeFile] and [afterFile] are lifecycle hooks called around the walk for per-file
- * state reset and deferred reporting (e.g. accumulation rules that report at end-of-file).
+ * [beforeFile] and [afterFile] are lifecycle hooks called around the walk. Since every
+ * instance is already fresh for the file it walks, neither hook exists to reset state;
+ * [afterFile] remains load-bearing for rules that defer reporting to end-of-file
+ * (e.g. accumulation rules), and [beforeFile] is there for setup a future rule might need.
  */
 sealed interface WRule {
     val id: String
     val config: WrasseRuleConfig
 
-    /** Called before the walk begins. Reset per-file mutable state here. */
+    /** Called once before the walk begins, on an instance already fresh for this file. */
     fun beforeFile(ctx: WContext) {}
 
-    /** Called after the walk ends. Rules that accumulate state report here. */
+    /** Called after the walk ends. Rules that defer reporting to end-of-file report here. */
     fun afterFile(ctx: WContext, reporter: WReporter) {}
 }
 

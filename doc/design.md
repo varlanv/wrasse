@@ -151,7 +151,7 @@ diagnostics container) and holds zero wrasse logic. Everything below the shells 
 
 ```
 libs/
-  wrasse-model/            WContext, WNodeStack, WNodeType, WRule, StreamDispatch, WConfig,
+  wrasse-model/            WContext, WNodeStack, WNodeType, WRule, StreamDispatch, WRuleSet, WConfig,
                            ChildBuffer, WReporter, ViolationReport — depends on wrasse-lang, no kotlinc
   wrasse-rules/            rule implementations — depends only on wrasse-model (+ wrasse-lang for WEdit)
   wrasse-kotlinc-adapter/  LightTreeStreamAdapter, WNodeTypeMapping — the ONLY place kotlinc
@@ -248,9 +248,17 @@ pop → `exitNode`s) → `afterFile` on every rule → `WFileRule.visit`.
 
 **Construction and state (D20):** two-phase — `WUninitializedRule` declares an `id`;
 `initRule(config)` produces a configured instance, **per file**, so per-file mutable state
-(`pendingStart` etc.) is race-free if kotlinc ever parallelizes file checkers. The
-`StreamDispatch` *structure* (which rule targets which types) is prebuilt once; only instances
-are fresh. `EditPlan` and `WContext` share the per-file lifecycle.
+(`pendingStart` etc.) is race-free if kotlinc ever parallelizes file checkers. Per compilation,
+`WRuleSet` fixes once which rule IDs are enabled and their configs (as
+`(WUninitializedRule, WrasseRuleConfig)` pairs); per file, `WRuleSet.dispatchForFile` calls
+`initRule` on the surviving (non-excluded) rules and builds a fresh `StreamDispatch` from the
+result. A rule whose `exclude` matches the current file is skipped at this step — never
+instantiated for that file at all, replacing an earlier report-time filter. Rebuilding
+`StreamDispatch`'s ordinal-indexed arrays costs `O(WNodeType.SIZE)`, fixed regardless of
+active-rule count and negligible next to walking the file itself, so this stays a plain
+per-file rebuild rather than a cached dispatch shape until profiling says otherwise — the
+`dispatchForFile` contract would not need to change if that optimization ever lands.
+`EditPlan` and `WContext` share the per-file lifecycle.
 
 **Reporting:** `WReporter.report(ruleId, message, startOffset, endOffset, rule, edits)` — raw
 offsets, no node objects; the reporter reads `rule.config.effectiveLevel` for severity; a
@@ -473,8 +481,10 @@ hand-rolled zero-dependency JSONC reader, loaded once at registration from
 - **Formatting** is a single `format` on/off plus the five style parameters (D21). No à-la-carte
   formatting family (D17). Targeted fixes are ordinary tri-state rules.
 - **Exclude-only** path filtering, globs precompiled to `PathMatcher`; global `exclude` unions
-  with per-rule `exclude`. No `include` (avoids precedence ambiguity). *(Currently parsed but not
-  enforced — Phase A.5 bug, §13.)*
+  with per-rule `exclude`. No `include` (avoids precedence ambiguity). Enforced at
+  rule-instantiation time (D20, §4): a rule whose `exclude` matches the current file is simply
+  never instantiated for it; the global `exclude` short-circuits the whole file before any rule
+  is built.
 - **No presets; new rules default off** (D6) — reproducibility across upgrades; discoverability
   via `--list-rules` / effective-config dump (Phase A remainder), not a `recommended` set.
 - **No baseline** (D7, re-confirmed). Adoption = `level` + `exclude`.
@@ -716,30 +726,32 @@ one run; `@Suppress` silences one rule.
 
 ### Phase A.5 — Foundation hardening (gate: complete before B)
 
-1. **Trust-burning bug fixes** (found in the 2026-07 review; details §14):
-   - CRLF/normalization verification + fixture — does kotlinc normalize `\r\n`? If yes, today's
-     disk-based hash + normalized offsets **silently corrupt Windows files** on apply. Hash and
-     offsets must both refer to the walk's text (§5.4); apply refuses loudly on mismatch.
-   - `exclude` config is parsed but never enforced (silent no-op) — wire it up; requires passing
-     the real absolute path into `WContext` (currently gets just the file *name*).
-   - `no-semicolons`: class-body false negative (any semicolon with `CLASS_BODY` parent treated
-     as required) and consecutive-`;;` miss; the known statement-separator false positive.
-   - `trailing-newline` on an empty file reports span `0..1` (past EOF).
-   - Patch-file writer: unsynchronized `patchFileInitialized` check-then-truncate; cross-module
-     clobber if modules ever share a fix dir; relative-path resolution against the applier's CWD.
-   - MPP: confirm `FirFileChecker(MppCheckerKind.Common)` doesn't double-fire per file
-     (double-appended edits); dedup or switch kind if it does.
-2. **Idempotence harness invariant (D19)** — before any rule porting.
-3. **Per-file rule instantiation (D20)** — includes fixing `WNodeStack.clear()` not resetting its
-   counts array (latent trap for pooling).
+Done:
+1. ~~Trust-burning bug fixes~~ — CRLF hash/offset consistency (bug empirically confirmed and
+   fixed: LightTree offsets are LF-normalized, hash now computed from the walk's text, apply
+   refuses loudly on line-ending divergence); `no-semicolons` class-body false negative +
+   consecutive-semicolon miss (the literal `;;` form is a parse error, `"; ;"` was the real
+   case; the documented statement-separator false positive did not reproduce — regression
+   fixtures kept); `trailing-newline` empty-file span; patch-writer synchronization + absolute
+   paths; `WNodeStack.clear()` counts reset. Remaining sub-item moved to item 6 below (MPP).
+2. ~~Idempotence harness invariant (D19)~~ — implemented; tripwire proven end-to-end (a
+   deliberately non-idempotent rule fails 16 fixtures with the D19 assertion).
+3. ~~Per-file rule instantiation (D20)~~ — `WRuleSet.dispatchForFile`; per-rule exclude enforced
+   at instantiation time (interim report-time filter deleted).
+Also fixed en route (was not on this list): WARN-severity diagnostics dropped on Kotlin 2.1/2.2 —
+a test-harness classpath-skew issue, not a plugin bug (see §10).
+
+Remaining:
 4. **EditPlan + `takeEditsIn` (D18)** — proven end-to-end with one nested rule pair; overlap
    check moved to compile time; expose the source buffer on `WContext`.
 5. **Walk perf punch list + JMH benchmark** (§9). JMH reinstated by owner decision (2026-07-19,
    same day it was deferred) with an explicit quality bar: the Gradle integration must be cleanly
    shaped (convention-plugin-consistent, no band-aid wiring) or not land at all.
-6. **Mapping-completeness test** per Kotlin minor (zero `UNKNOWN` on representative fixtures);
-   map `KW_TYPEALIAS` (currently silently unmapped — the claimed soft-keyword fallback doesn't
-   exist).
+6. **MPP double-fire check**: confirm `FirFileChecker(MppCheckerKind.Common)` doesn't double-fire
+   per file in multiplatform compilations (double-appended edits); dedup or switch kind if it
+   does; document no-repro if it doesn't.
+7. ~~Mapping-completeness test~~ — done: per-minor zero-`UNKNOWN` tripwire; 46 node/token kinds
+   mapped including `KW_TYPEALIAS`; KDoc internals explicitly allowlisted.
 
 ### Phase B — Parity port (the bulk)
 
@@ -826,6 +838,5 @@ a separate `ktlint -F` invocation on the same files.
 - Incremental-compilation DX: warnings in files that didn't recompile don't reappear in output;
   `-PwrasseCheck`/`-Pwrasse.fix` changing compiler args forces full recompilation — currently
   accidental, should be documented as the intended "full sweep" mechanism.
-- Rules with per-file state on shared instances (pre-D20 state) — removed by A.5 item 3.
 - `FirSyntacticChecker` allocates a `KtLightSourceElement` per violation — fine (violations are
   cold), noted for completeness.

@@ -21,11 +21,6 @@ class NoSemicolonsRule : WUninitializedRule {
             private var pendingEnd = -1
             private val classBodyOwnerEnumStack = mutableListOf<Boolean>()
 
-            override fun beforeFile(ctx: WContext) {
-                pendingStart = -1
-                classBodyOwnerEnumStack.clear()
-            }
-
             override fun enterNode(ctx: WContext) {
                 if (ctx.type == WNodeType.CLASS || ctx.type == WNodeType.OBJECT_DECLARATION) {
                     classBodyOwnerEnumStack.add(false)
