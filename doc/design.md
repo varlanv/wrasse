@@ -961,6 +961,15 @@ explicit import and an unsorted surviving pair — one `wrasseFix` pass removes 
 and the star's own line pins the two-reports-one-edit interaction directly (`expect-error` lines
 for both `no-wildcard-imports` and `no-unused-imports` at the same span).
 
+**Known practical limitation (dogfood-observed, deliberate):** the KDoc-coverage bail cannot vouch
+for a bracket reference to a *same-package* symbol declared in a sibling file (e.g. `[WContext]`
+inside `WNodeStack.kt`'s KDoc) — such a name appears in no coverage source at all when the file's
+own code never uses it, so any star in that file stays report-only. Real-world files KDoc-reference
+same-package types constantly, so this bail suppresses star removal often. Closing it needs
+package-member knowledge beyond the current file — a session-backed symbol-provider query (or a
+compile-wide package→declarations view) — which is ImportEngine-scope facade work, not a rule-side
+heuristic. Tracked as an explicit engine requirement.
+
 ---
 
 ## 9. Performance
