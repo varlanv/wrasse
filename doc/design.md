@@ -659,7 +659,12 @@ Kotlinc surface (adapter-only; rule code never imports these): LightTree
   `// expect-error <line>:<col> <rule-id> "<message>"`, `// expect-warning`, `// expect-clean`,
   `// fixture-option: ...`. Adding a test = adding a file. Always assert **full** error messages.
 - **Version matrix:** the same fixtures run against Kotlin 2.1–2.4 (fixtures are
-  version-agnostic by construction).
+  version-agnostic by construction). Per-minor task wiring (patch-config resolution, `testMinor`,
+  `testPatch_<version>`, stdlib pinning, fixture-dir system property) is centralized in
+  `internal-convention-plugin` behind the `wrasseKotlinMinorMatrix { minor.set(...);
+  patches.set(listOf(...)) }` extension — adding a new supported minor is now: create a module with
+  a two-line matrix declaration, add it to `settings.gradle.kts`, and add it to the root
+  `testMinorHarness`/`testPatchHarness` aggregate tasks.
 - **Idempotence invariant (D19, Phase A.5):** for every autofix fixture — apply → re-lint →
   zero diagnostics → second fix emits zero edits. Phase C: `format(format(x)) == format(x)`;
   formatted fixtures re-format to themselves.
@@ -891,9 +896,20 @@ a separate `ktlint -F` invocation on the same files.
   matrix is the safety net.
 - Patch file stores absolute paths — not portable across machines/CI. Not solved, tracked.
 - `wrasseApply` task registered for all subprojects (`onlyIf`-guarded noise in `./gradlew tasks`).
-- The per-minor test modules' `build.gradle.kts` are near-identical (patch-config wiring, testMinor
-  registration, and now the stdlib-pinning block, tripled verbatim) — centralize into the
-  convention plugin or a shared script in a dedicated chore.
+- `:app:wrasse-kotlinc-internal-k20` and `:testing:wrasse-benchmarks` print Gradle's "Kotlin Gradle
+  plugin was loaded multiple times" warning on every build (confirmed pre-existing, harmless so far
+  — build/test output is unaffected). Root cause: `internal-convention-plugin` bundles
+  `kotlin-gradle-plugin` as an ordinary dependency and applies it via `pluginManager.apply(String)`
+  from the included build, which resolves through a different classloader than projects that pull
+  Kotlin in via the `plugins { }` DSL / an externally-resolved plugin (e.g. `me.champeau.jmh`, which
+  itself touches Kotlin Gradle Plugin classes). Tried swapping the bundled dependency for the Kotlin
+  plugin's marker-artifact coordinate (`org.jetbrains.kotlin.jvm:org.jetbrains.kotlin.jvm.gradle.plugin:<ver>`)
+  hoping to hook into Gradle's plugin-classloader cache — no effect, confirming that cache is only
+  keyed through actual `plugins{}`/`PluginDependenciesSpec` resolution, not a plain `dependencies {}`
+  declaration consumed by `pluginManager.apply`. A real fix means restructuring which layer applies
+  `org.jetbrains.kotlin.jvm` (e.g. every module applying it directly via `plugins{}` instead of
+  `internalConvention` doing it on their behalf) — touches all ~17 modules, out of scope for a
+  contained chore.
 - Incremental-compilation DX: warnings in files that didn't recompile don't reappear in output;
   `-PwrasseCheck`/`-Pwrasse.fix` changing compiler args forces full recompilation — currently
   accidental, should be documented as the intended "full sweep" mechanism.
