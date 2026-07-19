@@ -1,8 +1,10 @@
 package com.varlanv.wrasse.testing.harness
 
+import com.varlanv.wrasse.plugin.internal.WrasseCompilerPluginRegistrar
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
@@ -21,14 +23,14 @@ class WrasseTestHarness(
 
     companion object {
         private val pluginClasspath: String by lazy {
-            val marker = com.varlanv.wrasse.plugin.internal.WrasseCompilerPluginRegistrar::class.java
+            val marker = WrasseCompilerPluginRegistrar::class.java
             val location = marker.protectionDomain.codeSource.location
             File(location.toURI()).absolutePath
         }
 
         private val kotlinStdlibPath: String? by lazy {
             System.getProperty("wrasse.harness.stdlibPath")?.let { return@lazy it }
-            val marker = kotlin.Unit::class.java
+            val marker = Unit::class.java
             val location = marker.protectionDomain?.codeSource?.location ?: return@lazy null
             File(location.toURI()).absolutePath
         }
@@ -112,7 +114,7 @@ class WrasseTestHarness(
 class TestSource(val path: String, val content: String)
 
 class CompilationResult(
-    val exitCode: org.jetbrains.kotlin.cli.common.ExitCode,
+    val exitCode: ExitCode,
     val diagnostics: List<TestDiagnostic>,
 ) {
     val wrasseDiagnostics: List<TestDiagnostic>

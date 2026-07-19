@@ -1,4 +1,4 @@
-@file:OptIn(org.jetbrains.kotlin.K1Deprecation::class, org.jetbrains.kotlin.config.CompilerConfiguration.Internals::class)
+@file:OptIn(K1Deprecation::class, CompilerConfiguration.Internals::class)
 
 package com.varlanv.wrasse.plugin
 
@@ -19,6 +19,7 @@ import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment

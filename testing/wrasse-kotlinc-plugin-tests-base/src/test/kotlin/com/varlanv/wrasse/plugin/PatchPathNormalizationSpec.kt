@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import java.nio.file.Files
+import java.nio.file.Path
 
 class PatchPathNormalizationSpec : BaseSpec({
     should("write an absolute, normalized path into the patch even when the compiler saw a non-normalized one") {
@@ -26,7 +27,7 @@ class PatchPathNormalizationSpec : BaseSpec({
 
                 fileLine shouldNotContain ".."
                 fileLine shouldContain "sample/test.kt"
-                val writtenPath = java.nio.file.Path.of(fileLine.substring("file:".length))
+                val writtenPath = Path.of(fileLine.substring("file:".length))
                 writtenPath.isAbsolute shouldBe true
                 writtenPath shouldBe writtenPath.normalize()
             }

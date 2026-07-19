@@ -5,6 +5,7 @@ import com.varlanv.wrasse.testing.useTempDir
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.nio.file.Files
+import java.nio.file.Path
 
 class WPatchApplierSpec : BaseSpec({
 
@@ -182,7 +183,7 @@ class WPatchApplierSpec : BaseSpec({
     }
 })
 
-private fun writePatch(dir: java.nio.file.Path, vararg fileEdits: FileEdits) {
+private fun writePatch(dir: Path, vararg fileEdits: FileEdits) {
     val sb = StringBuilder()
     WPatchWriter.writeHeader(sb)
     for (fe in fileEdits) WPatchWriter.write(sb, fe)
