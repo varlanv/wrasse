@@ -191,7 +191,7 @@ open class WNodeTypeMappingCompletenessSpec : BaseSpec({
 
             LightTreeStreamAdapter.walk(
                 source = lightSource,
-                filePath = "representative.kt",
+                ctx = WContext(filePath = "representative.kt"),
                 dispatch = dispatch,
                 reporter = reporter,
             )

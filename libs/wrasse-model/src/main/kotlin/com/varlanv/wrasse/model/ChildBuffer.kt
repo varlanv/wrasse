@@ -27,6 +27,10 @@ class ChildBuffer {
     /** Character length of child i (endOffset - startOffset). */
     fun length(i: Int): Int = endOffsets[i] - startOffsets[i]
 
+    /** Child i's full source span, read from [sourceText] (e.g. [WContext.sourceText]). */
+    fun textSpan(i: Int, sourceText: CharSequence): CharSequence =
+        sourceText.subSequence(startOffsets[i], endOffsets[i])
+
     fun hasChildOfType(type: WNodeType): Boolean {
         val ord = type.ordinal
         for (i in 0 until _size) if (types[i] == ord) return true

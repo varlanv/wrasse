@@ -35,18 +35,21 @@ object LightTreeStreamAdapter {
 
     /**
      * Walk the LightTree from the given compiler source element, dispatching SAX events
-     * to rules registered in [dispatch]. Violations are collected through [reporter].
+     * to rules registered in [dispatch]. Violations are collected through [reporter]. [ctx]
+     * is constructed by the caller (so it can be read back after the walk, e.g. for hashing
+     * or patch writing) and reused as-is; [WContext.sourceText] is set once here, before rules
+     * see anything.
      *
      * Lifecycle: beforeFile → recursive walk → afterFile → WFileRules.
      */
     fun walk(
         source: KtLightSourceElement,
-        filePath: String,
+        ctx: WContext,
         dispatch: StreamDispatch,
         reporter: WReporter,
     ) {
         val tree = source.treeStructure
-        val ctx = WContext(filePath = filePath)
+        ctx.sourceText = tree.toString(source.lighterASTNode)
 
         for (rule in dispatch.allRules) {
             rule.beforeFile(ctx = ctx)

@@ -8,13 +8,22 @@ package com.varlanv.wrasse.model
  * callback and never store a reference to it (the values change on the next event).
  *
  * Provides: the current event's type/offsets/text, an ancestor stack for parent lookups,
- * the previous leaf's data for adjacent-token rules, and tracked line position state
- * (column, indent) computed incrementally during the walk with zero backward scanning.
+ * the previous leaf's data for adjacent-token rules, tracked line position state
+ * (column, indent) computed incrementally during the walk with zero backward scanning, a
+ * zero-copy-as-possible view of the file's source text, and the per-file [EditPlan].
  */
 class WContext(
     /** Absolute path to the source file being walked. */
     val filePath: String,
 ) {
+
+    /** Full source text of the file, set once by the adapter before the walk begins. */
+    var sourceText: CharSequence = ""
+        @JvmSynthetic set
+
+    /** Per-file collector of attributed fix edits (D18). Shares this context's per-file lifecycle. */
+    val editPlan: EditPlan = EditPlan()
+
     /** Node type of the current event (leaf token or interior node enter/exit). */
     var type: WNodeType = WNodeType.FILE
         @JvmSynthetic set

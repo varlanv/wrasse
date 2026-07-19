@@ -218,8 +218,9 @@ No node objects are built. The framework walks kotlinc's LightTree once
   their callback and never store a reference). Holds: current event type/offsets/leaf text; the
   ancestor stack (`WNodeStack` — parallel primitive `IntArray`s, O(1) `hasAncestor` via a counts
   array indexed by `WNodeType.ordinal`); previous-leaf data; framework-tracked
-  `lastNewlineOffset` making `column()` an O(1) subtraction; and (target, D18) a zero-copy
-  `CharSequence` view of the compiler's source buffer for span reads.
+  `lastNewlineOffset` making `column()` an O(1) subtraction; `sourceText`, a `CharSequence` view
+  of the compiler's source buffer set once per walk by the adapter (D18) — the same value the
+  file hash is computed from, never fetched twice; and the per-file `editPlan` (`EditPlan`, D18).
 - **`WNodeType`** — enum with cached `VALUES` array and `SIZE` constant (avoids the
   `entries`-allocation-per-call gotcha).
 - **`ChildBuffer`** — parallel primitive arrays recording direct children between enter/exit for
@@ -305,9 +306,17 @@ Small, surgical, behavior-preserving edits: the **T** bucket (~15 fixes: brace i
 `modifier-order`, redundant-syntax deletions — see §6) plus the **S** bucket (ImportEngine).
 Every fix is individually toggleable and off by default (D9).
 
-**EditPlan** (per file, replaces the flat `collectedEdits` list):
+**EditPlan** (implemented, `libs/wrasse-model`; per file, replaces the flat `collectedEdits`
+list `WrassePlugin.checkFile` used to accumulate):
 
-- Edits kept sorted by span.
+- Entries are `(ruleId, WEdit, collection sequence)`, kept ordered by span — start ascending,
+  then end ascending, then sequence descending for exact-span ties — the single order that
+  keeps the overlap scan below correct *and* reproduces collection order in the applier output
+  (see the same-offset bullet below, formerly a known hazard, now fixed). `takeEditsIn(start,
+  end)` returns and removes every entry whose span lies *within* `[start, end]` inclusive, as
+  the attributed `Entry` (not a bare `WEdit`): a composing engine can read which rule an inner
+  edit came from for its own bail-out logic without a second lookup, at no extra allocation cost
+  over what ordered storage already needs.
 - **Post-order composition:** the walk exits children before parents, so when an engine rewrites
   a region at `exitNode`, every edit inside its span already exists. It calls
   `editPlan.takeEditsIn(start, end)`, applies those edits textually to its copy of the original
@@ -317,12 +326,26 @@ Every fix is individually toggleable and off by default (D9).
   priority system, no fact-passing protocol, no observing another rule's rendered text.
 - **Invariants (enforced, loud):**
   - After the walk, remaining edits must be pairwise disjoint. Overlap is a rule bug and fails
-    **at compile time with rule attribution** — never at apply time, where the user would lose
-    fixes. (The applier keeps a cheap sanity re-check.)
-  - An edit's span must lie within the currently-open ancestor chain when emitted. Deferred
-    emissions (e.g. `no-semicolons`' forward-lookup, `afterFile` reports) are fine — FILE is
-    always open; emitting into an already-exited-and-consumed sibling region is a bug.
-  - Same-offset insertions apply in collection order (deterministic tiebreak).
+    **at compile time with rule attribution** (both rule ids, both spans, both replacements) —
+    never at apply time, where the user would lose fixes. (The applier keeps a cheap sanity
+    re-check.) The disjointness scan needs only adjacent pairs under the span order above; a
+    same-span pair where both edits are zero-width inserts (the sequence tiebreak case) never
+    trips it — the formula (`next.start >= current.end`) already passes for two equal points,
+    so no special case was needed.
+  - An edit's span must lie within the currently-open ancestor chain when emitted. Implemented:
+    `WrassePlugin.checkFile` now constructs the per-file `WContext` itself and hands it to
+    `LightTreeStreamAdapter.walk`, so the `WReporter` it builds closes over that same `ctx` and
+    can read `ctx.ancestors`' innermost open span at the exact moment a rule's edits arrive —
+    no widened `WReporter.report` signature needed. Deferred emissions (e.g. `no-semicolons`'
+    forward-lookup, `afterFile`/`WFileRule` reports) are fine — the ancestor stack is empty by
+    then, which is treated as FILE always being open, vacuously satisfying the check.
+  - Same-offset insertions apply in collection order (deterministic tiebreak): ties break by
+    *descending* sequence (later-collected first) in the entry order, because
+    `StringBuilder.replace` on an unchanged offset pushes whatever is already there to the
+    right — applying the later insert first leaves room for the earlier one to land leftmost.
+    `WPatchWriter`/`WPatchApplier` are unchanged (still a stable descending-offset sort each); it
+    is exactly this input order that makes their existing sort reproduce collection order in the
+    output. Locked by a real writer→reader→applier round-trip test.
 
 ### 5.3 Path 2 — The opinionated printer
 
@@ -738,12 +761,15 @@ Done:
    deliberately non-idempotent rule fails 16 fixtures with the D19 assertion).
 3. ~~Per-file rule instantiation (D20)~~ — `WRuleSet.dispatchForFile`; per-rule exclude enforced
    at instantiation time (interim report-time filter deleted).
+4. ~~EditPlan + `takeEditsIn` (D18)~~ — implemented in `libs/wrasse-model`; proven end-to-end
+   with a nested inner/outer rule pair over an in-process parse+walk (no full compile needed);
+   overlap check moved to compile time with full rule attribution; `WContext` exposes the
+   walk's source text and the per-file `EditPlan`; same-offset insertion order fixed and locked
+   with a writer→reader→applier round-trip test (§5.2, §14).
 Also fixed en route (was not on this list): WARN-severity diagnostics dropped on Kotlin 2.1/2.2 —
 a test-harness classpath-skew issue, not a plugin bug (see §10).
 
 Remaining:
-4. **EditPlan + `takeEditsIn` (D18)** — proven end-to-end with one nested rule pair; overlap
-   check moved to compile time; expose the source buffer on `WContext`.
 5. **Walk perf punch list + JMH benchmark** (§9). JMH reinstated by owner decision (2026-07-19,
    same day it was deferred) with an explicit quality bar: the Gradle integration must be cleanly
    shaped (convention-plugin-consistent, no band-aid wiring) or not land at all.

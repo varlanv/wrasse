@@ -119,6 +119,26 @@ class WPatchApplierSpec : BaseSpec({
             }
         }
 
+        should("apply same-offset insertions so earlier-collected text ends up leftmost") {
+            useTempDir { dir ->
+                val sourceFile = dir.resolve("SameOffset.kt")
+                val content = "val x = "
+                Files.writeString(sourceFile, content)
+                val hash = WPatchApplier.sha256(content)
+                writePatch(
+                    dir, FileEdits(
+                        sourceFile.toString(), hash,
+                        listOf(WEdit(8, 8, "B"), WEdit(8, 8, "A"))
+                    )
+                )
+
+                val result = WPatchApplier.apply(dir)
+
+                result.files[0].shouldBeInstanceOf<FileApplyResult.Applied>()
+                Files.readString(sourceFile) shouldBe "val x = AB"
+            }
+        }
+
         should("fail on overlapping edits") {
             useTempDir { dir ->
                 val sourceFile = dir.resolve("Overlap.kt")

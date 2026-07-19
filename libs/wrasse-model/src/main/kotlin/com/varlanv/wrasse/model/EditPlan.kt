@@ -1,0 +1,75 @@
+package com.varlanv.wrasse.model
+
+import com.varlanv.wrasse.lang.WEdit
+
+/**
+ * Per-file collector of attributed fix edits (D18). Rules never touch this directly for
+ * reporting — [WReporter.report] forwards each attached [WEdit] here, tagged with the
+ * reporting rule's id and its collection sequence.
+ *
+ * Because the walk is post-order (children exit before parents), every edit inside a node's
+ * span already sits in the plan by the time that node's own rule exits. A composing rule calls
+ * [takeEditsIn] to pull those inner entries out, folds them into its own rewrite, and reports
+ * one edit for the whole span — which flows back in through the same [add] call. No rule
+ * ordering, no priorities: nesting order on the walk is the only protocol.
+ *
+ * Entries are kept ordered by span (start, then end), with same-span ties broken by
+ * descending collection sequence — the order in which same-offset insertions must be handed
+ * to [com.varlanv.wrasse.lang.WPatchWriter] for the applier to reproduce collection order in
+ * the output (later-collected must be spliced first so earlier-collected ends up leftmost).
+ * [finalEdits] additionally validates that whatever survives to end-of-walk is pairwise
+ * disjoint under that same ordering.
+ */
+class EditPlan {
+
+    /** One collected edit, attributed to the rule that reported it and its arrival order. */
+    class Entry(val ruleId: String, val edit: WEdit, val sequence: Int)
+
+    private val entries = mutableListOf<Entry>()
+    private var nextSequence = 0
+
+    fun add(ruleId: String, edit: WEdit) {
+        val entry = Entry(ruleId, edit, nextSequence++)
+        var insertAt = entries.size
+        for (i in entries.indices) {
+            if (precedes(entry, entries[i])) {
+                insertAt = i
+                break
+            }
+        }
+        entries.add(insertAt, entry)
+    }
+
+    fun takeEditsIn(startOffset: Int, endOffset: Int): List<Entry> {
+        if (entries.isEmpty()) return emptyList()
+        val taken = mutableListOf<Entry>()
+        val iterator = entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.edit.startOffset >= startOffset && entry.edit.endOffset <= endOffset) {
+                taken.add(entry)
+                iterator.remove()
+            }
+        }
+        return taken
+    }
+
+    fun finalEdits(): List<WEdit> {
+        for (i in 0 until entries.size - 1) {
+            val current = entries[i]
+            val next = entries[i + 1]
+            check(next.edit.startOffset >= current.edit.endOffset) {
+                "EditPlan: overlapping edits from rule '${current.ruleId}' " +
+                    "(${current.edit.startOffset}..${current.edit.endOffset} -> \"${current.edit.replacement}\") " +
+                    "and rule '${next.ruleId}' (${next.edit.startOffset}..${next.edit.endOffset} -> \"${next.edit.replacement}\")"
+            }
+        }
+        return entries.map { it.edit }
+    }
+
+    private fun precedes(a: Entry, b: Entry): Boolean {
+        if (a.edit.startOffset != b.edit.startOffset) return a.edit.startOffset < b.edit.startOffset
+        if (a.edit.endOffset != b.edit.endOffset) return a.edit.endOffset < b.edit.endOffset
+        return a.sequence > b.sequence
+    }
+}

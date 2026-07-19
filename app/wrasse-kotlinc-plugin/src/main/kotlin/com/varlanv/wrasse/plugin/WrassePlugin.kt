@@ -5,6 +5,7 @@ import com.varlanv.wrasse.lang.FileEdits
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.lang.WPatchWriter
 import com.varlanv.wrasse.model.ViolationReport
+import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WRuleSet
@@ -38,7 +39,7 @@ class WrassePlugin(
 
         val dispatch = ruleSet.dispatchForFile { config -> matchesAny(config.exclude, filePath) }
 
-        val collectedEdits = mutableListOf<WEdit>()
+        val ctx = WContext(filePath = filePath.toString())
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
 
@@ -58,24 +59,37 @@ class WrassePlugin(
                         level = rule.config.effectiveLevel,
                     )
                 )
-                collectedEdits.addAll(edits)
+                for (edit in edits) {
+                    requireWithinOpenAncestor(ctx, ruleId, edit)
+                    ctx.editPlan.add(ruleId, edit)
+                }
             }
         }
         LightTreeStreamAdapter.walk(
             source = source,
-            filePath = filePath.toString(),
+            ctx = ctx,
             dispatch = dispatch,
             reporter = reporter,
         )
 
-        if (fixEnabled && collectedEdits.isNotEmpty() && fixOutputDir != null) {
-            val sourceText = source.treeStructure.toString(source.lighterASTNode)
-            val sourceHash = computeSourceHash(sourceText)
-            val fileEdits = FileEdits(filePath.toString(), sourceHash, collectedEdits)
+        val finalEdits = ctx.editPlan.finalEdits()
+        if (fixEnabled && finalEdits.isNotEmpty() && fixOutputDir != null) {
+            val sourceHash = computeSourceHash(ctx.sourceText)
+            val fileEdits = FileEdits(filePath.toString(), sourceHash, finalEdits)
             appendToPatchFile(fileEdits)
         }
 
         return reporter.reports
+    }
+
+    private fun requireWithinOpenAncestor(ctx: WContext, ruleId: String, edit: WEdit) {
+        if (ctx.ancestors.isEmpty) return
+        val ancestorStart = ctx.ancestors.peekStartOffset()
+        val ancestorEnd = ctx.ancestors.peekEndOffset()
+        check(edit.startOffset >= ancestorStart && edit.endOffset <= ancestorEnd) {
+            "EditPlan: rule '$ruleId' emitted an edit ${edit.startOffset}..${edit.endOffset} outside its " +
+                "currently open ancestor $ancestorStart..$ancestorEnd"
+        }
     }
 
     /** Stub for the FirFunctionCallChecker hook. Will dispatch to SemanticWRules once the resolution facade lands (Phase B.3). */
