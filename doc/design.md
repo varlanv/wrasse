@@ -1985,7 +1985,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (2/15).** Braces family,
+- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (3/15).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -2031,6 +2031,35 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   `block-comment-after-bail-error`/`block-comment-before-bail-error`/`kdoc-between-bail-error`
   (report-only, no `.fixed.kt`) plus a dedicated real-compile `NoUnitReturnSafetySpec` across all
   four Kotlin minors for the EOL-comment shape specifically, mirroring `EmptyClassBodySafetySpec`.
+  `no-empty-parens-before-trailing-lambda` shipped third, porting upstream ktlint's
+  `unnecessary-parentheses-before-trailing-lambda` (whose own shipped test suite covers only three
+  shapes — ground-truthed instead with a probe harness built against the real
+  ktlint-ruleset-standard/rule-engine jars, plus a real `K2JVMCompiler` run for the one
+  compile-breaking shape upstream's own tests never exercise). A `WBufferedNodeRule` on
+  `CALL_EXPRESSION` finds the direct-child `VALUE_ARGUMENT_LIST`, requires its own source span be
+  the literal two characters `"()"` (empirically confirmed both `foo(   )` and `foo(/* x */)` are
+  never candidates at all upstream either, since either shape's extra child alone already fails a
+  plain "children besides the parens" check — no special-casing needed), and requires the next
+  significant sibling be a `LAMBDA_ARGUMENT`. Two shapes are exempt entirely (not reported, not
+  fixed), both confirmed against upstream's real behavior and both because the empty parens are
+  load-bearing, not redundant: whenever the significant sibling *before* the argument list is
+  itself a `CALL_EXPRESSION` — an invoke-operator chain (`foo()() { }`, upstream issue #3016) or a
+  call already ending in its own trailing lambda (`fooBar { "Hello" }() { "world" }`, upstream
+  issue #2884) — removing the parens would silently resolve to a different call entirely. Reported
+  but never autofixed whenever any whitespace/comment token between the parens and the lambda
+  contains a newline: probing a real compile of the naively-fixed output surfaced a second
+  upstream-native corruption bug in this same rule family (upstream applies the deletion anyway) —
+  losing the call syntax marker `()` turns "call with trailing lambda" into "bare reference, then a
+  lambda literal", which either fails to reparse (a property initializer at file scope) or fails to
+  recompile with a genuine compiler error, `error: Function invocation '<name>(...)' expected`
+  (verified with a real `K2JVMCompiler` run, not just ktlint's own lenient re-parse check — the
+  latter alone did not surface the function-body case). Since an `EOL_COMMENT` between the parens
+  and the lambda always forces a newline before the next token, this single newline check also
+  subsumes that shape without a separate comment-type enumeration, simpler than `no-unit-return`'s
+  equivalent bail. Locked by `newline-gap-bail-error`/`blank-line-gap-bail-error`/
+  `eol-comment-gap-bail-error` (report-only, no `.fixed.kt`) plus a dedicated real-compile
+  `NoEmptyParensBeforeTrailingLambdaSafetySpec` across all four Kotlin minors for both the
+  plain-newline and blank-line shapes, mirroring `NoUnitReturnSafetySpec`.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal

@@ -28,6 +28,10 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow class/interface/object/enum bodies containing nothing but whitespace"
                 },
+                "no-empty-parens-before-trailing-lambda": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty '()' argument list immediately before a trailing lambda"
+                },
                 "no-semicolons": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow unnecessary semicolons"

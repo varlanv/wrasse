@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "no-empty-parens-before-trailing-lambda": { "level": "error" }
+    }
+}

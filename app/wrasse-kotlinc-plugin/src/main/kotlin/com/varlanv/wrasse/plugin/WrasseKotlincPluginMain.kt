@@ -10,6 +10,7 @@ import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.rules.ImportEngine
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
+import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
@@ -20,7 +21,13 @@ private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
 /** Every single-id rule wrasse ships. See [registeredRuleGroups] for fused multi-id engines. */
 internal fun registeredRules(): List<WUninitializedRule> =
-    listOf(NoEmptyClassBodyRule(), NoSemicolonsRule(), NoUnitReturnRule(), TrailingNewlineRule())
+    listOf(
+        NoEmptyClassBodyRule(),
+        NoEmptyParensBeforeTrailingLambdaRule(),
+        NoSemicolonsRule(),
+        NoUnitReturnRule(),
+        TrailingNewlineRule(),
+    )
 
 /**
  * Every fused multi-id engine wrasse ships (design.md §5.1, "fighting rules get fused") —
