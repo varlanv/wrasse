@@ -167,6 +167,50 @@ class WPatchApplierSpec : BaseSpec({
             }
         }
 
+        should("return empty result when the passed directory itself does not exist") {
+            useTempDir { dir ->
+                val result = WPatchApplier.apply(dir.resolve("does-not-exist"))
+                result.files shouldBe emptyList()
+            }
+        }
+
+        should("walk nested per-compilation subdirectories and apply every patch file found (D22)") {
+            useTempDir { dir ->
+                val mainSourceFile = dir.resolve("Main.kt")
+                val mainContent = "val x = 1;"
+                Files.writeString(mainSourceFile, mainContent)
+                val mainDir = Files.createDirectories(dir.resolve("main"))
+                Files.writeString(
+                    mainDir.resolve("wrasse-fixes.txt"),
+                    "# wrasse-fixes v1\n" +
+                        "file:$mainSourceFile\n" +
+                        "hash:${WPatchApplier.sha256(mainContent)}\n" +
+                        "edit:9:10:\n",
+                )
+
+                val testSourceFile = dir.resolve("MainTest.kt")
+                val testContent = "val y = 2;"
+                Files.writeString(testSourceFile, testContent)
+                val testDir = Files.createDirectories(dir.resolve("test"))
+                Files.writeString(
+                    testDir.resolve("wrasse-fixes.txt"),
+                    "# wrasse-fixes v1\n" +
+                        "file:$testSourceFile\n" +
+                        "hash:${WPatchApplier.sha256(testContent)}\n" +
+                        "edit:9:10:\n",
+                )
+
+                val result = WPatchApplier.apply(dir)
+
+                result.files.size shouldBe 2
+                result.files.all { it is FileApplyResult.Applied } shouldBe true
+                Files.readString(mainSourceFile) shouldBe "val x = 1"
+                Files.readString(testSourceFile) shouldBe "val y = 2"
+                Files.exists(mainDir.resolve("wrasse-fixes.txt")) shouldBe false
+                Files.exists(testDir.resolve("wrasse-fixes.txt")) shouldBe false
+            }
+        }
+
         should("delete patch file after applying") {
             useTempDir { dir ->
                 val sourceFile = dir.resolve("Del.kt")

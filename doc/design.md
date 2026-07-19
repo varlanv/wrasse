@@ -186,11 +186,15 @@ so the whole architecture could be tested before committing to a 200+ rule catal
 - **3 rules shipped:** `no-semicolons` (`WStreamRule`, deferred forward-lookup, autofix),
   `no-wildcard-imports` (`WStreamRule`, `requiresResolution`, resolution-powered star-import
   expansion autofix — package-stars only, see §8), `trailing-newline` (`WFileRule`, autofix).
-- **MVP offset-patch autofix pipeline working end-to-end:** rules attach `WEdit`s to reports →
-  `WrassePlugin.checkFile` collects them → with `wrasse.fix=true` writes
-  `build/wrasse/wrasse-fixes.txt` per module (file + SHA-256 + descending-offset edits) →
-  `wrasseApply` (`WPatchApplier`) hash-checks, overlap-checks, applies via temp file + atomic
-  rename. `./gradlew wrasseFix` wires it together; the repo lints itself (`wrasseLint`).
+- **Offset-patch autofix pipeline working end-to-end, emission rides check mode (D22):** rules
+  attach `WEdit`s to reports → `WrassePlugin.checkFile` collects them → whenever `fixOutputDir` is
+  set (no separate fix flag), merges them into that compilation's own
+  `build/wrasse/<compilation>/wrasse-fixes.txt` (file + SHA-256 + descending-offset edits),
+  loading the existing patch once per compilation and upserting/removing (self-cleaning) each
+  recompiled file's entry, atomically rewriting the whole file every time →
+  `wrasseApply` (`WPatchApplier`) walks `build/wrasse/` recursively, hash-checks, overlap-checks,
+  applies via temp file + atomic rename. `./gradlew wrasseFix` wires it together (same check
+  compile as `wrasseLint` + `wrasseApply`); the repo lints itself (`wrasseLint`/`wrasseFix`).
 - **Config:** `wrasse.json`/`.jsonc` discovered by walking up from source roots; hand-rolled
   zero-dep JSONC reader; `extends` inheritance (child overrides base, absent rule = off, malformed
   fails fast, circular chains caught); per-rule `level: off|warn|error`; global `warnOnly` CLI

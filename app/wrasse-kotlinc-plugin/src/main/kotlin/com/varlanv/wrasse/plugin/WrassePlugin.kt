@@ -4,6 +4,8 @@ import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
 import com.varlanv.wrasse.lang.FileEdits
 import com.varlanv.wrasse.lang.HexEncoding
 import com.varlanv.wrasse.lang.WEdit
+import com.varlanv.wrasse.lang.WPatchMerge
+import com.varlanv.wrasse.lang.WPatchReader
 import com.varlanv.wrasse.lang.WPatchWriter
 import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
@@ -18,13 +20,15 @@ import com.varlanv.wrasse.model.WRuleSet
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.PathMatcher
+import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import org.jetbrains.kotlin.KtLightSourceElement
 
+private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
+
 class WrassePlugin(
     private val ruleSet: WRuleSet,
-    private val fixEnabled: Boolean = false,
     private val fixOutputDir: Path? = null,
     private val globalExclude: List<PathMatcher> = emptyList(),
     private val configDir: Path? = null,
@@ -32,7 +36,7 @@ class WrassePlugin(
 ) {
 
     private val patchFileLock = Any()
-    private var patchFileInitialized = false
+    private var patchEntries: List<FileEdits>? = null
 
     fun checkFile(
         source: KtLightSourceElement,
@@ -85,10 +89,13 @@ class WrassePlugin(
         )
 
         val finalEdits = ctx.editPlan.finalEdits()
-        if (fixEnabled && finalEdits.isNotEmpty() && fixOutputDir != null) {
-            val sourceHash = computeSourceHash(ctx.sourceText)
-            val fileEdits = FileEdits(filePath.toString(), sourceHash, finalEdits)
-            appendToPatchFile(fileEdits)
+        if (fixOutputDir != null) {
+            val newEntry = if (finalEdits.isNotEmpty()) {
+                FileEdits(filePath.toString(), computeSourceHash(ctx.sourceText), finalEdits)
+            } else {
+                null
+            }
+            mergeAndWritePatchFile(fixOutputDir, filePath.toString(), newEntry)
         }
 
         val usage = ctx.resolvedUsage
@@ -165,22 +172,33 @@ class WrassePlugin(
         return runCatching { dir.relativize(filePath) }.getOrDefault(filePath)
     }
 
-    private fun appendToPatchFile(fileEdits: FileEdits) {
+    private fun mergeAndWritePatchFile(dir: Path, filePath: String, newEntry: FileEdits?) {
         synchronized(patchFileLock) {
-            val patchFile = fixOutputDir!!.resolve("wrasse-fixes.txt")
-            if (!patchFileInitialized) {
-                Files.createDirectories(patchFile.parent)
-                Files.newBufferedWriter(patchFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING).use { w ->
-                    WPatchWriter.writeHeader(w)
-                    WPatchWriter.write(w, fileEdits)
-                }
-                patchFileInitialized = true
+            val current = patchEntries ?: readExistingPatchEntries(dir)
+            val merged = if (newEntry != null) {
+                WPatchMerge.upsert(current, newEntry)
             } else {
-                Files.newBufferedWriter(patchFile, StandardOpenOption.APPEND).use { w ->
-                    WPatchWriter.write(w, fileEdits)
-                }
+                WPatchMerge.remove(current, filePath)
             }
+            patchEntries = merged
+            writePatchFileAtomically(dir, merged)
         }
+    }
+
+    private fun readExistingPatchEntries(dir: Path): List<FileEdits> {
+        val patchFile = dir.resolve(PATCH_FILE_NAME)
+        if (!Files.exists(patchFile)) return emptyList()
+        return WPatchReader.read(Files.readString(patchFile))
+    }
+
+    private fun writePatchFileAtomically(dir: Path, entries: List<FileEdits>) {
+        Files.createDirectories(dir)
+        val patchFile = dir.resolve(PATCH_FILE_NAME)
+        val tmpFile = dir.resolve("$PATCH_FILE_NAME.tmp")
+        Files.newBufferedWriter(tmpFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING).use { w ->
+            WPatchWriter.writeAll(w, entries)
+        }
+        Files.move(tmpFile, patchFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
     }
 
     private fun computeSourceHash(sourceText: CharSequence): String {

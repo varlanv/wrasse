@@ -20,6 +20,13 @@ object WPatchWriter {
         out.append("# wrasse-fixes v1\n")
     }
 
+    fun writeAll(out: Appendable, allFileEdits: Collection<FileEdits>) {
+        writeHeader(out)
+        for (fileEdits in allFileEdits) {
+            write(out, fileEdits)
+        }
+    }
+
     fun write(out: Appendable, fileEdits: FileEdits) {
         out.append("file:").append(fileEdits.filePath).append('\n')
         out.append("hash:").append(fileEdits.sourceHash).append('\n')

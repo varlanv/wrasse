@@ -72,7 +72,6 @@ class WrasseTestHarness(
             wrassePluginOptions.add("plugin:$PLUGIN_ID:warnOnly=true")
         }
         if (fixOutputDir != null) {
-            wrassePluginOptions.add("plugin:$PLUGIN_ID:fix=true")
             wrassePluginOptions.add("plugin:$PLUGIN_ID:fixOutputDir=$fixOutputDir")
         }
         if (dumpResolvedUsage) {

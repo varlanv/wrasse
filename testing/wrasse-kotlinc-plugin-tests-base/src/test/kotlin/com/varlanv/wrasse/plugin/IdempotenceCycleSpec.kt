@@ -99,7 +99,15 @@ class IdempotenceCycleSpec : BaseSpec({
         IdempotenceCycle.assertNoResidualEdits(absentPatchFile)
     }
 
-    should("TRIPWIRE: fail loudly, showing the residual patch, when a second fix pass is not a fixed point") {
+    should("pass silently when the patch file exists but holds zero file entries (header-only, self-cleaning under always-on emission)") {
+        val dir = Files.createTempDirectory("idempotence-cycle-spec")
+        val patchFile = dir.resolve("wrasse-fixes.txt")
+        Files.writeString(patchFile, "# wrasse-fixes v1\n")
+
+        IdempotenceCycle.assertNoResidualEdits(patchFile)
+    }
+
+    should("TRIPWIRE: fail loudly, showing the residual patch entries, when a second fix pass is not a fixed point") {
         val dir = Files.createTempDirectory("idempotence-cycle-spec")
         val patchFile = dir.resolve("wrasse-fixes.txt")
         val residualPatchContent = "# wrasse-fixes v1\nfile:/tmp/sample/test.kt\nhash:deadbeef\nedit:4:4:;\n"
@@ -109,9 +117,11 @@ class IdempotenceCycleSpec : BaseSpec({
             IdempotenceCycle.assertNoResidualEdits(patchFile)
         }
         error.message shouldBe (
-            "fix(fix(x)) == fix(x) violated: a second fix pass emitted further edits, expected the patch file to " +
-                "be absent.\nResidual patch at $patchFile:\n$residualPatchContent\n" +
-                "Expected null but actual was \"$residualPatchContent\""
+            "fix(fix(x)) == fix(x) violated: a second fix pass emitted further edits, expected merge-on-write " +
+                "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
+                "exist, header-only, since emission now rides check mode unconditionally.\n" +
+                "Residual patch entries at $patchFile:\n  /tmp/sample/test.kt (1 edits)\n" +
+                "expected:<true> but was:<false>"
             )
     }
 

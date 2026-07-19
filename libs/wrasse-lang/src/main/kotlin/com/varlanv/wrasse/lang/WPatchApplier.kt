@@ -4,35 +4,47 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
+import kotlin.streams.asSequence
 
 /**
- * Reads a wrasse patch file and applies the edits to source files on disk.
+ * Reads wrasse patch files and applies the edits to source files on disk.
  *
- * For each file in the patch:
+ * Per-compilation patch files live at `<parentDir>/<compilation>/wrasse-fixes.txt` (D22) — [apply]
+ * walks the whole tree under the directory it is given and applies every patch file it finds, so a
+ * directly-passed directory containing a single `wrasse-fixes.txt` (the pre-D22 single-file layout,
+ * still used by the fixture harness) keeps working unchanged.
+ *
+ * For each file in a patch:
  * 1. Validates the source hash — skips if the file changed since compilation.
  * 2. Checks for overlapping edits — fails loudly (this is a rule design bug).
  * 3. Applies edits in descending offset order so earlier edits don't shift later offsets.
  * 4. Writes via temp file + atomic rename.
  *
- * Deletes the patch file after all edits are applied.
+ * Deletes each patch file after all its edits are applied.
  */
 object WPatchApplier {
 
     private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
 
     fun apply(patchDir: Path): ApplyResult {
-        val patchFile = patchDir.resolve(PATCH_FILE_NAME)
-        if (!Files.exists(patchFile)) return ApplyResult(emptyList())
+        if (!Files.exists(patchDir)) return ApplyResult(emptyList())
 
-        val allEdits = WPatchReader.read(Files.readString(patchFile))
-        val results = mutableListOf<FileApplyResult>()
-
-        for (fileEdits in allEdits) {
-            val filePath = Path.of(fileEdits.filePath)
-            results.add(applyToFile(filePath, fileEdits))
+        val patchFiles = Files.walk(patchDir).use { walk ->
+            walk.asSequence()
+                .filter { Files.isRegularFile(it) && it.fileName.toString() == PATCH_FILE_NAME }
+                .toList()
         }
 
-        Files.delete(patchFile)
+        val results = mutableListOf<FileApplyResult>()
+        for (patchFile in patchFiles) {
+            val allEdits = WPatchReader.read(Files.readString(patchFile))
+            for (fileEdits in allEdits) {
+                val filePath = Path.of(fileEdits.filePath)
+                results.add(applyToFile(filePath, fileEdits))
+            }
+            Files.delete(patchFile)
+        }
+
         return ApplyResult(results)
     }
 

@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.model
 
+
 /**
  * Wrasse's own mapping of kotlinc's IElementType constants.
  * Rules reference these instead of importing kotlinc types.

@@ -13,6 +13,9 @@ import org.gradle.plugins.ide.idea.model.IdeaModel
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+private val compileTaskNamePattern = Regex("^compile(.*)Kotlin$")
+
 class InternalConventionPlugin : Plugin<Project> {
 
     private class Impl(private val project: Project) {
@@ -236,7 +239,8 @@ class InternalConventionPlugin : Plugin<Project> {
                 task.args(project.layout.buildDirectory.dir("wrasse").get().asFile.absolutePath)
                 task.isIgnoreExitValue = false
                 task.onlyIf {
-                    java.io.File(project.layout.buildDirectory.dir("wrasse").get().asFile, "wrasse-fixes.txt").exists()
+                    val wrasseDir = project.layout.buildDirectory.dir("wrasse").get().asFile
+                    wrasseDir.exists() && wrasseDir.walkTopDown().any { it.isFile && it.name == "wrasse-fixes.txt" }
                 }
             }
         }
@@ -248,18 +252,20 @@ class InternalConventionPlugin : Plugin<Project> {
             val wrasseLib = internalCatalog.getLib("wrasse-compiler-plugin")
             dependencies.add("kotlinCompilerPluginClasspath", wrasseLib)
 
-            val wrasseFix = providers.gradleProperty("wrasseFix")
-            if (wrasseFix.isPresent) {
-                val fixOutputDir = project.layout.buildDirectory.dir("wrasse").get().asFile.absolutePath
-                tasks.withType(KotlinCompile::class.java) { kotlinCompile ->
-                    kotlinCompile.compilerOptions {
-                        freeCompilerArgs.addAll(
-                            "-P", "plugin:com.varlanv.wrasse:fix=true",
-                            "-P", "plugin:com.varlanv.wrasse:fixOutputDir=$fixOutputDir",
-                        )
-                    }
+            tasks.withType(KotlinCompile::class.java) { kotlinCompile ->
+                val compilationName = compilationNameFor(kotlinCompile.name) ?: return@withType
+                val fixOutputDir = project.layout.buildDirectory.dir("wrasse/$compilationName").get().asFile.absolutePath
+                kotlinCompile.compilerOptions {
+                    freeCompilerArgs.addAll(
+                        "-P", "plugin:com.varlanv.wrasse:fixOutputDir=$fixOutputDir",
+                    )
                 }
             }
+        }
+
+        private fun compilationNameFor(compileTaskName: String): String? {
+            val match = compileTaskNamePattern.matchEntire(compileTaskName) ?: return null
+            return match.groupValues[1].replaceFirstChar { it.lowercaseChar() }.ifEmpty { "main" }
         }
     }
 

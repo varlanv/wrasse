@@ -1,6 +1,7 @@
 package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.lang.FileApplyResult
+import com.varlanv.wrasse.lang.FileEdits
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.lang.WPatchApplier
 import com.varlanv.wrasse.lang.WPatchReader
@@ -97,15 +98,27 @@ object IdempotenceCycle {
         }
     }
 
+    /**
+     * D22 reconciliation: emission now rides check mode unconditionally, so the patch file itself
+     * may still exist (header-only) after a fully clean recompile — merge-on-write only guarantees
+     * that a recompiled file's own entry is *removed* (self-cleaning), not that the file vanishes.
+     * The idempotence invariant (D19) is therefore checked against the parsed entries, not file
+     * presence: `fix(fix(x)) == fix(x)` holds iff the patch holds zero file entries.
+     */
     fun assertNoResidualEdits(patchFile: Path) {
-        val residualContent = if (Files.exists(patchFile)) Files.readString(patchFile) else null
+        val residualEntries = if (Files.exists(patchFile)) WPatchReader.read(Files.readString(patchFile)) else emptyList()
         withClue(
-            "fix(fix(x)) == fix(x) violated: a second fix pass emitted further edits, " +
-                "expected the patch file to be absent.\nResidual patch at $patchFile:\n${residualContent ?: "(absent)"}"
+            "fix(fix(x)) == fix(x) violated: a second fix pass emitted further edits, expected merge-on-write " +
+                "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
+                "exist, header-only, since emission now rides check mode unconditionally.\n" +
+                "Residual patch entries at $patchFile:\n${describeResidualEntries(residualEntries)}"
         ) {
-            residualContent shouldBe null
+            residualEntries.isEmpty() shouldBe true
         }
     }
+
+    private fun describeResidualEntries(entries: List<FileEdits>): String =
+        entries.joinToString("\n") { "  ${it.filePath} (${it.edits.size} edits)" }.ifEmpty { "  (none)" }
 
     /**
      * Not wired into [runIfFixEmitted] by default: several existing fixtures compile with

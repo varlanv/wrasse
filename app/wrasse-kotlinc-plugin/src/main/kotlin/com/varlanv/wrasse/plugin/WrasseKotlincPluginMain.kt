@@ -31,7 +31,6 @@ internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> = listOf(Impo
 fun wrasseMain(
     sourceRoots: List<Path>,
     warnOnly: Boolean = false,
-    fixEnabled: Boolean = false,
     fixOutputDir: Path? = null,
     dumpResolvedUsage: Boolean = false,
 ): Result<WrassePlugin> {
@@ -57,7 +56,6 @@ fun wrasseMain(
     return Result.success(
         WrassePlugin(
             ruleSet = WRuleSet(activeRules, activeGroups),
-            fixEnabled = fixEnabled,
             fixOutputDir = fixOutputDir,
             globalExclude = config.exclude,
             configDir = config.configDir,

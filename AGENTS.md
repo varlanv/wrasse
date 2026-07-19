@@ -28,13 +28,21 @@ Build/test via the Gradle wrapper only (`./gradlew`, never a bare `gradle`).
 ./gradlew testPatchHarness           # fixture tests against all tracked Kotlin patch versions
 ./gradlew :testing:wrasse-kotlinc-plugin-tests-2-4-x:test   # fixture tests for one Kotlin minor
 ./gradlew wrasseLint                 # self-lint: republish plugin, then compile this repo with wrasse checks on
-./gradlew wrasseFix                  # self-fix: run with -PwrasseFix, then apply the emitted patch (wrasseApply)
+./gradlew wrasseFix                  # self-fix: the same check compile as wrasseLint (-PwrasseCheck, UP-TO-DATE
+                                      # if check just ran), then apply the emitted patch (wrasseApply)
 ./gradlew :internal-convention-plugin:test   # build-logic tests (TestKit) — a separate included build,
                                               # NOT reached by the root `build`/`test` tasks above; run explicitly
 ```
 
 - `-Prepublish` on `wrasseLint`/`wrasseFix` forces `publishToMavenLocal` first — needed after changing
   rule/plugin code before wrasse can lint itself with the new build.
+- Patch emission rides check mode (D22): whenever `-PwrasseCheck` is set, every compile task emits its
+  own patch under `build/wrasse/<compilation>/wrasse-fixes.txt` (merge-on-write, self-cleaning),
+  regardless of whether `wrasseFix` is the task being run — `wrasseFix` is just that same compile
+  (identical args to `wrasseLint`, so Gradle sees it as UP-TO-DATE if check already ran) followed by
+  `wrasseApply`. Editing `wrasse.json` does **not** invalidate the compile tasks (D1's cost), so after
+  a config change run `wrasseLint`/`wrasseFix` with a change to a source file, or otherwise force
+  recompilation, before trusting the patch.
 - There is no per-test CLI filter for a single fixture (Kotest generates one dynamic test per fixture,
   named `"handle spec - ${ruleId} -> ${fixtureId}"`). To add a test, **add a fixture file** — see below.
   To scope a Gradle run to one Kotlin minor, target that submodule's `test`/`testMinor` task directly.
@@ -120,13 +128,20 @@ Rules report through `WReporter.report(ruleId, message, startOffset, endOffset, 
 reporter reads `rule.config.effectiveLevel` to pick error vs. warning. Rules that can autofix attach
 `WEdit(start, end, replacement)`s to the report.
 
-### Fix pipeline (MVP, offset-patch)
+### Fix pipeline (offset-patch, D22 merge-on-write)
 
-`WrassePlugin.checkFile` collects `WEdit`s from the walk and, when `-Pwrasse.fix=true`, appends them
-to `build/wrasse/wrasse-fixes.txt` per module (`FileEdits` = file + SHA-256 source hash + edits),
-written via `WPatchWriter`. Applying (`wrasseApply` task → `WPatchApplierKt`) is a separate, explicit
-step, hash-guarded (a stale patch whose recorded hash no longer matches the file is a no-op) — never
-auto-run during a normal build. This is what `./gradlew wrasseFix` wires together.
+`WrassePlugin.checkFile` collects `WEdit`s from the walk and, whenever `fixOutputDir` is set (i.e.
+whenever the plugin is active under `-PwrasseCheck` — there is no separate fix flag; D22), merges
+them into that compilation's own patch under `build/wrasse/<compilation>/wrasse-fixes.txt`
+(`FileEdits` = file + SHA-256 source hash + edits). On the first `checkFile` of a compilation the
+existing patch is loaded into memory; each subsequent `checkFile` upserts or removes (on zero edits,
+self-cleaning) that file's entry and atomically rewrites the whole patch from the in-memory map
+(temp file + rename) — so files an incremental compile didn't touch keep their prior entry, and lint
+and fix compiles have identical compiler args and never invalidate each other. Applying
+(`wrasseApply` task → `WPatchApplierKt`) is a separate, explicit step that walks `build/wrasse/`
+recursively for every `wrasse-fixes.txt`, hash-guarded (a stale patch whose recorded hash no longer
+matches the file is a no-op) — never auto-run during a normal build. `./gradlew wrasseFix` wires
+this together: the same check compile as `wrasseLint`, then `wrasseApply`.
 
 ### Config
 
@@ -151,6 +166,9 @@ modules and their `testMinor`/`testPatch_*` tasks.
 All modules apply the local `internal-convention-plugin` (an included build, not published), which
 centralizes: Kotlin/Java toolchain + target version wiring (from `gradle/libs.versions.toml`),
 `allWarningsAsErrors`/`progressiveMode` on non-test source sets, JUnit Platform test execution, the
-`wrasseApply` task registration, and wiring `-Pwrasse.fix`/`wrasseCheck` Gradle properties into
-`kotlinCompilerPluginClasspath` and compiler free-args. Don't duplicate this logic in a module's own
-`build.gradle.kts` — extend the convention plugin instead.
+`wrasseApply` task registration, and wiring the `wrasseCheck` Gradle property into
+`kotlinCompilerPluginClasspath` plus a distinct `fixOutputDir` compiler free-arg per compile task
+(`build/wrasse/main` for `compileKotlin`, `build/wrasse/test` for `compileTestKotlin`, pattern-matched
+off the `compile(.*)Kotlin` task name so future source sets get their own patch directory for free).
+Don't duplicate this logic in a module's own `build.gradle.kts` — extend the convention plugin
+instead.
