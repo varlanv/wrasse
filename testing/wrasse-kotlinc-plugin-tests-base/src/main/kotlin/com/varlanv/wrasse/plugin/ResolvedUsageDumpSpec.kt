@@ -80,6 +80,25 @@ open class ResolvedUsageDumpSpec : BaseSpec({
         result.wrasseDiagnostics[0].message shouldBe "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.Empty] callables=[kotlin.Any/Any] errors=false"
     }
 
+    should("dump cleanly for a trailing-newline-terminated file with no references beyond its own declarations") {
+        val source = TestSource(
+            "sample/Sample.kt",
+            """
+            package sample
+
+            class Empty
+            """.trimIndent() + "\n",
+        )
+        val harness = WrasseTestHarness(wrasseConfig = emptyRulesConfig, dumpResolvedUsage = true)
+
+        val result = harness.compile(listOf(source))
+
+        result.wrasseDiagnostics shouldHaveSize 1
+        result.wrasseDiagnostics[0].location?.line shouldBe 1
+        result.wrasseDiagnostics[0].location?.column shouldBe 1
+        result.wrasseDiagnostics[0].message shouldBe "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.Empty] callables=[kotlin.Any/Any] errors=false"
+    }
+
     should("collect nothing when dumpResolvedUsage is off and no rule requires resolution") {
         val source = TestSource(
             "sample/Sample.kt",
