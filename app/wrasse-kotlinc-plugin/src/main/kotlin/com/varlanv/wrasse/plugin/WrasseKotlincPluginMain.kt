@@ -7,6 +7,7 @@ import com.varlanv.wrasse.model.WConfig
 import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.rules.ImportOrderingRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnusedImportsRule
 import com.varlanv.wrasse.rules.NoWildcardImportsRule
@@ -16,6 +17,18 @@ import java.nio.file.Path
 
 private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
+/**
+ * Every rule wrasse ships, in registration order. This order is [WRuleSet.dispatchForFile]'s
+ * `activeRules` order, which is [StreamDispatch][com.varlanv.wrasse.model.StreamDispatch]'s
+ * `allRules` order, which is the order `afterFile` is called on every rule for a given file (see
+ * `LightTreeStreamAdapter.walk`) — so this list's order is load-bearing for any rule composing
+ * across `afterFile`-deferred edits, not just cosmetic. [ImportOrderingRule] must stay after
+ * [NoUnusedImportsRule] and [NoWildcardImportsRule]: it composes their `afterFile`-collected
+ * edits via `EditPlan.takeEditsIn`, which only sees edits already collected by the time it runs.
+ */
+internal fun registeredRules(): List<WUninitializedRule> =
+    listOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule(), NoUnusedImportsRule(), ImportOrderingRule())
+
 fun wrasseMain(
     sourceRoots: List<Path>,
     warnOnly: Boolean = false,
@@ -23,9 +36,7 @@ fun wrasseMain(
     fixOutputDir: Path? = null,
     dumpResolvedUsage: Boolean = false,
 ): Result<WrassePlugin> {
-    val uninitializedRules =
-        sequenceOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule(), NoUnusedImportsRule())
-            .associateBy { it.id }
+    val uninitializedRules = registeredRules().associateBy { it.id }
     val config =
         loadConfig(
             sourceRoots = sourceRoots,

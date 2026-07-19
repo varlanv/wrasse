@@ -28,6 +28,10 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow unnecessary semicolons"
                 },
+                "import-ordering": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require import directives to be in plain ASCII-alphabetical order"
+                },
                 "no-unused-imports": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow imports whose target is never referenced in the file"

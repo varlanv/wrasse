@@ -802,10 +802,115 @@ for `no-unused-imports` (the removed import's usage always vanishes with it) but
 an expanded star's explicit imports are of symbols the file *still uses*; `runIfFixEmitted` now
 takes an `auxSources` parameter and recompiles round 2 with them present.
 
-**Deferred to a future engine:** import re-sorting after expansion, member-star (class/object)
-expansion, and fusing this with `no-unused-imports`/FQN-shortening into one `ImportEngine`
-decision-maker remain future work per §6/§13 B.3 — this pass ships the expansion fix standalone,
-bailing everywhere a real engine would eventually own the decision instead.
+**Deferred to a future engine:** member-star (class/object) expansion and fusing this with
+`no-unused-imports`/FQN-shortening/`import-ordering` into one `ImportEngine` decision-maker remain
+future work per §6/§13 B.3 — this pass ships the expansion fix standalone, bailing everywhere a
+real engine would eventually own the decision instead. Import re-sorting after expansion is no
+longer deferred — `import-ordering` (below) composes over exactly this rule's edits.
+
+**As-built (`import-ordering`, the first real-rule exercise of EditPlan composition across
+`afterFile`-deferred edits, D18):** plain ASCII-alphabetical order on the file's import
+directives, no grouping, no config knob, purely syntactic (never sets `requiresResolution`). A
+`WStreamRule` (`ImportOrderingRule`) records each `IMPORT_DIRECTIVE`'s own span during the walk
+(via `IMPORT_LIST`/`IMPORT_DIRECTIVE` enter/exit) and whether any `EOL_COMMENT`/`BLOCK_COMMENT`/
+`KDOC` leaf was seen while `IMPORT_LIST` was still open; the verdict and every composition step
+are pure, compiler-free functions (`ImportOrderingDecision`), unit-tested without a compiler. The
+**sort key** is a directive's own node text with the leading `import` keyword and its following
+whitespace stripped (`ImportOrderingDecision.sortKeyOf`) — `import a.b.C` sorts by `a.b.C`,
+`import a.b.C as D` sorts by `a.b.C as D` (so aliased duplicates of the same FQN order
+deterministically by their alias), `import a.b.*` sorts by `a.b.*`. Report fires once per file, at
+the first out-of-order directive's own span, message `Imports are not sorted`; no report at all
+for zero/one directive or an already-sorted list.
+
+**Why this can't compose at its own `exitNode` (the problem this rule exists to solve):**
+`no-unused-imports`' removal and `no-wildcard-imports`' expansion both decide their edits in
+`afterFile`, *after* `IMPORT_LIST` has already exited the walk — their decisions need whole-file
+data (resolved usage), not just the list's own subtree. D18's post-order composition
+(`exitNode` consumes inner edits already in the plan) assumes the inner edit exists by the time
+the outer node exits; that assumption fails here. `import-ordering` therefore also defers its own
+decision to `afterFile`, and depends on running *after* those two rules' `afterFile` calls so their
+edits already sit in `ctx.editPlan` when it calls `takeEditsIn`.
+
+**Verified, not assumed: `afterFile` order is registration order.** Read the full chain rather
+than trusting it: `LightTreeStreamAdapter.walk` calls `rule.afterFile(...)` in
+`dispatch.allRules` order; `StreamDispatch.allRules` is exactly the `rules` list it was
+constructed with; `WRuleSet.dispatchForFile` builds that list by iterating its own `activeRules`
+in order (skipping only per-file exclusions, which doesn't reorder survivors); `WRuleSet`'s
+`activeRules` is what `wrasseMain` passed to its constructor, built by iterating
+`config.rulesConfigs.idToConfig` (a `LinkedHashMap`, per `mutableMapOf`'s default) in the order its
+keys were inserted — which is `WConfig.buildConfig`'s `for (ruleId in ruleIds)` loop, where
+`ruleIds = uninitializedRules.keys` — a `LinkedHashMap` built by `Sequence.associateBy` over
+`registeredRules()`, a literal `listOf(...)` in `WrasseKotlincPluginMain.kt`. Every link in that
+chain preserves insertion order; none of it sorts or hashes rule ids into a different order. So:
+**`afterFile` order == the literal order of `registeredRules()`**, and `ImportOrderingRule` is
+listed after `NoWildcardImportsRule` and `NoUnusedImportsRule` there — locked by a direct
+`RuleRegistrationOrderSpec` unit test asserting the exact id sequence (`app/wrasse-kotlinc-plugin`),
+not just a relative-order check, so any reordering of the list — accidental or not — fails loudly
+at the one place that matters. This is the *interim* mechanism: it works only because today's
+import-family rules all defer to `afterFile`; once the `ImportEngine` fuses the family into one
+decision-maker (§6/§13 B.3), this registration-order dependency disappears along with the separate
+rules it orders.
+
+**The composition itself, in `afterFile`:** first, a purely textual "is this region safe to
+touch" check (`ImportOrderingDecision.isCleanList`) — the list must be exactly `directive\n
+directive\n...\ndirective` with no leading/trailing slack and no comment leaf recorded anywhere
+inside it. A comment (ownership of which directive it documents is ambiguous once reordered), a
+blank line, or two directives sharing one line (semicolon-separated) all fail this check —
+**`takeEditsIn` is never even called in that case**, so any edits `no-unused-imports`/
+`no-wildcard-imports` already placed inside the region are left completely untouched and flow
+through to `finalEdits()` on their own (locked by `imports-full/comment-blocks-reorder-error`: a
+star expansion and an unused-import removal both apply standalone while a comment sitting between
+two other, already-sorted imports keeps `import-ordering` from touching anything at all — not even
+a report, since those two are already in order). When the region *is* clean, `takeEditsIn(listStart,
+probeEnd)` pulls out whatever inner edits exist; if none, `import-ordering` behaves like any
+other rule (report + a single re-sort edit, only if the original order was wrong). If it took any
+edits, it **always** emits its own composed edit — replacing the whole taken span with the
+edits applied and the result re-split-and-sorted — even when the original, pre-edit order
+happened to be sorted already, because the post-edit content (e.g. a star's multi-line expansion
+landing at the star's old position) might not be.
+
+**The `EditPlan.takeEditsIn` contract, checked precisely, and the edge case it implies:**
+`takeEditsIn(start, end)` takes an entry only when `entry.edit.startOffset >= start &&
+entry.edit.endOffset <= end` — inclusive of the boundary, but an edit whose `endOffset` runs past
+`end` is left in the plan, full stop, no partial taking. `ImportRemovalSpan`'s whole-line deletion
+consumes a directive's own trailing `\n` (so the next line doesn't go blank) — for every directive
+except the list's own last one, that trailing `\n` is comfortably inside `[listStart, listEnd)`
+because another directive follows it. For the *last* directive in the list, that same trailing
+`\n` is the one separating the import list from whatever comes after it — outside
+`IMPORT_LIST`'s own node span (confirmed empirically via the fixture below, not assumed:
+`IMPORT_LIST`'s reported `endOffset` equals its last child directive's own `endOffset`, never
+reaching into trailing whitespace). A naive `takeEditsIn(listStart, listEnd)` would therefore
+silently leave that one deletion edit stranded in the plan — and since `import-ordering`'s own
+composed edit spans the *whole* list, the two would overlap and `finalEdits()` would throw at
+apply time. Fixed by probing one line further before calling `takeEditsIn`: `probeEnd` extends
+`listEnd` to the end of the line it sits on (reusing `ImportLineSpan.indexOfNewlineFrom`, the same
+line-boundary utility `ImportRemovalSpan`/`WildcardExpansionDecision` already share) whenever that
+line exists, so the last directive's trailing-newline-inclusive deletion is captured too; the
+composed replacement then preserves that trailing `\n` when the probed region had one. Because the
+probe only extends into text that is unambiguously either blank or exactly this one hazard, it
+never over-reaches into an unrelated rule's edit. Locked by
+`imports-full/last-directive-removed-error`: the file's *last* import is the unused one, and the
+composed fix correctly consumes its whole-line-including-newline deletion without any `EditPlan`
+overlap, collapsing to the single surviving, correctly re-sorted import.
+
+**Bail after taking, when it can't be trusted:** if the reconstructed region doesn't parse as
+"zero or more clean `import ...` lines" after applying the taken edits (a future, not-yet-imagined
+composing rule producing something unexpected — none of today's rules can actually trigger this),
+`import-ordering` puts every taken entry back into `ctx.editPlan` (in reverse of the order
+`takeEditsIn` returned them, so descending-sequence tie-breaking among equal-span entries is
+restored exactly as it was) and reports only if the *original* order was wrong, with no edit —
+never guessing. `ImportOrderingDecisionSpec` locks this directly against a fabricated overlapping-
+edit input and a fabricated non-import reconstructed line, without needing a real compile to
+trigger either.
+
+**Fixtures:** `import-ordering/` (rule alone) covers unsorted → sorted, already-sorted → clean,
+aliased imports (same FQN, different alias, ordering by alias), a comment inside the list
+(report, no edit), a blank line inside the list (report, no edit), and a single import (clean).
+`imports-full/` extends its existing three-rule showcase with `import-ordering` — one `wrasseFix`
+pass now expands the star, removes the unused import, and re-sorts the surviving imports, alongside
+the pre-existing `no-semicolons` fix, all in one pass — plus the two edge-case fixtures described
+above (comment blocks reordering while removal/expansion still apply; the dangling last-directive
+deletion).
 
 ---
 
@@ -1156,10 +1261,16 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   with a sibling import or trailing comment, to avoid a cross-rule idempotence break with
   `no-semicolons` (§8) — locked by `.fixed.kt` companion-file fixtures (§11) including a
   dedicated dual-rule fixture dir. `no-wildcard-imports` star expansion (package-stars only;
-  member/class-star expansion, import re-sorting, and fusing with `no-unused-imports` into one
-  decision-maker are still deferred to the eventual engine) shipped ahead of it too — §8 has the
-  attribution rules and all seven bails; `imports-full/` locks that its edits compose correctly
-  alongside `no-unused-imports` and `no-semicolons` without an engine.
+  member/class-star expansion and fusing with `no-unused-imports` into one decision-maker are
+  still deferred to the eventual engine) shipped ahead of it too — §8 has the attribution rules
+  and all seven bails; `imports-full/` locks that its edits compose correctly alongside
+  `no-unused-imports` and `no-semicolons` without an engine. `import-ordering` (plain
+  ASCII-alphabetical re-sort, no grouping, no config knob) shipped ahead of the engine as a fourth
+  standalone rule — composing over the other two's `afterFile`-deferred edits via
+  `EditPlan.takeEditsIn`, registration-order-dependent until the engine exists (§8 has the full
+  mechanism and the edge cases it had to handle). Still deferred to the eventual `ImportEngine`:
+  member-star expansion, FQN-shortening, dedup, unused-star removal, and fusing all four of these
+  into one decision-maker so registration order stops mattering.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.
