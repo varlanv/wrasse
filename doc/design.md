@@ -782,7 +782,12 @@ JAR; 3 rules; fixture harness + 2.1–2.4 matrix; MVP offset-patch autofix end-t
 **Exit:** a new rule ships without editing any existing user config; warn and error coexist in
 one run; `@Suppress` silences one rule.
 
-### Phase A.5 — Foundation hardening (gate: complete before B)
+### Phase A.5 — Foundation hardening (gate: complete before B) — **COMPLETE 2026-07-19**
+
+All items done (details per item below). The Phase B gate is satisfied: matrix green on all
+four minors and all tracked patch versions, idempotence invariant enforced in the harness,
+per-file rule lifecycle, EditPlan composition, walk perf punch list + JMH tripwire, per-minor
+build wiring centralized, MPP double-fire ruled out.
 
 Done:
 1. ~~Trust-burning bug fixes~~ — CRLF hash/offset consistency (bug empirically confirmed and
@@ -814,9 +819,31 @@ Remaining:
    own concatenated `.kt` sources: zero-rules walk ~11.19ms/op after vs ~11.64ms/op before the
    punch list; three-shipped-rules walk ~11.56ms/op after vs ~12.17ms/op before (single-fork JMH
    noise is double-digit-percent at this iteration count — treat as directional, not precise).
-6. **MPP double-fire check**: confirm `FirFileChecker(MppCheckerKind.Common)` doesn't double-fire
-   per file in multiplatform compilations (double-appended edits); dedup or switch kind if it
-   does; document no-repro if it doesn't.
+6. ~~MPP double-fire check~~ — **no repro; confirmed safe by design, not just by test.** Read the
+   K2 CLI pipeline sources (`JvmFrontendPipelinePhase`, `FirSessionConstructionUtils`,
+   `fir/pipeline/firUtils.kt`/`convertToIr.kt`, identical across 2.1–2.4): each source file is
+   assigned to **exactly one** FIR module session (legacy `-Xcommon-sources` partitions files into
+   disjoint `commonFiles`/`platformFiles`; `-Xfragments`/HMPP partitions via a single
+   `hmppModuleName` per file). `MppCheckerKind.Common` checkers run once per session, over only
+   that session's own files, inside `resolveAndCheckFir` — never touched by the later
+   `runPlatformCheckers` pass (that pass unions all files but only runs `Platform`-kind checkers,
+   filtered by `session.checkersComponent.commonDeclarationCheckers` vs `platformDeclarationCheckers`
+   in `DeclarationCheckersDiagnosticComponent`). So a `Common`-kind `FirFileChecker` (what wrasse's
+   `FirSyntacticChecker`/`20`/`22` all are) structurally fires exactly once per file regardless of
+   MPP shape. Empirically verified with a real in-process `K2JVMCompiler` compile
+   (`-Xmulti-platform` + `-Xcommon-sources`, one common file with an `expect` decl + a stray
+   semicolon, one platform file with the matching `actual`): exactly 1 wrasse diagnostic and
+   exactly 1 patch entry (1 edit) for the common file, both with fix output enabled and without.
+   A control run with MPP disabled confirmed the shape was genuinely exercised (compiler rejected
+   the same sources with "'expect' and 'actual' declarations can be used only in multiplatform
+   projects" — proving the enabled run really went through the MPP session-splitting path, not an
+   accidental single-session fallback). Regression guard: `MppCommonCheckerDoubleFireSpec`
+   (`testing/wrasse-kotlinc-plugin-tests-base/src/test`), plus an additive
+   `multiPlatformCommonSources` param on `WrasseTestHarness`. Only the legacy `-Xcommon-sources`
+   CLI shape was driven end-to-end; `-Xfragments`/HMPP was not separately compiled (source reading
+   shows the same one-file-one-session invariant via `fileBelongsToModule`/`sourcesByModuleName`,
+   so no separate empirical pass was judged necessary — revisit only if HMPP-specific checker
+   behavior is ever reported).
 7. ~~Mapping-completeness test~~ — done: per-minor zero-`UNKNOWN` tripwire; 46 node/token kinds
    mapped including `KW_TYPEALIAS`; KDoc internals explicitly allowlisted.
 

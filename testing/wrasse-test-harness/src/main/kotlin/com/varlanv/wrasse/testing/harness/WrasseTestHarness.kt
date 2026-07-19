@@ -15,6 +15,7 @@ class WrasseTestHarness(
     private val warnOnly: Boolean = false,
     private val extraConfigFiles: Map<String, String> = emptyMap(),
     private val fixOutputDir: Path? = null,
+    private val multiPlatformCommonSources: Set<String> = emptySet(),
 ) {
 
     companion object {
@@ -84,6 +85,10 @@ class WrasseTestHarness(
             noJdk = true
             jvmTarget = "1.8"
             destination = workDir.resolve("out").toString()
+            if (multiPlatformCommonSources.isNotEmpty()) {
+                multiPlatform = true
+                commonSources = multiPlatformCommonSources.map { srcDir.resolve(it).toString() }.toTypedArray()
+            }
             val cp = kotlinStdlibPath
             if (cp != null) {
                 classpath = cp
