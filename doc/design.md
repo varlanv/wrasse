@@ -661,6 +661,34 @@ attribute if their resolved parent is `P` — no special-casing for default-impo
 (`kotlin`, `kotlin.collections`, ...): expanding a redundant star of one into explicit imports is
 compile-preserving and harmless.
 
+**Syntactic gate (dogfooding finding, added after the two correctness-bug fixes described
+below):** classifier and
+member-callable attribution additionally require the attributed symbol's own simple name to
+appear as a written `IDENTIFIER` leaf somewhere in the file body (outside import directives and
+the package directive — `NoWildcardImportsRule` collects this set off the same leaf stream it
+already walks). `WResolvedUsage` records every type the compiler's inference touches, not just
+the ones the author typed — a member chain (`a.b.doSomething()`) resolves through `b`'s type
+without `b`'s class ever appearing as an identifier, and an implicit loop/lambda variable type is
+a real classifier reference with no token in the source at all. Dogfooding on
+`ResolvedUsageCollector.kt` itself (collapsing its seven `fir.types` imports to a star and running
+`wrasseFix`) found exactly this: the fix reconstructed all seven original imports correctly but
+added two superfluous ones, `ConeClassLikeLookupTag` and `ConeTypeProjection`, for types never
+named in the source — one via a member chain (`coneType.lookupTag.classId`), the other via a `for`
+loop variable's implicit type (`for (typeArgument in coneType.typeArguments)`). Compilable and
+idempotent, so not trust-burning like the two correctness bugs described below, but importing a
+name that is never written is over-expansion no IDE would produce. Top-level callable attribution
+is **not** gated: operator conventions (`+` desugars to a member named `plus`, destructuring to
+`componentN`, `()` call syntax to `invoke`) legitimately need an import whose name never appears
+as a written identifier at all — gating those would trade over-expansion for a broken compile,
+strictly worse. A constructor call needs no special case here: writing `Widget()` writes the
+identifier `Widget`, so the gate passes naturally. The gate and the alias-exclusion fix below are
+independent and either is sufficient alone: a symbol reachable only through an alias (never
+written under its plain name) is now dropped by the gate regardless of the alias-exclusion logic,
+which only matters when the plain name *is* separately written (via some other qualified
+reference) — locked by two distinct fixtures (`alias-attribution-error`, gate drops the alias-only
+symbol; `alias-plus-qualified-attribution-error`, both mechanisms coexist and the symbol survives
+because it's also separately written).
+
 **Post-ship review found two real correctness bugs — both producing wrong code, not just a wrong
 report — fixed before this shipped further:**
 
@@ -751,10 +779,19 @@ the outer, constructor call, enum entry access), a star alongside a pre-existing
 of one of its own attributed symbols (excluded from the replacement), two independent stars over
 two different aux packages expanding in one pass, and a single-file stdlib case
 (`import kotlin.math.*` with `abs`/`PI`, locking top-level-callable and property attribution
-without any aux file), and the alias-attribution shape above (an aliased explicit import plus a
-second, star-only symbol) — plus one report-only fixture per bail, including both simple-name-
-collision shapes above, no companion (a bail fixture makes no edit, so the harness's idempotence
-cycle never triggers for it — nothing to re-verify). A
+without any aux file), the alias-attribution shape above (an aliased explicit import plus a
+second, star-only symbol), the alias-plus-qualified shape (same alias, plus a separate fully-
+qualified reference that writes the plain name, so the gate lets it survive), a member-chain and
+loop-variable inference case (`inference-only-classifier-gated-error` — one aux class accessed
+only through another's property, one only through a `for` loop variable's implicit type; the
+expansion includes only the class whose constructor is actually written, dropping both
+inference-only ones), and an operator/destructuring regression guard
+(`operator-convention-ungated-error` — a starred package's extension `operator fun plus` and two
+extension `componentN` functions used only via `a + b` and `val (x, y) = a`; the expansion
+includes all three even though none of their names are ever written, pinning that top-level
+callable attribution stays ungated) — plus one report-only fixture per bail, including both
+simple-name-collision shapes above, no companion (a bail fixture makes no edit, so the harness's
+idempotence cycle never triggers for it — nothing to re-verify). A
 separate `imports-full/` dir runs `no-wildcard-imports` + `no-unused-imports` + `no-semicolons`
 together on one file (star expansion + an unrelated unused explicit import + a trailing
 unnecessary semicolon), proving the three rules' edits stay disjoint and compose correctly without

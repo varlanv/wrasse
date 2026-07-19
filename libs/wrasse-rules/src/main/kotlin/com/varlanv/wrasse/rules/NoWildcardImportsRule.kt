@@ -20,6 +20,7 @@ class NoWildcardImportsRule : WUninitializedRule {
             private val explicitImports = mutableListOf<ImportRecord>()
             private val starImports = mutableListOf<StarImportRecord>()
             private val kdocSpans = mutableListOf<IntRange>()
+            private val writtenIdentifiers = mutableSetOf<String>()
             private val importAssembler = ImportDirectiveAssembler()
             private var packagePathParts = mutableListOf<String>()
             private var filePackageFqName = ""
@@ -67,9 +68,12 @@ class NoWildcardImportsRule : WUninitializedRule {
                     importAssembler.visitLeaf(ctx)
                     return
                 }
-                if (ctx.type == WNodeType.IDENTIFIER && ctx.hasAncestor(WNodeType.PACKAGE_DIRECTIVE)) {
-                    val text = ctx.leafText?.toString()?.removeSurrounding("`") ?: return
+                if (ctx.type != WNodeType.IDENTIFIER) return
+                val text = ctx.leafText?.toString()?.removeSurrounding("`") ?: return
+                if (ctx.hasAncestor(WNodeType.PACKAGE_DIRECTIVE)) {
                     packagePathParts.add(text)
+                } else {
+                    writtenIdentifiers.add(text)
                 }
             }
 
@@ -92,6 +96,7 @@ class NoWildcardImportsRule : WUninitializedRule {
                             filePackageFqName = filePackageFqName,
                             classifiers = usage.classifiers,
                             callables = usage.callables,
+                            writtenIdentifiers = writtenIdentifiers,
                             kdocSpans = kdocSpans,
                             sourceText = ctx.sourceText,
                         )

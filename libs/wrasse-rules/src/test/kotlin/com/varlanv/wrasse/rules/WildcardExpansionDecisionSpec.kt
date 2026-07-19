@@ -35,6 +35,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Widget"),
             callables = setOf(topLevelCallable("p.aux", "auxFun")),
+            writtenIdentifiers = setOf("Widget"),
             kdocSpans = emptyList(),
             sourceText = sourceText,
         )
@@ -52,6 +53,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Outer.Nested"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Outer"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*",
         )
@@ -67,6 +69,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = emptySet(),
             callables = setOf(memberCallable("p.aux", "p.aux.Widget", "Widget")),
+            writtenIdentifiers = setOf("Widget"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*",
         )
@@ -82,6 +85,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Widget", "p.aux.Gadget"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Widget", "Gadget"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*",
         )
@@ -89,7 +93,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
         edit.replacement shouldBe "import p.aux.Gadget"
     }
 
-    should("NOT exclude a symbol covered only by an ALIASED explicit import of the same FQN") {
+    should("NOT exclude a symbol covered only by an ALIASED explicit import of the same FQN, when its plain name is also written") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
             duplicatePackages = emptySet(),
@@ -97,6 +101,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Outer", "p.aux.Gadget"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Outer", "Gadget"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*",
         )
@@ -112,6 +117,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.auxc1.Item", "p.auxc2.Item"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Item"),
             kdocSpans = emptyList(),
             sourceText = "import p.auxc1.*",
         )
@@ -126,6 +132,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.auxflip.List", "kotlin.collections.List", "kotlin.Int"),
             callables = setOf(topLevelCallable("kotlin.collections", "listOf")),
+            writtenIdentifiers = setOf("List"),
             kdocSpans = emptyList(),
             sourceText = "import p.auxflip.*",
         )
@@ -140,6 +147,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Widget", "p.aux2.Sensor"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Widget", "Sensor"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*",
         )
@@ -155,6 +163,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Item", "p.aux2.Item"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Item"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*",
         )
@@ -165,6 +174,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Item", "p.aux2.Item"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Item"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*\nimport p.aux2.*",
         )
@@ -180,6 +190,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = emptySet(),
             callables = emptySet(),
+            writtenIdentifiers = emptySet(),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*",
         )
@@ -194,6 +205,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("sample.Widget"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Widget"),
             kdocSpans = emptyList(),
             sourceText = "import sample.*",
         )
@@ -208,6 +220,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Widget"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Widget"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.*",
         )
@@ -222,6 +235,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = emptySet(),
             callables = setOf(memberCallable("p.aux", "p.aux.Status", "ACTIVE")),
+            writtenIdentifiers = setOf("ACTIVE"),
             kdocSpans = emptyList(),
             sourceText = "import p.aux.Status.*",
         )
@@ -237,6 +251,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Widget"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Widget"),
             kdocSpans = emptyList(),
             sourceText = sourceText,
         )
@@ -252,6 +267,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Widget"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Widget"),
             kdocSpans = listOf(0 until 35),
             sourceText = sourceText,
         )
@@ -267,6 +283,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Widget"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Widget"),
             kdocSpans = listOf(0 until 36),
             sourceText = sourceText,
         )
@@ -283,6 +300,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             filePackageFqName = "sample",
             classifiers = setOf("p.aux.Gadget"),
             callables = emptySet(),
+            writtenIdentifiers = setOf("Gadget"),
             kdocSpans = listOf(0 until 43),
             sourceText = sourceText,
         )
@@ -301,10 +319,73 @@ class WildcardExpansionDecisionSpec : BaseSpec({
                 topLevelCallable("kotlin.math", "abs"),
                 topLevelCallable("kotlin.math", "PI"),
             ),
+            writtenIdentifiers = emptySet(),
             kdocSpans = emptyList(),
             sourceText = "import kotlin.math.*",
         )
         edit.shouldNotBeNull()
         edit.replacement shouldBe "import kotlin.math.PI\nimport kotlin.math.abs"
+    }
+
+    should("GATE: keep a classifier attribution whose simple name is written somewhere in the file") {
+        val edit = WildcardExpansionDecision.decide(
+            star = star("p.aux", startOffset = 0, endOffset = 14),
+            duplicatePackages = emptySet(),
+            explicitImports = emptyList(),
+            filePackageFqName = "sample",
+            classifiers = setOf("p.aux.Widget"),
+            callables = emptySet(),
+            writtenIdentifiers = setOf("Widget"),
+            kdocSpans = emptyList(),
+            sourceText = "import p.aux.*",
+        )
+        edit.shouldNotBeNull()
+        edit.replacement shouldBe "import p.aux.Widget"
+    }
+
+    should("GATE: drop a classifier attribution whose simple name is never written (inference-only usage)") {
+        val edit = WildcardExpansionDecision.decide(
+            star = star("p.aux", startOffset = 0, endOffset = 14),
+            duplicatePackages = emptySet(),
+            explicitImports = emptyList(),
+            filePackageFqName = "sample",
+            classifiers = setOf("p.aux.Widget"),
+            callables = emptySet(),
+            writtenIdentifiers = emptySet(),
+            kdocSpans = emptyList(),
+            sourceText = "import p.aux.*",
+        )
+        edit.shouldBeNull()
+    }
+
+    should("GATE: drop a member-callable attribution whose owner's simple name is never written (instance-member access)") {
+        val edit = WildcardExpansionDecision.decide(
+            star = star("p.aux", startOffset = 0, endOffset = 14),
+            duplicatePackages = emptySet(),
+            explicitImports = emptyList(),
+            filePackageFqName = "sample",
+            classifiers = emptySet(),
+            callables = setOf(memberCallable("p.aux", "p.aux.Widget", "member")),
+            writtenIdentifiers = setOf("member"),
+            kdocSpans = emptyList(),
+            sourceText = "import p.aux.*",
+        )
+        edit.shouldBeNull()
+    }
+
+    should("GATE: keep a top-level callable attribution even when its name is never written (operator/componentN/invoke conventions)") {
+        val edit = WildcardExpansionDecision.decide(
+            star = star("p.aux", startOffset = 0, endOffset = 14),
+            duplicatePackages = emptySet(),
+            explicitImports = emptyList(),
+            filePackageFqName = "sample",
+            classifiers = emptySet(),
+            callables = setOf(topLevelCallable("p.aux", "plus")),
+            writtenIdentifiers = emptySet(),
+            kdocSpans = emptyList(),
+            sourceText = "import p.aux.*",
+        )
+        edit.shouldNotBeNull()
+        edit.replacement shouldBe "import p.aux.plus"
     }
 })

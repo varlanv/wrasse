@@ -28,16 +28,36 @@ class StarImportRecord(
  *   `classFqName`/`name` are the class's own FQN/simple name; companion/enum members; Java
  *   statics) attributes `P.X`.
  *
+ * **Syntactic gate — a name must actually be written to be worth importing.** `WResolvedUsage`
+ * records every type the compiler's inference touches, not just the ones the author typed: a
+ * member chain (`x.y.z()`) resolves through every intermediate type's members without the
+ * intermediate types themselves ever appearing as identifiers, and an implicit local/loop/lambda
+ * parameter type is a real classifier reference with no token in the source at all. Importing a
+ * class whose name is never written is over-expansion no IDE would produce, even though it is
+ * harmless (compilable, idempotent) — so classifier attribution and member-callable attribution
+ * additionally require `X` (the attributed symbol's own simple name) to appear as a written
+ * `IDENTIFIER` somewhere in the file body (outside import directives and the package directive —
+ * those can't self-justify an import). A constructor call needs no special case: writing
+ * `Widget()` writes the identifier `Widget`, so the gate passes naturally for the common case.
+ * Top-level callable attribution is **not** gated: operator conventions (`+` desugars to a member
+ * named `plus`, destructuring to `componentN`, `()` call syntax to `invoke`) legitimately need an
+ * import whose name never appears as a written identifier at all — gating those would silently
+ * drop imports the file actually needs, trading over-expansion for a broken compile, a strictly
+ * worse outcome.
+ *
  * A symbol already covered by an existing **non-aliased** explicit import of the same FQN is
  * excluded — that import already brings its plain simple name into scope. An *aliased* explicit
  * import (`import a.b.X as Y`) does **not** exclude `a.b.X` — it only binds the name `Y`, never
- * the plain `X`, so if the file also uses bare `X` (resolving today through the star), `X` still
- * needs its own explicit import; a plain `import a.b.X` and an aliased `import a.b.X as Y` of the
- * same target legally coexist (empirically confirmed: harness-driven real-compile probe, zero
- * diagnostics), so this is a normal expansion, never a bail. Symbols reachable only via Kotlin's
- * default imports still attribute if their resolved parent is `P`: expanding a redundant star of
- * a default-imported package (e.g. `import kotlin.collections.*`) into explicit imports is
- * compile-preserving and harmless, so no special-casing is done for default-import packages.
+ * the plain `X` — but if the file never writes plain `X` either (only ever `Y`), the syntactic
+ * gate above already drops `X` from attribution on its own; the two mechanisms are independent
+ * and either alone is sufficient once both exist. A plain `import a.b.X` and an aliased
+ * `import a.b.X as Y` of the same target legally coexist (empirically confirmed: harness-driven
+ * real-compile probe, zero diagnostics), so on the rare occasion both survive (alias present,
+ * plain name also written via some other qualified reference) this is a normal expansion, never
+ * a bail. Symbols reachable only via Kotlin's default imports still attribute if their resolved
+ * parent is `P`: expanding a redundant star of a default-imported package (e.g.
+ * `import kotlin.collections.*`) into explicit imports is compile-preserving and harmless, so no
+ * special-casing is done for default-import packages.
  *
  * **Bails** (report fires, no edit — every ambiguity resolves toward "don't touch it"):
  * 1. Whole-file bail on missing/errored resolution is the caller's job (no resolved usage
@@ -94,6 +114,7 @@ object WildcardExpansionDecision {
         filePackageFqName: String,
         classifiers: Set<String>,
         callables: Set<WCallableUsage>,
+        writtenIdentifiers: Set<String>,
         kdocSpans: List<IntRange>,
         sourceText: CharSequence,
     ): WEdit? {
@@ -103,7 +124,7 @@ object WildcardExpansionDecision {
         if (callables.any { it.classFqName == star.packageFqName }) return null
 
         val explicitFqns = explicitImports.filter { it.aliasName == null }.mapTo(mutableSetOf()) { it.fqn }
-        val attributed = attributedSymbols(star.packageFqName, classifiers, callables)
+        val attributed = attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
             .filterNot { it in explicitFqns }
             .toSortedSet()
         if (attributed.isEmpty()) return null
@@ -122,12 +143,16 @@ object WildcardExpansionDecision {
         packageFqName: String,
         classifiers: Set<String>,
         callables: Set<WCallableUsage>,
+        writtenIdentifiers: Set<String>,
     ): Set<String> {
         val prefix = "$packageFqName."
         val result = mutableSetOf<String>()
         for (classifier in classifiers) {
             if (classifier.startsWith(prefix)) {
-                result.add(topLevelSymbol(packageFqName, prefix, classifier))
+                val symbol = topLevelSymbol(packageFqName, prefix, classifier)
+                if (isWritten(symbol, writtenIdentifiers)) {
+                    result.add(symbol)
+                }
             }
         }
         for (callable in callables) {
@@ -137,11 +162,17 @@ object WildcardExpansionDecision {
                     result.add("$packageFqName.${callable.name}")
                 }
             } else if (classFqName.startsWith(prefix)) {
-                result.add(topLevelSymbol(packageFqName, prefix, classFqName))
+                val symbol = topLevelSymbol(packageFqName, prefix, classFqName)
+                if (isWritten(symbol, writtenIdentifiers)) {
+                    result.add(symbol)
+                }
             }
         }
         return result
     }
+
+    private fun isWritten(symbol: String, writtenIdentifiers: Set<String>): Boolean =
+        symbol.substringAfterLast('.') in writtenIdentifiers
 
     private fun topLevelSymbol(packageFqName: String, prefix: String, fqn: String): String =
         "$packageFqName.${fqn.removePrefix(prefix).substringBefore('.')}"
