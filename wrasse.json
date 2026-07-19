@@ -4,6 +4,7 @@
         "no-empty-class-body": { "level": "error" },
         "import-ordering": { "level": "error" },
         "no-unnecessary-fqn": { "level": "error" },
+        "no-unit-return": { "level": "error" },
         "no-semicolons": { "level": "error" },
         "no-unused-imports": { "level": "error" },
         "no-wildcard-imports": { "level": "error" },
