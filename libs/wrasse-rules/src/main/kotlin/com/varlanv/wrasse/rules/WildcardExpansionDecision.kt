@@ -105,8 +105,6 @@ class StarImportRecord(
  */
 object WildcardExpansionDecision {
 
-    private val KDOC_REFERENCE_PATTERN = Regex("\\[([\\p{L}_][\\p{L}\\p{N}_.]*)]")
-
     fun decide(
         star: StarImportRecord,
         duplicatePackages: Set<String>,
@@ -121,10 +119,10 @@ object WildcardExpansionDecision {
         if (star.packageFqName in duplicatePackages) return null
         if (star.packageFqName == filePackageFqName) return null
         if (!ImportLineSpan.isAloneOnLine(sourceText, star.startOffset, star.endOffset)) return null
-        if (callables.any { it.classFqName == star.packageFqName }) return null
+        if (StarAttribution.isMemberStar(star.packageFqName, callables)) return null
 
         val explicitFqns = explicitImports.filter { it.aliasName == null }.mapTo(mutableSetOf()) { it.fqn }
-        val attributed = attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
+        val attributed = StarAttribution.attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
             .filterNot { it in explicitFqns }
             .toSortedSet()
         if (attributed.isEmpty()) return null
@@ -133,49 +131,11 @@ object WildcardExpansionDecision {
 
         val coveredNames = explicitImports.mapTo(mutableSetOf()) { it.aliasName ?: it.simpleName }
         attributed.mapTo(coveredNames) { it.substringAfterLast('.') }
-        if (kdocReferencesUncovered(kdocSpans, sourceText, coveredNames)) return null
+        if (StarAttribution.kdocReferencesUncovered(kdocSpans, sourceText, coveredNames)) return null
 
         val replacement = attributed.joinToString("\n") { "import $it" }
         return WEdit(star.startOffset, star.endOffset, replacement)
     }
-
-    private fun attributedSymbols(
-        packageFqName: String,
-        classifiers: Set<String>,
-        callables: Set<WCallableUsage>,
-        writtenIdentifiers: Set<String>,
-    ): Set<String> {
-        val prefix = "$packageFqName."
-        val result = mutableSetOf<String>()
-        for (classifier in classifiers) {
-            if (classifier.startsWith(prefix)) {
-                val symbol = topLevelSymbol(packageFqName, prefix, classifier)
-                if (isWritten(symbol, writtenIdentifiers)) {
-                    result.add(symbol)
-                }
-            }
-        }
-        for (callable in callables) {
-            val classFqName = callable.classFqName
-            if (classFqName == null) {
-                if (callable.packageFqName == packageFqName) {
-                    result.add("$packageFqName.${callable.name}")
-                }
-            } else if (classFqName.startsWith(prefix)) {
-                val symbol = topLevelSymbol(packageFqName, prefix, classFqName)
-                if (isWritten(symbol, writtenIdentifiers)) {
-                    result.add(symbol)
-                }
-            }
-        }
-        return result
-    }
-
-    private fun isWritten(symbol: String, writtenIdentifiers: Set<String>): Boolean =
-        symbol.substringAfterLast('.') in writtenIdentifiers
-
-    private fun topLevelSymbol(packageFqName: String, prefix: String, fqn: String): String =
-        "$packageFqName.${fqn.removePrefix(prefix).substringBefore('.')}"
 
     private fun hasSimpleNameCollision(
         attributed: Set<String>,
@@ -199,20 +159,5 @@ object WildcardExpansionDecision {
             val fqns = fqnsBySimpleName[symbol.substringAfterLast('.')] ?: emptySet()
             fqns.any { it != symbol }
         }
-    }
-
-    private fun kdocReferencesUncovered(
-        kdocSpans: List<IntRange>,
-        sourceText: CharSequence,
-        coveredSimpleNames: Set<String>,
-    ): Boolean {
-        for (span in kdocSpans) {
-            val text = sourceText.subSequence(span.first, span.last + 1)
-            for (match in KDOC_REFERENCE_PATTERN.findAll(text)) {
-                val leadingSegment = match.groupValues[1].substringBefore('.')
-                if (leadingSegment !in coveredSimpleNames) return true
-            }
-        }
-        return false
     }
 }

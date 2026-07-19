@@ -806,7 +806,9 @@ takes an `auxSources` parameter and recompiles round 2 with them present.
 `no-unused-imports`/FQN-shortening/`import-ordering` into one `ImportEngine` decision-maker remain
 future work per §6/§13 B.3 — this pass ships the expansion fix standalone, bailing everywhere a
 real engine would eventually own the decision instead. Import re-sorting after expansion is no
-longer deferred — `import-ordering` (below) composes over exactly this rule's edits.
+longer deferred — `import-ordering` (below) composes over exactly this rule's edits. Zero-attribution
+star removal (bail 3 above) is no longer deferred either — `no-unused-imports` now owns that case
+directly (below), reusing this rule's attribution computation rather than waiting on the engine.
 
 **As-built (`import-ordering`, the first real-rule exercise of EditPlan composition across
 `afterFile`-deferred edits, D18):** plain ASCII-alphabetical order on the file's import
@@ -911,6 +913,53 @@ pass now expands the star, removes the unused import, and re-sorts the surviving
 the pre-existing `no-semicolons` fix, all in one pass — plus the two edge-case fixtures described
 above (comment blocks reordering while removal/expansion still apply; the dangling last-directive
 deletion).
+
+**As-built (`no-unused-imports` star removal, closing the last import-autofix gap):** a
+zero-attribution `import P.*` — a star providing nothing — used to be flagged by
+`no-wildcard-imports` but never auto-removed (`no-unused-imports` skipped stars entirely, §8 above).
+`NoUnusedImportsRule` now also tracks star directives, the file's package FQN, and every written
+identifier — the same bookkeeping `NoWildcardImportsRule` already does — and calls a new pure
+decision function, `UnusedStarDecision.decide` (unit-tested without a compiler). Its attribution
+computation is *reused, not duplicated*: `WildcardExpansionDecision`'s attribution logic (the
+written-identifier gate, the ungated top-level-callable/operator-convention rule, the member-star
+check) was extracted into a shared `StarAttribution` object both rules call. A star is removed iff:
+its attributed set — filtered by the same non-aliased-explicit-import exclusion expansion applies —
+is empty; it is not a member-star (some used callable's `classFqName` equals the star's own package
+FQN exactly — attribution cannot see member-star usage at all, so skipping this check would
+misreport a used member-star as unused, the same reason expansion bails on it outright); its own
+package is not the file's own package (redundancy, not unusedness — deferred to the engine, see
+below); and no KDoc bracket reference is left uncovered by every *other* source (explicit imports
+plus every *other* star's own attribution — this star contributes nothing itself, so it cannot cover
+anything). Whether an edit is attached is unchanged: `ImportRemovalSpan`'s existing alone-on-line
+policy — report always fires, edit `null` when the directive shares its line with something else,
+the same D19 survivor shape as an unused explicit import. Duplicate identical zero-attribution stars
+are *not* bailed here (unlike expansion's duplicate-package bail, which exists only to pick one
+expansion target) — each is decided independently, so both come back removed with their own disjoint
+whole-line edits.
+
+With both rules enabled, an unused star now produces two reports (`no-wildcard-imports`'s
+unconditional one plus this rule's "Unused import") but only one edit — expansion's own
+zero-attribution bail never emits a competing edit for the same span, so there is no `EditPlan`
+overlap; `import-ordering` consumes the removal via `takeEditsIn` like any other whole-line deletion.
+
+**Still out of scope, deliberately (deferred to the `ImportEngine`, §6/§13):** an own-package star
+(`P == filePackageFqName`) is always redundant but is left untouched here — that's a different
+judgment call (harmless-but-pointless vs. "provides nothing") the engine is meant to own, not this
+rule. A star that is redundant only because every attributed symbol already has an explicit import
+(a "default-redundant" star, as opposed to a *zero*-attribution one) also stays untouched by
+`no-unused-imports` — its attribution is non-empty, so it is correctly out of this rule's scope by
+construction, and remains a `no-wildcard-imports` report-only finding until the engine exists.
+
+**Fixtures:** `no-unused-imports-star/` (own `wrasse.json`, only `no-unused-imports` enabled) covers
+a zero-attribution star alongside a used explicit import (removed, `.fixed.kt` companion), a star
+attributed only through an ungated operator convention from the starred package (out of scope,
+`expect-clean`), a zero-attribution star with an uncovered KDoc reference (out of scope,
+`expect-clean`), a same-line zero-attribution star (report fires, no edit — D19 survivor), two
+duplicate zero-attribution stars (both removed, companion), and an own-package star (out of scope,
+`expect-clean`). `imports-full/` gained one more fixture: an unused star alongside an unused
+explicit import and an unsorted surviving pair — one `wrasseFix` pass removes both and re-sorts,
+and the star's own line pins the two-reports-one-edit interaction directly (`expect-error` lines
+for both `no-wildcard-imports` and `no-unused-imports` at the same span).
 
 ---
 
@@ -1268,9 +1317,12 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   ASCII-alphabetical re-sort, no grouping, no config knob) shipped ahead of the engine as a fourth
   standalone rule — composing over the other two's `afterFile`-deferred edits via
   `EditPlan.takeEditsIn`, registration-order-dependent until the engine exists (§8 has the full
-  mechanism and the edge cases it had to handle). Still deferred to the eventual `ImportEngine`:
-  member-star expansion, FQN-shortening, dedup, unused-star removal, and fusing all four of these
-  into one decision-maker so registration order stops mattering.
+  mechanism and the edge cases it had to handle). Zero-attribution star removal shipped ahead of
+  the engine too (§8): `no-unused-imports` now flags and, when safe, removes a package-star that
+  attributes nothing, reusing expansion's attribution computation (extracted into a shared
+  `StarAttribution`) rather than duplicating it. Still deferred to the eventual `ImportEngine`:
+  member-star expansion, FQN-shortening, dedup, own-package/default-redundant star removal, and
+  fusing all four rules into one decision-maker so registration order stops mattering.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.
