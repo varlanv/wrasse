@@ -25,6 +25,13 @@ interface WUninitializedRuleGroup {
     fun requiresResolution(enabledIds: Set<String>): Boolean = false
 
     /**
+     * True if resolving [WResolvedUsage.qualifiedUsages] is required given which of [ids] are
+     * enabled, mirroring [WUninitializedRule.requiresQualifiedUsages] at group granularity.
+     * Default false.
+     */
+    fun requiresQualifiedUsages(enabledIds: Set<String>): Boolean = false
+
+    /**
      * Produces a fresh, fused [WRule] instance for one file, configured with exactly the
      * enabled, non-excluded-for-this-file ids and their [WrasseRuleConfig]s. Never called with
      * an empty map — an empty surviving set means the group is skipped for this file entirely.

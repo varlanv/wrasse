@@ -34,6 +34,14 @@ class WRuleSet(
         activeRules.any { (uninitialized, _) -> uninitialized.requiresResolution } ||
             activeGroups.any { (group, configs) -> group.requiresResolution(configs.keys) }
 
+    /**
+     * True if any active rule or group opts into requiring [WResolvedUsage.qualifiedUsages].
+     * Computed once, not per file, mirroring [requiresResolution].
+     */
+    val requiresQualifiedUsages: Boolean =
+        activeRules.any { (uninitialized, _) -> uninitialized.requiresQualifiedUsages } ||
+            activeGroups.any { (group, configs) -> group.requiresQualifiedUsages(configs.keys) }
+
     fun dispatchForFile(isExcluded: (WrasseRuleConfig) -> Boolean): StreamDispatch {
         val rules = ArrayList<WRule>(activeRules.size + activeGroups.size)
         for ((uninitialized, config) in activeRules) {

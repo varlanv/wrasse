@@ -13,6 +13,9 @@ interface WUninitializedRule {
     /** True if this rule needs [WContext.resolvedUsage] collected for the files it runs on. */
     val requiresResolution: Boolean get() = false
 
+    /** True if this rule needs [WResolvedUsage.qualifiedUsages] populated, a stronger ask than [requiresResolution] alone. */
+    val requiresQualifiedUsages: Boolean get() = false
+
     fun initRule(config: WrasseRuleConfig): WRule
 }
 

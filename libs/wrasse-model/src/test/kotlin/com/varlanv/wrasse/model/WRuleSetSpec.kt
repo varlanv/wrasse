@@ -26,6 +26,21 @@ private class RecordingRule(override val id: String) : WUninitializedRule {
     }
 }
 
+private class QualifiedUsagesRequiringRule(override val id: String) : WUninitializedRule {
+    override val requiresQualifiedUsages: Boolean = true
+
+    override fun initRule(config: WrasseRuleConfig): WRule = CountingFileRule(id, config)
+}
+
+private class RecordingGroup(
+    override val ids: Set<String>,
+    private val requiresQualifiedUsagesFlag: Boolean,
+) : WUninitializedRuleGroup {
+    override fun requiresQualifiedUsages(enabledIds: Set<String>): Boolean = requiresQualifiedUsagesFlag
+
+    override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule = CountingFileRule(ids.first(), configs.values.first())
+}
+
 private class NoopReporter : WReporter {
     override val reports = mutableListOf<ViolationReport>()
 
@@ -89,5 +104,27 @@ class WRuleSetSpec : BaseSpec({
         rule2.visit(ctx, reporter)
         rule2.visitCount shouldBe 1
         rule1.visitCount shouldBe 2
+    }
+
+    should("stay false when no rule or group opts into requiresQualifiedUsages") {
+        val ruleSet = WRuleSet(
+            listOf(RecordingRule("plain-rule") to errorConfig()),
+            listOf(RecordingGroup(setOf("group-rule"), requiresQualifiedUsagesFlag = false) to mapOf("group-rule" to errorConfig())),
+        )
+
+        ruleSet.requiresQualifiedUsages shouldBe false
+    }
+
+    should("aggregate requiresQualifiedUsages true when a plain rule opts in") {
+        val ruleSet = WRuleSet(listOf(QualifiedUsagesRequiringRule("qualified-rule") to errorConfig()))
+
+        ruleSet.requiresQualifiedUsages shouldBe true
+    }
+
+    should("aggregate requiresQualifiedUsages true when a group opts in") {
+        val group = RecordingGroup(setOf("group-rule"), requiresQualifiedUsagesFlag = true)
+        val ruleSet = WRuleSet(emptyList(), listOf(group to mapOf("group-rule" to errorConfig())))
+
+        ruleSet.requiresQualifiedUsages shouldBe true
     }
 })

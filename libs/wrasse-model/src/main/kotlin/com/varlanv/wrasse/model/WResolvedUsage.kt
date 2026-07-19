@@ -16,6 +16,8 @@ class WResolvedUsage(
     val hasResolutionErrors: Boolean,
     /** The file's own import directives as FIR resolved them, in source order, one entry per directive (duplicates included). */
     val resolvedImports: List<WResolvedImport>,
+    /** Every qualifier/type-ref FIR resolved to a real source span, collected only when [WContext.resolvedUsage] collection is gated on for qualified usages (D.1 spike, design.md §8) — empty when not collected. */
+    val qualifiedUsages: List<WQualifiedUsage> = emptyList(),
 )
 
 /**

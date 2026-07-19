@@ -1,8 +1,12 @@
 package com.varlanv.wrasse.plugin.internal
 
 import com.varlanv.wrasse.model.WCallableUsage
+import com.varlanv.wrasse.model.WQualifiedUsage
+import com.varlanv.wrasse.model.WQualifiedUsageKind
 import com.varlanv.wrasse.model.WResolvedImport
 import com.varlanv.wrasse.model.WResolvedUsage
+import org.jetbrains.kotlin.KtRealSourceElementKind
+import org.jetbrains.kotlin.KtSourceElement
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirFile
@@ -29,9 +33,9 @@ import org.jetbrains.kotlin.name.CallableId
 object ResolvedUsageCollector {
 
     @OptIn(DirectDeclarationsAccess::class)
-    fun collect(file: FirFile): WResolvedUsage =
+    fun collect(file: FirFile, collectQualifiedUsages: Boolean = false): WResolvedUsage =
         runCatching {
-            val visitor = UsageVisitor()
+            val visitor = UsageVisitor(collectQualifiedUsages)
             for (annotation in file.annotations) {
                 annotation.accept(visitor)
             }
@@ -43,9 +47,16 @@ object ResolvedUsageCollector {
                 callables = visitor.callables,
                 hasResolutionErrors = visitor.hasErrors,
                 resolvedImports = collectResolvedImports(file),
+                qualifiedUsages = visitor.qualifiedUsages,
             )
         }.getOrElse {
-            WResolvedUsage(emptySet(), emptySet(), hasResolutionErrors = true, resolvedImports = emptyList())
+            WResolvedUsage(
+                classifiers = emptySet(),
+                callables = emptySet(),
+                hasResolutionErrors = true,
+                resolvedImports = emptyList(),
+                qualifiedUsages = emptyList(),
+            )
         }
 
     private fun collectResolvedImports(file: FirFile): List<WResolvedImport> =
@@ -63,9 +74,10 @@ object ResolvedUsageCollector {
             }
         }
 
-    private class UsageVisitor : FirVisitorVoid() {
+    private class UsageVisitor(private val collectQualifiedUsages: Boolean) : FirVisitorVoid() {
         val classifiers = mutableSetOf<String>()
         val callables = mutableSetOf<WCallableUsage>()
+        val qualifiedUsages = mutableListOf<WQualifiedUsage>()
         var hasErrors = false
 
         override fun visitElement(element: FirElement) {
@@ -111,6 +123,9 @@ object ResolvedUsageCollector {
 
         override fun visitResolvedTypeRef(resolvedTypeRef: FirResolvedTypeRef) {
             collectConeType(resolvedTypeRef.coneType)
+            if (collectQualifiedUsages) {
+                recordTypeRefUsage(resolvedTypeRef)
+            }
             visitElement(resolvedTypeRef)
         }
 
@@ -121,6 +136,9 @@ object ResolvedUsageCollector {
 
         override fun visitResolvedQualifier(resolvedQualifier: FirResolvedQualifier) {
             resolvedQualifier.classId?.let { classifiers.add(it.asFqNameString()) }
+            if (collectQualifiedUsages) {
+                recordQualifierUsage(resolvedQualifier)
+            }
             visitElement(resolvedQualifier)
         }
 
@@ -146,6 +164,24 @@ object ResolvedUsageCollector {
                     }
                 }
             }
+        }
+
+        private fun recordQualifierUsage(resolvedQualifier: FirResolvedQualifier) {
+            val classId = resolvedQualifier.classId ?: return
+            recordUsage(resolvedQualifier.source, classId.asFqNameString(), WQualifiedUsageKind.QUALIFIER)
+        }
+
+        private fun recordTypeRefUsage(resolvedTypeRef: FirResolvedTypeRef) {
+            val classId = (resolvedTypeRef.coneType as? ConeClassLikeType)?.lookupTag?.classId ?: return
+            recordUsage(resolvedTypeRef.source, classId.asFqNameString(), WQualifiedUsageKind.TYPE_REF)
+        }
+
+        private fun recordUsage(source: KtSourceElement?, targetFqName: String, kind: WQualifiedUsageKind) {
+            if (source == null || source.kind !== KtRealSourceElementKind) return
+            val start = source.startOffset
+            val end = source.endOffset
+            if (start < 0 || end < start) return
+            qualifiedUsages.add(WQualifiedUsage(start, end, targetFqName, kind))
         }
 
         private fun toCallableUsage(callableId: CallableId, isStatic: Boolean): WCallableUsage {

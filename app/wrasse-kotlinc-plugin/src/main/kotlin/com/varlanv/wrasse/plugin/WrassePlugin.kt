@@ -9,6 +9,7 @@ import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
 import com.varlanv.wrasse.model.WCallableUsage
 import com.varlanv.wrasse.model.WContext
+import com.varlanv.wrasse.model.WQualifiedUsage
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WResolvedImport
 import com.varlanv.wrasse.model.WResolvedUsage
@@ -37,7 +38,7 @@ class WrassePlugin(
         source: KtLightSourceElement,
         fileName: String,
         sourceFilePath: String,
-        resolvedUsage: (() -> WResolvedUsage)? = null,
+        resolvedUsage: ((collectQualifiedUsages: Boolean) -> WResolvedUsage)? = null,
     ): List<ViolationReport> {
         val filePath = resolveFilePath(sourceFilePath, fileName)
         if (matchesAny(globalExclude, filePath)) {
@@ -47,8 +48,9 @@ class WrassePlugin(
         val dispatch = ruleSet.dispatchForFile { config -> matchesAny(config.exclude, filePath) }
 
         val ctx = WContext(filePath = filePath.toString())
-        if (resolvedUsage != null && (dumpResolvedUsage || ruleSet.requiresResolution)) {
-            ctx.resolvedUsage = resolvedUsage()
+        val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
+        if (resolvedUsage != null && (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages)) {
+            ctx.resolvedUsage = resolvedUsage(needsQualifiedUsages)
         }
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
@@ -108,8 +110,15 @@ class WrassePlugin(
         val classifiers = usage.classifiers.sorted().joinToString(prefix = "[", postfix = "]")
         val callables = usage.callables.map(::dumpCallable).sorted().joinToString(prefix = "[", postfix = "]")
         val imports = usage.resolvedImports.map(::dumpImport).sorted().joinToString(prefix = "[", postfix = "]")
-        return "resolved-usage: classifiers=$classifiers callables=$callables imports=$imports errors=${usage.hasResolutionErrors}"
+        val qualified = usage.qualifiedUsages
+            .sortedWith(compareBy({ it.startOffset }, { it.endOffset }))
+            .map(::dumpQualifiedUsage)
+            .joinToString(prefix = "[", postfix = "]")
+        return "resolved-usage: classifiers=$classifiers callables=$callables imports=$imports qualified=$qualified errors=${usage.hasResolutionErrors}"
     }
+
+    private fun dumpQualifiedUsage(usage: WQualifiedUsage): String =
+        "${usage.startOffset}..${usage.endOffset}:${usage.kind}:${usage.targetFqName}"
 
     private fun dumpCallable(usage: WCallableUsage): String {
         val owner = usage.classFqName ?: usage.packageFqName

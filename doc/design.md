@@ -1123,6 +1123,57 @@ also removed — `.fixed.kt`); the pre-existing `member-star-used-clean` fixture
 re-sort in one `wrasseFix` pass, same composition mechanism as a package-star's. Zero existing
 package-star fixture changed.
 
+**As-built (LightTree↔FIR offset-correlation spike — D.1 of the FQN→import track, 2026-07-19):**
+first of a three-part feature (D.1 this spike / D.2 a report-only rule / D.3 a fix, both still
+ahead); this part proves the offset-correlation bet with zero user-visible change — no rule logic,
+no rewrites. `WResolvedUsage.qualifiedUsages: List<WQualifiedUsage>` (`wrasse-model`, zero kotlinc
+deps) adds `WQualifiedUsage(startOffset, endOffset, targetFqName, kind: WQualifiedUsageKind)`
+(`QUALIFIER` | `TYPE_REF`), one entry per `FirResolvedQualifier`/`FirResolvedTypeRef` (class-like
+cone type only) whose own `source` is a **real** element —
+`source.kind === KtRealSourceElementKind`, javap-confirmed byte-identical bytecode surface
+(`KtSourceElement.getKind()`, `AbstractKtSourceElement.getStartOffset()`/`getEndOffset()`,
+`KtRealSourceElementKind` as a singleton object) across kotlin-compiler-embeddable
+2.1.21/2.2.21/2.3.21/2.4.0 — no per-minor branching needed. `ResolvedUsageCollector`'s
+`UsageVisitor` records these alongside its existing classifier/callable collection
+(`recordQualifierUsage`/`recordTypeRefUsage`, both funneling through one defensive `recordUsage`
+that also skips a null/negative/inverted span rather than throwing, matching the collector's
+existing whole-file `runCatching` posture). `FirFile.imports`/`packageDirective` are still separate
+fields the visitor never visits (unchanged from the resolution-facade spike above), so import/
+package-directive text self-evidently never contributes a qualified usage. **The bet holds, with
+zero divergence found:** a single fixture (`QualifiedUsageCorrelationSpec`, `tests-base` + one
+subclass per minor, the established per-minor pattern) compiles one source file plus an aux
+cross-package file and asserts the **exact** `qualified=[...]` dump segment byte-for-byte identical
+on all four minors — same spans, same order, same targets — including a hand-verified span
+(`17..29:TYPE_REF:sample.aux.A` for `@sample.aux.A`, confirmed by counting UTF-16 code units from
+file start: `"package sample\n\n@sample.aux.A\n..."`, offset 17 lands exactly on the `s` of
+`sample.aux.A` after the `@`) proving these are the same raw LightTree offsets the SAX walk itself
+reports (`ViolationReport`'s own offset convention), not a separately-mapped coordinate space. The
+same fixture locks the four **hazard** constructs (a `for` loop over a range, a destructuring
+declaration, a string template, an `if` used as an expression) as producing **zero** qualified-usage
+entries — their desugared machinery (`kotlin.collections.IntIterator`, `Pair.component1`/
+`component2`, `_synthetic/WHEN_CALL`) still shows up in the pre-existing `classifiers`/`callables`
+sets exactly as before, but every one of those FIR nodes carries a fake, not real, source, so
+`recordUsage`'s kind check drops them by construction — no special-casing needed in the collector.
+One honesty note carried over from the resolution-facade spike, restated because this is the first
+consumer-facing use of it: `TYPE_REF` fires for **every** resolved class-like type ref with a real
+source, written qualified or not (a bare `Regex` parameter type gets a `TYPE_REF` entry exactly like
+a qualified `sample.aux.C` one) — judging "was this actually written with a dot in it" is explicitly
+D.2's job (walk-side syntax), not this facade's; existing `ResolvedUsageDumpSpec` cases were updated
+to their real, mostly-small `qualified=[...]` segments (a bare parameter/return type still yields a
+`TYPE_REF` entry) rather than approximated. **Gating**, exactly mirroring `requiresResolution`'s
+existing shape: `WUninitializedRule.requiresQualifiedUsages` / `WUninitializedRuleGroup
+.requiresQualifiedUsages(enabledIds)` (both default false) aggregate into `WRuleSet
+.requiresQualifiedUsages` (computed once, OR across rules and groups); `WrassePlugin.checkFile`
+gates the collector call itself on `dumpResolvedUsage || requiresResolution ||
+requiresQualifiedUsages` as before, and separately passes a `collectQualifiedUsages: Boolean`
+(`dumpResolvedUsage || requiresQualifiedUsages`) through the now-parameterized `resolvedUsage`
+lambda so the extra visitor work (and the list itself) is skipped entirely unless actually wanted —
+nothing sets `requiresQualifiedUsages` yet except dump mode, locked by `WRuleSetSpec`'s aggregation
+tests plus the pre-existing `ResolvedUsageDumpSpec` "collect nothing when dumpResolvedUsage is off
+and no rule requires resolution" case, which continues to assert zero diagnostics (and so, by
+construction, an uncollected `qualifiedUsages`) unchanged. `dumpResolvedUsage`'s message gained a
+`qualified=[start..end:kind:fqn, ...]` segment, ASCII-sorted by start offset then end.
+
 ---
 
 ## 9. Performance

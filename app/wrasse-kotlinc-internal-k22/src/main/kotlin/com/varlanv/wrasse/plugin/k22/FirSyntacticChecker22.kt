@@ -20,7 +20,9 @@ class FirSyntacticChecker22(
         val source = declaration.source as? KtLightSourceElement ?: return
         val sourceFilePath = declaration.sourceFile?.path ?: declaration.name
 
-        for (violation in plugin.checkFile(source, declaration.name, sourceFilePath) { ResolvedUsageCollector.collect(declaration) }) {
+        for (violation in plugin.checkFile(source, declaration.name, sourceFilePath) { collectQualifiedUsages ->
+            ResolvedUsageCollector.collect(declaration, collectQualifiedUsages)
+        }) {
             val diagnostic = when (violation.level) {
                 RuleLevel.ERROR -> WrasseErrors22Container.WRASSE_ERROR
                 RuleLevel.WARN -> WrasseErrors22Container.WRASSE_WARNING
