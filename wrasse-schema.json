@@ -28,6 +28,10 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow unnecessary semicolons"
                 },
+                "no-unused-imports": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow imports whose target is never referenced in the file"
+                },
                 "no-wildcard-imports": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow wildcard imports"
