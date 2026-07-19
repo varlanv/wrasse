@@ -5,6 +5,7 @@ import com.varlanv.wrasse.model.StreamDispatch
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeRule
+import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.com.intellij.lang.LighterASTNode
@@ -33,6 +34,124 @@ import org.jetbrains.kotlin.com.intellij.util.diff.FlyweightCapableTreeStructure
  */
 object LightTreeStreamAdapter {
 
+    private val newlineFreeByOrdinal: BooleanArray = BooleanArray(WNodeType.SIZE).also { arr ->
+        for (type in arrayOf(
+            WNodeType.IDENTIFIER,
+            WNodeType.INTEGER_LITERAL,
+            WNodeType.FLOAT_LITERAL,
+            WNodeType.CHARACTER_LITERAL,
+            WNodeType.EOL_COMMENT,
+            WNodeType.OPEN_QUOTE,
+            WNodeType.CLOSING_QUOTE,
+            WNodeType.SHORT_TEMPLATE_ENTRY_START,
+            WNodeType.LONG_TEMPLATE_ENTRY_START,
+            WNodeType.LONG_TEMPLATE_ENTRY_END,
+            WNodeType.LPAR,
+            WNodeType.RPAR,
+            WNodeType.LBRACE,
+            WNodeType.RBRACE,
+            WNodeType.LBRACKET,
+            WNodeType.RBRACKET,
+            WNodeType.COMMA,
+            WNodeType.DOT,
+            WNodeType.SAFE_ACCESS,
+            WNodeType.ELVIS,
+            WNodeType.RANGE,
+            WNodeType.COLONCOLON,
+            WNodeType.COLON,
+            WNodeType.SEMICOLON,
+            WNodeType.ARROW,
+            WNodeType.DOUBLE_ARROW,
+            WNodeType.EQ,
+            WNodeType.EQEQ,
+            WNodeType.EXCLEQ,
+            WNodeType.LT,
+            WNodeType.GT,
+            WNodeType.LTEQ,
+            WNodeType.GTEQ,
+            WNodeType.PLUS,
+            WNodeType.MINUS,
+            WNodeType.MUL,
+            WNodeType.DIV,
+            WNodeType.PERC,
+            WNodeType.PLUSEQ,
+            WNodeType.MINUSEQ,
+            WNodeType.MULEQ,
+            WNodeType.DIVEQ,
+            WNodeType.PERCEQ,
+            WNodeType.ANDAND,
+            WNodeType.OROR,
+            WNodeType.EXCL,
+            WNodeType.PLUSPLUS,
+            WNodeType.MINUSMINUS,
+            WNodeType.EXCLEXCL,
+            WNodeType.AT,
+            WNodeType.QUEST,
+            WNodeType.AS_SAFE,
+            WNodeType.KW_FUN,
+            WNodeType.KW_VAL,
+            WNodeType.KW_VAR,
+            WNodeType.KW_CLASS,
+            WNodeType.KW_INTERFACE,
+            WNodeType.KW_OBJECT,
+            WNodeType.KW_IF,
+            WNodeType.KW_ELSE,
+            WNodeType.KW_WHEN,
+            WNodeType.KW_FOR,
+            WNodeType.KW_WHILE,
+            WNodeType.KW_DO,
+            WNodeType.KW_RETURN,
+            WNodeType.KW_THROW,
+            WNodeType.KW_BREAK,
+            WNodeType.KW_CONTINUE,
+            WNodeType.KW_TRY,
+            WNodeType.KW_CATCH,
+            WNodeType.KW_FINALLY,
+            WNodeType.KW_IN,
+            WNodeType.KW_IS,
+            WNodeType.KW_AS,
+            WNodeType.KW_NULL,
+            WNodeType.KW_TRUE,
+            WNodeType.KW_FALSE,
+            WNodeType.KW_THIS,
+            WNodeType.KW_SUPER,
+            WNodeType.KW_PACKAGE,
+            WNodeType.KW_IMPORT,
+            WNodeType.KW_PUBLIC,
+            WNodeType.KW_PRIVATE,
+            WNodeType.KW_PROTECTED,
+            WNodeType.KW_INTERNAL,
+            WNodeType.KW_OPEN,
+            WNodeType.KW_ABSTRACT,
+            WNodeType.KW_SEALED,
+            WNodeType.KW_DATA,
+            WNodeType.KW_OVERRIDE,
+            WNodeType.KW_SUSPEND,
+            WNodeType.KW_INLINE,
+            WNodeType.KW_TAILREC,
+            WNodeType.KW_OPERATOR,
+            WNodeType.KW_INFIX,
+            WNodeType.KW_COMPANION,
+            WNodeType.KW_CONST,
+            WNodeType.KW_LATEINIT,
+            WNodeType.KW_ENUM,
+            WNodeType.KW_TYPEALIAS,
+            WNodeType.KW_FILE,
+            WNodeType.KW_FIELD,
+            WNodeType.KW_BY,
+            WNodeType.KW_CONSTRUCTOR,
+            WNodeType.KW_INIT,
+            WNodeType.KW_OUT,
+            WNodeType.KW_VARARG,
+            WNodeType.KW_REIFIED,
+            WNodeType.KW_ANNOTATION,
+            WNodeType.KW_GET,
+            WNodeType.KW_SET,
+        )) {
+            arr[type.ordinal] = true
+        }
+    }
+
     /**
      * Walk the LightTree from the given compiler source element, dispatching SAX events
      * to rules registered in [dispatch]. Violations are collected through [reporter]. [ctx]
@@ -57,13 +176,22 @@ object LightTreeStreamAdapter {
 
         val activeNodeRules = ArrayList<ActiveNodeEntry>()
         val ref = Ref<Array<LighterASTNode?>>()
+        val pool = ChildArrayPool()
+        val root = source.lighterASTNode
+        val rootType = WNodeTypeMapping.map(elementType = root.tokenType)
+        val rootIsLeaf = root is LighterASTTokenNode
+        val rootText = if (rootIsLeaf) root.text else null
         walkNode(
             tree = tree,
-            astNode = tree.root,
+            astNode = root,
+            type = rootType,
+            isLeaf = rootIsLeaf,
+            leafText = rootText,
             ctx = ctx,
             dispatch = dispatch,
             reporter = reporter,
             ref = ref,
+            pool = pool,
             activeNodeRules = activeNodeRules
         )
 
@@ -78,26 +206,30 @@ object LightTreeStreamAdapter {
     /**
      * Recursive walk of a single LightTree node. For leaves, dispatches to leaf/stream/active
      * rules, tracks newline/indent state, and updates prevLeaf. For interior nodes, fires
-     * enter/exit events, pushes/pops the ancestor stack, copies the children array (Ref is
-     * reused by deeper calls), and recurses.
+     * enter/exit events, pushes/pops the ancestor stack, borrows the children array from
+     * [tree] into a per-depth [pool] slot, and recurses. [type]/[isLeaf]/[leafText] are
+     * computed once by the caller (the parent's child loop, or [walk] for the root) and
+     * passed in rather than recomputed here.
      */
     private fun walkNode(
         tree: FlyweightCapableTreeStructure<LighterASTNode>,
         astNode: LighterASTNode,
+        type: WNodeType,
+        isLeaf: Boolean,
+        leafText: CharSequence?,
         ctx: WContext,
         dispatch: StreamDispatch,
         reporter: WReporter,
         ref: Ref<Array<LighterASTNode?>>,
+        pool: ChildArrayPool,
         activeNodeRules: ArrayList<ActiveNodeEntry>,
     ) {
-        // todo: potentially lookup by `astNode.tokenType.index` in some array instead of hashmap `.get`
-        val type = WNodeTypeMapping.map(elementType = astNode.tokenType)
-        val isLeaf = astNode is LighterASTTokenNode
+        val ownChildIndex = ctx.childIndex
 
         ctx.type = type
         ctx.startOffset = astNode.startOffset
         ctx.endOffset = astNode.endOffset
-        ctx.leafText = if (isLeaf) astNode.text else null
+        ctx.leafText = leafText
 
         if (isLeaf) {
             if (dispatch.hasLeafRules) {
@@ -122,7 +254,7 @@ object LightTreeStreamAdapter {
             ctx.prevLeafType = type
             ctx.prevLeafStart = astNode.startOffset
             ctx.prevLeafEnd = astNode.endOffset
-            ctx.prevLeafText = ctx.leafText
+            ctx.prevLeafText = leafText
         } else {
             if (dispatch.hasStreamRules) {
                 for (rule in dispatch.streamRules) {
@@ -138,32 +270,36 @@ object LightTreeStreamAdapter {
                     ctx = ctx,
                     reporter = reporter,
                     activeNodeRules = activeNodeRules,
-                    depth = depth
                 )
 
             ctx.ancestors.push(type = type, startOffset = astNode.startOffset, endOffset = astNode.endOffset)
             val count = tree.getChildren(astNode, ref)
-            val childArray = ref.get()
-            if (childArray != null && count > 0) {
-                val children = childArray.copyOfRange(0, count)
-                for (i in children.indices) {
+            val liveChildren = ref.get()
+            if (liveChildren != null && count > 0) {
+                val children = pool.acquire(depth = depth, minSize = count)
+                System.arraycopy(liveChildren, 0, children, 0, count)
+                for (i in 0 until count) {
                     val child = children[i] ?: continue
                     ctx.childIndex = i
+                    val childType = WNodeTypeMapping.map(elementType = child.tokenType)
+                    val childIsLeaf = child is LighterASTTokenNode
+                    val childText = if (childIsLeaf) child.text else null
 
                     walkNode(
                         tree = tree,
                         astNode = child,
+                        type = childType,
+                        isLeaf = childIsLeaf,
+                        leafText = childText,
                         ctx = ctx,
                         dispatch = dispatch,
                         reporter = reporter,
                         ref = ref,
+                        pool = pool,
                         activeNodeRules = activeNodeRules
                     )
 
                     if (enteredCount > 0) {
-                        val childType = WNodeTypeMapping.map(elementType = child.tokenType)
-                        val childIsLeaf = child is LighterASTTokenNode
-                        val childText = if (childIsLeaf) child.text else null
                         val activeStart = activeNodeRules.size - enteredCount
                         for (j in activeStart until activeNodeRules.size) {
                             val entry = activeNodeRules[j]
@@ -176,6 +312,7 @@ object LightTreeStreamAdapter {
                         }
                     }
                 }
+                tree.disposeChildren(liveChildren, count)
             }
 
             ctx.ancestors.pop()
@@ -184,6 +321,7 @@ object LightTreeStreamAdapter {
             ctx.startOffset = astNode.startOffset
             ctx.endOffset = astNode.endOffset
             ctx.leafText = null
+            ctx.childIndex = ownChildIndex
 
             exitNodeRules(
                 activeNodeRules = activeNodeRules,
@@ -201,6 +339,7 @@ object LightTreeStreamAdapter {
     }
 
     private fun trackLastNewline(ctx: WContext) {
+        if (newlineFreeByOrdinal[ctx.type.ordinal]) return
         val lt = ctx.leafText ?: return
         for (i in lt.length - 1 downTo 0) {
             if (lt[i] == '\n') {
@@ -215,14 +354,13 @@ object LightTreeStreamAdapter {
         ctx: WContext,
         reporter: WReporter,
         activeNodeRules: ArrayList<ActiveNodeEntry>,
-        depth: Int,
     ): Int {
         var enteredCount = 0
         for (rule in nodeRules) {
             val wantChildren = rule.enterNode(ctx = ctx, reporter = reporter)
             if (wantChildren) {
                 val buffer = if (rule is WBufferedNodeRule) ChildBuffer() else null
-                activeNodeRules.add(ActiveNodeEntry(rule = rule, buffer = buffer, depth = depth))
+                activeNodeRules.add(ActiveNodeEntry(rule = rule, buffer = buffer))
                 enteredCount++
             }
         }
@@ -255,6 +393,30 @@ object LightTreeStreamAdapter {
     private class ActiveNodeEntry(
         val rule: WNodeRule,
         val buffer: ChildBuffer?,
-        val depth: Int,
     )
+
+    /**
+     * Per-walk pool of children arrays, one reusable, geometrically-grown slot per tree
+     * depth. Exactly one node at a given depth is ever mid-loop over its own children at
+     * a time (the walk is single-threaded and strictly depth-first), so siblings at the
+     * same depth safely reuse the same backing array across calls. Owned by a single
+     * [walk] invocation — never shared across concurrent walks.
+     */
+    private class ChildArrayPool {
+        private var slots: Array<Array<LighterASTNode?>?> = arrayOfNulls(16)
+
+        fun acquire(depth: Int, minSize: Int): Array<LighterASTNode?> {
+            if (depth >= slots.size) {
+                slots = slots.copyOf(maxOf(slots.size * 2, depth + 1))
+            }
+            val existing = slots[depth]
+            if (existing != null && existing.size >= minSize) {
+                return existing
+            }
+            val newSize = maxOf(minSize, if (existing == null) 8 else existing.size * 2)
+            val grown = arrayOfNulls<LighterASTNode?>(newSize)
+            slots[depth] = grown
+            return grown
+        }
+    }
 }

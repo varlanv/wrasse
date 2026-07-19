@@ -2,6 +2,7 @@ package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
 import com.varlanv.wrasse.lang.FileEdits
+import com.varlanv.wrasse.lang.HexEncoding
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.lang.WPatchWriter
 import com.varlanv.wrasse.model.ViolationReport
@@ -133,6 +134,6 @@ class WrassePlugin(
     private fun computeSourceHash(sourceText: CharSequence): String {
         val bytes = sourceText.toString().toByteArray(Charsets.UTF_8)
         val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
-        return digest.joinToString("") { "%02x".format(it) }
+        return HexEncoding.lowerCase(digest)
     }
 }

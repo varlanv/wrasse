@@ -246,6 +246,30 @@ object WNodeTypeMapping {
         put(KtTokens.SET_KEYWORD, WNodeType.KW_SET)
     }
 
-    fun map(elementType: IElementType): WNodeType =
-        map[elementType] ?: WNodeType.UNKNOWN
+    /**
+     * [IElementType.getIndex] is a JVM-process-local short assigned at registration time —
+     * stable for the lifetime of this JVM, but not portable across JVMs or compiler versions.
+     * Built lazily from [map] (the source of truth) on first use in this JVM, sized to the
+     * highest index among [map]'s own keys, so every mapped key is guaranteed to fit.
+     */
+    private val indexed: Array<WNodeType?> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        var maxIndex = -1
+        for (key in map.keys) {
+            val index = key.index.toInt()
+            if (index > maxIndex) maxIndex = index
+        }
+        val table = arrayOfNulls<WNodeType>(maxIndex + 1)
+        for ((key, value) in map) {
+            val index = key.index.toInt()
+            if (index >= 0) table[index] = value
+        }
+        table
+    }
+
+    fun map(elementType: IElementType): WNodeType {
+        val index = elementType.index.toInt()
+        if (index < 0) return map[elementType] ?: WNodeType.UNKNOWN
+        val table = indexed
+        return if (index < table.size) table[index] ?: WNodeType.UNKNOWN else WNodeType.UNKNOWN
+    }
 }

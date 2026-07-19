@@ -53,7 +53,15 @@ class WContext(
     var prevLeafText: CharSequence? = null
         @JvmSynthetic set
 
-    /** Index of the current node among its parent's direct children (0-based). */
+    /**
+     * Index of the current node among its parent's direct children (0-based).
+     *
+     * While a node's children are being visited, this reflects whichever child is
+     * currently active. The framework restores it to the node's own index (as seen by
+     * its parent) before that node's own `exitNode`/`onChildLeaf`-closing dispatch, so a
+     * rule reading it from an exit callback always sees the exiting node's position, not
+     * its last child's.
+     */
     var childIndex: Int = 0
         @JvmSynthetic set
 

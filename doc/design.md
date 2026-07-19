@@ -572,18 +572,46 @@ disabled-rule cost at zero.
 
 Known walk-level punch list (fix in A.5, verify with the benchmark):
 
-1. `childArray.copyOfRange(0, count)` allocates one array per interior node — replace with a
-   per-depth array pool; also call `disposeChildren` per the `FlyweightCapableTreeStructure`
-   contract (currently never released, defeating the tree's own recycling).
-2. Buffered path recomputes `WNodeTypeMapping.map` and `child.text` per child after the recursion
-   already computed them — restructure to reuse.
-3. `WNodeTypeMapping` is a HashMap lookup per node — index a flat array by `IElementType.index`.
-4. `trackLastNewline` scans every leaf's full text backwards — gate by token type (only
-   whitespace/comments/strings can contain `\n`).
-5. Hash source from the compiler's in-memory buffer (not a disk re-read); hex via lookup table,
-   not `"%02x".format` per byte.
+1. ~~`childArray.copyOfRange(0, count)` allocates one array per interior node~~ — done: replaced
+   with a per-depth `ChildArrayPool` owned per `walk` call (no shared mutable statics — safe for a
+   future concurrent `checkFile`), grown geometrically, reused across siblings at the same depth
+   (only one node per depth is ever mid-loop over its own children at a time). `disposeChildren` is
+   now called on the tree's own borrowed array once its children are fully processed, per the
+   `FlyweightCapableTreeStructure` contract (verified against the actual `MyTreeStructure`
+   implementation: it recycles the small `TokenRangeNode`/`SingleLexemeNode` wrapper objects back
+   into kotlinc's own pools; the backing array itself is not retained by the tree structure across
+   calls, so our own pool copy is the only defensible cross-implementation-safe reuse).
+2. ~~Buffered path recomputes `WNodeTypeMapping.map` and `child.text` per child~~ — done: the parent
+   loop now computes each child's type/isLeaf/text once and passes them into the recursive
+   `walkNode` call (which no longer recomputes them for its own node) and into the `ChildBuffer.add`
+   call — one computation, two uses.
+3. ~~`WNodeTypeMapping` is a HashMap lookup per node~~ — done: a `WNodeType?` array indexed by
+   `IElementType.index` (a JVM-process-local `short`, stable for the JVM's lifetime but not
+   portable across JVMs/compiler versions — verified via `IElementType`'s bytecode: `myIndex` is
+   `final`, assigned once under a lock from a global static counter with a soft 15000 warn threshold,
+   nowhere near the `short` ceiling in practice). Built lazily on first use, sized to the highest
+   index among the existing `map`'s own keys (kept as the source of truth), so every mapped key
+   provably fits; out-of-range/negative indices fall back to the map. Mapping-completeness spec
+   still passes on all four minors.
+4. ~~`trackLastNewline` scans every leaf's full text backwards~~ — done: gated by token type, and
+   the safe set is wider than "whitespace/comments/strings vs everything else" as first guessed —
+   verified directly against kotlinc's `Kotlin.flex` lexer grammar (not assumed) rather than
+   hardcoded from memory. Provably `\n`-free and skipped: keywords and punctuation/operators
+   (fixed literal token text), quote/template delimiters (`"`, `"""`, `$`, `${`, `}`), `IDENTIFIER`
+   (`ESCAPED_IDENTIFIER = `[^`\n]+`` excludes it explicitly), numeric literals and
+   `CHARACTER_LITERAL` (digit/hex/escape-sequence charsets exclude a raw `\n`), and `EOL_COMMENT`
+   (`EOL_COMMENT="/""/"[^\n]*`). Left in the "always scan" (conservative, unchanged) set because
+   they demonstrably *can* contain `\n`: `WHITE_SPACE`, `BLOCK_COMMENT`, `KDOC`, and
+   `REGULAR_STRING_PART` (a raw/triple-quoted string's lexer literally emits a lone `\n` as its own
+   `REGULAR_STRING_PART` token mid-string).
+5. ~~Hex via lookup table, not `"%02x".format` per byte~~ — done: `HexEncoding.lowerCase` in
+   `wrasse-lang`, used by both `WrassePlugin.computeSourceHash` and `WPatchApplier.sha256` (source
+   hashing already read from the walk's in-memory `ctx.sourceText`, not a disk re-read, since D18).
 6. Measure whether `LighterASTTokenNode.text` allocates a subsequence per leaf; if real, prefer
-   offsets + the shared buffer.
+   offsets + the shared buffer. *(Not measured — out of this pass's scope; still open.)*
+
+A JMH benchmark module (`testing:wrasse-benchmarks`, §11) now exists as the tripwire described
+above; smoke numbers for this pass are in the A.5 roadmap entry below.
 
 ---
 
@@ -640,6 +668,8 @@ Kotlinc surface (adapter-only; rule code never imports these): LightTree
 - **CRLF fixture** (A.5): guards the hash/offset consistency rule (§5.4).
 - Rules are unit-testable without a compiler (`wrasse-model` has no kotlinc dep); fixture tests
   exercise the full plugin path.
+- **Walk-throughput benchmark** (A.5, §9): `testing:wrasse-benchmarks` (`me.champeau.jmh`) — run
+  via `./gradlew :testing:wrasse-benchmarks:jmh`; not part of `build`/`test`/`check`.
 
 ---
 
@@ -770,9 +800,15 @@ Also fixed en route (was not on this list): WARN-severity diagnostics dropped on
 a test-harness classpath-skew issue, not a plugin bug (see §10).
 
 Remaining:
-5. **Walk perf punch list + JMH benchmark** (§9). JMH reinstated by owner decision (2026-07-19,
-   same day it was deferred) with an explicit quality bar: the Gradle integration must be cleanly
-   shaped (convention-plugin-consistent, no band-aid wiring) or not land at all.
+5. ~~Walk perf punch list + JMH benchmark~~ (§9) — punch list items 1-5 done (item 6, measuring
+   `LighterASTTokenNode.text` allocation, is still open — out of scope for this pass); `ctx.childIndex`
+   staleness and dead `ActiveNodeEntry.depth` from §14 fixed alongside it. JMH landed as
+   `testing:wrasse-benchmarks` (§11): standard `me.champeau.jmh` + the repo's own convention plugin,
+   no band-aid wiring — `./gradlew :testing:wrasse-benchmarks:jmh` is the tripwire, not wired into
+   `build`/`test`/`check`. Smoke run (2 warmup + 3 measurement iterations, 1 fork) over this repo's
+   own concatenated `.kt` sources: zero-rules walk ~11.19ms/op after vs ~11.64ms/op before the
+   punch list; three-shipped-rules walk ~11.56ms/op after vs ~12.17ms/op before (single-fork JMH
+   noise is double-digit-percent at this iteration count — treat as directional, not precise).
 6. **MPP double-fire check**: confirm `FirFileChecker(MppCheckerKind.Common)` doesn't double-fire
    per file in multiplatform compilations (double-appended edits); dedup or switch kind if it
    does; document no-repro if it doesn't.
@@ -849,9 +885,6 @@ a separate `ktlint -F` invocation on the same files.
 
 ## 14. Known issues & tech debt (beyond the A.5 list)
 
-- `ctx.childIndex` is stale during `exitNode` (holds the last child's index, not the exiting
-  node's own) — restore before exit dispatch or document loudly.
-- `ActiveNodeEntry.depth` is dead — remove or use.
 - `ChildBuffer` allocated per `WBufferedNodeRule` enter — pool when engines land.
 - Registrar selection probes internal compiler class names (`classExists` markers); checker
   shells exist in triplicate (k20/k22/main) — any signature change must be mirrored. Version

@@ -47,4 +47,5 @@ include(
     "testing:wrasse-kotlinc-plugin-tests-2-2-x",
     "testing:wrasse-kotlinc-plugin-tests-2-3-x",
     "testing:wrasse-kotlinc-plugin-tests-2-4-x",
+    "testing:wrasse-benchmarks",
 )

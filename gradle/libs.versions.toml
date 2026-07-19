@@ -7,6 +7,7 @@ wrasseVersion = "0.0.1-SNAPSHOT"
 kotestVersion = "6.2.2"
 kotlinVersion = "2.4.0"
 versionCatalogPluginVersion = "1.1.0"
+jmhPluginVersion = "0.7.3"
 
 [libraries]
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlinVersion" }
@@ -21,3 +22,4 @@ wrasse-compiler-plugin = { module = "com.varlanv.wrasse:compiler-plugin", versio
 internalConvention = { id = "com.varlanv.wrasse.gradle.internal-gradle-convention-plugin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinVersion" }
 versionCatalogPlugin = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogPluginVersion" }
+jmhPlugin = { id = "me.champeau.jmh", version.ref = "jmhPluginVersion" }
