@@ -177,6 +177,7 @@ class ImportEngine : WUninitializedRuleGroup {
                             writtenIdentifiers = writtenIdentifiers,
                             kdocSpans = kdocSpans,
                             sourceText = sourceText,
+                            resolvedImports = it.resolvedImports,
                         )
                     }
                     pending.add(PendingImportReport(NO_WILDCARD_IMPORTS_ID, WILDCARD_MESSAGE, star.startOffset, star.endOffset, edit))
@@ -212,6 +213,7 @@ class ImportEngine : WUninitializedRuleGroup {
                         writtenIdentifiers = writtenIdentifiers,
                         kdocSpans = kdocSpans,
                         sourceText = sourceText,
+                        resolvedImports = usage.resolvedImports,
                     )
                     if (verdict is UnusedStarVerdict.Unused) {
                         pending.add(PendingImportReport(NO_UNUSED_IMPORTS_ID, UNUSED_MESSAGE, star.startOffset, star.endOffset, verdict.edit))

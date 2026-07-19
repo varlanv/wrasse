@@ -1,10 +1,13 @@
 package com.varlanv.wrasse.plugin.internal
 
 import com.varlanv.wrasse.model.WCallableUsage
+import com.varlanv.wrasse.model.WResolvedImport
 import com.varlanv.wrasse.model.WResolvedUsage
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirFile
+import org.jetbrains.kotlin.fir.declarations.FirResolvedImport
+import org.jetbrains.kotlin.fir.declarations.utils.isStatic
 import org.jetbrains.kotlin.fir.expressions.FirErrorResolvedQualifier
 import org.jetbrains.kotlin.fir.expressions.FirResolvedQualifier
 import org.jetbrains.kotlin.fir.references.FirErrorNamedReference
@@ -39,9 +42,25 @@ object ResolvedUsageCollector {
                 classifiers = visitor.classifiers,
                 callables = visitor.callables,
                 hasResolutionErrors = visitor.hasErrors,
+                resolvedImports = collectResolvedImports(file),
             )
         }.getOrElse {
-            WResolvedUsage(emptySet(), emptySet(), hasResolutionErrors = true)
+            WResolvedUsage(emptySet(), emptySet(), hasResolutionErrors = true, resolvedImports = emptyList())
+        }
+
+    private fun collectResolvedImports(file: FirFile): List<WResolvedImport> =
+        file.imports.mapNotNull { import ->
+            val fqn = import.importedFqName?.takeUnless { it.isRoot }?.asString() ?: return@mapNotNull null
+            if (import is FirResolvedImport) {
+                WResolvedImport(
+                    fqn = fqn,
+                    isStarImport = import.isAllUnder,
+                    resolvedParentClassFqName = import.resolvedParentClassId?.asFqNameString(),
+                    resolved = true,
+                )
+            } else {
+                WResolvedImport(fqn = fqn, isStarImport = import.isAllUnder, resolvedParentClassFqName = null, resolved = false)
+            }
         }
 
     private class UsageVisitor : FirVisitorVoid() {
@@ -85,7 +104,7 @@ object ResolvedUsageCollector {
             if (symbol is FirCallableSymbol<*>) {
                 val callableId = symbol.callableId
                 if (callableId != null && callableId.packageName != CallableId.PACKAGE_FQ_NAME_FOR_LOCAL) {
-                    callables.add(toCallableUsage(callableId))
+                    callables.add(toCallableUsage(callableId, symbol.isStatic))
                 }
             }
         }
@@ -129,12 +148,13 @@ object ResolvedUsageCollector {
             }
         }
 
-        private fun toCallableUsage(callableId: CallableId): WCallableUsage {
+        private fun toCallableUsage(callableId: CallableId, isStatic: Boolean): WCallableUsage {
             val classFqName = callableId.classId?.asFqNameString()
             return WCallableUsage(
                 packageFqName = callableId.packageName.asString(),
                 classFqName = classFqName,
                 name = callableId.callableName.asString(),
+                isStatic = isStatic,
             )
         }
     }

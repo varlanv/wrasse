@@ -760,13 +760,15 @@ for exactly the two ambiguity shapes above (per-Kotlin-minor, like every other h
 compile-driven spec in this suite).
 
 **The eight bails** (report fires, no edit — every ambiguity resolves toward "don't touch it"),
-each locked by a fixture in `no-wildcard-imports-expansion/`:
+each locked by a fixture in `no-wildcard-imports-expansion/`. **Bail 2 superseded 2026-07-19** —
+see "Member-star expansion" below for the current, generalized replacement (an authoritative
+resolved-import classification instead of an outright bail); bails 1 and 3–8 are unchanged:
 1. **Whole-file.** `ctx.resolvedUsage == null` or `hasResolutionErrors` — the rule never even
    calls the decision function, every star in the file reports with no edit.
-2. **Class/object-star.** Any used callable whose `classFqName` equals `P` *exactly* means `P`
+2. ~~**Class/object-star.** Any used callable whose `classFqName` equals `P` *exactly* means `P`
    itself names a class/object (a member-star import, e.g. `import p.SomeEnum.*` for its
    entries) rather than a package — package-stars only in this task, member-star expansion is
-   deferred.
+   deferred.~~
 3. **Zero attribution.** An unused star is `no-unused-imports`/engine territory, not expansion.
 4. **Shared line.** Reuses `ImportRemovalSpan`'s same-line check, now extracted into a shared
    `ImportLineSpan.isAloneOnLine` (both rules need the identical blank-prefix/blank-suffix scan;
@@ -947,9 +949,10 @@ computation is *reused, not duplicated*: `WildcardExpansionDecision`'s attributi
 written-identifier gate, the ungated top-level-callable/operator-convention rule, the member-star
 check) was extracted into a shared `StarAttribution` object both rules call. A star is removed iff:
 its attributed set — filtered by the same non-aliased-explicit-import exclusion expansion applies —
-is empty; it is not a member-star (some used callable's `classFqName` equals the star's own package
-FQN exactly — attribution cannot see member-star usage at all, so skipping this check would
-misreport a used member-star as unused, the same reason expansion bails on it outright); its own
+is empty (**superseded 2026-07-19**: a member-star's attributed set is `StarAttribution
+.attributedMembers`'s return value directly — see the member-star expansion as-built above for why
+a skipped non-static member usage correctly leaves this empty rather than disqualifying the star;
+a package-star's is unchanged); its own
 package is not the file's own package (redundancy, not unusedness — deferred to the engine, see
 below); and no KDoc bracket reference is left uncovered by every *other* source (explicit imports
 plus every *other* star's own attribution — this star contributes nothing itself, so it cannot cover
@@ -1028,12 +1031,97 @@ composition ran, one extra report for `import-ordering` itself — reproducing t
 report-then-`takeEditsIn`-consumes-the-edit two-step as a single decide-then-report step with
 byte-identical diagnostics and patch output. `RuleRegistrationOrderSpec` (`app/wrasse-kotlinc-plugin`)
 now locks `ImportEngine.ids` instead of a registration order that no longer exists.
-**Extension points for later growth**, one sentence each: member-star (class/object) expansion
-needs the same attribution machinery generalized past package-only stars; FQN-shortening/import
-insertion needs a decision that, unlike everything above, *adds* text a user never wrote instead of
-only rearranging what's there; and closing the KDoc same-package-sibling coverage gap needs a
-session-backed package→declarations query the engine would own as a facade, not a rule-side
-heuristic (the "Known practical limitation" above). None of these three are implemented.
+**Extension points for later growth**, one sentence each: FQN-shortening/import insertion needs a
+decision that, unlike everything above, *adds* text a user never wrote instead of only rearranging
+what's there; closing the KDoc same-package-sibling coverage gap needs a session-backed
+package→declarations query the engine would own as a facade, not a rule-side heuristic (the "Known
+practical limitation" above). Member-star (class/object) expansion, the third item this paragraph
+used to list as unbuilt, shipped 2026-07-19 — see below. Neither of the remaining two is
+implemented.
+
+**As-built (`WResolvedImport` facade extension and member-star expansion — 2026-07-19):**
+`WResolvedUsage.resolvedImports: List<WResolvedImport>` (`wrasse-model`, zero kotlinc deps) adds
+the file's own import directives as FIR resolved them, one entry per directive in source order
+(duplicates included, no alias — rule code already tracks that syntactically): `fqn` (the star's
+own target with no trailing `.*`, or the full imported name), `isStarImport`, and
+`resolvedParentClassFqName` — non-null iff the import's parent resolves to a class/object. For a
+*star* import this "parent" is empirically the star's own target (`FirImportResolveTransformer`
+calls the same `packageFqName`/`relativeParentClassName` split on the star's own FQN, not its
+parent, confirmed by reading the transformer directly) — so `resolvedParentClassFqName == fqn`
+whenever a star is a member-star, giving an authoritative, non-inferred package-vs-member answer.
+`internal/ResolvedUsageCollector` builds this from `FirFile.imports`; an import whose
+`importedFqName` is null or root is dropped (nothing to key on); one that never became a
+`FirResolvedImport` is carried through with `resolved = false` and `resolvedParentClassFqName =
+null` — javap-confirmed byte-identical API surface (`FirImport`, `FirResolvedImport`, `FirFile
+.imports`) across 2.1.21/2.2.21/2.3.21/2.4.0. `dumpResolvedUsage`'s message gained an ASCII-sorted
+`imports=[...]` segment (e.g. `sample.aux.*`, `sample.aux.Status.*(parent=sample.aux.Status)`,
+`p.Q.member?unresolved`).
+
+`StarAttribution.classify` uses this to decide package-vs-member per star, cross-checked against
+the pre-existing usage-based `isMemberStar` inference (a callable whose `classFqName` equals the
+star's own FQN) as a cheap defensive check: no matching resolved import, an unresolved match, or a
+disagreement between the two signals (authoritative says package but the cross-check says member)
+all collapse to `UNRESOLVED_OR_AMBIGUOUS` — bail, never guess. Agreement in the other direction (a
+member-star with the cross-check finding nothing) is not a contradiction — it is a member-star with
+zero, or classifier-only, attribution.
+
+**Legality matrix (empirically probed against a local kotlinc build before locking any of this
+— the reference for every shape this feature claims legal or illegal):**
+
+| Star shape | `import Owner.*` itself | Explicit `import Owner.member` |
+| --- | --- | --- |
+| Enum class (entries) | legal | legal |
+| Enum class (ordinary instance member/property) | legal | **illegal** — "Functions and properties can only be imported from packages or objects" |
+| Plain class (nested classifier) | legal | legal |
+| Plain class (instance member) | legal (syntax) but brings nothing in bare | **illegal** |
+| Plain Java class (static member) | legal, brings statics in bare | legal |
+| Kotlin `object` (any member) | **illegal** — "cannot import on demand from object" | legal |
+| Companion object (any member, via `Owner.Companion.*`) | **illegal** — same "on demand from object" error | legal, but only via `import Owner.Companion.member` (`import Owner.member` alone does **not** resolve a companion member) |
+
+Two structural consequences follow directly, so `attributedMembers` needs no `ClassKind` facade
+data at all: (1) since `import Object.*`/`import Companion.*` never compiles, a member-star's own
+target can never be an object/companion in a file whose resolution didn't already error — the
+"object star" fixture (`object-star-bail-error`) locks this the same way `resolution-error-bail-
+error` does, via the existing whole-file bail, not a new mechanism; (2) since a companion member's
+own `classFqName` is the companion's FQN, not the outer class's, it can never attribute to a plain
+`import Outer.*` star's exact-match check regardless. That leaves exactly one per-member legality
+question `attributedMembers` (`StarAttribution`) must decide: is a used callable member (`classFqName
+== C` exactly) an enum entry or Java static, or an ordinary instance member? `WCallableUsage`
+gained `isStatic: Boolean` (from `FirCallableSymbol.isStatic`, `org.jetbrains.kotlin.fir
+.declarations.utils`, javap-confirmed identical across all four minors) precisely because the FIR
+raw-fir builder marks enum entries `isStatic = true` at construction (`PsiRawFirBuilder
+.toFirEnumEntry`, read directly, not inferred) — the same bit Java statics carry, and the same bit
+the compiler's own `getImportStatusOfCallableMembers` checks for a non-singleton owner. A nested
+classifier (`classifier` starting with `C.`) is always legal (no `isStatic` check needed — nested-
+class import never depends on static-ness). An attributed callable with `isStatic == false` is
+**skipped**, not disqualifying: import-on-demand from a classifier only ever exposes
+statics/enum-entries/nested-classifiers (empirically confirmed above — a non-static member never
+legally reaches bare scope through any member-star, under any circumstance), so a usage recorded
+against `C` that isn't one of those *by construction* resolved some other way — a receiver
+(`x.instanceMember()`, needing no import of `C` at all) or a same-`classFqName` constructor call
+(`C()`, needing `C` itself in scope via some other mechanism, never this star) — and is therefore
+simply not this star's business, expanded or not. `WildcardExpansionDecision` and
+`UnusedStarDecision` both just exclude it from the attributed set; a star whose *only* associated
+usage is such a skipped member ends up with an empty attributed set — correctly expansion's "zero
+attribution" bail, and correctly `no-unused-imports`' "removable" — since that usage never needed
+the star at all. Locked by `enum-star-with-instance-method-error` (entries still expand; a custom
+instance method called on one is untouched) and `unused-star-instance-only-usage-error`
+(instance-member-only usage → the star is removed as unused).
+
+**Fixtures:** `no-wildcard-imports-member-star/` (own `wrasse.json`, `no-wildcard-imports` only) —
+an enum star with a used subset of entries (expansion, `.fixed.kt`), an illegal object star
+(whole-file bail via the pre-existing resolution-error mechanism, no companion), an enum star with
+entries used alongside a receiver-called custom instance method (expansion of the entries only, the
+method call untouched, `.fixed.kt`), a class star whose only attributed usage is a nested classifier
+(expansion, `.fixed.kt`), and a member-star attribution colliding in simple name with an unrelated
+fully-qualified usage (bail, reusing the existing collision check unmodified). `no-unused-imports-star/`
+gained `unused-member-star-error` (a zero-attribution enum star, removed — `.fixed.kt`) and
+`unused-star-instance-only-usage-error` (a star whose only usage is a skipped instance member,
+also removed — `.fixed.kt`); the pre-existing `member-star-used-clean` fixture (a *used* member-star,
+`no-unused-imports` leaves it alone) needed no change. `imports-full/` gained
+`member-star-with-ordering-error`: a member-star expansion composing with `import-ordering`'s
+re-sort in one `wrasseFix` pass, same composition mechanism as a package-star's. Zero existing
+package-star fixture changed.
 
 ---
 
@@ -1384,10 +1472,12 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   registration-order dependency and `EditPlan.takeEditsIn` self-consumption both retired along with
   the three separate rules. `SemanticWRule` unification and LightTree↔FIR offset correlation
   remain unbuilt (the engine still reads `WContext.resolvedUsage`, the file-level facade, not a
-  per-node one). Still unbuilt, now tracked as the engine's own growth sites rather than "the
-  eventual engine's job": member-star (class/object) expansion, FQN-shortening/import insertion,
-  own-package/default-redundant star removal, and closing the KDoc same-package-sibling coverage
-  gap via a session-backed package→declarations query.
+  per-node one). Member-star (class/object) expansion shipped 2026-07-19 (§8's closing as-built
+  paragraph: authoritative `WResolvedImport`-based classification, an `isStatic`-gated legality
+  check for enum entries/Java statics, whole-star bail on any instance-member usage). Still
+  unbuilt, tracked as the engine's own growth sites: FQN-shortening/import insertion, own-package/
+  default-redundant star removal, and closing the KDoc same-package-sibling coverage gap via a
+  session-backed package→declarations query.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.

@@ -10,6 +10,7 @@ import com.varlanv.wrasse.model.ViolationReport
 import com.varlanv.wrasse.model.WCallableUsage
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WResolvedImport
 import com.varlanv.wrasse.model.WResolvedUsage
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WRuleSet
@@ -106,12 +107,23 @@ class WrassePlugin(
     private fun dumpMessage(usage: WResolvedUsage): String {
         val classifiers = usage.classifiers.sorted().joinToString(prefix = "[", postfix = "]")
         val callables = usage.callables.map(::dumpCallable).sorted().joinToString(prefix = "[", postfix = "]")
-        return "resolved-usage: classifiers=$classifiers callables=$callables errors=${usage.hasResolutionErrors}"
+        val imports = usage.resolvedImports.map(::dumpImport).sorted().joinToString(prefix = "[", postfix = "]")
+        return "resolved-usage: classifiers=$classifiers callables=$callables imports=$imports errors=${usage.hasResolutionErrors}"
     }
 
     private fun dumpCallable(usage: WCallableUsage): String {
         val owner = usage.classFqName ?: usage.packageFqName
         return "$owner/${usage.name}"
+    }
+
+    private fun dumpImport(import: WResolvedImport): String {
+        val suffix = if (import.isStarImport) ".*" else ""
+        val status = when {
+            !import.resolved -> "?unresolved"
+            import.resolvedParentClassFqName != null -> "(parent=${import.resolvedParentClassFqName})"
+            else -> ""
+        }
+        return "${import.fqn}$suffix$status"
     }
 
     private fun requireWithinOpenAncestor(ctx: WContext, ruleId: String, edit: WEdit) {

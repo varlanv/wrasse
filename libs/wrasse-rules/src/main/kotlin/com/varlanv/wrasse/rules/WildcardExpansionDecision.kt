@@ -2,6 +2,7 @@ package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.model.WCallableUsage
+import com.varlanv.wrasse.model.WResolvedImport
 
 /**
  * One `import P.*` directive assembled from the leaf stream: the star's package/class FQN `P`
@@ -59,12 +60,30 @@ class StarImportRecord(
  * `import kotlin.collections.*`) into explicit imports is compile-preserving and harmless, so no
  * special-casing is done for default-import packages.
  *
+ * **Member-star (`import C.*`) expansion — the authoritative-resolved-import extension.**
+ * [StarAttribution.classify] decides, from the file's own [WResolvedImport]s, whether a star is a
+ * package-star (unchanged behavior above) or a member-star (`C` a class/object/enum) —
+ * cross-checked against the cheap usage-based [StarAttribution.isMemberStar] inference, bailing
+ * on any disagreement or on an unresolved star (never guessing, design.md §8). For a member-star,
+ * [StarAttribution.attributedMembers] computes the legally explicit-importable attributed set —
+ * nested classifiers and callable members whose [WCallableUsage.isStatic] is true (enum entries,
+ * Java statics) — expanded exactly like a package-star's attributed set (same exclusion,
+ * collision, and KDoc checks below, same ASCII-sorted `import C.member` replacement). A non-static
+ * member sharing `classFqName == C` is silently skipped rather than disqualifying anything: a
+ * member-star can never legally bring such a member into scope in the first place, so its
+ * appearance in the file's usage always means it resolved some other way (a receiver, or a
+ * same-named constructor call needing `C` itself in scope) and has nothing to do with this star.
+ * A member-star's own package/class syntactically can never be an `object`/companion (that star
+ * shape is a hard compiler error — `import Singleton.*` — confirmed empirically, so it can never
+ * reach this decision in a file whose resolution didn't already error), so [WCallableUsage.isStatic]
+ * alone is both necessary and sufficient here; no separate object/companion case exists to handle.
+ *
  * **Bails** (report fires, no edit — every ambiguity resolves toward "don't touch it"):
  * 1. Whole-file bail on missing/errored resolution is the caller's job (no resolved usage
  *    facade passed in at all means "don't call [decide]").
- * 2. **Class/object-star.** Any used callable whose `classFqName` equals `P` *exactly* means `P`
- *    itself names a class/object (a member-star import, e.g. `import p.SomeEnum.*` for its
- *    entries) rather than a package — package-stars only in this task, so bail.
+ * 2. **Unresolved or ambiguous star classification.** [StarAttribution.classify] returning
+ *    [StarClassification.UNRESOLVED_OR_AMBIGUOUS] — no resolved-import counterpart for this star,
+ *    or the authoritative package/member answer disagrees with the usage-based cross-check.
  * 3. **Zero attribution.** An unused star is `no-unused-imports`/engine territory, not expansion.
  * 4. **Shared line.** Same policy and rationale as [ImportRemovalSpan]'s bail: something else on
  *    the directive's line is a signal to leave the region alone.
@@ -115,25 +134,32 @@ object WildcardExpansionDecision {
         writtenIdentifiers: Set<String>,
         kdocSpans: List<IntRange>,
         sourceText: CharSequence,
+        resolvedImports: List<WResolvedImport>,
     ): WEdit? {
         if (star.packageFqName in duplicatePackages) return null
         if (star.packageFqName == filePackageFqName) return null
         if (!ImportLineSpan.isAloneOnLine(sourceText, star.startOffset, star.endOffset)) return null
-        if (StarAttribution.isMemberStar(star.packageFqName, callables)) return null
+
+        val attributed = when (StarAttribution.classify(star.packageFqName, resolvedImports, callables)) {
+            StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return null
+            StarClassification.MEMBER ->
+                StarAttribution.attributedMembers(star.packageFqName, classifiers, callables, writtenIdentifiers)
+
+            StarClassification.PACKAGE ->
+                StarAttribution.attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
+        }
 
         val explicitFqns = explicitImports.filter { it.aliasName == null }.mapTo(mutableSetOf()) { it.fqn }
-        val attributed = StarAttribution.attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
-            .filterNot { it in explicitFqns }
-            .toSortedSet()
-        if (attributed.isEmpty()) return null
+        val filtered = attributed.filterNot { it in explicitFqns }.toSortedSet()
+        if (filtered.isEmpty()) return null
 
-        if (hasSimpleNameCollision(attributed, classifiers, callables)) return null
+        if (hasSimpleNameCollision(filtered, classifiers, callables)) return null
 
         val coveredNames = explicitImports.mapTo(mutableSetOf()) { it.aliasName ?: it.simpleName }
-        attributed.mapTo(coveredNames) { it.substringAfterLast('.') }
+        filtered.mapTo(coveredNames) { it.substringAfterLast('.') }
         if (StarAttribution.kdocReferencesUncovered(kdocSpans, sourceText, coveredNames)) return null
 
-        val replacement = attributed.joinToString("\n") { "import $it" }
+        val replacement = filtered.joinToString("\n") { "import $it" }
         return WEdit(star.startOffset, star.endOffset, replacement)
     }
 

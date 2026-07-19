@@ -2,6 +2,7 @@ package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.model.WCallableUsage
+import com.varlanv.wrasse.model.WResolvedImport
 
 /**
  * A `import P.*` star directive is either entirely out of `no-unused-imports`'s scope (no report
@@ -24,21 +25,24 @@ sealed interface UnusedStarVerdict {
  * here.
  *
  * A star is removed iff **all** hold:
- * 1. Its attributed-symbol set, after excluding symbols already covered by a non-aliased explicit
- *    import of the same FQN (the identical filter [WildcardExpansionDecision.decide] applies before
- *    its own emptiness check), is empty.
- * 2. No used callable's `classFqName` equals [star]'s own package FQN exactly — that would mean
- *    the FQN names a class/object (a member-star), not a package; [StarAttribution.attributedSymbols]
- *    cannot see that usage at all (same reason [WildcardExpansionDecision] bails outright on it), so
- *    treating a member-star as zero-attribution without this check would misclassify a used one as
- *    unused. Member-star handling stays entirely out of scope here, same as expansion.
+ * 1. [StarAttribution.classify] does not return [StarClassification.UNRESOLVED_OR_AMBIGUOUS] — an
+ *    unresolved or ambiguously-classified star is left completely alone (no report), same
+ *    direction as [WildcardExpansionDecision]'s bail.
+ * 2. Its attributed set is empty, after excluding symbols already covered by a non-aliased
+ *    explicit import of the same FQN (the identical filter [WildcardExpansionDecision.decide]
+ *    applies before its own emptiness check) — [StarAttribution.attributedSymbols] for a
+ *    [StarClassification.PACKAGE] star, [StarAttribution.attributedMembers] for a
+ *    [StarClassification.MEMBER] one. A member-star whose only associated usage is a non-static
+ *    instance member (skipped by [StarAttribution.attributedMembers], never legally reachable
+ *    through a member-star in the first place) therefore has an empty attributed set and *is*
+ *    removable — that usage never needed this star.
  * 3. [star]'s own package does not equal the file's own package — an own-package star is
  *    redundancy, not unusedness, deferred to a future engine (design.md).
  * 4. No KDoc bracket reference's leading segment is left uncovered by every *other* source (the
- *    file's explicit imports and every other star's own attribution) — since this star has zero
- *    attribution of its own, its only remaining source of coverage would be exactly a KDoc
- *    reference FIR cannot see; an uncovered one means removal might not be safe, so the star is
- *    left completely alone (no report), the same conservative direction as
+ *    file's explicit imports and every other star's own attribution, package or member alike) —
+ *    since this star has zero attribution of its own, its only remaining source of coverage would
+ *    be exactly a KDoc reference FIR cannot see; an uncovered one means removal might not be safe,
+ *    so the star is left completely alone (no report), the same conservative direction as
  *    [WildcardExpansionDecision]'s own bail 8, inverted consequence (there: don't expand; here:
  *    don't even report).
  *
@@ -63,20 +67,32 @@ object UnusedStarDecision {
         writtenIdentifiers: Set<String>,
         kdocSpans: List<IntRange>,
         sourceText: CharSequence,
+        resolvedImports: List<WResolvedImport>,
     ): UnusedStarVerdict {
         if (star.packageFqName == filePackageFqName) return UnusedStarVerdict.OutOfScope
-        if (StarAttribution.isMemberStar(star.packageFqName, callables)) return UnusedStarVerdict.OutOfScope
 
         val explicitFqns = explicitImports.filter { it.aliasName == null }.mapTo(mutableSetOf()) { it.fqn }
-        val attributed = StarAttribution.attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
-            .filterNot { it in explicitFqns }
+        val attributed = when (StarAttribution.classify(star.packageFqName, resolvedImports, callables)) {
+            StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return UnusedStarVerdict.OutOfScope
+            StarClassification.MEMBER -> StarAttribution.attributedMembers(star.packageFqName, classifiers, callables, writtenIdentifiers)
+            StarClassification.PACKAGE -> StarAttribution.attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
+        }.filterNot { it in explicitFqns }
         if (attributed.isNotEmpty()) return UnusedStarVerdict.OutOfScope
 
         val coveredNames = explicitImports.mapTo(mutableSetOf()) { it.aliasName ?: it.simpleName }
         for (other in allStars) {
             if (other === star) continue
-            StarAttribution.attributedSymbols(other.packageFqName, classifiers, callables, writtenIdentifiers)
-                .mapTo(coveredNames) { it.substringAfterLast('.') }
+            when (StarAttribution.classify(other.packageFqName, resolvedImports, callables)) {
+                StarClassification.MEMBER ->
+                    StarAttribution.attributedMembers(other.packageFqName, classifiers, callables, writtenIdentifiers)
+                        .mapTo(coveredNames) { it.substringAfterLast('.') }
+
+                StarClassification.PACKAGE ->
+                    StarAttribution.attributedSymbols(other.packageFqName, classifiers, callables, writtenIdentifiers)
+                        .mapTo(coveredNames) { it.substringAfterLast('.') }
+
+                StarClassification.UNRESOLVED_OR_AMBIGUOUS -> {}
+            }
         }
         if (StarAttribution.kdocReferencesUncovered(kdocSpans, sourceText, coveredNames)) return UnusedStarVerdict.OutOfScope
 
