@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "no-unnecessary-fqn": { "level": "error" },
+        "no-unused-imports": { "level": "error" }
+    }
+}

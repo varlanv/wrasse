@@ -1176,12 +1176,14 @@ diagnostics (and so, by construction, an uncollected `qualifiedUsages`) unchange
 below, is now the first real consumer). `dumpResolvedUsage`'s message gained a
 `qualified=[start..end:kind:fqn, ...]` segment, ASCII-sorted by start offset then end.
 
-**As-built (`no-unnecessary-fqn` — D.2 of the FQN→import track, report-only, 2026-07-19):** a
-fourth id on `ImportEngine`, reporting a fully-qualified usage `a.b.C...` whose qualifier prefix
-`a.b.` could be dropped given an existing or addable `import a.b.C`. Message: `"Unnecessary fully
-qualified name"`. No edit is ever attached — D.3 attaches the fix; this part is precision-first,
-report-only groundwork, silent-skipping (no report at all) on any ambiguity rather than guessing,
-per the same "bail-on-ambiguity" mandate that governs the rest of the import family.
+**As-built (`no-unnecessary-fqn` — D.2 of the FQN→import track, originally report-only, 2026-07-19;
+D.3 below attaches the fix the same day this document was next revised):** a fourth id on
+`ImportEngine`, reporting a fully-qualified usage `a.b.C...` whose qualifier prefix `a.b.` could be
+dropped given an existing or addable `import a.b.C`. Message: `"Unnecessary fully qualified name"`.
+This section (through "Fixtures" below) describes the detection decision exactly as D.2 shipped it
+and exactly as D.3 still uses it unchanged — precision-first, silent-skipping (no report at all) on
+any ambiguity rather than guessing, per the same "bail-on-ambiguity" mandate that governs the rest
+of the import family; D.3 (further below) adds no new detection, only the edits.
 
 **Facade fidelity fix, found failing-first while starting this rule.** `recordTypeRefUsage`
 recorded the typealias **expansion**'s `classId` for a `coneType.abbreviatedType`-bearing type
@@ -1310,10 +1312,220 @@ segment, a root-package usage, a colliding classifier elsewhere, a colliding ali
 colliding written identifier from the file's own unrelated declaration, an aliased import correctly
 *not* counting as already-imported, a same-package usage shadowed by an unrelated explicit import
 (the bug-1 regression fixture, above), and a KDoc-only mention never scanned at all. `imports-full/`
-gained the id (report-only, so no edit-composition risk with the other three) and one fixture
-proving its report coexists with the other ids' machinery without interference.
-`QualifiedUsageDecisionSpec` (`libs/wrasse-rules`) unit-tests the pure decision logic directly,
-compiler-free, including the same-package shadowing and self-declaration shapes above.
+gained the id (report-only at the time, so no edit-composition risk with the other three then — D.3
+below changes this) and one fixture proving its report coexists with the other ids' machinery
+without interference. `QualifiedUsageDecisionSpec` (`libs/wrasse-rules`) unit-tests the pure
+decision logic directly, compiler-free, including the same-package shadowing and self-declaration
+shapes above. **All of the above is unchanged by D.3** — every fixture in this paragraph gained a
+`.fixed.kt` companion (or stayed report-only/clean, for the bails) without a single expectation
+line changing; D.3 automates exactly what D.2 already decided, adding no new detection.
+
+**As-built (`no-unnecessary-fqn` fix — D.3 of the FQN→import track, closing it, 2026-07-19):**
+`UnnecessaryFqnReport` gained `newImportFqn: String?` — non-null on exactly one usage per distinct
+target (the one with the smallest `dropStart`, so the choice is deterministic regardless of FIR
+traversal order) when that target needs a genuinely new `import` directive, `null` for every other
+usage and for every target needing no import change. `ImportEngine.collectUnnecessaryFqn` now
+attaches a body-drop `WEdit(dropStart, dropEnd, "")` to *every* `no-unnecessary-fqn` report
+unconditionally (the report firing at all already means D.2 proved it safe — "every report D.2
+makes is already provably rewritable") and separately records `(newImportFqn, itsReport)` pairs as
+**import-insertion anchors** for `resolveImportListChanges` to resolve into that report's second
+edit, `PendingImportReport.extraEdit`.
+
+**The three import variants (D.3's own decision, inside `QualifiedUsageDecision.decideAll`):**
+1. **Already imported** (a non-aliased explicit import of the exact candidate exists) or
+   **same package** — no import edit, body edit only.
+2. **The candidate's package is a [`DefaultImportPackages`] target** — no import edit either (a
+   bare name there already resolves via the compiler's own defaults; adding one would be pure
+   noise — the `kotlin.Unit` dogfood case, commit cf6d939). `DefaultImportPackages.ALL` is the ten
+   packages `kotlin`, `kotlin.annotation`, `kotlin.collections`, `kotlin.comparisons`, `kotlin.io`,
+   `kotlin.ranges`, `kotlin.sequences`, `kotlin.text`, `kotlin.jvm`, `java.lang` — javap-confirmed
+   against `kotlin-compiler-embeddable:2.3.21`, not assumed from documentation: the first eight are
+   every `ImportPath` string constant loaded in `org.jetbrains.kotlin.resolve
+   .DefaultImportsProvider`'s own constructor; `kotlin.jvm`/`java.lang` are the two JVM-platform
+   additions read directly off `org.jetbrains.kotlin.resolve.jvm.platform
+   .JvmDefaultImportsProvider`'s class file (`javap -c -constants`).
+3. **Otherwise** — add `import <candidateImportFqn>`, attached to the one earliest usage.
+
+**A generalization found while building the default-import variant, not shipped as first
+written.** D.2's step 4 (the "written elsewhere" bail, §8 above) was scoped to skip only for
+*same-package* candidates, reasoning that step 4 exists purely to protect a **new** import from
+being silently shadowed — logic that is moot once no new import is happening at all. D.3 initially
+kept that same-package-only scoping and immediately failed its own `kotlin.Unit` dogfood-style
+fixture: `fun f(): kotlin.Unit = Unit` bails (wrongly reports nothing) because the *body*'s bare
+`Unit` is a written-identifier occurrence outside the type position's own span, and step 4 doesn't
+know `kotlin.Unit` needs no new import at all. Generalized the exemption from `isSamePackage` to
+`needsNoNewImport = isSamePackage || packageFqName in DefaultImportPackages.ALL` — the same
+reasoning that justified skipping step 4 for same-package applies identically to a default-import
+target, since in both cases there is no *new* import for step 4 to protect. Locked by
+`QualifiedUsageDecisionSpec`'s "report a default-import-package usage even when its simple name is
+also written bare elsewhere" case and the `default-import-package-error` fixture (the exact
+`kotlin.Unit` shape, `.fixed.kt` companion).
+
+**Insertion ownership — three placements, one pure decision object (`ImportInsertionDecision`,
+`libs/wrasse-rules`, compiler-free) plus a fourth, engine-side path that needs no new object at
+all:**
+1. **Import-ordering enabled and the list is clean.** `ImportOrderingDecision.composeRegion` gained
+   an `extraLines: List<String>` parameter — brand-new `import <fqn>` lines that never correspond
+   to a span in the original text (so they cannot be a `WEdit` against it, unlike the `edits` the
+   composed rewrite already splices) are appended to the post-edit, pre-sort line list before the
+   final ASCII sort, so a new import's position "falls out naturally" from the identical composed
+   whole-list rewrite ordering already performs — no offset-based insertion logic needed for this
+   path at all. `resolveImportListChanges` (renamed from `decideOrdering`, same function, now also
+   the single place both decisions are made — see below) enters this branch whenever ordering is
+   enabled, the list is clean, and *either* `taken` (edits from other ids in-region) or the new-FQN
+   list is non-empty — previously only `taken` could trigger composition; a pure insertion with
+   nothing else to compose used to be unreachable and now is.
+
+   **Truthfulness invariant (a real bug, found in high-supervision review, not shipped as first
+   written): running composition is never itself evidence of disorder.** The first version of this
+   change reported `import-ordering`'s "Imports are not sorted" diagnostic *whenever composition
+   ran at all* — including a pure insertion or a pure fold with no genuine violation, e.g. a single,
+   trivially-sorted pre-existing import plus one new `no-unnecessary-fqn` addition. That is a
+   fabricated diagnostic: in pure lint mode (no fix applied), a user with a perfectly sorted import
+   list and one unrelated FQN finding would see a false "Imports are not sorted" error that no edit
+   ever corrects for them to see the falsehood. Diagnostics must be true statements about the code,
+   not artifacts of *how* an edit happened to get produced. Fixed: the `import-ordering` **report**
+   fires if and only if `ImportOrderingDecision.firstOutOfOrder` finds a genuine violation in the
+   file's own, pre-edit directive order (`records`) — composing and reporting are decoupled. When
+   composition runs and the list *is* genuinely out of order, behavior is unchanged: the ordering
+   report carries the composed edit, exactly as it always has. When composition runs on an
+   already-sorted list (a pure insertion, and — this was already a latent instance of the identical
+   falsehood predating D.3 entirely, for a plain fold of other ids' edits with no insertion at all —
+   a pure removal/expansion fold too), no `import-ordering` diagnostic is emitted at all; the
+   composed whole-list edit instead rides an existing, genuinely-true report's `extraEdit`
+   (`carrierFor`): the earliest-sorting new target's own `no-unnecessary-fqn` anchor when an
+   insertion is involved, otherwise the first folded (`no-unused-imports`/`no-wildcard-imports`)
+   report in span order — either way, a report whose own message was already true regardless of
+   which physical edit object ends up attached to it. Locked by
+   `imports-full/sorted-list-fqn-insertion-no-false-ordering-error` (a genuinely sorted two-import
+   list, one new import inserted via composition, exactly one `no-unnecessary-fqn` diagnostic and
+   **zero** `import-ordering` diagnostics, `.fixed.kt` proving the insertion still lands correctly
+   sorted); `imports-full/file-annotation-rewrite-with-ordering-error` and
+   `imports-full/unnecessary-fqn-coexists-error` (both single-pre-existing-import, trivially-sorted
+   fixtures) had their bogus `import-ordering` expectations removed — their `.fixed.kt` companions
+   are unchanged (the composed edit is byte-identical, only its carrier report changed).
+   `imports-full/combined-fix-error`, `grand-slam-error`, `last-directive-removed-error`,
+   `member-star-with-ordering-error`, and `unused-star-with-unsorted-remainder-error` all have a
+   genuinely out-of-order pre-existing list and keep their `import-ordering` expectation unchanged.
+2. **No existing import directives at all** (`directiveSpans.isEmpty()` — note the `IMPORT_LIST`
+   node itself is *always* present, zero-width, even with zero directives, probe-confirmed via
+   `LightTreeStreamAdapter.walk` on `package sample\n\nval x = 1\n`; "no import list" means no
+   directives, not no node). `ImportInsertionDecision.emptyListInsertion` replaces the
+   whitespace-only gap between `listStart` and the first non-whitespace content with a canonical,
+   born-clean rendering: a blank line before the new import block when something (a package
+   directive and/or file annotations) precedes `listStart` (`listStart > 0`), a blank line after
+   when something follows, neither when there is nothing on that side — regardless of the
+   *original* gap's width (a stray extra blank line from source formatting is silently normalized
+   away along with the insertion, since the whole gap is replaced, not patched around). This path
+   runs whether or not `import-ordering` is enabled — there is nothing to "compose" with zero
+   directives, so it is always this dedicated placement. Locked by six `no-unnecessary-fqn/`
+   fixtures whose target needed a new import with no pre-existing list (`duplicate-usage-both-
+   reported-error`, `generic-type-report-error`, `nested-class-report-error`, `qualifier-member-
+   access-report-error`, `qualifier-object-report-error`, `typeref-report-error` — six, all
+   `.fixed.kt`), plus `ImportInsertionDecisionSpec` unit tests for both sides of the gap
+   (preceding-only, following-only, both, neither) and multi-import sorting within one block.
+3. **Import-ordering disabled, or the list isn't clean, or composition itself bails**
+   (`composeRegion` returning `null`) — `ImportInsertionDecision.standaloneEdits`, a **zero-width**
+   `WEdit` per seam (the patch machinery has handled zero-width same-offset insertions since D18's
+   same-offset-insertion work, §5.2). Each new import's `ImportOrderingRecord.sortKey`-driven
+   insertion index picks one of two seam shapes: immediately before the first existing directive
+   sorting after it (only when the pairwise gap to its predecessor, or to `listStart` for the very
+   first directive, is a single comment-free `\n` — the identical "clean pairwise gap" fact
+   `ImportOrderingDecision.isCleanList` already establishes for the *whole* list, checked here for
+   just the one seam), or after the last directive (`listEnd`, always exactly the last directive's
+   own `endOffset`, §8 above) — used both when the new import sorts last and as the universal
+   fallback whenever the earlier seam isn't clean. A dirty pairwise gap (most commonly a comment
+   documenting the *next* directive) is never risked with a mid-list insertion — falling back to
+   "after the last directive" can never sever a comment from what it documents, at the cost of a
+   not-strictly-alphabetical position for that one import, the same bail-toward-safety posture as
+   the rest of the import family. Several new imports landing at the identical seam merge into one
+   edit, sorted among themselves, rather than relying on `EditPlan`'s same-offset tie-break at all.
+   Locked by `no-unnecessary-fqn-standalone/mid-list-insertion-error` (a clean mid-list seam,
+   `.fixed.kt`), `no-unnecessary-fqn-standalone/comment-gap-fallback-error` (a comment sitting
+   exactly at the natural seam, falling back to end-of-list, `.fixed.kt`), and
+   `ImportInsertionDecisionSpec` unit tests for every seam shape including the multi-import
+   same-seam merge and the split-across-two-seams case.
+
+**A same-offset hazard found while building the standalone path, mirroring `import-ordering`'s own
+`probeEnd` fix (§8 above) exactly.** "After the last directive" seams land at `listEnd`, which is
+always exactly the last directive's own `endOffset` — if that same directive is *also* being
+removed as unused, its whole-line deletion consumes past `listEnd` into the directive's own
+trailing `\n` (outside `IMPORT_LIST`'s own span, same fact `import-ordering`'s `probeEnd` exists to
+handle), so a zero-width insert exactly at `listEnd` would land *inside* that deletion's span — an
+`EditPlan` overlap, caught only at apply time without a targeted fixture. `ImportEngine
+.adjustForSwallowingEdit` pushes such an insertion past whatever pending edit's span already
+swallows `listEnd`, dropping the insertion's own leading `\n` (the swallowing edit's `endOffset`
+already lands at the start of the next line, so one isn't needed). Every *other* seam shape is
+boundary-safe by construction and needs no such adjustment: a zero-width insert whose offset
+exactly equals another edit's `startOffset` or `endOffset` is a boundary, not an overlap (`EditPlan`
+sorts equal-start entries by end, so `next.start >= current.end` always holds at a shared boundary
+point) — only the last-directive-trailing-newline shape reaches *past* its own nominal end into
+territory a naive anchor would treat as free. Locked by `no-unnecessary-fqn-standalone/last-
+directive-removed-standalone-error`: the last existing import is simultaneously unused (removed)
+and the seam for a new, later-sorting import, both `no-unused-imports` and `no-unnecessary-fqn`
+firing, one composed-free `wrasseFix` pass producing the correct, non-overlapping result
+(`.fixed.kt`).
+
+**The reconciliation case — verified a non-issue by construction, not fixed with new suppression
+code.** The design brief for this track worried about a specific interaction: an import whose
+*only* usage is fully qualified (`import a.b.C` alongside a written `a.b.C`, never a bare `C`)
+being flagged unused by `no-unused-imports` independently of whatever `no-unnecessary-fqn` decides
+about the same usage — two rules reaching individually-correct, jointly-wrong conclusions unless
+reconciled. Checked empirically (a dedicated harness probe, not assumed) before writing any
+reconciliation logic: `no-unused-imports`' classifier/callable matching (`UnusedImportDecision
+.isUnused`, §8 above) keys purely on **FQN membership** in `WResolvedUsage.classifiers`/`callables`
+— sets the compiler populates identically whether a reference was written bare or fully qualified
+(`visitResolvedTypeRef`/`visitResolvedQualifier` record a classifier for *any* resolved reference
+with a real source, §8's D.1 section). A qualified-only usage of an explicitly imported class is
+therefore already, unconditionally, seen as "used" by `no-unused-imports` — there is no scenario in
+which the same directive is simultaneously flagged unused and targeted by a same-target FQN
+rewrite, so no suppression is needed and none was added. This was confirmed, not assumed: a probe
+fixture (`import sample.aux.Widget` + `val w: sample.aux.Widget = TODO()`, both
+`no-unused-imports` and `no-unnecessary-fqn` enabled) produces exactly one diagnostic
+(`no-unnecessary-fqn`) both before and after this investigation — locked permanently by
+`imports-full/already-imported-not-unused-error` (`.fixed.kt`) and by
+`FqnImportInsertionSafetySpec`'s "reconciliation case" real-compile proof, rather than left as a
+one-off manual check.
+
+**Compile-safety.** `FqnImportInsertionSafetySpec` (`testing/wrasse-kotlinc-plugin-tests-base`,
+subclassed per Kotlin minor exactly like `WildcardExpansionAmbiguitySafetySpec`) drives a real
+compile → fix → reapply → recompile cycle and asserts
+`IdempotenceCycle.assertPatchedFileCompiles` for the four trickiest shapes: import-into-empty-list,
+a file-annotation rewrite plus its import addition, the reconciliation case, and the default-import
+variant — the stronger guarantee the standard fixture cycle doesn't apply globally (§8 above,
+`no-wildcard-imports` section: several fixtures compile `noJdk = true` and trip unrelated classpath
+diagnostics that would false-positive across the whole suite if wired in by default).
+
+**Fixtures, in full.** `no-unnecessary-fqn/`: every existing fixture from D.2 above gained a
+`.fixed.kt` companion where it now fixes (ten of them; the bail/skip fixtures stay report-only or
+clean, unchanged), plus `default-import-package-error` (new, `.fixed.kt`). A new directory,
+`no-unnecessary-fqn-standalone/` (`no-unnecessary-fqn` + `no-unused-imports`, `import-ordering`
+deliberately *not* enabled, to exercise the standalone placement path independent of composition):
+`mid-list-insertion-error`, `comment-gap-fallback-error`, `last-directive-removed-standalone-error`
+(all `.fixed.kt`). `imports-full/` (all four ids plus `no-semicolons`, so `import-ordering` is
+always enabled there): `unnecessary-fqn-coexists-error` gained a `.fixed.kt` (no `import-ordering`
+expectation — its single-import list is trivially sorted, see the truthfulness invariant above);
+`already-imported-not-unused-error` (the reconciliation case, `.fixed.kt`);
+`file-annotation-rewrite-with-ordering-error` (a real `@file:OptIn(a.b.Marker::class)` shape,
+mirroring the exact dogfood construct from commit cf6d939, `.fixed.kt`, likewise no
+`import-ordering` expectation); `grand-slam-error` (unused-import removal + star expansion + FQN
+rewrite/import addition + ordering, all five ids firing in one file — this list *is* genuinely out
+of order, so its `import-ordering` expectation stays, one composed `wrasseFix` pass, `.fixed.kt`);
+`sorted-list-fqn-insertion-no-false-ordering-error` (the truthfulness-invariant regression lock: a
+genuinely sorted two-import list plus one new insertion, exactly one `no-unnecessary-fqn`
+diagnostic and zero `import-ordering` ones, `.fixed.kt`). `QualifiedUsageDecisionSpec` gained cases
+for all three import variants plus the earliest-usage tie-break and the default-import
+generalization above; `ImportInsertionDecisionSpec` (new) unit-tests `ImportInsertionDecision`
+directly; `ImportOrderingDecisionSpec` gained `composeRegion` `extraLines` cases (with and without
+other edits, with and without a pre-existing trailing newline).
+
+**The FQN→import track is complete.** D.1 (offset correlation) → D.2 (report-only detection) → D.3
+(the fix, this section) shipped across three sessions with zero detection changes after D.1 — D.3
+added no new ambiguity handling beyond the default-import generalization above, which closes a gap
+D.2's own report-only shape could never have surfaced (there was no "is a new import needed"
+question to get wrong until D.3 asked it). Remaining in the engine's own growth-site bucket,
+unchanged by this track: own-package/default-redundant star removal, and the KDoc same-package-
+sibling coverage gap (needs a session-backed package→declarations query, §8 above).
 
 ---
 
@@ -1667,12 +1879,12 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   per-node one). Member-star (class/object) expansion shipped 2026-07-19 (§8's closing as-built
   paragraph: authoritative `WResolvedImport`-based classification, an `isStatic`-gated legality
   check for enum entries/Java statics, whole-star bail on any instance-member usage). The
-  LightTree↔FIR offset-correlation spike (D.1) and the report-only `no-unnecessary-fqn` rule built
-  on it (D.2, a fourth `ImportEngine` id) both shipped 2026-07-19 — §8's closing as-built
-  paragraphs; D.3 (attaching an actual fix to that same decision) is still ahead. Still unbuilt
-  otherwise, tracked as the engine's own growth sites: own-package/default-redundant star removal,
-  and closing the KDoc same-package-sibling coverage gap via a session-backed package→declarations
-  query.
+  LightTree↔FIR offset-correlation spike (D.1), the report-only `no-unnecessary-fqn` rule built on
+  it (D.2, a fourth `ImportEngine` id), and the fix attached to that same decision (D.3) all shipped
+  2026-07-19 — §8's closing as-built paragraphs. **The FQN→import track (D.1–D.3) is complete.**
+  Still unbuilt, tracked as the engine's own remaining growth sites: own-package/default-redundant
+  star removal, and closing the KDoc same-package-sibling coverage gap via a session-backed
+  package→declarations query.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.

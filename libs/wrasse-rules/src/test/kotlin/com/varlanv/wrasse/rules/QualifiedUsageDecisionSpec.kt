@@ -364,4 +364,120 @@ class QualifiedUsageDecisionSpec : BaseSpec({
 
         reports.shouldBeEmpty()
     }
+
+    should("attach a new-import request when no import exists, same package doesn't apply, and the package isn't a default import") {
+        val sourceText = "val c = a.b.C"
+        val usage = qualifier(sourceText, "a.b.C", "a.b.C", "a.b")
+
+        val reports = QualifiedUsageDecision.decideAll(
+            qualifiedUsages = listOf(usage),
+            sourceText = sourceText,
+            filePackageFqName = "other",
+            classifiers = setOf("a.b.C"),
+            callables = emptySet(),
+            explicitImports = emptyList(),
+            identifierOccurrences = emptyList(),
+        )
+
+        reports shouldHaveSize 1
+        reports[0].newImportFqn shouldBe "a.b.C"
+    }
+
+    should("attach no new-import request when a plain explicit import of the candidate already exists") {
+        val sourceText = "val c = a.b.C"
+        val usage = qualifier(sourceText, "a.b.C", "a.b.C", "a.b")
+
+        val reports = QualifiedUsageDecision.decideAll(
+            qualifiedUsages = listOf(usage),
+            sourceText = sourceText,
+            filePackageFqName = "other",
+            classifiers = setOf("a.b.C"),
+            callables = emptySet(),
+            explicitImports = listOf(explicitImport("a.b.C")),
+            identifierOccurrences = emptyList(),
+        )
+
+        reports shouldHaveSize 1
+        reports[0].newImportFqn shouldBe null
+    }
+
+    should("attach no new-import request for a same-package usage") {
+        val sourceText = "val c = a.b.C"
+        val usage = qualifier(sourceText, "a.b.C", "a.b.C", "a.b")
+
+        val reports = QualifiedUsageDecision.decideAll(
+            qualifiedUsages = listOf(usage),
+            sourceText = sourceText,
+            filePackageFqName = "a.b",
+            classifiers = setOf("a.b.C"),
+            callables = emptySet(),
+            explicitImports = emptyList(),
+            identifierOccurrences = emptyList(),
+        )
+
+        reports shouldHaveSize 1
+        reports[0].newImportFqn shouldBe null
+    }
+
+    should("attach no new-import request when the candidate's package is a Kotlin default import") {
+        val sourceText = "val c = kotlin.Unit"
+        val usage = qualifier(sourceText, "kotlin.Unit", "kotlin.Unit", "kotlin")
+
+        val reports = QualifiedUsageDecision.decideAll(
+            qualifiedUsages = listOf(usage),
+            sourceText = sourceText,
+            filePackageFqName = "other",
+            classifiers = setOf("kotlin.Unit"),
+            callables = emptySet(),
+            explicitImports = emptyList(),
+            identifierOccurrences = emptyList(),
+        )
+
+        reports shouldHaveSize 1
+        reports[0].newImportFqn shouldBe null
+    }
+
+    should("report a default-import-package usage even when its simple name is also written bare elsewhere") {
+        val sourceText = "fun f(): kotlin.Unit = Unit"
+        val usage = typeRef(sourceText, "kotlin.Unit", "kotlin.Unit", "kotlin")
+        val bareOffset = sourceText.indexOf("Unit", usage.endOffset)
+
+        val reports = QualifiedUsageDecision.decideAll(
+            qualifiedUsages = listOf(usage),
+            sourceText = sourceText,
+            filePackageFqName = "other",
+            classifiers = setOf("kotlin.Unit"),
+            callables = emptySet(),
+            explicitImports = emptyList(),
+            identifierOccurrences = listOf(IdentifierOccurrence("Unit", bareOffset)),
+        )
+
+        reports shouldHaveSize 1
+        reports[0].newImportFqn shouldBe null
+    }
+
+    should("attach the new-import request to only the earliest usage of a shared target needing one") {
+        val sourceText = "val c1 = a.b.C\nval c2 = a.b.C"
+        val firstOffset = sourceText.indexOf("a.b.C")
+        val secondOffset = sourceText.indexOf("a.b.C", firstOffset + 1)
+        val usages = listOf(
+            WQualifiedUsage(secondOffset, secondOffset + 5, "a.b.C", "a.b", WQualifiedUsageKind.QUALIFIER),
+            WQualifiedUsage(firstOffset, firstOffset + 5, "a.b.C", "a.b", WQualifiedUsageKind.QUALIFIER),
+        )
+
+        val reports = QualifiedUsageDecision.decideAll(
+            qualifiedUsages = usages,
+            sourceText = sourceText,
+            filePackageFqName = "other",
+            classifiers = setOf("a.b.C"),
+            callables = emptySet(),
+            explicitImports = emptyList(),
+            identifierOccurrences = emptyList(),
+        )
+
+        reports shouldHaveSize 2
+        val byOffset = reports.associateBy { it.dropStart }
+        byOffset.getValue(firstOffset).newImportFqn shouldBe "a.b.C"
+        byOffset.getValue(secondOffset).newImportFqn shouldBe null
+    }
 })

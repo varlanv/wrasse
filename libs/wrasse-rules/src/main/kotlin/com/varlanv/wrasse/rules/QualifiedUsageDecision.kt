@@ -16,8 +16,13 @@ class IdentifierOccurrence(val text: String, val startOffset: Int)
 /**
  * A single, provably-rewritable `no-unnecessary-fqn` finding: [dropStart]/[dropEnd] is the
  * package-prefix span to delete (the `a.b.` part of a written `a.b.C`), never the whole chain.
+ * [newImportFqn] is non-null on exactly one usage per distinct target (the one with the smallest
+ * [dropStart] — deterministic regardless of FIR traversal order) when that target genuinely needs
+ * a **new** `import` directive added (D.3's variant (c): not already imported, not same-package,
+ * not a [DefaultImportPackages] target) — `null` for every other usage of that target, and for
+ * every usage of a target needing no import change at all (variants (a)/(b)).
  */
-class UnnecessaryFqnReport(val dropStart: Int, val dropEnd: Int)
+class UnnecessaryFqnReport(val dropStart: Int, val dropEnd: Int, val newImportFqn: String?)
 
 /**
  * Pure decision logic for `no-unnecessary-fqn` (D.2, report-only — design.md §8), compiler-free
@@ -61,18 +66,24 @@ class UnnecessaryFqnReport(val dropStart: Int, val dropEnd: Int)
  *      *different* FQN.
  *    These two apply **unconditionally**, same-package target or not (see below) — both reflect a
  *    real name-binding fact regardless of whether an import needs to be *added*.
- * 3. **Same package needs no new import** — skip the remaining check (below) and report.
+ * 3. **A target needing no new import at all — same package, or (D.3) a [DefaultImportPackages]
+ *    target — skips the remaining check (below) and reports.** Same package needs no import
+ *    because Kotlin resolves same-package classes unqualified; a `DefaultImportPackages` target
+ *    needs none because the compiler's own defaults already bring it into scope. Either way there
+ *    is no *new* import whose safety step 4 exists to protect, so both share the same exemption.
  * 4. **Otherwise (a new import is genuinely needed), also skip if** the candidate's simple name is
  *    a written `IDENTIFIER` occurrence anywhere in the file *outside* every usage span of this
  *    same target (the trailing segment of the chain being judged is itself a written identifier
  *    and must not self-disqualify — [IdentifierOccurrence] carries offsets precisely so this
  *    exclusion can be checked positionally, not by name alone). Otherwise, report.
  *
- * **Why step 4 is scoped away from same package — two fixes found in high-supervision review,
- * neither shipped as first written.** An earlier draft returned "safe" unconditionally for any
- * same-package candidate, reasoning that Kotlin resolves same-package classes unqualified with no
- * import needed, and a package cannot declare two top-level classes with the same simple name.
- * Both true, but incomplete on their own:
+ * **Why step 4 is scoped away from "needs no new import" — two fixes found in high-supervision
+ * review, neither shipped as first written (originally scoped only to same-package; D.3 widened
+ * the exemption to `DefaultImportPackages` targets for the identical reason once "no new import
+ * needed" became a real second case — see [UnnecessaryFqnReport.newImportFqn]).** An earlier draft
+ * returned "safe" unconditionally for any same-package candidate, reasoning that Kotlin resolves
+ * same-package classes unqualified with no import needed, and a package cannot declare two
+ * top-level classes with the same simple name. Both true, but incomplete on their own:
  * - **Fix 1 — an explicit import can still shadow a same-package sibling.** Confirmed empirically
  *   (not assumed) via a dedicated real-compile probe: package `p` with a sibling-file class `p.C`,
  *   plus `import q.C` and a bare `C().qOnly()` call in the same file — `dumpResolvedUsage`'s dump
@@ -100,6 +111,16 @@ class UnnecessaryFqnReport(val dropStart: Int, val dropEnd: Int)
  * Locked by `same-package-shadowed-by-import-skip-clean` (fix 1: skip) alongside
  * `same-package-unshadowed-still-reported-error` / `same-package-redundant-error` (fix 2's own
  * regression fixture: report, no conflicting import) as the paired control.
+ *
+ * **D.3 addition — which of the three fix variants applies (design.md §8), once a target clears
+ * every check above:**
+ * 1. Already imported (the step-1 check above) or same package (step 3) — no import edit, body
+ *    edits only.
+ * 2. The candidate's package is a [DefaultImportPackages] target — no import edit either (a bare
+ *    name there already resolves via the compiler's own defaults; adding one would be noise, the
+ *    `kotlin.Unit` dogfood case).
+ * 3. Otherwise — add `import <candidateImportFqn>`, attached to exactly one usage (the one
+ *    starting earliest) so [ImportEngine] emits the addition once per target, not once per usage.
  */
 object QualifiedUsageDecision {
 
@@ -121,21 +142,35 @@ object QualifiedUsageDecision {
         for ((candidateImportFqn, usages) in proven.groupBy { it.candidateImportFqn }) {
             val topLevelSimpleName = usages.first().topLevelSimpleName
             val packageFqName = usages.first().usage.packageFqName
+            val isSamePackage = packageFqName == filePackageFqName
+            val alreadyImported = explicitImports.any { it.aliasName == null && it.fqn == candidateImportFqn }
+            val needsNoNewImport = isSamePackage || packageFqName in DefaultImportPackages.ALL
             val ownSpans = usages.map { it.usage.startOffset until it.usage.endOffset } +
                 literalOccurrences(candidateImportFqn, sourceText)
-            if (isSafeToDrop(
+            if (!isSafeToDrop(
                     candidateImportFqn = candidateImportFqn,
+                    alreadyImported = alreadyImported,
                     topLevelSimpleName = topLevelSimpleName,
-                    isSamePackage = packageFqName == filePackageFqName,
+                    needsNoNewImport = needsNoNewImport,
                     explicitImports = explicitImports,
                     collisionIndex = collisionIndex,
                     identifierOccurrences = identifierOccurrences,
                     ownSpans = ownSpans,
                 )
             ) {
-                for (p in usages) {
-                    reports.add(UnnecessaryFqnReport(p.usage.startOffset, p.usage.startOffset + p.dropLength))
-                }
+                continue
+            }
+
+            val newImportFqn = if (alreadyImported || needsNoNewImport) null else candidateImportFqn
+            val sortedUsages = usages.sortedBy { it.usage.startOffset }
+            for ((index, p) in sortedUsages.withIndex()) {
+                reports.add(
+                    UnnecessaryFqnReport(
+                        dropStart = p.usage.startOffset,
+                        dropEnd = p.usage.startOffset + p.dropLength,
+                        newImportFqn = if (index == 0) newImportFqn else null,
+                    )
+                )
             }
         }
         return reports.sortedWith(compareBy({ it.dropStart }, { it.dropEnd }))
@@ -191,14 +226,14 @@ object QualifiedUsageDecision {
 
     private fun isSafeToDrop(
         candidateImportFqn: String,
+        alreadyImported: Boolean,
         topLevelSimpleName: String,
-        isSamePackage: Boolean,
+        needsNoNewImport: Boolean,
         explicitImports: List<ImportRecord>,
         collisionIndex: Map<String, Set<String>>,
         identifierOccurrences: List<IdentifierOccurrence>,
         ownSpans: List<IntRange>,
     ): Boolean {
-        val alreadyImported = explicitImports.any { it.aliasName == null && it.fqn == candidateImportFqn }
         if (alreadyImported) return true
 
         if (SimpleNameCollisionIndex.collidesWithOtherFqn(candidateImportFqn, topLevelSimpleName, collisionIndex)) return false
@@ -206,7 +241,7 @@ object QualifiedUsageDecision {
         val explicitImportCollision = explicitImports.any { (it.aliasName ?: it.simpleName) == topLevelSimpleName && it.fqn != candidateImportFqn }
         if (explicitImportCollision) return false
 
-        if (isSamePackage) return true
+        if (needsNoNewImport) return true
 
         val writtenElsewhere = identifierOccurrences.any { occ ->
             occ.text == topLevelSimpleName && ownSpans.none { span -> occ.startOffset in span }

@@ -137,4 +137,29 @@ class ImportOrderingDecisionSpec : BaseSpec({
 
         composed shouldBe null
     }
+
+    should("fold new import lines into the composed rewrite, sorted alongside the existing directives") {
+        val text = "import z.Z\nimport a.A\n"
+
+        val composed = ImportOrderingDecision.composeRegion(text, 0, text.length, emptyList(), listOf("import m.M"))
+
+        composed shouldBe "import a.A\nimport m.M\nimport z.Z\n"
+    }
+
+    should("fold new import lines in even when no other edit is present and the region has no trailing newline") {
+        val text = "import z.Z\nimport a.A"
+
+        val composed = ImportOrderingDecision.composeRegion(text, 0, text.length, emptyList(), listOf("import m.M"))
+
+        composed shouldBe "import a.A\nimport m.M\nimport z.Z\n"
+    }
+
+    should("fold new import lines in alongside a deletion, sorting the survivors and the addition together") {
+        val text = "import z.Z\nimport unused.U\nimport a.A\n"
+        val deleteUnused = WEdit(text.indexOf("import unused.U"), text.indexOf("import a.A"), "")
+
+        val composed = ImportOrderingDecision.composeRegion(text, 0, text.length, listOf(deleteUnused), listOf("import m.M"))
+
+        composed shouldBe "import a.A\nimport m.M\nimport z.Z\n"
+    }
 })
