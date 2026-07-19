@@ -18,9 +18,12 @@ class Fixture(
     val expectClean: Boolean,
     val warnOnly: Boolean,
     val extraConfigFiles: Map<String, String> = emptyMap(),
+    val auxSources: List<TestSource> = emptyList(),
 )
 
 object FixtureLoader {
+
+    private const val AUX_DIR_NAME = "aux"
 
     fun load(fixturesDir: Path): List<Fixture> {
         require(Files.isDirectory(fixturesDir)) { "Fixtures dir does not exist: $fixturesDir" }
@@ -51,9 +54,16 @@ object FixtureLoader {
 
             for (fixtureFile in Files.list(ruleDir)
                 .use { it.filter {
-                    p -> p.isRegularFile() && p.name.endsWith(".kt") }.toList() }) {
+                    p -> p.isRegularFile() && p.name.endsWith(".kt") && p.parent.name != AUX_DIR_NAME }.toList() }) {
                 val fixtureId = fixtureFile.nameWithoutExtension
                 val parsed = FixtureParser.parse(fixtureFile.readText())
+                val auxSources = parsed.auxFiles.map { relativePath ->
+                    val auxFile = ruleDir.resolve(relativePath)
+                    require(auxFile.isRegularFile()) {
+                        "Fixture $fixtureId declares fixture-aux-file '$relativePath' but $auxFile does not exist"
+                    }
+                    TestSource("sample/$relativePath", auxFile.readText())
+                }
                 fixtures.add(
                     Fixture(
                         ruleId = ruleId,
@@ -64,6 +74,7 @@ object FixtureLoader {
                         expectClean = parsed.expectClean,
                         warnOnly = parsed.warnOnly,
                         extraConfigFiles = extraConfigs,
+                        auxSources = auxSources,
                     )
                 )
             }

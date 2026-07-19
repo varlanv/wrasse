@@ -8,6 +8,7 @@ import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.rules.NoSemicolonsRule
+import com.varlanv.wrasse.rules.NoUnusedImportsRule
 import com.varlanv.wrasse.rules.NoWildcardImportsRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import org.jetbrains.kotlin.backend.common.push
@@ -22,8 +23,9 @@ fun wrasseMain(
     fixOutputDir: Path? = null,
     dumpResolvedUsage: Boolean = false,
 ): Result<WrassePlugin> {
-    val uninitializedRules = sequenceOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule())
-        .associateBy { it.id }
+    val uninitializedRules =
+        sequenceOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule(), NoUnusedImportsRule())
+            .associateBy { it.id }
     val config =
         loadConfig(
             sourceRoots = sourceRoots,

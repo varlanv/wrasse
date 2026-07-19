@@ -550,6 +550,27 @@ diagnostic per file: `resolved-usage: classifiers=[a.B, c.D] callables=[a/foo, a
 `SemanticWRule` family and LightTree↔FIR offset correlation are still future — this spike only
 proves the FIR surface is stable 2.1–2.4 and gets the facade onto `WContext`.
 
+**As-built (`no-unused-imports`, first `requiresResolution` consumer):** a `WStreamRule` in
+`wrasse-rules` (`NoUnusedImportsRule`), report-only — no edits. It assembles each explicit import
+directive off the leaf stream (`IMPORT_DIRECTIVE`'s `KW_IMPORT`/`IDENTIFIER`/`DOT`/alias
+`IDENTIFIER`, distinguished from the main path via `ctx.hasAncestor(IMPORT_ALIAS)`) and separately
+records every `EOL_COMMENT`/`BLOCK_COMMENT`/`KDOC` leaf's offset span; the actual verdict is pure
+decision logic (`UnusedImportDecision`, unit-tested without a compiler) run at `afterFile`. An
+import counts as used, per the bail-on-ambiguity mandate, if *any* of: a classifier equals its FQN
+or starts with `FQN.` (covers nested classes); a callable's `classFqName` equals the FQN or starts
+with `FQN.` (covers constructors, companion/static-like members, enum entries — the same shape
+noted above for `WCallableUsage`); a top-level callable (`classFqName == null`) matches
+package+simple-name; or — the conservative fallback that kills ktlint's known KDoc-reference false
+positive — the import's visible name (alias if present, else simple name) occurs as a whole word
+(`\bname\b`) inside any recorded comment/KDoc span of `ctx.sourceText`, checked textually rather
+than via any KDoc-aware resolution FIR does not provide. Whole-file bail (report nothing) when
+`ctx.resolvedUsage == null` or `hasResolutionErrors`. **Star imports are explicitly out of
+scope for this rule** — a directive containing `MUL` is skipped entirely (never even recorded as
+a candidate); `no-wildcard-imports` already flags the syntax, and star *usage* semantics (which
+names a star import actually covers) arrive with the ImportEngine's expansion pass. The
+`WStreamRule` shape here is interim: once the ImportEngine's buffered-node engine exists, unused-
+import detection folds into it rather than staying a standalone stream rule.
+
 **Hazard for the next FIR subtype added here:** `FirVisitorVoid` dispatches on a node's *exact*
 declared type, not via inheritance — a direct subtype of an overridden type (e.g.
 `FirResolvedCallableReference`, `FirPropertyWithExplicitBackingFieldResolvedNamedReference` under
@@ -687,6 +708,12 @@ Kotlinc surface (adapter-only; rule code never imports these): LightTree
   `wrasse.json` (or inheriting via `extends`). Directives drive expectations:
   `// expect-error <line>:<col> <rule-id> "<message>"`, `// expect-warning`, `// expect-clean`,
   `// fixture-option: ...`. Adding a test = adding a file. Always assert **full** error messages.
+- **Multi-file fixtures:** `// fixture-aux-file: aux/Foo.kt` (repeatable) compiles a companion
+  source alongside the fixture — physically at `<rule-dir>/aux/Foo.kt`, wired into the harness as
+  `sample/aux/Foo.kt`. Aux files carry no directives/expectations of their own; discovery
+  explicitly excludes `aux/` so a companion source can never be mistaken for its own fixture.
+  Locks cross-file resolution axes (e.g. `no-unused-imports`' classifier/callable FQN-prefix
+  matching) that a single-file fixture cannot exercise under `noJdk`.
 - **Version matrix:** the same fixtures run against Kotlin 2.1–2.4 (fixtures are
   version-agnostic by construction). Per-minor task wiring (patch-config resolution, `testMinor`,
   `testPatch_<version>`, stdlib pinning, fixture-dir system property) is centralized in
@@ -887,7 +914,9 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   correlation adapter. One engine, several config keys. Bail on ambiguity. A mini-project.
   Resolution-facade spike done (`WResolvedUsage` on `WContext`, lazy/gated collection,
   `dumpResolvedUsage` debug option, §8) — de-risked the FIR surface across 2.1–2.4; the
-  `SemanticWRule` unification and offset correlation remain.
+  `SemanticWRule` unification and offset correlation remain. `no-unused-imports` shipped ahead
+  of the engine, report-only (§8) — a first consumer of `requiresResolution`/`resolvedUsage`,
+  not the engine itself; star-import handling still belongs to the eventual expansion pass.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.

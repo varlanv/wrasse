@@ -26,7 +26,7 @@ open class WrasseFixtureSpec : BaseSpec({
                         fixOutputDir = fixOutputDir,
                     )
                     val source = TestSource("sample/test.kt", fixture.source)
-                    val result = harness.compile(listOf(source), workDir)
+                    val result = harness.compile(listOf(source) + fixture.auxSources, workDir)
                     result.assertMatchesExpectations(fixture)
                     IdempotenceCycle.runIfFixEmitted(harness, workDir, fixOutputDir, source, result)
                 }
