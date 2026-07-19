@@ -528,10 +528,85 @@ hand-rolled zero-dependency JSONC reader, loaded once at registration from
 - **No presets; new rules default off** (D6) — reproducibility across upgrades; discoverability
   via `--list-rules` / effective-config dump (Phase A remainder), not a `recommended` set.
 - **No baseline** (D7, re-confirmed). Adoption = `level` + `exclude`.
-- **Suppression:** `@Suppress("rule-id")` only, expression and declaration scope (Phase A
-  remainder). No comment directives, ever.
+- **Suppression:** `@Suppress("rule-id")` only, file/declaration/expression scope — shipped, see
+  §7.1. No comment directives, ever.
 - **No `.editorconfig` support** (D12) — native rules + migration path instead.
 - `$schema` (`wrasse-schema.json`) hosted for editor autocomplete (D13).
+
+### 7.1 Suppression (`@Suppress`) — shipped 2026-07-19
+
+A violation is suppressed iff its reported `[startOffset, endOffset)` span lies within the span of
+an element annotated `@Suppress(...)`/`@file:Suppress(...)` whose arguments name that rule —
+uniform positional containment, no config surface (annotation-driven only, D8).
+
+- **Three region kinds, one containment rule.** `@file:Suppress(...)` → region = the whole file
+  (see the import-family caveat below). A declaration's own `@Suppress(...)` (class, function,
+  property, primary/secondary constructor, parameter, type parameter, or a local declaration — a
+  local `val`/`var` is a `PROPERTY` node like any other) → region = that declaration's own
+  `[start, end)` span, read directly off `WContext.ancestors` at `ANNOTATION_ENTRY` enter time: its
+  immediate parent is `MODIFIER_LIST`, whose own immediate parent (one level further up the already-
+  pushed ancestor stack) is the annotated declaration — no exhaustive per-declaration-kind switch
+  needed, since a `MODIFIER_LIST` is always a direct child of whatever it modifies. An annotated
+  expression (`@Suppress(...) expr`, parsed as `ANNOTATED_EXPRESSION` with the entry as a direct
+  child, no modifier list involved) → region = that node's own span.
+- **Argument matching is syntactic, not resolved, and conservative.** Only a directly-written,
+  non-interpolated string literal counts (`VALUE_ARGUMENT`'s sole direct child is a `STRING_TEMPLATE`
+  whose own direct children are at most one `LITERAL_STRING_TEMPLATE_ENTRY` — no escape entries, no
+  interpolation entries, no named arguments). Concatenation, a `const val` reference, an
+  interpolated string (even one built entirely from compile-time constants) — anything else — is
+  never evaluated, just ignored; that argument suppresses nothing (locked by
+  `suppress-non-literal/`, exercising all three shapes). Exact match, case-sensitive, against real
+  rule ids. **Wildcards:** the literal strings `"all"` and `"wrasse"` match **case-insensitively**
+  (`"ALL"`, `"Wrasse"`, ... all match) and suppress every wrasse rule in the region; this is the
+  one deliberate case-insensitive exception — everything else about argument matching is exact.
+  Unknown/foreign entries (`"UNCHECKED_CAST"`, `"unused"`, a detekt id, ...) are inert: never an
+  error, never an accidental suppression (`suppress-file-scope/foreign-id-inert-error`,
+  `suppress-multi-entry/none-match-error`).
+- **The annotation itself is matched by simple name, syntactically** — `Suppress` (one identifier
+  segment under `CONSTRUCTOR_CALLEE`) or exactly `kotlin.Suppress` (two segments). This is
+  deliberately not resolution-verified: a user-defined class also named `Suppress` (or shadowing
+  `kotlin.Suppress`) would false-suppress under this same syntactic match. Accepted and documented
+  here rather than fixed — resolution-verified matching (checking the annotation's FIR-resolved
+  callee against the real `kotlin.Suppress` `ClassId`) is engine-scope future work, not required for
+  this feature to be correct on any real codebase. The bracket multi-annotation form (`@[A B]`,
+  `KtNodeTypes.ANNOTATION`) is left unmapped in `WNodeTypeMapping` and therefore never resolves a
+  scope at all for entries written that way — inert, not wrong, and not expected to matter (nobody
+  writes `@Suppress` inside a bracket group in practice).
+- **Import-family rules have no per-import granularity** — an import directive is never nested
+  inside any declaration (`IMPORT_LIST` sits at the file's top level, alongside, never inside, any
+  class/function), so a declaration-scoped `@Suppress("no-unused-imports")` (or any other
+  `ImportEngine`-backed id) can *structurally never* contain an import's own span: it is always a
+  no-op there (`suppress-declaration-scope/class-level-suppress-of-import-rule-is-noop-error` locks
+  this explicitly). Only `@file:Suppress(...)` (region = the whole file) can suppress an import
+  rule at all. This is the direct cost of D8's "annotation-granular suppression is the accepted
+  trade" — there is no per-import-directive annotation target in Kotlin's grammar to hang a finer
+  scope off.
+- **Collection & filtering design (framework-level, chosen over the alternatives considered):**
+  `SuppressionCollectorRule` (`wrasse-rules`) is a `WStreamRule` injected as an always-on,
+  non-user-configurable rule via `WRuleSet.dispatchForFile`'s `alwaysOn` param — it rides the same
+  single walk as every real rule, has no `wrasse.json` entry, and is never excluded. It accumulates
+  every `@Suppress` region into `SuppressionIndex` (pure containment matching, unit-tested standalone,
+  zero kotlinc dependency) as it walks. `WrassePlugin.checkFile`'s `WReporter.report` gate is
+  checked **synchronously, at report time** — before a violation becomes a `ViolationReport` and
+  before its `WEdit`s ever reach `EditPlan.add` — rather than as a post-walk filter over an already-
+  built report list. This works because of an ordering property verified structurally, not just
+  empirically: an annotation always sits, textually, before whatever it can suppress (a modifier
+  list precedes its declaration's body; a file annotation list is the file's first possible
+  construct; an annotated expression's entry precedes its base expression), and the LightTree is
+  already fully parsed before the walk starts, so an ancestor's *final* span is known the instant it
+  is pushed onto `WContext.ancestors` — not only once its children are later visited. So by the time
+  `report()` is called for any offset, from any rule (an ordinary leaf-driven one, or a
+  `WFileRule`/`afterFile`-deferred one like the import engine, which only ever reports once the
+  *entire* file — and therefore every annotation in it — has been walked), every region that could
+  cover that offset is already in the index. No two-phase pre-scan of the file-annotation region was
+  needed to make file-level suppression fast at rule-instantiation time (the D20 exclusion path,
+  `WRuleSet.dispatchForFile`'s `isExcluded`) — that optimization is **deliberately deferred**:
+  correctness came first, and a file wholly suppressed for one rule id still pays for walking that
+  rule during the same pass today. Revisit only if profiling ever makes that walk cost visible.
+  Because the gate short-circuits before any edit reaches the plan, a suppressed fixable violation
+  is D22-self-cleaning for free — no `EditPlan` removal machinery was needed (locked by
+  `SuppressionEditsDroppedSpec`, a genuine two-compile sequence: an unsuppressed violation emits a
+  real patch entry, then the same file recompiles with the annotation added and the entry is gone).
 
 ---
 
@@ -1747,8 +1822,10 @@ information. Statuses: Accepted · Rejected · Superseded.
 - **D7 — No baseline file · Accepted, re-confirmed 2026-07-18** with the tension explicitly on
   the table (drop-in adoption on legacy repos is where baselines shine — considered, still
   rejected). Revisit only with concrete adoption feedback.
-- **D8 — Suppression via `@Suppress("rule-id")` only · Accepted.** No comment directives, ever.
-  Annotation-granular suppression is the accepted trade.
+- **D8 — Suppression via `@Suppress("rule-id")` only · Accepted, shipped 2026-07-19.** No comment
+  directives, ever. Annotation-granular suppression is the accepted trade — most visibly, import-
+  family rules have no per-import granularity (§7.1) since imports have no declaration to hang a
+  finer-scoped annotation off.
 - **D12 — No `.editorconfig` support · Accepted.** Parsing it + ktlint's property semantics is a
   tar pit.
 - **D13 — `$schema` hosted statically for editor autocomplete · Accepted.**
@@ -1823,12 +1900,13 @@ JAR; 3 rules; fixture harness + 2.1–2.4 matrix; MVP offset-patch autofix end-t
 
 ### Phase A remainder — config & severity polish
 
-- `@Suppress("rule-id")` at expression and declaration scope.
+- ~~`@Suppress("rule-id")` at expression and declaration scope.~~ **Done 2026-07-19** — shipped at
+  file/declaration/expression scope, wildcards (`all`/`wrasse`), see §7.1.
 - `--list-rules` / effective-config dump (the discoverability story replacing presets).
 - Optional CLI override for config path.
 
 **Exit:** a new rule ships without editing any existing user config; warn and error coexist in
-one run; `@Suppress` silences one rule.
+one run; `@Suppress` silences one rule — **satisfied**.
 
 ### Phase A.5 — Foundation hardening (gate: complete before B) — **COMPLETE 2026-07-19**
 

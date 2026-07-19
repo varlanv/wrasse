@@ -125,6 +125,8 @@ class Sample<out T : Any> private constructor(private val items: MutableList<T>)
         println("${'$'}a ${'$'}b ${'$'}{a + b} ${'$'}c ${'$'}d")
     }
 
+    fun annotatedExpression(): Int = @Suppress("unchecked_cast") 1
+
     fun lambdas(block: (Int) -> Unit) {
         block(1)
         val f: (Int, Int) -> Int = { x, y -> x + y }

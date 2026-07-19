@@ -17,6 +17,7 @@ import com.varlanv.wrasse.model.WResolvedImport
 import com.varlanv.wrasse.model.WResolvedUsage
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WRuleSet
+import com.varlanv.wrasse.rules.SuppressionCollectorRule
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.PathMatcher
@@ -49,7 +50,11 @@ class WrassePlugin(
             return emptyList()
         }
 
-        val dispatch = ruleSet.dispatchForFile { config -> matchesAny(config.exclude, filePath) }
+        val suppressionCollector = SuppressionCollectorRule()
+        val dispatch = ruleSet.dispatchForFile(
+            isExcluded = { config -> matchesAny(config.exclude, filePath) },
+            alwaysOn = listOf(suppressionCollector),
+        )
 
         val ctx = WContext(filePath = filePath.toString())
         val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
@@ -67,6 +72,7 @@ class WrassePlugin(
                 rule: WRule,
                 edits: List<WEdit>,
             ) {
+                if (suppressionCollector.index.isSuppressed(ruleId, startOffset, endOffset)) return
                 reports.add(
                     ViolationReport(
                         message = "${rule.id}: $message",

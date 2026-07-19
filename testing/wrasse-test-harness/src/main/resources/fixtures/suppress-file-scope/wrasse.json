@@ -1,0 +1,7 @@
+{
+    "rules": {
+        "no-semicolons": { "level": "error" },
+        "no-unused-imports": { "level": "error" },
+        "no-wildcard-imports": { "level": "off" }
+    }
+}

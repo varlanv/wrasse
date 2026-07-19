@@ -42,8 +42,15 @@ class WRuleSet(
         activeRules.any { (uninitialized, _) -> uninitialized.requiresQualifiedUsages } ||
             activeGroups.any { (group, configs) -> group.requiresQualifiedUsages(configs.keys) }
 
-    fun dispatchForFile(isExcluded: (WrasseRuleConfig) -> Boolean): StreamDispatch {
-        val rules = ArrayList<WRule>(activeRules.size + activeGroups.size)
+    /**
+     * [alwaysOn] carries framework-owned rules that ride the same single walk as every
+     * user-configured rule but are never part of the user's rule set (no id in `wrasse.json`,
+     * never excluded) — e.g. the `@Suppress` region collector, which every rule's reporting
+     * depends on regardless of which rules are active. Appended after the user's own rules so it
+     * has no effect on their dispatch ordinal-array construction beyond its own entry.
+     */
+    fun dispatchForFile(alwaysOn: List<WRule> = emptyList(), isExcluded: (WrasseRuleConfig) -> Boolean): StreamDispatch {
+        val rules = ArrayList<WRule>(activeRules.size + activeGroups.size + alwaysOn.size)
         for ((uninitialized, config) in activeRules) {
             if (isExcluded(config)) continue
             rules.add(uninitialized.initRule(config))
@@ -53,6 +60,7 @@ class WRuleSet(
             if (surviving.isEmpty()) continue
             rules.add(group.initGroup(surviving))
         }
+        rules.addAll(alwaysOn)
         return StreamDispatch(rules)
     }
 }
