@@ -32,6 +32,10 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow unnecessary semicolons"
                 },
+                "no-unit-return": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a redundant explicit ': Unit' return type on a block-body function"
+                },
                 "import-ordering": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require import directives to be in plain ASCII-alphabetical order"

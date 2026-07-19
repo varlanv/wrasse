@@ -1985,7 +1985,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (1/15).** Braces family,
+- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (2/15).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -2005,6 +2005,32 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   cycle, so a fix that silently breaks compilation (proven by temporarily forcing the object-literal
   bail to `false`: the file still applied, D19's own bookkeeping still reported success, and only
   this new guard caught the resulting syntax error) fails loudly instead of passing.
+  `no-unit-return` shipped second: a `WBufferedNodeRule` on `FUN` finds the return-type `COLON`
+  among the node's direct children, checks the following significant child is a `TYPE_REFERENCE`
+  whose own source span is the exact literal text `"Unit"` (no semantic resolution — the same
+  syntactic check upstream ktlint itself uses, and the reason `Unit?`, `kotlin.Unit`, an annotated
+  return type, and a `Unit`-typed parameter are never even candidates, all empirically verified
+  against upstream's own real behavior via a probe harness built against the actual ktlint
+  ruleset-standard/rule-engine jars), then checks the next significant child after that is a
+  `BLOCK` (a block-body function) rather than an `EQ` (an expression-body function, which upstream
+  ktlint's own shipped/stable rule does not flag either — only a disabled, not-yet-shipped test
+  exists upstream for that shape, confirmed by reading ktlint's own source and test file directly).
+  Deletion (`NoUnitReturnDeletionSpan`) is a single contiguous splice from the colon's start to the
+  type reference's end — empirically verified against upstream's real formatted output for the
+  plain, no-comment shape (`fun foo(): Unit {}` → `fun foo() {}`, including multiline/blank-line-
+  before-brace variants) to confirm no extra whitespace is introduced or removed on either side.
+  Reported but never autofixed whenever a comment (`EOL_COMMENT`, `BLOCK_COMMENT`, or `KDOC`) sits
+  between the colon and `Unit`, or between `Unit` and the block: upstream ktlint autocorrects some
+  of these (a block comment either side), but probing upstream's actual formatter output surfaced
+  a real, upstream-native corruption bug for one such shape — an `EOL_COMMENT` immediately before
+  `Unit` — where deleting the newline trapped under that comment merges the following `{` onto the
+  comment's own line, breaking the file. Rather than replicate upstream's per-shape comment
+  handling (safe for block comments/KDoc, unsafe for EOL comments) at the risk of getting the
+  distinction wrong, wrasse bails on autofix uniformly for any comment adjacency — narrower than
+  upstream's autofix scope, same as upstream's *report* scope, and provably safe. Locked by
+  `block-comment-after-bail-error`/`block-comment-before-bail-error`/`kdoc-between-bail-error`
+  (report-only, no `.fixed.kt`) plus a dedicated real-compile `NoUnitReturnSafetySpec` across all
+  four Kotlin minors for the EOL-comment shape specifically, mirroring `EmptyClassBodySafetySpec`.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal

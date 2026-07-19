@@ -13,10 +13,10 @@ import io.kotest.matchers.shouldBe
  */
 class RuleRegistrationOrderSpec : BaseSpec({
 
-    should("register no-empty-class-body, no-semicolons, and trailing-newline as single-id rules") {
+    should("register no-empty-class-body, no-semicolons, no-unit-return, and trailing-newline as single-id rules") {
         val ids = registeredRules().map { it.id }
 
-        ids shouldBe listOf("no-empty-class-body", "no-semicolons", "trailing-newline")
+        ids shouldBe listOf("no-empty-class-body", "no-semicolons", "no-unit-return", "trailing-newline")
     }
 
     should("register the import engine group with exactly the four import-family ids") {
