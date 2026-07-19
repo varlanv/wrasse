@@ -1767,6 +1767,24 @@ information. Statuses: Accepted · Rejected · Superseded.
 - **D20 — Rules instantiated per file · Accepted 2026-07-18.** §4. Removes the data race if
   kotlinc parallelizes checkers; decided now because EditPlan adds more per-file state.
 - **D21 — Style parameters locked; no code-style meta-knob · Accepted 2026-07-18.** §5.3.
+- **D22 — Patch emission rides check mode; apply is compile-free · Accepted 2026-07-19.**
+  Supersedes D10's wiring detail (emission gated behind `wrasse.fix`) and §14's
+  "accidental full sweep" note. Rules compute `WEdit`s during every lint anyway; only the
+  patch-file write was gated, so the old fix flow re-ran a full compile purely to re-derive
+  known information. New model: (1) whenever the plugin is active, the patch is emitted —
+  no separate fix flag, so lint and fix compiles have identical compiler args and never
+  invalidate each other; (2) `wrasseFix` = the same check compile (UP-TO-DATE when check
+  already ran → zero extra compile in the common flow) + `wrasseApply`; (3) patch files are
+  **per compilation** (`build/wrasse/<compilation>/wrasse-fixes.txt`, distinct
+  `fixOutputDir` per compile task) so parallel main/test compiles never race one file —
+  apply walks the whole `build/wrasse/` tree; (4) **merge-on-write**: a compile replaces
+  entries for the files it actually recompiled — including *removing* entries for
+  recompiled files with zero edits (self-cleaning) — and preserves entries for files the
+  incremental compile didn't touch; the per-file hash guard already makes preserved-stale
+  entries safe no-ops at apply time. Entries for since-deleted files are retained and
+  surface as loud `Skipped` results at apply. Config edits still don't invalidate compile
+  tasks (D1 cost, unchanged) — a config change wants an explicit full re-check before
+  fixing; the thin Gradle plugin (Phase D) remains the real fix for that.
 
 ### Build & distribution
 
