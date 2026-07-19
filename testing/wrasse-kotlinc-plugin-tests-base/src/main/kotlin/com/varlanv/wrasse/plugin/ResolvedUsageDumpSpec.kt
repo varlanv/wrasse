@@ -99,6 +99,36 @@ open class ResolvedUsageDumpSpec : BaseSpec({
         result.wrasseDiagnostics[0].message shouldBe "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.Empty] callables=[kotlin.Any/Any] errors=false"
     }
 
+    should("dump both the abbreviated (typealias) classifier and its expansion for a supertype-position usage") {
+        val aux = TestSource(
+            "sample/aux/Aux.kt",
+            """
+            package sample.aux
+
+            open class Base
+
+            typealias BaseAlias = Base
+            """.trimIndent(),
+        )
+        val source = TestSource(
+            "sample/Sample.kt",
+            """
+            package sample
+
+            import sample.aux.BaseAlias
+
+            class Impl : BaseAlias()
+            """.trimIndent(),
+        )
+        val harness = WrasseTestHarness(wrasseConfig = emptyRulesConfig, dumpResolvedUsage = true)
+
+        val result = harness.compile(listOf(source, aux))
+
+        result.wrasseDiagnostics shouldHaveSize 2
+        val sampleDiagnostic = result.wrasseDiagnostics.single { it.message.contains("BaseAlias") }
+        sampleDiagnostic.message shouldBe "wrasse: resolved-usage: classifiers=[sample.Impl, sample.aux.Base, sample.aux.BaseAlias] callables=[sample.aux.Base/Base] errors=false"
+    }
+
     should("collect nothing when dumpResolvedUsage is off and no rule requires resolution") {
         val source = TestSource(
             "sample/Sample.kt",

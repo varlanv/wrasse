@@ -18,6 +18,7 @@ import org.jetbrains.kotlin.fir.types.ConeErrorType
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.FirErrorTypeRef
 import org.jetbrains.kotlin.fir.types.FirResolvedTypeRef
+import org.jetbrains.kotlin.fir.types.abbreviatedType
 import org.jetbrains.kotlin.fir.types.type
 import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.name.CallableId
@@ -110,6 +111,7 @@ object ResolvedUsageCollector {
         }
 
         private fun collectConeType(coneType: ConeKotlinType) {
+            coneType.abbreviatedType?.let { collectConeType(it) }
             when (coneType) {
                 is ConeErrorType -> hasErrors = true
                 is ConeClassLikeType -> {

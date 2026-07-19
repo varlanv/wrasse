@@ -559,9 +559,12 @@ decision logic (`UnusedImportDecision`, unit-tested without a compiler) run at `
 import counts as used, per the bail-on-ambiguity mandate, if *any* of: a classifier equals its FQN
 or starts with `FQN.` (covers nested classes); a callable's `classFqName` equals the FQN or starts
 with `FQN.` (covers constructors, companion/static-like members, enum entries — the same shape
-noted above for `WCallableUsage`); a top-level callable (`classFqName == null`) matches
-package+simple-name; or — the conservative fallback that kills ktlint's known KDoc-reference false
-positive — the import's visible name (alias if present, else simple name) occurs as a whole word
+noted above for `WCallableUsage`); a callable's `classFqName` equals the FQN's *parent* and its
+`name` equals the FQN's simple name (covers `import a.b.Obj.member` — object vals/funs, enum
+entries, Java statics — where the import FQN itself names the member, so `classFqName` can never
+equal the full FQN); a top-level callable (`classFqName == null`) matches package+simple-name; or —
+the conservative fallback that kills ktlint's known KDoc-reference false positive — the import's
+visible name (alias if present, else simple name) occurs as a whole word
 (`\bname\b`) inside any recorded comment/KDoc span of `ctx.sourceText`, checked textually rather
 than via any KDoc-aware resolution FIR does not provide. Whole-file bail (report nothing) when
 `ctx.resolvedUsage == null` or `hasResolutionErrors`. **Star imports are explicitly out of
@@ -570,6 +573,15 @@ a candidate); `no-wildcard-imports` already flags the syntax, and star *usage* s
 names a star import actually covers) arrive with the ImportEngine's expansion pass. The
 `WStreamRule` shape here is interim: once the ImportEngine's buffered-node engine exists, unused-
 import detection folds into it rather than staying a standalone stream rule.
+
+**Typealias imports need the abbreviation, not just the expansion:** `collectConeType` in
+`ResolvedUsageCollector` records `coneType.abbreviatedType` (the `ConeKotlinType.abbreviatedType`
+extension in `org.jetbrains.kotlin.fir.types`, from `AbbreviatedTypeAttribute` on `ConeAttributes`
+— stable, byte-identical across 2.1.21/2.2.21/2.3.21/2.4.0, javap-verified) recursively alongside
+the expanded classifier for every cone type, including type arguments. Without it, an import of a
+typealias (`import a.b.Alias`, e.g. dogfooding surfaced `FirFileChecker`/`FirFunctionCallChecker`,
+which are typealiases over generic FIR checker base classes) never appears in `classifiers` at
+all — only the alias's *expansion* does — so the alias import was always misreported unused.
 
 **Hazard for the next FIR subtype added here:** `FirVisitorVoid` dispatches on a node's *exact*
 declared type, not via inheritance — a direct subtype of an overridden type (e.g.

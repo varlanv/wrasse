@@ -18,9 +18,13 @@ class ImportRecord(
  * Pure verdict logic for `no-unused-imports`, compiler-free so it is unit-testable without
  * a kotlinc dependency. Every ambiguity resolves toward "used" (bail-on-ambiguity, design.md
  * §6): a classifier or callable is matched by exact FQN or by FQN-prefix (covers nested
- * classes, constructors, companion/static-like members, and enum entries), and as a last,
- * conservative resort, the import's visible name is looked up as a whole word inside every
- * recorded comment/KDoc span of the file (KDoc references are invisible to FIR).
+ * classes, constructors, companion/static-like members, and enum entries); a callable import
+ * whose FQN itself names a member (`import a.b.Obj.member` — object vals/funs, enum entries,
+ * Java statics) is matched by the *parent* of the FQN against `classFqName` plus the FQN's
+ * simple name against `name` (that member's own usage never carries `classFqName == fqn`, since
+ * `fqn` already includes the member); and as a last, conservative resort, the import's visible
+ * name is looked up as a whole word inside every recorded comment/KDoc span of the file (KDoc
+ * references are invisible to FIR).
  */
 object UnusedImportDecision {
 
@@ -44,12 +48,13 @@ object UnusedImportDecision {
 
     private fun matchesCallable(fqn: String, callables: Set<WCallableUsage>): Boolean {
         val nestedPrefix = "$fqn."
-        val (parentPackage, simpleName) = splitFqn(fqn)
+        val (parent, simpleName) = splitFqn(fqn)
         return callables.any { callable ->
             val classFqName = callable.classFqName
             when {
-                classFqName == null -> callable.packageFqName == parentPackage && callable.name == simpleName
+                classFqName == null -> callable.packageFqName == parent && callable.name == simpleName
                 classFqName == fqn -> true
+                classFqName == parent -> callable.name == simpleName
                 else -> classFqName.startsWith(nestedPrefix)
             }
         }

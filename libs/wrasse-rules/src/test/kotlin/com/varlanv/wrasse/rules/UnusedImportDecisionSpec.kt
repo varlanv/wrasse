@@ -110,6 +110,39 @@ class UnusedImportDecisionSpec : BaseSpec({
         unused shouldBe true
     }
 
+    should("mark used on a member import (object val/fun) matched by parent classFqName and simple name") {
+        val unused = UnusedImportDecision.isUnused(
+            import = record("sample.aux.Obj.member"),
+            classifiers = emptySet(),
+            callables = setOf(WCallableUsage(packageFqName = "sample.aux", classFqName = "sample.aux.Obj", name = "member")),
+            sourceText = "",
+            commentSpans = emptyList(),
+        )
+        unused shouldBe false
+    }
+
+    should("mark used on an enum-entry import used as a bare entry name") {
+        val unused = UnusedImportDecision.isUnused(
+            import = record("sample.aux.Color.RED"),
+            classifiers = emptySet(),
+            callables = setOf(WCallableUsage(packageFqName = "sample.aux", classFqName = "sample.aux.Color", name = "RED")),
+            sourceText = "",
+            commentSpans = emptyList(),
+        )
+        unused shouldBe false
+    }
+
+    should("not match a member import against a member of a different class with the same simple name") {
+        val unused = UnusedImportDecision.isUnused(
+            import = record("sample.aux.Obj.member"),
+            classifiers = emptySet(),
+            callables = setOf(WCallableUsage(packageFqName = "sample.aux", classFqName = "sample.aux.OtherObj", name = "member")),
+            sourceText = "",
+            commentSpans = emptyList(),
+        )
+        unused shouldBe true
+    }
+
     should("mark used when the simple name appears as a whole word inside a recorded comment span") {
         val text = "// See [kotlin.text.Regex] for details."
         val unused = UnusedImportDecision.isUnused(
