@@ -2,6 +2,8 @@ package com.varlanv.wrasse.plugin.k20
 
 import com.varlanv.wrasse.plugin.KEY_DUMP_RESOLVED_USAGE
 import com.varlanv.wrasse.plugin.KEY_ENABLED
+import com.varlanv.wrasse.plugin.KEY_FIX
+import com.varlanv.wrasse.plugin.KEY_FIX_OUTPUT_DIR
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
 import com.varlanv.wrasse.plugin.wrasseMain
 import org.jetbrains.kotlin.cli.jvm.config.javaSourceRoots
@@ -22,9 +24,17 @@ class WrasseCompilerPluginRegistrar20 : CompilerPluginRegistrar() {
         }
 
         val warnOnly = configuration[KEY_WARN_ONLY, false]
+        val fixEnabled = configuration[KEY_FIX, false]
+        val fixOutputDir = configuration[KEY_FIX_OUTPUT_DIR]?.let { Paths.get(it) }
         val dumpResolvedUsage = configuration[KEY_DUMP_RESOLVED_USAGE, false]
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
-        val plugin = wrasseMain(sourceRoots, warnOnly = warnOnly, dumpResolvedUsage = dumpResolvedUsage).getOrThrow()
+        val plugin = wrasseMain(
+            sourceRoots,
+            warnOnly = warnOnly,
+            fixEnabled = fixEnabled,
+            fixOutputDir = fixOutputDir,
+            dumpResolvedUsage = dumpResolvedUsage,
+        ).getOrThrow()
 
         FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar20(plugin))
     }

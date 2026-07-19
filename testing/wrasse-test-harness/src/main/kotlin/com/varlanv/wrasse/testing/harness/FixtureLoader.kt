@@ -19,11 +19,13 @@ class Fixture(
     val warnOnly: Boolean,
     val extraConfigFiles: Map<String, String> = emptyMap(),
     val auxSources: List<TestSource> = emptyList(),
+    val fixedSource: String? = null,
 )
 
 object FixtureLoader {
 
     private const val AUX_DIR_NAME = "aux"
+    private const val FIXED_SUFFIX = ".fixed.kt"
 
     fun load(fixturesDir: Path): List<Fixture> {
         require(Files.isDirectory(fixturesDir)) { "Fixtures dir does not exist: $fixturesDir" }
@@ -52,10 +54,19 @@ object FixtureLoader {
                 extraConfigs[jsonFile.name] = jsonFile.readText()
             }
 
+            val companionsByFixtureId = mutableMapOf<String, String>()
+            for (companionFile in Files.list(ruleDir)
+                .use { it.filter { p -> p.isRegularFile() && p.name.endsWith(FIXED_SUFFIX) }.toList() }) {
+                companionsByFixtureId[companionFile.name.removeSuffix(FIXED_SUFFIX)] = companionFile.readText()
+            }
+
+            val fixtureIdsInDir = mutableSetOf<String>()
             for (fixtureFile in Files.list(ruleDir)
                 .use { it.filter {
-                    p -> p.isRegularFile() && p.name.endsWith(".kt") && p.parent.name != AUX_DIR_NAME }.toList() }) {
+                    p -> p.isRegularFile() && p.name.endsWith(".kt") && !p.name.endsWith(FIXED_SUFFIX) &&
+                        p.parent.name != AUX_DIR_NAME }.toList() }) {
                 val fixtureId = fixtureFile.nameWithoutExtension
+                fixtureIdsInDir.add(fixtureId)
                 val parsed = FixtureParser.parse(fixtureFile.readText())
                 val auxSources = parsed.auxFiles.map { relativePath ->
                     val auxFile = ruleDir.resolve(relativePath)
@@ -75,8 +86,16 @@ object FixtureLoader {
                         warnOnly = parsed.warnOnly,
                         extraConfigFiles = extraConfigs,
                         auxSources = auxSources,
+                        fixedSource = companionsByFixtureId[fixtureId],
                     )
                 )
+            }
+
+            for (companionFixtureId in companionsByFixtureId.keys) {
+                require(companionFixtureId in fixtureIdsInDir) {
+                    "Companion file '$companionFixtureId$FIXED_SUFFIX' in $ruleDir has no matching fixture " +
+                        "'$companionFixtureId.kt'"
+                }
             }
         }
 

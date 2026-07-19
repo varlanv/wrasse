@@ -6,6 +6,7 @@ import com.varlanv.wrasse.testing.harness.TestSource
 import com.varlanv.wrasse.testing.harness.WrasseTestHarness
 import com.varlanv.wrasse.testing.harness.assertMatchesExpectations
 import com.varlanv.wrasse.testing.useTempDir
+import io.kotest.matchers.shouldBe
 import java.nio.file.Path
 
 open class WrasseFixtureSpec : BaseSpec({
@@ -28,7 +29,16 @@ open class WrasseFixtureSpec : BaseSpec({
                     val source = TestSource("sample/test.kt", fixture.source)
                     val result = harness.compile(listOf(source) + fixture.auxSources, workDir)
                     result.assertMatchesExpectations(fixture)
-                    IdempotenceCycle.runIfFixEmitted(harness, workDir, fixOutputDir, source, result)
+                    val patchedContent =
+                        IdempotenceCycle.runIfFixEmitted(harness, workDir, fixOutputDir, source, result)
+                    val fixedSource = fixture.fixedSource
+                    if (fixedSource != null) {
+                        check(patchedContent != null) {
+                            "Fixture ${fixture.ruleId}/${fixture.fixtureId} declares a .fixed.kt companion but " +
+                                "its compile emitted no fix edits"
+                        }
+                        patchedContent shouldBe fixedSource
+                    }
                 }
             }
         }

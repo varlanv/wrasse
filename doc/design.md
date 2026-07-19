@@ -551,7 +551,7 @@ diagnostic per file: `resolved-usage: classifiers=[a.B, c.D] callables=[a/foo, a
 proves the FIR surface is stable 2.1–2.4 and gets the facade onto `WContext`.
 
 **As-built (`no-unused-imports`, first `requiresResolution` consumer):** a `WStreamRule` in
-`wrasse-rules` (`NoUnusedImportsRule`), report-only — no edits. It assembles each explicit import
+`wrasse-rules` (`NoUnusedImportsRule`). It assembles each explicit import
 directive off the leaf stream (`IMPORT_DIRECTIVE`'s `KW_IMPORT`/`IDENTIFIER`/`DOT`/alias
 `IDENTIFIER`, distinguished from the main path via `ctx.hasAncestor(IMPORT_ALIAS)`) and separately
 records every `EOL_COMMENT`/`BLOCK_COMMENT`/`KDOC` leaf's offset span; the actual verdict is pure
@@ -573,6 +573,47 @@ a candidate); `no-wildcard-imports` already flags the syntax, and star *usage* s
 names a star import actually covers) arrive with the ImportEngine's expansion pass. The
 `WStreamRule` shape here is interim: once the ImportEngine's buffered-node engine exists, unused-
 import detection folds into it rather than staying a standalone stream rule.
+
+**As-built (`no-unused-imports` removal fix):** every unused-import report carries a deletion
+`WEdit` *when one can be emitted safely* — computed by a small pure function (`ImportRemovalSpan`,
+unit-tested without a compiler, returns `WEdit?`) from `ctx.sourceText` and the directive's own
+`[startOffset, endOffset)` — no re-reads, no tree. Deletion-span policy: if the directive is the
+only non-whitespace content on the line(s) it spans (checked by scanning back to the enclosing
+line start and forward to the enclosing line end), the whole line is deleted including its
+terminating `\n` (or to end-of-text if it is the file's last line with no trailing newline) —
+otherwise the deletion would leave an empty line behind. This also covers a directive whose own
+statement-terminating semicolon sits inside its own node span (the Kotlin grammar's
+`KotlinParsing.parseImportDirective` calls `consumeIf(SEMICOLON)` *before* closing the
+`IMPORT_DIRECTIVE` marker) when that directive is alone on its line — `import x.y;` alone still
+gets whole-line removal, semicolon included.
+
+**Otherwise — a semicolon-separated sibling import or a trailing comment shares the line — the
+rule bails: no edit at all, report-only for that directive (D9, "behavior-preserving and bail
+when uncertain").** This is a reversal of an earlier draft of this policy, which deleted only the
+directive's own span in this branch; that broke the D19 idempotence invariant across rules once
+`no-semicolons` is also enabled (this repo's own `wrasse.json` does exactly that). Deleting the
+*right-hand* directive in `import a.b; import c.d` leaves `import a.b; ` behind: the *left*
+directive's own separator semicolon is now statement-trailing, which `no-semicolons` did not
+flag before the deletion and does flag after it — pass 2 of `fix(fix(x))` then emits a brand-new
+`no-semicolons` diagnostic+edit that pass 1 never reported. Extending the deletion backward to
+also consume the separator would fix that specific case but reaches into the *left* directive's
+own span — an outright EditPlan overlap when *both* directives on the line are unused. Deciding a
+neighbor's semicolon fate from inside `no-unused-imports` is exactly the cross-rule coupling the
+design confines to a real fused engine (§5.1); absent that engine, the correct move is to bail,
+not guess. The same-line case stays a lint-only finding until the ImportEngine fuses import
+removal and statement-separator cleanup into one decision-maker.
+
+Two adjacent whole-line-removable unused imports fall out as two disjoint whole-line `WEdit`s
+(their spans touch but never overlap), satisfying the EditPlan disjointness invariant without any
+extra bookkeeping in the rule. Locked by fixtures with `.fixed.kt` companions (§11) covering:
+first/middle/last position in a multi-import list plus an adjacent unused pair; an unused import
+as the file's last line with no trailing newline; a semicolon-shared-line import list (the
+same-line side bails with no edit and survives the D19 cycle unchanged, alongside a second,
+whole-line-removable unused import so the fixture still exercises a real fix); an unused import
+whose removal empties the import list entirely with no stray blank line; and a dedicated
+`no-unused-imports-with-semicolons/` fixture dir with **both** `no-unused-imports` and
+`no-semicolons` enabled, proving end-to-end that round 2 of the D19 cycle reports exactly the
+surviving (unedited) diagnostics and never a newly-introduced `no-semicolons` finding.
 
 **Typealias imports need the abbreviation, not just the expansion:** `collectConeType` in
 `ResolvedUsageCollector` records `coneType.abbreviatedType` (the `ConeKotlinType.abbreviatedType`
@@ -736,6 +777,15 @@ Kotlinc surface (adapter-only; rule code never imports these): LightTree
 - **Idempotence invariant (D19, Phase A.5):** for every autofix fixture — apply → re-lint →
   zero diagnostics → second fix emits zero edits. Phase C: `format(format(x)) == format(x)`;
   formatted fixtures re-format to themselves.
+- **Byte-exact expected output (`.fixed.kt` companions):** a fixture may have a sibling
+  `<fixtureId>.fixed.kt` holding the exact expected post-fix content of `sample/test.kt` (raw
+  bytes, no directives). `FixtureLoader` excludes `*.fixed.kt` from fixture discovery and attaches
+  the companion's content to the `Fixture`; a companion naming no matching fixture is a loud
+  `require` failure (catches typos). After the idempotence cycle applies the patch,
+  `WrasseFixtureSpec` asserts the patched file equals the companion exactly (`shouldBe`, so a
+  mismatch renders a full diff) when one is present; a fixture with edits but no companion stays
+  legal (opt-in, not required for every autofix fixture); a companion whose fixture emits no
+  edits is a loud failure (dead companion = spec rot).
 - **Mapping-completeness test** (A.5): walk representative fixtures per Kotlin minor and assert
   zero `UNKNOWN` node-type mappings.
 - **CRLF fixture** (A.5): guards the hash/offset consistency rule (§5.4).
@@ -927,8 +977,12 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   Resolution-facade spike done (`WResolvedUsage` on `WContext`, lazy/gated collection,
   `dumpResolvedUsage` debug option, §8) — de-risked the FIR surface across 2.1–2.4; the
   `SemanticWRule` unification and offset correlation remain. `no-unused-imports` shipped ahead
-  of the engine, report-only (§8) — a first consumer of `requiresResolution`/`resolvedUsage`,
-  not the engine itself; star-import handling still belongs to the eventual expansion pass.
+  of the engine (§8) — a first consumer of `requiresResolution`/`resolvedUsage`, not the engine
+  itself; star-import handling still belongs to the eventual expansion pass. Removal autofix also
+  shipped ahead of the engine: whole-line deletion when the directive is alone on its line(s);
+  bails with no edit (report-only, D9) when it shares a line with a sibling import or trailing
+  comment, to avoid a cross-rule idempotence break with `no-semicolons` (§8) — locked by
+  `.fixed.kt` companion-file fixtures (§11) including a dedicated dual-rule fixture dir.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.
@@ -993,7 +1047,17 @@ a separate `ktlint -F` invocation on the same files.
 - `ChildBuffer` allocated per `WBufferedNodeRule` enter — pool when engines land.
 - Registrar selection probes internal compiler class names (`classExists` markers); checker
   shells exist in triplicate (k20/k22/main) — any signature change must be mirrored. Version
-  matrix is the safety net.
+  matrix is the safety net. **This bit in practice:** `WrasseCompilerPluginRegistrar20`/`22`
+  (the delegate shells for non-current minors) reconstructed their own `WrassePlugin` via
+  `wrasseMain(...)` without forwarding `fixEnabled`/`fixOutputDir` from the compiler
+  configuration — autofix silently never wrote a patch file on any minor routed through those
+  shells (2.1–2.3 as configured today), while diagnostics still reported correctly, so
+  `assertMatchesExpectations` never caught it. `IdempotenceCycle.runIfFixEmitted` no-ops
+  silently when the patch file is absent, so no existing assertion caught it either, on any
+  rule, the whole time — found only when the `.fixed.kt` companion mechanism (§11) added an
+  assertion that requires a patch to actually exist. Fixed by threading the same two config
+  keys through both delegate shells; regression coverage is now every autofix fixture with a
+  companion replayed via `testMinorHarness`/`testPatchHarness`.
 - Patch file stores absolute paths — not portable across machines/CI. Not solved, tracked.
 - `wrasseApply` task registered for all subprojects (`onlyIf`-guarded noise in `./gradlew tasks`).
 - `:app:wrasse-kotlinc-internal-k20` and `:testing:wrasse-benchmarks` print Gradle's "Kotlin Gradle

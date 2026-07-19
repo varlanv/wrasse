@@ -85,7 +85,9 @@ class NoUnusedImportsRule : WUninitializedRule {
                         commentSpans = commentSpans,
                     )
                     if (unused) {
-                        reporter.report(ruleId, "Unused import", import.startOffset, import.endOffset, this)
+                        val edit = ImportRemovalSpan.compute(ctx.sourceText, import.startOffset, import.endOffset)
+                        val edits = if (edit != null) listOf(edit) else emptyList()
+                        reporter.report(ruleId, "Unused import", import.startOffset, import.endOffset, this, edits = edits)
                     }
                 }
             }

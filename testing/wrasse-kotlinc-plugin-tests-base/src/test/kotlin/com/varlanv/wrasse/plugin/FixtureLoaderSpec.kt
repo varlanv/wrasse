@@ -101,4 +101,78 @@ class FixtureLoaderSpec : BaseSpec({
             fixtures[0].auxSources shouldBe emptyList()
         }
     }
+
+    should("never discover a .fixed.kt companion file as its own fixture") {
+        useTempDir { fixturesDir ->
+            writeFile(fixturesDir.resolve("wrasse.json"), BASE_CONFIG)
+            writeFile(
+                fixturesDir.resolve("sample-rule/main.kt"),
+                """
+                package sample
+                // expect-clean
+                """.trimIndent(),
+            )
+            writeFile(fixturesDir.resolve("sample-rule/main.fixed.kt"), "package sample\n")
+
+            val fixtures = FixtureLoader.load(fixturesDir)
+
+            fixtures.map { it.fixtureId } shouldBe listOf("main")
+        }
+    }
+
+    should("attach a .fixed.kt companion's content to the matching fixture") {
+        useTempDir { fixturesDir ->
+            writeFile(fixturesDir.resolve("wrasse.json"), BASE_CONFIG)
+            writeFile(
+                fixturesDir.resolve("sample-rule/main.kt"),
+                """
+                package sample
+                // expect-clean
+                """.trimIndent(),
+            )
+            writeFile(fixturesDir.resolve("sample-rule/main.fixed.kt"), "package sample\n")
+
+            val fixtures = FixtureLoader.load(fixturesDir)
+
+            fixtures shouldHaveSize 1
+            fixtures[0].fixedSource shouldBe "package sample\n"
+        }
+    }
+
+    should("leave fixedSource null for a fixture with no .fixed.kt companion") {
+        useTempDir { fixturesDir ->
+            writeFile(fixturesDir.resolve("wrasse.json"), BASE_CONFIG)
+            writeFile(
+                fixturesDir.resolve("sample-rule/main.kt"),
+                """
+                package sample
+                // expect-clean
+                """.trimIndent(),
+            )
+
+            val fixtures = FixtureLoader.load(fixturesDir)
+
+            fixtures shouldHaveSize 1
+            fixtures[0].fixedSource shouldBe null
+        }
+    }
+
+    should("fail with the full message when a .fixed.kt companion names no matching fixture") {
+        useTempDir { fixturesDir ->
+            writeFile(fixturesDir.resolve("wrasse.json"), BASE_CONFIG)
+            writeFile(
+                fixturesDir.resolve("sample-rule/main.kt"),
+                """
+                package sample
+                // expect-clean
+                """.trimIndent(),
+            )
+            writeFile(fixturesDir.resolve("sample-rule/typo.fixed.kt"), "package sample\n")
+
+            val ruleDir = fixturesDir.resolve("sample-rule")
+            shouldThrow<IllegalArgumentException> {
+                FixtureLoader.load(fixturesDir)
+            }.message shouldBe "Companion file 'typo.fixed.kt' in $ruleDir has no matching fixture 'typo.kt'"
+        }
+    }
 })

@@ -24,12 +24,12 @@ object IdempotenceCycle {
         fixOutputDir: Path,
         source: TestSource,
         round1: CompilationResult,
-    ) {
+    ): String? {
         val patchFile = fixOutputDir.resolve(PATCH_FILE_NAME)
-        if (!Files.exists(patchFile)) return
+        if (!Files.exists(patchFile)) return null
 
         val edits = WPatchReader.read(Files.readString(patchFile)).flatMap { it.edits }
-        if (edits.isEmpty()) return
+        if (edits.isEmpty()) return null
 
         val expectedSurvivors = expectedSurvivorKeys(source.content, round1.wrasseDiagnostics, edits)
 
@@ -41,6 +41,8 @@ object IdempotenceCycle {
 
         assertNoResidualEdits(patchFile)
         assertExpectedSurvivors(expectedSurvivors, round2.wrasseDiagnostics.map { diagnosticKey(it) })
+
+        return patchedContent
     }
 
     fun diagnosticKey(diagnostic: TestDiagnostic): String =
