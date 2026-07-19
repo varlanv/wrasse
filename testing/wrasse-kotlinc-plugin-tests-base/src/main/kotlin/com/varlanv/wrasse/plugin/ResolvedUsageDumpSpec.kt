@@ -126,7 +126,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
 
         result.wrasseDiagnostics shouldHaveSize 2
         val sampleDiagnostic = result.wrasseDiagnostics.single { it.message.contains("BaseAlias") }
-        sampleDiagnostic.message shouldBe "wrasse: resolved-usage: classifiers=[sample.Impl, sample.aux.Base, sample.aux.BaseAlias] callables=[sample.aux.Base/Base] imports=[sample.aux.BaseAlias] qualified=[58..67:TYPE_REF:sample.aux.Base] errors=false"
+        sampleDiagnostic.message shouldBe "wrasse: resolved-usage: classifiers=[sample.Impl, sample.aux.Base, sample.aux.BaseAlias] callables=[sample.aux.Base/Base] imports=[sample.aux.BaseAlias] qualified=[58..67:TYPE_REF:sample.aux.BaseAlias] errors=false"
     }
 
     should("distinguish a package-star from a member-star import by its resolved parent class") {

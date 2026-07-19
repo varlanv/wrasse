@@ -1124,11 +1124,12 @@ re-sort in one `wrasseFix` pass, same composition mechanism as a package-star's.
 package-star fixture changed.
 
 **As-built (LightTree↔FIR offset-correlation spike — D.1 of the FQN→import track, 2026-07-19):**
-first of a three-part feature (D.1 this spike / D.2 a report-only rule / D.3 a fix, both still
-ahead); this part proves the offset-correlation bet with zero user-visible change — no rule logic,
-no rewrites. `WResolvedUsage.qualifiedUsages: List<WQualifiedUsage>` (`wrasse-model`, zero kotlinc
-deps) adds `WQualifiedUsage(startOffset, endOffset, targetFqName, kind: WQualifiedUsageKind)`
-(`QUALIFIER` | `TYPE_REF`), one entry per `FirResolvedQualifier`/`FirResolvedTypeRef` (class-like
+first of a three-part feature (D.1 this spike / D.2 a report-only rule, done below / D.3 a fix,
+still ahead); this part proves the offset-correlation bet with zero user-visible change — no rule
+logic, no rewrites. `WResolvedUsage.qualifiedUsages: List<WQualifiedUsage>` (`wrasse-model`, zero
+kotlinc deps) adds `WQualifiedUsage(startOffset, endOffset, targetFqName, packageFqName, kind:
+WQualifiedUsageKind)` (`QUALIFIER` | `TYPE_REF`; `packageFqName` is a D.2 addition, see below), one
+entry per `FirResolvedQualifier`/`FirResolvedTypeRef` (class-like
 cone type only) whose own `source` is a **real** element —
 `source.kind === KtRealSourceElementKind`, javap-confirmed byte-identical bytecode surface
 (`KtSourceElement.getKind()`, `AbstractKtSourceElement.getStartOffset()`/`getEndOffset()`,
@@ -1168,11 +1169,151 @@ gates the collector call itself on `dumpResolvedUsage || requiresResolution ||
 requiresQualifiedUsages` as before, and separately passes a `collectQualifiedUsages: Boolean`
 (`dumpResolvedUsage || requiresQualifiedUsages`) through the now-parameterized `resolvedUsage`
 lambda so the extra visitor work (and the list itself) is skipped entirely unless actually wanted —
-nothing sets `requiresQualifiedUsages` yet except dump mode, locked by `WRuleSetSpec`'s aggregation
-tests plus the pre-existing `ResolvedUsageDumpSpec` "collect nothing when dumpResolvedUsage is off
-and no rule requires resolution" case, which continues to assert zero diagnostics (and so, by
-construction, an uncollected `qualifiedUsages`) unchanged. `dumpResolvedUsage`'s message gained a
+at the time this spike shipped, nothing set `requiresQualifiedUsages` yet except dump mode, locked
+by `WRuleSetSpec`'s aggregation tests plus the pre-existing `ResolvedUsageDumpSpec` "collect nothing
+when dumpResolvedUsage is off and no rule requires resolution" case, which continues to assert zero
+diagnostics (and so, by construction, an uncollected `qualifiedUsages`) unchanged (`no-unnecessary-fqn`,
+below, is now the first real consumer). `dumpResolvedUsage`'s message gained a
 `qualified=[start..end:kind:fqn, ...]` segment, ASCII-sorted by start offset then end.
+
+**As-built (`no-unnecessary-fqn` — D.2 of the FQN→import track, report-only, 2026-07-19):** a
+fourth id on `ImportEngine`, reporting a fully-qualified usage `a.b.C...` whose qualifier prefix
+`a.b.` could be dropped given an existing or addable `import a.b.C`. Message: `"Unnecessary fully
+qualified name"`. No edit is ever attached — D.3 attaches the fix; this part is precision-first,
+report-only groundwork, silent-skipping (no report at all) on any ambiguity rather than guessing,
+per the same "bail-on-ambiguity" mandate that governs the rest of the import family.
+
+**Facade fidelity fix, found failing-first while starting this rule.** `recordTypeRefUsage`
+recorded the typealias **expansion**'s `classId` for a `coneType.abbreviatedType`-bearing type
+ref, while the span it recorded still covered the **written alias name** — a real span/target
+mismatch, not just an imprecision. Caught by the pre-existing `ResolvedUsageDumpSpec` "dump both
+the abbreviated (typealias) classifier and its expansion for a supertype-position usage" case,
+which had been silently asserting the bug: `class Impl : BaseAlias()` (written) recorded
+`qualified=[58..67:TYPE_REF:sample.aux.Base]` (the expansion) before the fix; the fix — using
+`coneType.abbreviatedType ?: coneType` to pick the classId, matching `collectConeType`'s existing
+recursion into the same attribute — changes that to `...:sample.aux.BaseAlias` (the abbreviation,
+matching what is actually spelled at that span) with zero other change to the message, confirmed
+by re-running the existing test before/after. A dedicated case was also added to
+`QualifiedUsageCorrelationSpec` pinning the same fix on a fresh example (`sample.aux.WidgetAlias`
+over `class Widget`).
+
+**Second facade addition: `WQualifiedUsage.packageFqName`.** A flat dotted `targetFqName` string
+cannot distinguish a package segment from a nested-class segment (`a.b.C.Nested` vs. a flat
+`a.b.c.D` are indistinguishable by dots alone) — exactly the boundary this rule must never guess.
+`packageFqName` (`ClassId.packageFqName`, empty string for the root package) gives the real split
+straight from FIR, so the class actually worth importing is always `packageFqName` plus the first
+segment of the FQN's relative-class part — the *outermost* class of the chain — never the nested
+class itself. This is a deliberate deviation from "no new facade state, substring analysis
+suffices" (which governs the *syntactic* proof below, not this FIR-side ground truth): guessing the
+package/class boundary from string-splitting alone was judged less honest than the project's
+existing precedent of reading the real split from `ClassId` (the same posture as every other
+FIR-facade addition in this section).
+
+**Detection semantics — all of the following must hold for a given `WQualifiedUsage`, else silent
+skip, no report at all** (`QualifiedUsageDecision`, `libs/wrasse-rules`, compiler-free, unit-tested
+without kotlinc):
+1. **Syntactic proof.** The walk-collected `sourceText` substring at the usage's own span must
+   literally spell the target: a `QUALIFIER` usage's span must equal `targetFqName` exactly (FIR's
+   qualifier always stops at the class, D.1's finding, so span and target agree character for
+   character whenever this holds — a backtick-quoted segment, an alias spelled differently,
+   whitespace/a comment inside the chain, or partial qualification all fail this literal
+   comparison); a `TYPE_REF` usage's span must *start with* `targetFqName` followed by end-of-span,
+   `<` (generic args), or `?` (nullability) — confirmed against a real compile that a parameterized
+   type's own resolved-type-ref span does include its generic argument list (`sample.aux.Box<Int>`
+   as one 19-character span, hand-verified by offset), not just the raw classifier name.
+2. **Package-prefix only, one canonical proposal per target.** The dropped span is always exactly
+   `packageFqName + "."`; the kept remainder starts at the outermost class's own simple name. A
+   nested chain (`a.b.C.Nested`) proposes `import a.b.C`, keeping `C.Nested` — never proposing to
+   import the nested class itself. A member-qualified chain (`a.b.C.member`) is covered by the same
+   mechanism naturally, confirmed empirically while building this rule's fixtures: FIR only ever
+   records a `QUALIFIER` usage for an **object-like** reference (a bare object reference, or a
+   member access through one) — a fully-qualified constructor call of a plain, non-object class
+   (`a.b.Widget()`) produces **no** `WQualifiedUsage` at all (its qualifier/callable resolution is
+   tracked elsewhere, invisibly to this facade), so there is nothing to bail on and nothing to
+   propose for that shape; only a declared-type position (`TYPE_REF`) or an object-like reference
+   (`QUALIFIER`) is ever a candidate.
+3. **Import viability — the inverted collision analysis, in priority order** (`SimpleNameCollisionIndex`,
+   extracted from `WildcardExpansionDecision`'s bail-7 logic and now shared by both):
+   - a non-aliased explicit `import a.b.C` for the exact candidate already exists → report
+     unconditionally, the cleanest case (pure redundancy, nothing else to check);
+   - otherwise, skip **unconditionally** — same-package target or not, see below — if the
+     candidate's simple name collides with either: another used FQN's own simple name anywhere in
+     the file; or an explicit import's visible name (alias or plain) bound to a *different* FQN;
+   - the candidate's package equals the file's own package → report, skipping only the next check
+     (same-package needs no import in D.3, but is *not* otherwise a separate unconditional branch —
+     see below for why);
+   - otherwise (a new import is genuinely needed), also skip if the candidate's simple name is a
+     written `IDENTIFIER` occurrence anywhere in the file *outside* every span this same target is
+     known to occupy. This check needed a real fix, found dogfooding this rule's own fixtures, not
+     hypothetically: a fully-qualified constructor call's own trailing segment (per point 2) is a
+     written identifier at a position no `WQualifiedUsage` covers, so the extremely common
+     `val x: pkg.Type = pkg.Type()` shape would otherwise self-trigger this bail against its own
+     constructor call. Fixed by also treating every literal, word-bounded textual occurrence of the
+     candidate FQN in `sourceText` as "this target's own span" (`QualifiedUsageDecision
+     .literalOccurrences`) — still a written-text check, not a resolution claim, so it does not
+     reopen the precision point 1 established.
+   - otherwise, report (import-needed variant).
+
+   **Same package is not a separate, unconditional branch — two bugs found in high-supervision
+   review before this ever shipped, neither hypothetical.** A first draft returned "safe"
+   unconditionally for any same-package candidate (Kotlin resolves same-package classes unqualified
+   with no import needed, and a package cannot declare two top-level classes with the same simple
+   name — both true, but incomplete on their own). **Bug 1:** an *explicit import* can still shadow
+   a same-package sibling for bare-name resolution — confirmed empirically via a dedicated
+   real-compile probe (package `p` with a sibling-file class `p.C`, plus `import q.C` and a bare
+   `C().qOnly()` call in the same file): `dumpResolvedUsage` showed `callables=[q.C/C, q.C/qOnly]`,
+   `errors=false` — the bare call resolved to the *imported* `q.C`, the same-package `p.C` never
+   considered. Unconditionally trusting same-package would let an unrelated `import q.C` elsewhere
+   in the file silently rebind what a shortened `C` means once D.3 writes it — exactly the
+   wrong-fix-from-a-right-report outcome this whole track exists to prevent. Fixed by making the
+   simple-name-collision checks above apply to same-package candidates too, never skipped for them.
+   **Bug 2, the opposite direction, surfaced immediately once bug 1 was fixed:** a same-package
+   class *declared in the current file itself* writes its own simple name as a written `IDENTIFIER`
+   at the declaration site, a position no usage span covers — so the written-identifier-elsewhere
+   check (previous bullet) flagged a class's own declaration of itself as a foreign collision,
+   wrongly bailing a same-package usage that used to report correctly. Structurally, only a
+   same-package target can ever have its own declaration living in the current file (a
+   cross-package "new import needed" target never can, since a class's package is fixed by its own
+   file's package declaration), so this false positive is only possible for same-package and never
+   for the general case. Fixed by having same-package skip *only* that one check, once the two
+   simple-name-collision checks above already passed — an asymmetric exemption, not a blanket one.
+   Locked by `same-package-shadowed-by-import-skip-clean` (bug 1: skip) alongside
+   `same-package-unshadowed-still-reported-error`/`same-package-redundant-error` (bug 2's own
+   regression fixture: report, no conflicting import) as the paired control, plus three
+   `QualifiedUsageDecisionSpec` unit tests pinning the same shapes directly.
+4. **Deduplication.** Every usage sharing the same candidate import FQN is one "target" — the
+   viability decision runs once per target, but every surviving usage still gets its own report at
+   its own span.
+5. **File-level bails**, shared with the rest of the engine: `ctx.resolvedUsage == null` or
+   `hasResolutionErrors` skips the whole file (no `WResolvedUsage`, nothing to judge); KDoc spans
+   are never scanned because they structurally can't be — `qualifiedUsages` is built from real FIR
+   elements only, and KDoc text is never part of the FIR tree, so a name mentioned only in a doc
+   comment can never produce a `WQualifiedUsage` in the first place (locked by a regression fixture
+   rather than left implicit).
+
+**Registration.** Fourth id on `ImportEngine` (`no-unnecessary-fqn`), gated by a new
+`requiresQualifiedUsages(enabledIds)` override (true iff this id is enabled) — the first id to
+actually set it, closing the loop the D.1 spike left open. `requiresResolution` is unchanged (the
+gate gets `ctx.resolvedUsage` populated with `classifiers`/`callables` either way, per
+`WrassePlugin.checkFile`'s existing three-way `dumpResolvedUsage || requiresResolution ||
+requiresQualifiedUsages` gate). The walk-side assembly gained one more piece, gated on this id being
+enabled: every written `IDENTIFIER`'s own offset (`IdentifierOccurrence`), the position-aware
+sibling of the flat `writtenIdentifiers` set the other ids already collect. Not enabled in this
+repo's own `wrasse.json` yet (dogfooding is a separate, deliberate step).
+
+**Fixtures.** `no-unnecessary-fqn/` (own `wrasse.json`, only this id enabled): the import-needed
+variant for a plain `TYPE_REF`, an object `QUALIFIER`, a member access through an object, a nested
+class (package-only prefix dropped), and a parameterized type (generic-arg-inclusive span); the
+already-imported and same-package (unshadowed) report variants; two usages of the same target both
+reported independently; every skip condition — whole-file resolution-error bail, a backtick-quoted
+segment, a root-package usage, a colliding classifier elsewhere, a colliding aliased import, a
+colliding written identifier from the file's own unrelated declaration, an aliased import correctly
+*not* counting as already-imported, a same-package usage shadowed by an unrelated explicit import
+(the bug-1 regression fixture, above), and a KDoc-only mention never scanned at all. `imports-full/`
+gained the id (report-only, so no edit-composition risk with the other three) and one fixture
+proving its report coexists with the other ids' machinery without interference.
+`QualifiedUsageDecisionSpec` (`libs/wrasse-rules`) unit-tests the pure decision logic directly,
+compiler-free, including the same-package shadowing and self-declaration shapes above.
 
 ---
 
@@ -1525,10 +1666,13 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   remain unbuilt (the engine still reads `WContext.resolvedUsage`, the file-level facade, not a
   per-node one). Member-star (class/object) expansion shipped 2026-07-19 (§8's closing as-built
   paragraph: authoritative `WResolvedImport`-based classification, an `isStatic`-gated legality
-  check for enum entries/Java statics, whole-star bail on any instance-member usage). Still
-  unbuilt, tracked as the engine's own growth sites: FQN-shortening/import insertion, own-package/
-  default-redundant star removal, and closing the KDoc same-package-sibling coverage gap via a
-  session-backed package→declarations query.
+  check for enum entries/Java statics, whole-star bail on any instance-member usage). The
+  LightTree↔FIR offset-correlation spike (D.1) and the report-only `no-unnecessary-fqn` rule built
+  on it (D.2, a fourth `ImportEngine` id) both shipped 2026-07-19 — §8's closing as-built
+  paragraphs; D.3 (attaching an actual fix to that same decision) is still ahead. Still unbuilt
+  otherwise, tracked as the engine's own growth sites: own-package/default-redundant star removal,
+  and closing the KDoc same-package-sibling coverage gap via a session-backed package→declarations
+  query.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.

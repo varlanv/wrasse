@@ -12,36 +12,49 @@ import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
 /**
- * One fused decision-maker behind three user-facing rule ids — `no-unused-imports`,
- * `no-wildcard-imports`, `import-ordering` — replacing what were three independent
- * `WStreamRule`s that composed only via `afterFile` registration order plus
- * `EditPlan.takeEditsIn` self-consumption (design.md §5.1, §8, the interim mechanism now
- * retired for this family). Users still configure each id independently in `wrasse.json`;
+ * One fused decision-maker behind four user-facing rule ids — `no-unused-imports`,
+ * `no-wildcard-imports`, `import-ordering`, `no-unnecessary-fqn` — replacing what were
+ * originally three independent `WStreamRule`s that composed only via `afterFile` registration
+ * order plus `EditPlan.takeEditsIn` self-consumption (design.md §5.1, §8, the interim mechanism
+ * retired for the first three). Users still configure each id independently in `wrasse.json`;
  * [initGroup] receives exactly the enabled, non-excluded-for-this-file ids and their own
  * [WrasseRuleConfig] (D20 unchanged: fresh per file). An id absent from `configs` behaves as
  * if that rule does not exist for this file — every decision below is individually gated on
  * its own id being present.
  *
+ * `no-unnecessary-fqn` (D.2, design.md §8) is report-only — no edit ever attached, so it never
+ * enters the ordering-composition dance below, it only contributes [PendingImportReport]s at
+ * spans outside the import list entirely. It is the reason [requiresQualifiedUsages] exists on
+ * this engine at all: it is the first and, so far, only id needing
+ * [com.varlanv.wrasse.model.WResolvedUsage.qualifiedUsages].
+ *
  * A single walk-side assembly (directives, star imports, comment/KDoc spans, written
- * identifiers, package FQN, and every import directive's own span for ordering) replaces the
- * three rules' near-duplicated bookkeeping. The pure decision objects
+ * identifiers, package FQN, every import directive's own span for ordering, and — only when
+ * `no-unnecessary-fqn` is enabled — every written identifier's own offset) replaces the
+ * per-rule near-duplicated bookkeeping. The pure decision objects
  * ([UnusedImportDecision], [UnusedStarDecision], [WildcardExpansionDecision], [StarAttribution],
- * [ImportOrderingDecision], [ImportRemovalSpan], [ImportLineSpan], [ImportDirectiveAssembler])
- * are unchanged — this engine only calls them, once each, in `afterFile`, then composes their
- * results itself instead of relying on the generic [com.varlanv.wrasse.model.EditPlan] as an
- * inter-rule bus.
+ * [ImportOrderingDecision], [ImportRemovalSpan], [ImportLineSpan], [ImportDirectiveAssembler],
+ * [QualifiedUsageDecision]) are unchanged — this engine only calls them, once each, in
+ * `afterFile`, then composes their results itself instead of relying on the generic
+ * [com.varlanv.wrasse.model.EditPlan] as an inter-rule bus.
  */
 class ImportEngine : WUninitializedRuleGroup {
 
-    override val ids: Set<String> = setOf(NO_UNUSED_IMPORTS_ID, NO_WILDCARD_IMPORTS_ID, IMPORT_ORDERING_ID)
+    override val ids: Set<String> =
+        setOf(NO_UNUSED_IMPORTS_ID, NO_WILDCARD_IMPORTS_ID, IMPORT_ORDERING_ID, NO_UNNECESSARY_FQN_ID)
 
     override fun requiresResolution(enabledIds: Set<String>): Boolean =
         NO_UNUSED_IMPORTS_ID in enabledIds || NO_WILDCARD_IMPORTS_ID in enabledIds
+
+    override fun requiresQualifiedUsages(enabledIds: Set<String>): Boolean =
+        NO_UNNECESSARY_FQN_ID in enabledIds
 
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val unusedRule = configs[NO_UNUSED_IMPORTS_ID]?.let { ReportFacade(NO_UNUSED_IMPORTS_ID, it) }
         val wildcardRule = configs[NO_WILDCARD_IMPORTS_ID]?.let { ReportFacade(NO_WILDCARD_IMPORTS_ID, it) }
         val orderingRule = configs[IMPORT_ORDERING_ID]?.let { ReportFacade(IMPORT_ORDERING_ID, it) }
+        val unnecessaryFqnRule = configs[NO_UNNECESSARY_FQN_ID]?.let { ReportFacade(NO_UNNECESSARY_FQN_ID, it) }
+        val collectIdentifierPositions = unnecessaryFqnRule != null
 
         return object : WStreamRule {
             override val id = ENGINE_ID
@@ -54,6 +67,7 @@ class ImportEngine : WUninitializedRuleGroup {
             private val commentSpans = mutableListOf<IntRange>()
             private val kdocSpans = mutableListOf<IntRange>()
             private val writtenIdentifiers = mutableSetOf<String>()
+            private val identifierOccurrences = mutableListOf<IdentifierOccurrence>()
             private var packagePathParts = mutableListOf<String>()
             private var filePackageFqName = ""
             private var listStart = -1
@@ -125,6 +139,7 @@ class ImportEngine : WUninitializedRuleGroup {
                     packagePathParts.add(text)
                 } else {
                     writtenIdentifiers.add(text)
+                    if (collectIdentifierPositions) identifierOccurrences.add(IdentifierOccurrence(text, ctx.startOffset))
                 }
             }
 
@@ -140,17 +155,43 @@ class ImportEngine : WUninitializedRuleGroup {
                 if (unusedRule != null && usableUsage != null) {
                     collectUnusedImports(sourceText, usableUsage, pending)
                 }
+                if (unnecessaryFqnRule != null && usableUsage != null) {
+                    collectUnnecessaryFqn(sourceText, usableUsage, pending)
+                }
                 if (orderingRule != null) {
                     decideOrdering(sourceText, pending, reporter)
                 }
 
                 for (p in pending) {
-                    val rule = if (p.ruleId == NO_UNUSED_IMPORTS_ID) unusedRule else wildcardRule
+                    val rule = when (p.ruleId) {
+                        NO_UNUSED_IMPORTS_ID -> unusedRule
+                        NO_WILDCARD_IMPORTS_ID -> wildcardRule
+                        else -> unnecessaryFqnRule
+                    }
                     if (rule == null) continue
                     reporter.report(
                         p.ruleId, p.message, p.reportStart, p.reportEnd, rule,
                         edits = p.edit?.let { listOf(it) } ?: emptyList(),
                     )
+                }
+            }
+
+            private fun collectUnnecessaryFqn(
+                sourceText: CharSequence,
+                usage: WResolvedUsage,
+                pending: MutableList<PendingImportReport>,
+            ) {
+                val reports = QualifiedUsageDecision.decideAll(
+                    qualifiedUsages = usage.qualifiedUsages,
+                    sourceText = sourceText,
+                    filePackageFqName = filePackageFqName,
+                    classifiers = usage.classifiers,
+                    callables = usage.callables,
+                    explicitImports = directives,
+                    identifierOccurrences = identifierOccurrences,
+                )
+                for (r in reports) {
+                    pending.add(PendingImportReport(NO_UNNECESSARY_FQN_ID, UNNECESSARY_FQN_MESSAGE, r.dropStart, r.dropEnd, edit = null))
                 }
             }
 
@@ -289,9 +330,11 @@ class ImportEngine : WUninitializedRuleGroup {
         const val NO_UNUSED_IMPORTS_ID = "no-unused-imports"
         const val NO_WILDCARD_IMPORTS_ID = "no-wildcard-imports"
         const val IMPORT_ORDERING_ID = "import-ordering"
+        const val NO_UNNECESSARY_FQN_ID = "no-unnecessary-fqn"
         private const val ENGINE_ID = "import-engine"
         private const val WILDCARD_MESSAGE = "Replace wildcard import with explicit imports"
         private const val UNUSED_MESSAGE = "Unused import"
         private const val ORDERING_MESSAGE = "Imports are not sorted"
+        private const val UNNECESSARY_FQN_MESSAGE = "Unnecessary fully qualified name"
     }
 }

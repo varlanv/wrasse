@@ -168,22 +168,9 @@ object WildcardExpansionDecision {
         classifiers: Set<String>,
         callables: Set<WCallableUsage>,
     ): Boolean {
-        val fqnsBySimpleName = mutableMapOf<String, MutableSet<String>>()
-        for (classifier in classifiers) {
-            fqnsBySimpleName.getOrPut(classifier.substringAfterLast('.')) { mutableSetOf() }.add(classifier)
-        }
-        for (callable in callables) {
-            val classFqName = callable.classFqName
-            if (classFqName == null) {
-                fqnsBySimpleName.getOrPut(callable.name) { mutableSetOf() }
-                    .add("${callable.packageFqName}.${callable.name}")
-            } else {
-                fqnsBySimpleName.getOrPut(classFqName.substringAfterLast('.')) { mutableSetOf() }.add(classFqName)
-            }
-        }
+        val index = SimpleNameCollisionIndex.build(classifiers, callables)
         return attributed.any { symbol ->
-            val fqns = fqnsBySimpleName[symbol.substringAfterLast('.')] ?: emptySet()
-            fqns.any { it != symbol }
+            SimpleNameCollisionIndex.collidesWithOtherFqn(symbol, symbol.substringAfterLast('.'), index)
         }
     }
 }

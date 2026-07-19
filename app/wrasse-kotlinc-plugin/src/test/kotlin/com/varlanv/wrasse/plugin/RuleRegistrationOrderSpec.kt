@@ -19,9 +19,10 @@ class RuleRegistrationOrderSpec : BaseSpec({
         ids shouldBe listOf("no-semicolons", "trailing-newline")
     }
 
-    should("register the import engine group with exactly the three import-family ids") {
+    should("register the import engine group with exactly the four import-family ids") {
         val groups = registeredRuleGroups()
 
-        groups.map { it.ids } shouldBe listOf(setOf("no-unused-imports", "no-wildcard-imports", "import-ordering"))
+        groups.map { it.ids } shouldBe
+            listOf(setOf("no-unused-imports", "no-wildcard-imports", "import-ordering", "no-unnecessary-fqn"))
     }
 })

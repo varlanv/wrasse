@@ -3,6 +3,7 @@
         "no-wildcard-imports": { "level": "error" },
         "no-unused-imports": { "level": "error" },
         "no-semicolons": { "level": "error" },
-        "import-ordering": { "level": "error" }
+        "import-ordering": { "level": "error" },
+        "no-unnecessary-fqn": { "level": "error" }
     }
 }

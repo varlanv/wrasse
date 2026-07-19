@@ -29,6 +29,7 @@ import org.jetbrains.kotlin.fir.types.abbreviatedType
 import org.jetbrains.kotlin.fir.types.type
 import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
 
 object ResolvedUsageCollector {
 
@@ -168,20 +169,23 @@ object ResolvedUsageCollector {
 
         private fun recordQualifierUsage(resolvedQualifier: FirResolvedQualifier) {
             val classId = resolvedQualifier.classId ?: return
-            recordUsage(resolvedQualifier.source, classId.asFqNameString(), WQualifiedUsageKind.QUALIFIER)
+            recordUsage(resolvedQualifier.source, classId, WQualifiedUsageKind.QUALIFIER)
         }
 
         private fun recordTypeRefUsage(resolvedTypeRef: FirResolvedTypeRef) {
-            val classId = (resolvedTypeRef.coneType as? ConeClassLikeType)?.lookupTag?.classId ?: return
-            recordUsage(resolvedTypeRef.source, classId.asFqNameString(), WQualifiedUsageKind.TYPE_REF)
+            val coneType = resolvedTypeRef.coneType
+            val writtenType = coneType.abbreviatedType ?: coneType
+            val classId = (writtenType as? ConeClassLikeType)?.lookupTag?.classId ?: return
+            recordUsage(resolvedTypeRef.source, classId, WQualifiedUsageKind.TYPE_REF)
         }
 
-        private fun recordUsage(source: KtSourceElement?, targetFqName: String, kind: WQualifiedUsageKind) {
+        private fun recordUsage(source: KtSourceElement?, classId: ClassId, kind: WQualifiedUsageKind) {
             if (source == null || source.kind !== KtRealSourceElementKind) return
             val start = source.startOffset
             val end = source.endOffset
             if (start < 0 || end < start) return
-            qualifiedUsages.add(WQualifiedUsage(start, end, targetFqName, kind))
+            val packageFqName = if (classId.packageFqName.isRoot) "" else classId.packageFqName.asString()
+            qualifiedUsages.add(WQualifiedUsage(start, end, classId.asFqNameString(), packageFqName, kind))
         }
 
         private fun toCallableUsage(callableId: CallableId, isStatic: Boolean): WCallableUsage {

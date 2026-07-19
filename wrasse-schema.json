@@ -40,6 +40,10 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow wildcard imports"
                 },
+                "no-unnecessary-fqn": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow fully qualified names that could be dropped given an existing or addable import (report-only)"
+                },
                 "trailing-newline": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require a trailing newline at end of file"
