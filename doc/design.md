@@ -1566,6 +1566,16 @@ Therefore (Phase A.5): a JMH benchmark over a real corpus (e.g. Kotlin stdlib so
 regression tripwire, **before** rule porting starts. Keep `WStreamRule` count small; keep
 disabled-rule cost at zero.
 
+**Measured (2026-07-19, post-import-chain, 6 rules incl. the resolution facade and
+qualified-usage collection):** wall-clock A/B on a real external 134-file multi-module JVM
+project (kryptoid; interleaved rounds, `--rerun-tasks --no-build-cache`, warnOnly so codegen
+runs in both modes, symmetric init scripts): base mean 3784ms vs wrasse-enabled 3850ms over
+four warmed rounds — **≈1.7% overhead**, partially inside the base build's own ±5% round
+variance. Within budget. The same measurement on wrasse's own repo shows 5–8%: a 17-tiny-module
+micro-build amortizes per-module fixed costs (plugin load, config parse, patch init) badly —
+per-file walk cost is not the driver there. Bonus finding from the same run: 12 genuine
+findings, zero false positives, on a codebase wrasse had never seen.
+
 Known walk-level punch list (fix in A.5, verify with the benchmark):
 
 1. ~~`childArray.copyOfRange(0, count)` allocates one array per interior node~~ — done: replaced
