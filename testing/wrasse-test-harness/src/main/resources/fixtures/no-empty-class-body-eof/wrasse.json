@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "no-empty-class-body": { "level": "error" },
+        "trailing-newline": { "level": "error" }
+    }
+}

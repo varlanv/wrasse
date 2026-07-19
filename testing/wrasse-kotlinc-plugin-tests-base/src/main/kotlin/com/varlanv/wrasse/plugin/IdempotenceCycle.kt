@@ -41,6 +41,7 @@ object IdempotenceCycle {
         val patchedContent = Files.readString(harness.sourcePath(workDir, source))
         val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)) + auxSources, workDir)
 
+        assertNoNewCompileErrors(round1.diagnostics, round2.diagnostics)
         assertNoResidualEdits(patchFile)
         assertExpectedSurvivors(expectedSurvivors, round2.wrasseDiagnostics.map { diagnosticKey(it) })
 
@@ -119,6 +120,39 @@ object IdempotenceCycle {
 
     private fun describeResidualEntries(entries: List<FileEdits>): String =
         entries.joinToString("\n") { "  ${it.filePath} (${it.edits.size} edits)" }.ifEmpty { "  (none)" }
+
+    /**
+     * General systemic guard (not specific to any one rule): compares the *sets* of non-wrasse
+     * `e:`-severity diagnostic messages between round 1 (before the fix) and round 2 (after
+     * applying round 1's edits and recompiling). A message present in round 2 but absent from
+     * round 1 means the fix introduced a genuine compiler error the original file never had —
+     * "autofix broke the compile" — and must fail loudly here, not be silently absorbed by D19's
+     * survivor bookkeeping (which only tracks *wrasse* diagnostics and has no opinion on whether
+     * the patched file still compiles at all). Comparing message *sets* rather than asserting
+     * `round2NonWrasseErrors.isEmpty()` outright avoids false positives from fixtures that
+     * legitimately compile with `noJdk = true` and already carry pre-existing classpath
+     * diagnostics (e.g. `Cannot access '...'`) in *both* rounds — those cancel out here instead of
+     * failing every such fixture.
+     */
+    fun assertNoNewCompileErrors(round1: List<TestDiagnostic>, round2: List<TestDiagnostic>) {
+        val round1Messages = nonWrasseErrorMessages(round1)
+        val round2Messages = nonWrasseErrorMessages(round2)
+        val newMessages = round2Messages - round1Messages
+        val newDiagnostics = round2.filter { it.message in newMessages }.distinctBy { it.message }
+        withClue(
+            "Autofix broke the compile: round 2 (after applying round 1's emitted edits and " +
+                "recompiling) introduced non-wrasse compiler error(s) that round 1 did not have. " +
+                "A fix must never turn compiling code into code that no longer compiles.\n" +
+                "New errors introduced by the fix:\n${formatDiagnostics(newDiagnostics)}"
+        ) {
+            newMessages.isEmpty() shouldBe true
+        }
+    }
+
+    private fun nonWrasseErrorMessages(diagnostics: List<TestDiagnostic>): Set<String> =
+        diagnostics.filter { it.severity.isError && !it.message.startsWith("wrasse:") }
+            .map { it.message }
+            .toSet()
 
     /**
      * Not wired into [runIfFixEmitted] by default: several existing fixtures compile with

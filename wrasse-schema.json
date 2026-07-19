@@ -24,6 +24,10 @@
             "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",
             "additionalProperties": false,
             "properties": {
+                "no-empty-class-body": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow class/interface/object/enum bodies containing nothing but whitespace"
+                },
                 "no-semicolons": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow unnecessary semicolons"

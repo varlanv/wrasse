@@ -505,6 +505,16 @@ Must **bail on ambiguity** rather than guess: shadowing, extension-function impo
 operator/`componentN` imports, KDoc references. A wrong import fix permanently burns trust —
 budget this as a mini-project, not a rule.
 
+**Rule ID and message conventions (owner-approved, locked):** lowercase-kebab ids; `no-<thing>`
+names a prohibition, a bare noun phrase names a requirement (`import-ordering`, `trailing-newline`).
+One wrasse id per **concept** across the ktlint/detekt/diktat overlaps it replaces — never one id
+per source tool. Messages are one short declarative sentence: capitalized, no trailing period,
+stating what is wrong, with parameterized facts inlined where they help fixing (e.g. "Function has
+7 parameters (max 5)"). All shipped rules already conform; every future port must too. Where
+ktlint/detekt/diktat chose a conservative exemption over an upstream shape, wrasse matches it rather
+than going further just because a broader fix is provably safe, unless the owner explicitly
+approves extending scope.
+
 ---
 
 ## 7. Configuration
@@ -1975,8 +1985,26 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~15, bucket T).** Braces family, `modifier-order`, redundant-syntax
-  deletions. Each gated by the idempotence harness; born-clean discipline.
+- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (1/15).** Braces family,
+  `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
+  discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
+  `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
+  whitespace-only body (any comment/KDoc inside makes it non-empty, never reported) plus the
+  whitespace back to the preceding token (`EmptyClassBodyDeletionSpan`, the `ImportRemovalSpan`
+  idiom). Empirically verified compile-legal after deletion for class/interface/object/enum
+  class/nested-class/primary-constructor-class bodies. Matches upstream ktlint's own conservatism
+  rather than going further: companion object bodies are exempt entirely (not reported, not fixed),
+  same as ktlint, even though deleting one is provably compile-safe — extending scope beyond
+  upstream needs explicit owner approval, not just "it's safe." The one real bail found: an
+  anonymous object expression's body (`object : Foo {}`, `object {}`) is syntactically mandatory in
+  kotlinc's grammar — deleting it is a compile error, so that shape is reported but never
+  autofixed (locked by the `object-literal-bail-error` fixture with no `.fixed.kt` companion, plus
+  a dedicated real-compile `EmptyClassBodySafetySpec` across all four Kotlin minors). The idempotence
+  harness itself gained a general guard here too: `IdempotenceCycle.assertNoNewCompileErrors` now
+  compares round-1 vs. round-2 non-wrasse `e:`-severity diagnostic messages on every fixture's
+  cycle, so a fix that silently breaks compilation (proven by temporarily forcing the object-literal
+  bail to `false`: the file still applied, D19's own bookkeeping still reported success, and only
+  this new guard caught the resulting syntax error) fails loudly instead of passing.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal
