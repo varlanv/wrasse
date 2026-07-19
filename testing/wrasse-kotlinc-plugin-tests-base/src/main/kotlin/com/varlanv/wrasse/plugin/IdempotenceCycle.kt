@@ -10,9 +10,9 @@ import com.varlanv.wrasse.testing.harness.TestSource
 import com.varlanv.wrasse.testing.harness.WrasseTestHarness
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 import java.nio.file.Files
 import java.nio.file.Path
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 
 object IdempotenceCycle {
 

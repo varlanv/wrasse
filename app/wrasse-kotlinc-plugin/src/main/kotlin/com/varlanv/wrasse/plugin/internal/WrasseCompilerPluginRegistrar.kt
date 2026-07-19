@@ -7,11 +7,11 @@ import com.varlanv.wrasse.plugin.KEY_FIX_OUTPUT_DIR
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
 import com.varlanv.wrasse.plugin.PLUGIN_ID
 import com.varlanv.wrasse.plugin.wrasseMain
+import java.nio.file.Paths
 import org.jetbrains.kotlin.cli.jvm.config.javaSourceRoots
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.jetbrains.kotlin.config.CompilerConfiguration
-import java.nio.file.Paths
 
 @OptIn(ExperimentalCompilerApi::class)
 class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {

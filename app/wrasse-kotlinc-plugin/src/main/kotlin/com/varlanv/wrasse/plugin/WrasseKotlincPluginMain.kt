@@ -12,8 +12,8 @@ import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnusedImportsRule
 import com.varlanv.wrasse.rules.NoWildcardImportsRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
-import org.jetbrains.kotlin.backend.common.push
 import java.nio.file.Path
+import org.jetbrains.kotlin.backend.common.push
 
 private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 

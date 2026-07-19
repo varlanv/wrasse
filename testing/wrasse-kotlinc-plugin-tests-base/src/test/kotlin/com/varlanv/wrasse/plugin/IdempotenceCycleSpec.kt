@@ -6,11 +6,11 @@ import com.varlanv.wrasse.testing.BaseSpec
 import com.varlanv.wrasse.testing.harness.TestDiagnostic
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import java.nio.file.Files
+import java.nio.file.Path
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocationWithRange
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.opentest4j.AssertionFailedError
-import java.nio.file.Files
-import java.nio.file.Path
 
 private fun loc(line: Int, column: Int, lineEnd: Int, columnEnd: Int) =
     CompilerMessageLocationWithRange.create("test.kt", line, column, lineEnd, columnEnd, "")

@@ -1,6 +1,5 @@
 package com.varlanv.wrasse.testing.harness
 
-import org.json.JSONObject
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.isDirectory
@@ -8,6 +7,7 @@ import kotlin.io.path.isRegularFile
 import kotlin.io.path.name
 import kotlin.io.path.nameWithoutExtension
 import kotlin.io.path.readText
+import org.json.JSONObject
 
 class Fixture(
     val ruleId: String,

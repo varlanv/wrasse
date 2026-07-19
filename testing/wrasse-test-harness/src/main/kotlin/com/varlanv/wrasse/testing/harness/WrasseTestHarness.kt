@@ -1,14 +1,14 @@
 package com.varlanv.wrasse.testing.harness
 
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.config.Services
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.Path
 
 class WrasseTestHarness(
     private val wrasseConfig: String,

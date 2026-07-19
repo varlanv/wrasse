@@ -13,12 +13,12 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WResolvedUsage
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WRuleSet
-import org.jetbrains.kotlin.KtLightSourceElement
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.PathMatcher
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
+import org.jetbrains.kotlin.KtLightSourceElement
 
 class WrassePlugin(
     private val ruleSet: WRuleSet,
