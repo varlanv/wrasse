@@ -59,7 +59,7 @@ tasks.register("wrasseFix") {
             forkGradle("publishToMavenLocal", "-q")
         }
         forkGradle("compileKotlin", "compileTestKotlin", "-PwrasseCheck", "-PwrasseFix", failOnError = false)
-        forkGradle("wrasseApply")
+        forkGradle("wrasseApply", failOnError = true)
     }
 }
 

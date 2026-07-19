@@ -1367,3 +1367,56 @@ a separate `ktlint -F` invocation on the same files.
   accidental, should be documented as the intended "full sweep" mechanism.
 - `FirSyntacticChecker` allocates a `KtLightSourceElement` per violation — fine (violations are
   cold), noted for completeness.
+- **`wrasseFix` converges layer-by-layer, not in one sweep, when `level: error` is in effect
+  (a direct consequence of error-level + fix mode, not a bug).** kotlinc's own compile fails the
+  whole compilation unit as soon as it hits an `ERROR`-severity diagnostic, so a module with a
+  wrasse violation never lets `-PwrasseFix` reach modules *downstream* of it in the same compile
+  batch (e.g. `compileKotlin`/`compileTestKotlin` stop at the first failing module; anything that
+  depends on it, or a later source set in the same module like `compileTestKotlin` after
+  `compileKotlin`, is never even reached that pass). Each `./gradlew wrasseFix` run therefore
+  fixes only the violations visible up to the first still-failing module, then `wrasseApply`
+  writes that one patch and the run ends (`BUILD SUCCESSFUL` — the compile's failure is expected
+  and swallowed by design, `failOnError = false` on that specific fork; see `forkGradle` in root
+  `build.gradle.kts`). The *next* run reaches one layer further. Confirmed dogfooding
+  `import-ordering` repo-wide (D18 chain finale): converged in three `./gradlew wrasseFix` passes
+  — pass 1 fixed `wrasse-kotlinc-plugin-tests-base`'s main source set (which had blocked every
+  module after it), pass 2 then reached its test source set (compiled separately, after main) and
+  fixed a violation there, pass 3 found nothing left. **`warnOnly` is the intended one-sweep
+  mechanism**: with `-PwarnOnly` (or the global `warnOnly` config flag), violations report but
+  never fail the compile, so every module gets visited and every fix gets written in a single
+  `-PwrasseFix` pass — `wrasseFix` should default to (or document) `warnOnly` semantics for
+  first-time/large-scale adoption sweeps, reserving the repeat-until-clean workflow above for the
+  steady-state case of a handful of new violations. Not implemented as a `wrasseFix` default yet
+  — tracked here.
+- **`wrasseApply`'s classpath used to depend on the consuming module's own dependency
+  declarations (fixed).** `configureWrasseApply` (`internal-convention-plugin`) built the
+  `JavaExec` classpath from `project.files(jar, runtimeClasspath)` — fine for modules that pull
+  wrasse-lang in via `implementation`, but `app/wrasse-kotlinc-internal-k20`/`-k22` declare it
+  `compileOnly` (the compiler-plugin-loading model: their code must not leak kotlinc/wrasse
+  classes into the *compiled artifact*, since they run inside kotlinc's own classloader), so
+  `WPatchApplierKt` was never on their `runtimeClasspath` at all —
+  `wrasseApply` failed there with `ClassNotFoundException` every time those modules had a fixable
+  violation, found via dogfooding `import-ordering` repo-wide. Fixed: a dedicated, unconditionally
+  resolvable `wrasseApplyClasspath` configuration, seeded by the convention plugin itself from the
+  `wrasse-compiler-plugin` catalog coordinate (the same one `configureWrasse` already resolves for
+  `kotlinCompilerPluginClasspath`) — its published POM carries `wrasse-lang` as a transitive
+  runtime dependency, so this is independent of whatever the consuming module itself declares.
+  Regression-locked by a TestKit spec (`internal-convention-plugin`) applying the plugin to a
+  throwaway module with only `compileOnly` wrasse-unrelated deps (and a second with none at all),
+  pre-seeding a patch, and asserting `wrasseApply` still applies it.
+- **`forkGradle` (root `build.gradle.kts`) failure propagation, audited and hardened.** Suspected
+  (from the same dogfooding session) that a failing nested `wrasseApply` fork could leave
+  `wrasseFix` reporting `BUILD SUCCESSFUL`. Direct reproduction with the pre-fix classpath bug
+  above (a real `wrasseApply` failure) showed `forkGradle`'s existing `failOnError` check already
+  propagates correctly (`BUILD FAILED`, `"Forked gradle task failed"`) — could not reproduce a
+  silent swallow. Hardened anyway per standing policy (dogfood-reported risk still gets a test):
+  `forkGradle("wrasseApply", ...)`'s `failOnError` is now passed explicitly (`true`) rather than
+  relying on the default, and a TestKit probe (`ForkGradleFailurePropagationSpec`) reproduces the
+  exact fork-and-check pattern verbatim in a throwaway fixture project (its own copy of this
+  repo's Gradle wrapper, so the nested `./gradlew` reuses the already-downloaded distribution)
+  against a task that deliberately fails — locking that `failOnError = true` propagates,
+  `failOnError = false` suppresses (the by-design behavior for the compile-with-fix fork), and a
+  successful nested build never trips the check. Chose this over a full TestKit run of the real
+  `wrasseFix` task because root `build.gradle.kts` has no test source set of its own and the real
+  task spans the whole multi-module build — disproportionate for what is a generic
+  fork/propagate question, decoupled from any wrasse-specific logic.

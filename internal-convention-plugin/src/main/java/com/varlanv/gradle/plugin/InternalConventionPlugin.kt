@@ -223,12 +223,15 @@ class InternalConventionPlugin : Plugin<Project> {
         }
 
         fun configureWrasseApply() {
+            val wrasseApplyClasspath = project.configurations.create("wrasseApplyClasspath") { config ->
+                config.isCanBeConsumed = false
+                config.isCanBeResolved = true
+            }
+            dependencies.add(wrasseApplyClasspath.name, internalCatalog.getLib("wrasse-compiler-plugin"))
+
             tasks.register("wrasseApply", JavaExec::class.java) { task ->
                 task.group = "verification"
-                task.classpath = project.files(
-                    project.tasks.named("jar"),
-                    project.configurations.getByName("runtimeClasspath")
-                )
+                task.classpath = project.files(wrasseApplyClasspath)
                 task.mainClass.set("com.varlanv.wrasse.lang.WPatchApplierKt")
                 task.args(project.layout.buildDirectory.dir("wrasse").get().asFile.absolutePath)
                 task.isIgnoreExitValue = false

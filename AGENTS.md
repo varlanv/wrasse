@@ -29,6 +29,8 @@ Build/test via the Gradle wrapper only (`./gradlew`, never a bare `gradle`).
 ./gradlew :testing:wrasse-kotlinc-plugin-tests-2-4-x:test   # fixture tests for one Kotlin minor
 ./gradlew wrasseLint                 # self-lint: republish plugin, then compile this repo with wrasse checks on
 ./gradlew wrasseFix                  # self-fix: run with -PwrasseFix, then apply the emitted patch (wrasseApply)
+./gradlew :internal-convention-plugin:test   # build-logic tests (TestKit) — a separate included build,
+                                              # NOT reached by the root `build`/`test` tasks above; run explicitly
 ```
 
 - `-Prepublish` on `wrasseLint`/`wrasseFix` forces `publishToMavenLocal` first — needed after changing

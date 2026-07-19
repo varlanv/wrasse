@@ -31,6 +31,9 @@ repositories {
 
 dependencies {
     implementation(libs.kotlin.gradle.main)
+    testImplementation(gradleTestKit())
+    testImplementation(libs.kotlin.kotest.assertions)
+    testImplementation(libs.kotlin.kotest.junit5Runner)
 }
 
 gradlePlugin {
@@ -44,4 +47,6 @@ gradlePlugin {
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("wrasse.realRepoCatalogPath", file("../gradle/libs.versions.toml").absolutePath)
+    systemProperty("wrasse.realRepoRoot", file("..").absolutePath)
 }
