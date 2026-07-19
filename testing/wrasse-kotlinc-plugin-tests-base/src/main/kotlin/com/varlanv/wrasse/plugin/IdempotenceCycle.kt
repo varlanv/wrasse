@@ -24,6 +24,7 @@ object IdempotenceCycle {
         fixOutputDir: Path,
         source: TestSource,
         round1: CompilationResult,
+        auxSources: List<TestSource> = emptyList(),
     ): String? {
         val patchFile = fixOutputDir.resolve(PATCH_FILE_NAME)
         if (!Files.exists(patchFile)) return null
@@ -37,7 +38,7 @@ object IdempotenceCycle {
         assertPatchFullyApplied(applyResult.files)
 
         val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
+        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)) + auxSources, workDir)
 
         assertNoResidualEdits(patchFile)
         assertExpectedSurvivors(expectedSurvivors, round2.wrasseDiagnostics.map { diagnosticKey(it) })
@@ -106,6 +107,26 @@ object IdempotenceCycle {
         }
     }
 
+    /**
+     * Not wired into [runIfFixEmitted] by default: several existing fixtures compile with
+     * `noJdk = true` and trip pre-existing, unrelated `Cannot access '...'`/`Unresolved
+     * reference 'java'` diagnostics from that classpath choice alone, which this would flag as
+     * false positives across the whole fixture suite. Called explicitly by specs that need the
+     * stronger guarantee that an emitted edit never introduces a genuine (non-wrasse) compiler
+     * error — e.g. a resolution-powered fix whose facade cannot fully distinguish safe from
+     * unsafe rewrites.
+     */
+    fun assertPatchedFileCompiles(diagnostics: List<TestDiagnostic>) {
+        val nonWrasseErrors = diagnostics.filter { it.severity.isError && !it.message.startsWith("wrasse:") }
+        withClue(
+            "fix(fix(x)) produced code that no longer compiles — an applied patch must never break " +
+                "compilation, even when the breakage carries no wrasse diagnostic of its own.\n" +
+                "Non-wrasse compiler errors after applying the fix:\n${formatDiagnostics(nonWrasseErrors)}"
+        ) {
+            nonWrasseErrors.isEmpty() shouldBe true
+        }
+    }
+
     fun assertExpectedSurvivors(expectedSurvivors: List<String>, actualD2Keys: List<String>) {
         val expectedSorted = expectedSurvivors.sorted()
         val actualSorted = actualD2Keys.sorted()
@@ -131,4 +152,8 @@ object IdempotenceCycle {
 
     private fun formatKeys(keys: List<String>): String =
         keys.joinToString("\n") { "  $it" }.ifEmpty { "  (none)" }
+
+    private fun formatDiagnostics(diagnostics: List<TestDiagnostic>): String =
+        diagnostics.joinToString("\n") { "  ${it.severity} ${it.location?.line}:${it.location?.column} ${it.message}" }
+            .ifEmpty { "  (none)" }
 }

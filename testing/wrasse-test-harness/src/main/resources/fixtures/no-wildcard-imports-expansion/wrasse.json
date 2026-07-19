@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "no-wildcard-imports": { "level": "error" }
+    }
+}

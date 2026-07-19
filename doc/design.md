@@ -184,8 +184,8 @@ so the whole architecture could be tested before committing to a 200+ rule catal
 - **SAX-style single-pass rule engine** (§4) — the original two-pass design (build a `WNode`
   tree, then traverse) was deleted; no tree is built, rules receive events off one walk.
 - **3 rules shipped:** `no-semicolons` (`WStreamRule`, deferred forward-lookup, autofix),
-  `no-wildcard-imports` (`WNodeRule`, flag-only — the fix is the Phase B.3 moat),
-  `trailing-newline` (`WFileRule`, autofix).
+  `no-wildcard-imports` (`WStreamRule`, `requiresResolution`, resolution-powered star-import
+  expansion autofix — package-stars only, see §8), `trailing-newline` (`WFileRule`, autofix).
 - **MVP offset-patch autofix pipeline working end-to-end:** rules attach `WEdit`s to reports →
   `WrassePlugin.checkFile` collects them → with `wrasse.fix=true` writes
   `build/wrasse/wrasse-fixes.txt` per module (file + SHA-256 + descending-offset edits) →
@@ -569,10 +569,10 @@ visible name (alias if present, else simple name) occurs as a whole word
 than via any KDoc-aware resolution FIR does not provide. Whole-file bail (report nothing) when
 `ctx.resolvedUsage == null` or `hasResolutionErrors`. **Star imports are explicitly out of
 scope for this rule** — a directive containing `MUL` is skipped entirely (never even recorded as
-a candidate); `no-wildcard-imports` already flags the syntax, and star *usage* semantics (which
-names a star import actually covers) arrive with the ImportEngine's expansion pass. The
-`WStreamRule` shape here is interim: once the ImportEngine's buffered-node engine exists, unused-
-import detection folds into it rather than staying a standalone stream rule.
+a candidate); `no-wildcard-imports` owns star syntax end-to-end itself now, including the
+attribution-driven expansion fix (below) — this rule never needs to reason about which names a
+star covers. The `WStreamRule` shape here is interim: once the ImportEngine's buffered-node engine
+exists, unused-import detection folds into it rather than staying a standalone stream rule.
 
 **As-built (`no-unused-imports` removal fix):** every unused-import report carries a deletion
 `WEdit` *when one can be emitted safely* — computed by a small pure function (`ImportRemovalSpan`,
@@ -633,6 +633,142 @@ rather than erroring — check every direct subtype of a handled type, not just 
 touching this visitor. `FirBackingFieldReference`/`FirDelegateFieldReference` (also direct
 `FirResolvedNamedReference` subtypes) are deliberately left unhandled — they are self-references to
 a property's own `field`/delegate storage and can never be import targets.
+
+**As-built (`no-wildcard-imports` star expansion — the flagship resolution-powered fix):**
+`NoWildcardImportsRule` is now a `WStreamRule` (`requiresResolution = true`, converted from its
+original flag-only `WNodeRule` shape) assembling every import directive (star and explicit) off
+the leaf stream via the shared `ImportDirectiveAssembler` (extracted from `NoUnusedImportsRule`
+rather than duplicated — both rules need the same `IMPORT_DIRECTIVE`/`IMPORT_ALIAS`/`MUL`
+bookkeeping), plus the file's own package FQN (`PACKAGE_DIRECTIVE` leaves) and every `KDOC` leaf's
+span. The report for a star import fires unconditionally, exactly as before; only the attached
+`WEdit` is conditional — the pure decision function `WildcardExpansionDecision.decide`
+(unit-tested without a compiler) returns `null` for "report only" and a `WEdit` replacing the
+directive's own `[start, end)` span with the ASCII-sorted, newline-joined explicit imports
+otherwise (no trailing newline in the replacement — the directive's own line ending is untouched).
+
+**Attribution** — a used symbol attributes to `import P.*` iff resolving it needs exactly one
+top-level name under `P`: a classifier `P.X[.Y...]` attributes `P.X` (nested-class access is
+always written qualified through its top-level owner — `Outer.Nested` in source only requires
+`Outer` to be in scope, member navigation resolves `.Nested` from there); a top-level callable
+(`classFqName == null`) with `packageFqName == P` attributes `P.name`; a member callable with
+`classFqName == P.X[.Y...]` attributes `P.X` (this is also how constructor calls attribute —
+a constructor's `WCallableUsage` has `classFqName`/`name` equal to the class's own FQN/simple
+name, so `Widget()` attributes `P.Widget` via the same rule as any other member). A symbol already
+covered by an existing **non-aliased** explicit import of the same FQN is excluded from the
+replacement (that import already brings its plain simple name into scope; the star's other
+attributed symbols still expand). Symbols reachable only via Kotlin's default imports still
+attribute if their resolved parent is `P` — no special-casing for default-imported packages
+(`kotlin`, `kotlin.collections`, ...): expanding a redundant star of one into explicit imports is
+compile-preserving and harmless.
+
+**Post-ship review found two real correctness bugs — both producing wrong code, not just a wrong
+report — fixed before this shipped further:**
+
+1. **Alias-blind exclusion.** The exclusion above originally matched *any* explicit import's FQN,
+   alias or not. `import a.b.X as Y` binds only the name `Y` — it never brings plain `X` into
+   scope — so excluding `a.b.X` from the replacement just because an aliased import of it existed
+   could drop the plain import a bare `X` elsewhere in the file still needed, an outright broken
+   compile. Fixed: only a **non-aliased** explicit import of the same FQN excludes it now. A plain
+   `import a.b.X` and an aliased `import a.b.X as Y` of the same target were confirmed to legally
+   coexist (harness-driven real-compile probe: zero diagnostics), so including both is always
+   safe, never a bail. Locked by `alias-attribution-error` (aliased import of one attributed
+   symbol used only via the alias, plus a second, star-only symbol — the alias's own explicit
+   import never satisfies a *bare* reference to its target, a genuine Kotlin resolution quirk
+   confirmed empirically alongside the fix, so no fixture can combine a bare and an aliased
+   reference to the same target under one star without the file already failing to compile on its
+   own; the fixture instead proves the FQN is still correctly attributed and expanded).
+2. **Simple-name collision from qualified-only usage (new 7th bail).** `WResolvedUsage`'s
+   classifier set cannot distinguish "resolved because this star brought the name into scope" from
+   "resolved via full qualification, needing no import at all" — `FirResolvedQualifier` records a
+   classifier for `P.X.member()` (fully qualified) exactly like it would for a bare `X` the star
+   actually provides. Emitting `import P.X` for a qualified-only usage can (a) conflict with an
+   existing explicit import of some other `Q.X` — confirmed empirically: "Conflicting import:
+   imported name 'X' is ambiguous" followed by "Unresolved reference" at every use — or (b)
+   silently *flip* what bare `X` already resolves to, the worst outcome: confirmed empirically with
+   a same-named non-generic class shadowing `kotlin.collections.List` once explicitly imported,
+   turning `List<Int>` into "No type arguments expected" with no diagnostic pointing back at the
+   fix. Fixed with a new bail: build a simple-name → FQNs map from *every* used classifier (last
+   segment) and callable (top-level by name; member by `classFqName`'s last segment) in the whole
+   file — not just this star's attribution. If an attributed symbol's simple name maps to any FQN
+   other than itself, bail the whole star. This also catches cross-star collisions (two stars
+   attributing the same simple name from different packages) for free, since the map spans the
+   whole file's usage, not one star's. Over-bailing here is intentional — a wrong expansion is the
+   one outcome this rule may never produce. Locked by `qualified-usage-conflict-bail-error` and
+   `qualified-usage-flip-bail-error` (both report-only, no companion — confirmed to fail-first via
+   a dedicated real-compile spec, `WildcardExpansionAmbiguitySafetySpec`, since the standard
+   fixture assertions check only the diagnostic's message/location, which is identical whether an
+   edit is wrongly attached or correctly withheld). All four pre-existing expansion fixtures with
+   `.fixed.kt` companions were re-verified to still expand normally — no existing case had a
+   genuine collision.
+
+Reproducing bug 2 exposed a real gap in the harness itself: `IdempotenceCycle`'s round-2 recompile
+only ever checked `wrasse:`-prefixed diagnostics, so a wrong edit that breaks compilation via a
+*non*-wrasse compiler error (conflicting import, unresolved reference, type mismatch) passed
+silently — nothing in the standard cycle would have caught either bug's fixture without this. Added
+`IdempotenceCycle.assertPatchedFileCompiles` (filters to non-`wrasse:` `ERROR`-severity
+diagnostics) but did **not** wire it into `runIfFixEmitted`'s default path: several existing
+fixtures compile with `noJdk = true` and trip unrelated, pre-existing `Cannot access '...'`/
+`Unresolved reference 'java'` diagnostics from that classpath choice alone (confirmed while first
+trying the global wiring — enum supertypes need JDK classes noJdk doesn't provide), which would
+have been flagged as false positives across the whole suite. Called explicitly instead, only by
+`WildcardExpansionAmbiguitySafetySpec`, which drives compile → fix → reapply → recompile directly
+for exactly the two ambiguity shapes above (per-Kotlin-minor, like every other hand-written
+compile-driven spec in this suite).
+
+**The eight bails** (report fires, no edit — every ambiguity resolves toward "don't touch it"),
+each locked by a fixture in `no-wildcard-imports-expansion/`:
+1. **Whole-file.** `ctx.resolvedUsage == null` or `hasResolutionErrors` — the rule never even
+   calls the decision function, every star in the file reports with no edit.
+2. **Class/object-star.** Any used callable whose `classFqName` equals `P` *exactly* means `P`
+   itself names a class/object (a member-star import, e.g. `import p.SomeEnum.*` for its
+   entries) rather than a package — package-stars only in this task, member-star expansion is
+   deferred.
+3. **Zero attribution.** An unused star is `no-unused-imports`/engine territory, not expansion.
+4. **Shared line.** Reuses `ImportRemovalSpan`'s same-line check, now extracted into a shared
+   `ImportLineSpan.isAloneOnLine` (both rules need the identical blank-prefix/blank-suffix scan;
+   this is the one extraction judged to genuinely reduce duplication, not gold-plated further).
+5. **Own package.** `P == filePackageFqName` is a degenerate star (everything already resolves
+   without it).
+6. **Duplicate stars.** Two identical `import P.*` directives in one file both bail — which one is
+   "the" import of `P` is ambiguous.
+7. **Simple-name collision.** See "post-ship review" above — an attributed symbol whose simple
+   name is also reachable, under a different FQN, from somewhere else in the file's usage (a
+   qualified-only reference, a default import, another star) bails the whole star.
+8. **KDoc bracket references.** KDoc `[Name]`/`[qualified.Name]` links resolve through imports
+   invisibly to FIR — a name mentioned only in a doc comment never appears in `resolvedUsage` at
+   all, so it can silently lose its only path to resolution if the star is expanded without it.
+   A reference's leading segment (before its first `.`) must be covered by explicit imports'
+   visible names (alias if present, else simple name) or this star's own attributed simple names,
+   else that star bails. Coverage deliberately excludes the file's own top-level declaration
+   names — a second declaration-collecting pass is not "cheaply available" from this rule's
+   leaf-stream assembly, so that source is skipped outright rather than approximated; skipping it
+   only ever produces *more* bails, never a false "covered".
+
+**Fixtures:** `no-wildcard-imports-expansion/` (own `wrasse.json`, only `no-wildcard-imports`
+enabled) covers all four expansion shapes with `.fixed.kt` companions — a package star over an
+aux package with a subset of symbols used (class, top-level fun, nested-class access attributing
+the outer, constructor call, enum entry access), a star alongside a pre-existing explicit import
+of one of its own attributed symbols (excluded from the replacement), two independent stars over
+two different aux packages expanding in one pass, and a single-file stdlib case
+(`import kotlin.math.*` with `abs`/`PI`, locking top-level-callable and property attribution
+without any aux file), and the alias-attribution shape above (an aliased explicit import plus a
+second, star-only symbol) — plus one report-only fixture per bail, including both simple-name-
+collision shapes above, no companion (a bail fixture makes no edit, so the harness's idempotence
+cycle never triggers for it — nothing to re-verify). A
+separate `imports-full/` dir runs `no-wildcard-imports` + `no-unused-imports` + `no-semicolons`
+together on one file (star expansion + an unrelated unused explicit import + a trailing
+unnecessary semicolon), proving the three rules' edits stay disjoint and compose correctly without
+an `ImportEngine` — every inserted import is used by construction, so the expansion output never
+trips `no-unused-imports`. Multi-file fixtures needed a harness fix: `IdempotenceCycle`'s round-2
+recompile previously passed only the patched primary file, never the fixture's aux sources — fine
+for `no-unused-imports` (the removed import's usage always vanishes with it) but wrong here, since
+an expanded star's explicit imports are of symbols the file *still uses*; `runIfFixEmitted` now
+takes an `auxSources` parameter and recompiles round 2 with them present.
+
+**Deferred to a future engine:** import re-sorting after expansion, member-star (class/object)
+expansion, and fusing this with `no-unused-imports`/FQN-shortening into one `ImportEngine`
+decision-maker remain future work per §6/§13 B.3 — this pass ships the expansion fix standalone,
+bailing everywhere a real engine would eventually own the decision instead.
 
 ---
 
@@ -978,11 +1114,15 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   `dumpResolvedUsage` debug option, §8) — de-risked the FIR surface across 2.1–2.4; the
   `SemanticWRule` unification and offset correlation remain. `no-unused-imports` shipped ahead
   of the engine (§8) — a first consumer of `requiresResolution`/`resolvedUsage`, not the engine
-  itself; star-import handling still belongs to the eventual expansion pass. Removal autofix also
-  shipped ahead of the engine: whole-line deletion when the directive is alone on its line(s);
-  bails with no edit (report-only, D9) when it shares a line with a sibling import or trailing
-  comment, to avoid a cross-rule idempotence break with `no-semicolons` (§8) — locked by
-  `.fixed.kt` companion-file fixtures (§11) including a dedicated dual-rule fixture dir.
+  itself. Removal autofix also shipped ahead of the engine: whole-line deletion when the
+  directive is alone on its line(s); bails with no edit (report-only, D9) when it shares a line
+  with a sibling import or trailing comment, to avoid a cross-rule idempotence break with
+  `no-semicolons` (§8) — locked by `.fixed.kt` companion-file fixtures (§11) including a
+  dedicated dual-rule fixture dir. `no-wildcard-imports` star expansion (package-stars only;
+  member/class-star expansion, import re-sorting, and fusing with `no-unused-imports` into one
+  decision-maker are still deferred to the eventual engine) shipped ahead of it too — §8 has the
+  attribution rules and all seven bails; `imports-full/` locks that its edits compose correctly
+  alongside `no-unused-imports` and `no-semicolons` without an engine.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.

@@ -19,30 +19,24 @@ class NoUnusedImportsRule : WUninitializedRule {
 
             private val directives = mutableListOf<ImportRecord>()
             private val commentSpans = mutableListOf<IntRange>()
-
-            private var pathParts = mutableListOf<String>()
-            private var aliasName: String? = null
-            private var mulSeen = false
-            private var directiveStart = -1
+            private val assembler = ImportDirectiveAssembler()
 
             override fun enterNode(ctx: WContext) {
                 if (ctx.type != WNodeType.IMPORT_DIRECTIVE) return
-                pathParts = mutableListOf()
-                aliasName = null
-                mulSeen = false
-                directiveStart = ctx.startOffset
+                assembler.enterImportDirective(ctx.startOffset)
             }
 
             override fun exitNode(ctx: WContext) {
                 if (ctx.type != WNodeType.IMPORT_DIRECTIVE) return
-                if (!mulSeen && pathParts.isNotEmpty()) {
+                val raw = assembler.exitImportDirective(ctx.endOffset)
+                if (!raw.isStar && raw.pathParts.isNotEmpty()) {
                     directives.add(
                         ImportRecord(
-                            fqn = pathParts.joinToString("."),
-                            simpleName = pathParts.last(),
-                            aliasName = aliasName,
-                            startOffset = directiveStart,
-                            endOffset = ctx.endOffset,
+                            fqn = raw.pathParts.joinToString("."),
+                            simpleName = raw.pathParts.last(),
+                            aliasName = raw.aliasName,
+                            startOffset = raw.startOffset,
+                            endOffset = raw.endOffset,
                         )
                     )
                 }
@@ -58,19 +52,7 @@ class NoUnusedImportsRule : WUninitializedRule {
                     else -> {}
                 }
                 if (!ctx.hasAncestor(WNodeType.IMPORT_DIRECTIVE)) return
-                when (ctx.type) {
-                    WNodeType.MUL -> mulSeen = true
-                    WNodeType.IDENTIFIER -> {
-                        val text = ctx.leafText?.toString()?.removeSurrounding("`") ?: return
-                        if (ctx.hasAncestor(WNodeType.IMPORT_ALIAS)) {
-                            aliasName = text
-                        } else {
-                            pathParts.add(text)
-                        }
-                    }
-
-                    else -> {}
-                }
+                assembler.visitLeaf(ctx)
             }
 
             override fun afterFile(ctx: WContext, reporter: WReporter) {

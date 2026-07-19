@@ -30,7 +30,7 @@ open class WrasseFixtureSpec : BaseSpec({
                     val result = harness.compile(listOf(source) + fixture.auxSources, workDir)
                     result.assertMatchesExpectations(fixture)
                     val patchedContent =
-                        IdempotenceCycle.runIfFixEmitted(harness, workDir, fixOutputDir, source, result)
+                        IdempotenceCycle.runIfFixEmitted(harness, workDir, fixOutputDir, source, result, fixture.auxSources)
                     val fixedSource = fixture.fixedSource
                     if (fixedSource != null) {
                         check(patchedContent != null) {

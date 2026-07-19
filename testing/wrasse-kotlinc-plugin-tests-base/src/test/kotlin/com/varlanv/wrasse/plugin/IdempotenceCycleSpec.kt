@@ -115,6 +115,35 @@ class IdempotenceCycleSpec : BaseSpec({
             )
     }
 
+    should("pass silently when the patched file has no non-wrasse compiler errors") {
+        IdempotenceCycle.assertPatchedFileCompiles(
+            listOf(
+                diagnostic("wrasse: some-rule: still flagged", line = 1, column = 1, lineEnd = 1, columnEnd = 2),
+                TestDiagnostic(CompilerMessageSeverity.WARNING, "unused variable", loc(2, 1, 2, 5)),
+            )
+        )
+    }
+
+    should("TRIPWIRE: fail loudly, showing every non-wrasse compiler error, when a fix breaks compilation") {
+        val error = shouldThrow<AssertionFailedError> {
+            IdempotenceCycle.assertPatchedFileCompiles(
+                listOf(
+                    diagnostic("Conflicting import: imported name 'Item' is ambiguous.", line = 4, column = 1, lineEnd = 4, columnEnd = 20),
+                    diagnostic("Unresolved reference 'Item'.", line = 6, column = 9, lineEnd = 6, columnEnd = 13),
+                    diagnostic("wrasse: some-rule: still flagged", line = 1, column = 1, lineEnd = 1, columnEnd = 2),
+                )
+            )
+        }
+        error.message shouldBe (
+            "fix(fix(x)) produced code that no longer compiles — an applied patch must never break " +
+                "compilation, even when the breakage carries no wrasse diagnostic of its own.\n" +
+                "Non-wrasse compiler errors after applying the fix:\n" +
+                "  ERROR 4:1 Conflicting import: imported name 'Item' is ambiguous.\n" +
+                "  ERROR 6:9 Unresolved reference 'Item'.\n" +
+                "expected:<true> but was:<false>"
+            )
+    }
+
     should("TRIPWIRE: fail loudly when a violation that carried an edit re-appears in D2 (fix is not idempotent)") {
         val error = shouldThrow<AssertionFailedError> {
             IdempotenceCycle.assertExpectedSurvivors(
