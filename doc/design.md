@@ -261,6 +261,19 @@ per-file rebuild rather than a cached dispatch shape until profiling says otherw
 `dispatchForFile` contract would not need to change if that optimization ever lands.
 `EditPlan` and `WContext` share the per-file lifecycle.
 
+**Multi-id engines:** `WUninitializedRuleGroup` (`wrasse-model`) is the sibling contract for a
+fused engine backing several user-facing ids behind one implementation (§5.1, "fighting rules get
+fused"; §8 has `ImportEngine`, the first and so far only one). It declares `ids: Set<String>` and
+`initGroup(configs: Map<String, WrasseRuleConfig>): WRule`, called per file with exactly the
+enabled, non-excluded-for-this-file subset of its ids — an id missing from `configs` behaves as
+if that rule does not exist for this file. `WRuleSet` holds `(WUninitializedRuleGroup,
+Map<id, WrasseRuleConfig>)` pairs alongside its `(WUninitializedRule, WrasseRuleConfig)` ones and
+filters each group's config map independently per file before deciding whether to instantiate it
+at all. `WReporter`'s contract is untouched: a group reports under each surviving id's own
+severity by passing a small per-id `WRule` facade (`id`/`config` only, never dispatched) as the
+`rule` argument — `.report(...)`'s reader never sees the difference between a facade and a real
+top-level rule.
+
 **Reporting:** `WReporter.report(ruleId, message, startOffset, endOffset, rule, edits)` — raw
 offsets, no node objects; the reporter reads `rule.config.effectiveLevel` for severity; a
 non-empty `edits: List<WEdit>` marks the violation autocorrectable.
@@ -571,8 +584,11 @@ than via any KDoc-aware resolution FIR does not provide. Whole-file bail (report
 scope for this rule** — a directive containing `MUL` is skipped entirely (never even recorded as
 a candidate); `no-wildcard-imports` owns star syntax end-to-end itself now, including the
 attribution-driven expansion fix (below) — this rule never needs to reason about which names a
-star covers. The `WStreamRule` shape here is interim: once the ImportEngine's buffered-node engine
-exists, unused-import detection folds into it rather than staying a standalone stream rule.
+star covers. **Retired 2026-07-19:** the description below (through "Fixtures" at the end of this
+section) is kept as the historical record of the attribution rules, bails, and fixtures — all
+still accurate — but the three-`WStreamRule` shape, the `afterFile`-registration-order dependency,
+and the `EditPlan.takeEditsIn` self-composition it describes no longer exist. `ImportEngine` (the
+as-built paragraph at the end of this section) folds all three into one decision-maker.
 
 **As-built (`no-unused-imports` removal fix):** every unused-import report carries a deletion
 `WEdit` *when one can be emitted safely* — computed by a small pure function (`ImportRemovalSpan`,
@@ -802,18 +818,24 @@ for `no-unused-imports` (the removed import's usage always vanishes with it) but
 an expanded star's explicit imports are of symbols the file *still uses*; `runIfFixEmitted` now
 takes an `auxSources` parameter and recompiles round 2 with them present.
 
-**Deferred to a future engine:** member-star (class/object) expansion and fusing this with
-`no-unused-imports`/FQN-shortening/`import-ordering` into one `ImportEngine` decision-maker remain
-future work per §6/§13 B.3 — this pass ships the expansion fix standalone, bailing everywhere a
-real engine would eventually own the decision instead. Import re-sorting after expansion is no
-longer deferred — `import-ordering` (below) composes over exactly this rule's edits. Zero-attribution
-star removal (bail 3 above) is no longer deferred either — `no-unused-imports` now owns that case
-directly (below), reusing this rule's attribution computation rather than waiting on the engine.
+**Fusion done 2026-07-19; still deferred to the engine's future growth:** the description below
+shipped when `no-wildcard-imports` was still standalone, bailing everywhere a real engine would
+eventually own the decision instead; that fusion is now done (`ImportEngine`, end of this section)
+for what these three rules already decided. Genuinely new capability — member-star (class/object)
+expansion, FQN-shortening/insertion, and closing the KDoc-coverage gap for same-package sibling
+symbols (see the "Known practical limitation" note at the end of this section) — remains future
+work; each is one sentence in the `ImportEngine` paragraph. Import re-sorting after expansion is
+not deferred — `import-ordering` (below) composes over exactly this rule's edits. Zero-attribution
+star removal (bail 3 above) is not deferred either — `no-unused-imports` owns that case directly
+(below), reusing this rule's attribution computation.
 
-**As-built (`import-ordering`, the first real-rule exercise of EditPlan composition across
-`afterFile`-deferred edits, D18):** plain ASCII-alphabetical order on the file's import
-directives, no grouping, no config knob, purely syntactic (never sets `requiresResolution`). A
-`WStreamRule` (`ImportOrderingRule`) records each `IMPORT_DIRECTIVE`'s own span during the walk
+**Retired 2026-07-19 (historical record below, mechanism now inside `ImportEngine`):** plain
+ASCII-alphabetical order on the file's import directives, no grouping, no config knob, purely
+syntactic (never sets `requiresResolution`). This was originally a fourth independent rule that
+composed over the other two via `EditPlan` (D18) — that composition, and the registration-order
+dependency it required, are what the end-of-section `ImportEngine` paragraph replaces; the sort
+key, clean-list check, and composition logic described here are otherwise unchanged. A
+`WStreamRule` (`ImportOrderingRule`, superseded by `ImportEngine`) recorded each `IMPORT_DIRECTIVE`'s own span during the walk
 (via `IMPORT_LIST`/`IMPORT_DIRECTIVE` enter/exit) and whether any `EOL_COMMENT`/`BLOCK_COMMENT`/
 `KDOC` leaf was seen while `IMPORT_LIST` was still open; the verdict and every composition step
 are pure, compiler-free functions (`ImportOrderingDecision`), unit-tested without a compiler. The
@@ -833,25 +855,19 @@ the outer node exits; that assumption fails here. `import-ordering` therefore al
 decision to `afterFile`, and depends on running *after* those two rules' `afterFile` calls so their
 edits already sit in `ctx.editPlan` when it calls `takeEditsIn`.
 
-**Verified, not assumed: `afterFile` order is registration order.** Read the full chain rather
-than trusting it: `LightTreeStreamAdapter.walk` calls `rule.afterFile(...)` in
-`dispatch.allRules` order; `StreamDispatch.allRules` is exactly the `rules` list it was
-constructed with; `WRuleSet.dispatchForFile` builds that list by iterating its own `activeRules`
-in order (skipping only per-file exclusions, which doesn't reorder survivors); `WRuleSet`'s
-`activeRules` is what `wrasseMain` passed to its constructor, built by iterating
-`config.rulesConfigs.idToConfig` (a `LinkedHashMap`, per `mutableMapOf`'s default) in the order its
-keys were inserted — which is `WConfig.buildConfig`'s `for (ruleId in ruleIds)` loop, where
-`ruleIds = uninitializedRules.keys` — a `LinkedHashMap` built by `Sequence.associateBy` over
-`registeredRules()`, a literal `listOf(...)` in `WrasseKotlincPluginMain.kt`. Every link in that
-chain preserves insertion order; none of it sorts or hashes rule ids into a different order. So:
-**`afterFile` order == the literal order of `registeredRules()`**, and `ImportOrderingRule` is
-listed after `NoWildcardImportsRule` and `NoUnusedImportsRule` there — locked by a direct
-`RuleRegistrationOrderSpec` unit test asserting the exact id sequence (`app/wrasse-kotlinc-plugin`),
-not just a relative-order check, so any reordering of the list — accidental or not — fails loudly
-at the one place that matters. This is the *interim* mechanism: it works only because today's
-import-family rules all defer to `afterFile`; once the `ImportEngine` fuses the family into one
-decision-maker (§6/§13 B.3), this registration-order dependency disappears along with the separate
-rules it orders.
+**Retired 2026-07-19: `afterFile` order was registration order (historical record).** This
+subsection documented, and locked with a dedicated unit test, that `afterFile` fires in
+`registeredRules()`'s literal list order — `LightTreeStreamAdapter.walk` calls `rule.afterFile(...)`
+in `dispatch.allRules` order, itself `StreamDispatch`'s construction order, itself
+`WRuleSet.activeRules`' order, itself `wrasseMain`'s iteration of `config.rulesConfigs.idToConfig`
+(a `LinkedHashMap` whose insertion order traces back to the literal `listOf(...)` in
+`WrasseKotlincPluginMain.kt`) — so `ImportOrderingRule` had to stay registered after
+`NoWildcardImportsRule` and `NoUnusedImportsRule` for its `takeEditsIn` call to see their edits.
+That whole chain — and the `RuleRegistrationOrderSpec` test that locked it — is gone: the three
+rules are one `ImportEngine` now (single object, single `afterFile`, nothing to order relative to
+itself), so there is no registration-order dependency left for the import family to violate.
+`RuleRegistrationOrderSpec` still exists but now locks something unrelated to ordering — the
+engine's declared id set (§4's "Multi-id engines").
 
 **The composition itself, in `afterFile`:** first, a purely textual "is this region safe to
 touch" check (`ImportOrderingDecision.isCleanList`) — the list must be exactly `directive\n
@@ -871,7 +887,14 @@ edits applied and the result re-split-and-sorted — even when the original, pre
 happened to be sorted already, because the post-edit content (e.g. a star's multi-line expansion
 landing at the star's old position) might not be.
 
-**The `EditPlan.takeEditsIn` contract, checked precisely, and the edge case it implies:**
+**The `EditPlan.takeEditsIn` contract, checked precisely, and the edge case it implies (mechanism
+still exact, entity performing it changed):** `ImportEngine` no longer calls the generic
+`EditPlan.takeEditsIn` for this — an engine's own not-yet-reported decisions are plain in-memory
+data, not entries in the shared, cross-rule `EditPlan`, so there is nothing to "self-consume." It
+applies the identical containment predicate below directly against that local list before
+deciding which reports carry their own edit versus get folded into the composed one. The predicate,
+the last-directive trailing-`\n` hazard, and the `probeEnd` fix below are unchanged — only the data
+structure being filtered is local now instead of the shared plan. Historical wording follows:
 `takeEditsIn(start, end)` takes an entry only when `entry.edit.startOffset >= start &&
 entry.edit.endOffset <= end` — inclusive of the boundary, but an edit whose `endOffset` runs past
 `end` is left in the plan, full stop, no partial taking. `ImportRemovalSpan`'s whole-line deletion
@@ -942,13 +965,15 @@ unconditional one plus this rule's "Unused import") but only one edit — expans
 zero-attribution bail never emits a competing edit for the same span, so there is no `EditPlan`
 overlap; `import-ordering` consumes the removal via `takeEditsIn` like any other whole-line deletion.
 
-**Still out of scope, deliberately (deferred to the `ImportEngine`, §6/§13):** an own-package star
-(`P == filePackageFqName`) is always redundant but is left untouched here — that's a different
-judgment call (harmless-but-pointless vs. "provides nothing") the engine is meant to own, not this
-rule. A star that is redundant only because every attributed symbol already has an explicit import
-(a "default-redundant" star, as opposed to a *zero*-attribution one) also stays untouched by
-`no-unused-imports` — its attribution is non-empty, so it is correctly out of this rule's scope by
-construction, and remains a `no-wildcard-imports` report-only finding until the engine exists.
+**Still out of scope, deliberately (a growth site for `ImportEngine`, not yet built):** an
+own-package star (`P == filePackageFqName`) is always redundant but is left untouched here —
+that's a different judgment call (harmless-but-pointless vs. "provides nothing") the engine is
+meant to own eventually, not something either half of `no-unused-imports`/`no-wildcard-imports`
+decides today even though they are now one object. A star that is redundant only because every
+attributed symbol already has an explicit import (a "default-redundant" star, as opposed to a
+*zero*-attribution one) also stays untouched by `no-unused-imports` — its attribution is non-empty,
+so it is correctly out of this rule's scope by construction, and remains a `no-wildcard-imports`
+report-only finding until the engine grows this capability.
 
 **Fixtures:** `no-unused-imports-star/` (own `wrasse.json`, only `no-unused-imports` enabled) covers
 a zero-attribution star alongside a used explicit import (removed, `.fixed.kt` companion), a star
@@ -969,6 +994,46 @@ same-package types constantly, so this bail suppresses star removal often. Closi
 package-member knowledge beyond the current file — a session-backed symbol-provider query (or a
 compile-wide package→declarations view) — which is ImportEngine-scope facade work, not a rule-side
 heuristic. Tracked as an explicit engine requirement.
+
+**As-built (`ImportEngine`, the fusion — 2026-07-19, a pure refactor of everything above, zero
+fixture changes):** `no-unused-imports`, `no-wildcard-imports`, and `import-ordering` are now one
+`WStreamRule` behind `WUninitializedRuleGroup` (§4, "Multi-id engines"), replacing the three
+independent rules described throughout this section. Model: `ImportEngine.ids` declares all three
+ids; `WRuleSet` gives `initGroup` exactly the enabled, non-excluded-for-this-file subset as a
+`Map<id, WrasseRuleConfig>`; an id absent from that map behaves as if its rule does not exist for
+this file, preserving today's independent per-id enable/exclude exactly (the `no-unused-imports-star/`,
+`no-wildcard-imports-expansion/`, and `import-ordering/` fixture dirs each enable only one id and
+still pass unmodified). `requiresResolution` is true iff `no-unused-imports` or
+`no-wildcard-imports` is among the enabled ids — `import-ordering` alone still never triggers FIR
+usage collection, matching the old per-rule gating bit for bit. Severity stays per-id: the engine
+builds one small facade `WRule` per surviving id (`id`/`config` only, never registered with
+`StreamDispatch`) and passes the matching one to `WReporter.report(...)` for each diagnostic, so
+`WReporter`'s contract needed no change — the smallest honest fix for "one engine, several
+severities" the design constraints asked for. One walk-side assembly now collects import
+directives (explicit and star), every directive's own span (for ordering), comment/KDoc spans,
+written identifiers, and the package FQN exactly once; the pure decision objects
+(`ImportDirectiveAssembler`, `UnusedImportDecision`, `ImportRemovalSpan`, `UnusedStarDecision`,
+`StarAttribution`, `WildcardExpansionDecision`, `ImportOrderingDecision`, `ImportLineSpan`) are
+unchanged — the engine calls each once in `afterFile`, in the same relative order the three rules
+used to run in (this only matters for the one fixture with two diagnostics at an identical span,
+`imports-full/unused-star-with-unsorted-remainder-error`: `no-wildcard-imports`' report must still
+precede `no-unused-imports`' at a zero-attribution star's position). Composition: the engine
+collects every explicit-unused/star-unused/expansion decision into an in-memory pending-report
+list first (message, span, and a possibly-null `WEdit`, not yet handed to `WReporter`), then — if
+`import-ordering` is enabled and the list is clean (`ImportOrderingDecision.isCleanList`) — applies
+`EditPlan.takeEditsIn`'s exact containment predicate to that local list instead of the shared
+`EditPlan` (no rule-to-rule bus needed inside one object) to decide which pending edits fold into
+one composed replacement versus stay individual, then reports every pending decision plus, if
+composition ran, one extra report for `import-ordering` itself — reproducing the old
+report-then-`takeEditsIn`-consumes-the-edit two-step as a single decide-then-report step with
+byte-identical diagnostics and patch output. `RuleRegistrationOrderSpec` (`app/wrasse-kotlinc-plugin`)
+now locks `ImportEngine.ids` instead of a registration order that no longer exists.
+**Extension points for later growth**, one sentence each: member-star (class/object) expansion
+needs the same attribution machinery generalized past package-only stars; FQN-shortening/import
+insertion needs a decision that, unlike everything above, *adds* text a user never wrote instead of
+only rearranging what's there; and closing the KDoc same-package-sibling coverage gap needs a
+session-backed package→declarations query the engine would own as a facade, not a rule-side
+heuristic (the "Known practical limitation" above). None of these three are implemented.
 
 ---
 
@@ -1308,30 +1373,21 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
 - **B.2 — targeted fixes (~15, bucket T).** Braces family, `modifier-order`, redundant-syntax
   deletions. Each gated by the idempotence harness; born-clean discipline.
-- **B.3 — ImportEngine (bucket S).** `SemanticWRule` + FIR resolution facade + LightTree↔FIR
-  correlation adapter. One engine, several config keys. Bail on ambiguity. A mini-project.
-  Resolution-facade spike done (`WResolvedUsage` on `WContext`, lazy/gated collection,
-  `dumpResolvedUsage` debug option, §8) — de-risked the FIR surface across 2.1–2.4; the
-  `SemanticWRule` unification and offset correlation remain. `no-unused-imports` shipped ahead
-  of the engine (§8) — a first consumer of `requiresResolution`/`resolvedUsage`, not the engine
-  itself. Removal autofix also shipped ahead of the engine: whole-line deletion when the
-  directive is alone on its line(s); bails with no edit (report-only, D9) when it shares a line
-  with a sibling import or trailing comment, to avoid a cross-rule idempotence break with
-  `no-semicolons` (§8) — locked by `.fixed.kt` companion-file fixtures (§11) including a
-  dedicated dual-rule fixture dir. `no-wildcard-imports` star expansion (package-stars only;
-  member/class-star expansion and fusing with `no-unused-imports` into one decision-maker are
-  still deferred to the eventual engine) shipped ahead of it too — §8 has the attribution rules
-  and all seven bails; `imports-full/` locks that its edits compose correctly alongside
-  `no-unused-imports` and `no-semicolons` without an engine. `import-ordering` (plain
-  ASCII-alphabetical re-sort, no grouping, no config knob) shipped ahead of the engine as a fourth
-  standalone rule — composing over the other two's `afterFile`-deferred edits via
-  `EditPlan.takeEditsIn`, registration-order-dependent until the engine exists (§8 has the full
-  mechanism and the edge cases it had to handle). Zero-attribution star removal shipped ahead of
-  the engine too (§8): `no-unused-imports` now flags and, when safe, removes a package-star that
-  attributes nothing, reusing expansion's attribution computation (extracted into a shared
-  `StarAttribution`) rather than duplicating it. Still deferred to the eventual `ImportEngine`:
-  member-star expansion, FQN-shortening, dedup, own-package/default-redundant star removal, and
-  fusing all four rules into one decision-maker so registration order stops mattering.
+- **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
+  `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
+  engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal
+  autofix, `no-wildcard-imports`' package-star expansion and its seven bails, `import-ordering`'s
+  ASCII re-sort, and `no-unused-imports`' zero-attribution star removal — all still described in
+  full in §8 as the historical record), each gated by the idempotence harness as it landed. They
+  are now one `WStreamRule` behind `WUninitializedRuleGroup`, `ImportEngine` (§4, §8's closing
+  as-built paragraph) — a pure refactor: same fixtures, same diagnostics, same patch output,
+  registration-order dependency and `EditPlan.takeEditsIn` self-consumption both retired along with
+  the three separate rules. `SemanticWRule` unification and LightTree↔FIR offset correlation
+  remain unbuilt (the engine still reads `WContext.resolvedUsage`, the file-level facade, not a
+  per-node one). Still unbuilt, now tracked as the engine's own growth sites rather than "the
+  eventual engine's job": member-star (class/object) expansion, FQN-shortening/import insertion,
+  own-package/default-redundant star removal, and closing the KDoc same-package-sibling coverage
+  gap via a session-backed package→declarations query.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.

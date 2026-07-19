@@ -1,0 +1,33 @@
+package com.varlanv.wrasse.model
+
+/**
+ * Declares several user-facing rule ids backed by one fused implementation (an "engine") —
+ * for rules that would otherwise fight over the same region if ported as independent
+ * rewriters (design.md §5.1, "fighting rules get fused"). Users still see each id as its own
+ * entry in `wrasse.json`, with its own `level`/`exclude`; [initGroup] is handed exactly the
+ * surviving ones for the current file.
+ *
+ * Mirrors [WUninitializedRule]'s two-phase construction: which ids are enabled and their
+ * configs are decided once per compilation, [initGroup] runs fresh per file (same seam as
+ * [WRuleSet.dispatchForFile]) with only the ids that are both enabled compile-wide and not
+ * excluded for this specific file — an id absent from [initGroup]'s `configs` map must be
+ * treated exactly as if that rule did not exist for this file.
+ */
+interface WUninitializedRuleGroup {
+    /** Every rule id this group can back. */
+    val ids: Set<String>
+
+    /**
+     * True if resolving [WContext.resolvedUsage] is required given which of [ids] are enabled
+     * for this compilation (before any per-file exclude is applied — same granularity as
+     * [WUninitializedRule.requiresResolution]). Default false: most groups are purely syntactic.
+     */
+    fun requiresResolution(enabledIds: Set<String>): Boolean = false
+
+    /**
+     * Produces a fresh, fused [WRule] instance for one file, configured with exactly the
+     * enabled, non-excluded-for-this-file ids and their [WrasseRuleConfig]s. Never called with
+     * an empty map — an empty surviving set means the group is skipped for this file entirely.
+     */
+    fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule
+}

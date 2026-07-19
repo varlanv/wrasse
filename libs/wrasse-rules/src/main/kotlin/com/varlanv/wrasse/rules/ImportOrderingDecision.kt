@@ -4,7 +4,7 @@ import com.varlanv.wrasse.lang.WEdit
 
 /**
  * One import directive's own span and verbatim source text, in document order, as recorded by
- * [ImportOrderingRule] off the leaf stream. [sortKey] is the directive's own text with the
+ * [ImportEngine] off the leaf stream. [sortKey] is the directive's own text with the
  * leading `import` keyword and its following whitespace stripped — `import a.b.C` sorts by
  * `a.b.C`, `import a.b.C as D` sorts by `a.b.C as D` (so aliased duplicates of the same FQN order
  * deterministically by their alias), `import a.b.*` sorts by `a.b.*`.

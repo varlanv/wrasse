@@ -17,13 +17,14 @@ class RawImportDirective(
 
 /**
  * Stateful per-file assembler that reconstructs one import directive's dotted path, optional
- * alias, and star-import flag from the leaf stream, shared by every [com.varlanv.wrasse.model.WStreamRule]
- * that reads import directives ([NoUnusedImportsRule], [NoWildcardImportsRule]) instead of each
- * re-deriving the same `IMPORT_DIRECTIVE`/`IMPORT_ALIAS`/`MUL` leaf bookkeeping.
+ * alias, and star-import flag from the leaf stream, used by [ImportEngine]'s single walk-side
+ * assembly instead of re-deriving the same `IMPORT_DIRECTIVE`/`IMPORT_ALIAS`/`MUL` leaf
+ * bookkeeping per id.
  *
- * One instance per rule instance (already fresh per file, per [com.varlanv.wrasse.model.WUninitializedRule.initRule]).
- * Call [enterImportDirective] on `IMPORT_DIRECTIVE` enter, [visitLeaf] for every leaf while
- * [WContext.hasAncestor] `IMPORT_DIRECTIVE` is true, and [exitImportDirective] on its exit.
+ * One instance per rule instance (already fresh per file, per
+ * [com.varlanv.wrasse.model.WUninitializedRuleGroup.initGroup]). Call [enterImportDirective] on
+ * `IMPORT_DIRECTIVE` enter, [visitLeaf] for every leaf while [WContext.hasAncestor]
+ * `IMPORT_DIRECTIVE` is true, and [exitImportDirective] on its exit.
  */
 class ImportDirectiveAssembler {
     private var pathParts = mutableListOf<String>()

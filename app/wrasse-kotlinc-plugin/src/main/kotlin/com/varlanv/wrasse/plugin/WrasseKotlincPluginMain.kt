@@ -6,28 +6,27 @@ import com.varlanv.wrasse.lang.FileWalkUp
 import com.varlanv.wrasse.model.WConfig
 import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
+import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
-import com.varlanv.wrasse.rules.ImportOrderingRule
+import com.varlanv.wrasse.rules.ImportEngine
 import com.varlanv.wrasse.rules.NoSemicolonsRule
-import com.varlanv.wrasse.rules.NoUnusedImportsRule
-import com.varlanv.wrasse.rules.NoWildcardImportsRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import java.nio.file.Path
 import org.jetbrains.kotlin.backend.common.push
 
 private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
-/**
- * Every rule wrasse ships, in registration order. This order is [WRuleSet.dispatchForFile]'s
- * `activeRules` order, which is [StreamDispatch][com.varlanv.wrasse.model.StreamDispatch]'s
- * `allRules` order, which is the order `afterFile` is called on every rule for a given file (see
- * `LightTreeStreamAdapter.walk`) — so this list's order is load-bearing for any rule composing
- * across `afterFile`-deferred edits, not just cosmetic. [ImportOrderingRule] must stay after
- * [NoUnusedImportsRule] and [NoWildcardImportsRule]: it composes their `afterFile`-collected
- * edits via `EditPlan.takeEditsIn`, which only sees edits already collected by the time it runs.
- */
+/** Every single-id rule wrasse ships. See [registeredRuleGroups] for fused multi-id engines. */
 internal fun registeredRules(): List<WUninitializedRule> =
-    listOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule(), NoUnusedImportsRule(), ImportOrderingRule())
+    listOf(NoSemicolonsRule(), TrailingNewlineRule())
+
+/**
+ * Every fused multi-id engine wrasse ships (design.md §5.1, "fighting rules get fused") —
+ * currently just [ImportEngine], backing `no-unused-imports`/`no-wildcard-imports`/
+ * `import-ordering` behind one decision-maker. Composition is internal to the engine, so unlike
+ * [registeredRules] this list carries no registration-order constraint.
+ */
+internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> = listOf(ImportEngine())
 
 fun wrasseMain(
     sourceRoots: List<Path>,
@@ -37,10 +36,12 @@ fun wrasseMain(
     dumpResolvedUsage: Boolean = false,
 ): Result<WrassePlugin> {
     val uninitializedRules = registeredRules().associateBy { it.id }
+    val groups = registeredRuleGroups()
+    val allRuleIds = uninitializedRules.keys + groups.flatMap { it.ids }
     val config =
         loadConfig(
             sourceRoots = sourceRoots,
-            uninitializedRules = uninitializedRules,
+            ruleIds = allRuleIds,
             warnOnly = warnOnly
         ).getOrElse { return Result.failure(it) }
     val activeRules = mutableListOf<Pair<WUninitializedRule, WrasseRuleConfig>>()
@@ -48,9 +49,14 @@ fun wrasseMain(
         val uninitRule = uninitializedRules[ruleId] ?: continue
         activeRules.push(uninitRule to ruleConfig)
     }
+    val activeGroups = mutableListOf<Pair<WUninitializedRuleGroup, Map<String, WrasseRuleConfig>>>()
+    for (group in groups) {
+        val configs = group.ids.mapNotNull { ruleId -> config.rulesConfigs.idToConfig[ruleId]?.let { ruleId to it } }.toMap()
+        if (configs.isNotEmpty()) activeGroups.push(group to configs)
+    }
     return Result.success(
         WrassePlugin(
-            ruleSet = WRuleSet(activeRules),
+            ruleSet = WRuleSet(activeRules, activeGroups),
             fixEnabled = fixEnabled,
             fixOutputDir = fixOutputDir,
             globalExclude = config.exclude,
@@ -63,7 +69,7 @@ fun wrasseMain(
 
 private fun loadConfig(
     sourceRoots: List<Path>,
-    uninitializedRules: Map<String, WUninitializedRule>,
+    ruleIds: Set<String>,
     warnOnly: Boolean
 ): Result<WConfig> {
     for (root in sourceRoots) {
@@ -85,7 +91,7 @@ private fun loadConfig(
         val resolveExtends = resolveExtendsFrom(configDir)
         return WConfig.from(
             configValue = configValue,
-            ruleIds = uninitializedRules.keys,
+            ruleIds = ruleIds,
             warnOnly = warnOnly,
             configDir = configDir,
             resolveExtends = resolveExtends,

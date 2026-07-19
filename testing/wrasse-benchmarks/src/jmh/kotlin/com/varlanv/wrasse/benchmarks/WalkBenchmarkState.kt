@@ -6,8 +6,8 @@ import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.StreamDispatch
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.rules.ImportEngine
 import com.varlanv.wrasse.rules.NoSemicolonsRule
-import com.varlanv.wrasse.rules.NoWildcardImportsRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
@@ -50,7 +50,7 @@ open class WalkBenchmarkState {
             psiSource.endOffset,
             psiSource.treeStructure,
         )
-        uninitializedRules = listOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule())
+        uninitializedRules = listOf(NoSemicolonsRule(), TrailingNewlineRule())
     }
 
     @TearDown(Level.Trial)
@@ -65,7 +65,9 @@ open class WalkBenchmarkState {
 
     fun shippedRuleDispatch(): StreamDispatch {
         val config = WrasseRuleConfig(RuleLevel.ERROR, emptyList(), RuleLevel.ERROR)
-        return StreamDispatch(uninitializedRules.map { it.initRule(config) })
+        val rules = uninitializedRules.map { it.initRule(config) } +
+            ImportEngine().initGroup(mapOf("no-wildcard-imports" to config))
+        return StreamDispatch(rules)
     }
 
     fun noRuleDispatch(): StreamDispatch = StreamDispatch(emptyList())

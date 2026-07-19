@@ -4,7 +4,7 @@ import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.model.WCallableUsage
 
 /**
- * A `import P.*` star directive is either entirely out of [NoUnusedImportsRule]'s scope (no report
+ * A `import P.*` star directive is either entirely out of `no-unused-imports`'s scope (no report
  * at all — it may still be used, or removing it might be unsafe for a reason this rule cannot
  * verify) or genuinely unused, in which case the report always fires and [edit] carries the
  * whole-line removal when one can be emitted safely, `null` otherwise (report-only, same D19

@@ -2,14 +2,19 @@ package com.varlanv.wrasse.model
 
 /**
  * The set of rules active for a compilation, held as `(WUninitializedRule, WrasseRuleConfig)`
- * pairs so nothing is instantiated yet. Which rule IDs are enabled and their configs are
- * decided once per compilation (by the config layer); [dispatchForFile] is the per-file seam
- * that turns that decision into a fresh [StreamDispatch].
+ * pairs plus `(WUninitializedRuleGroup, Map<id, WrasseRuleConfig>)` pairs for fused
+ * multi-id engines (see [WUninitializedRuleGroup]) — nothing is instantiated yet. Which rule
+ * IDs are enabled and their configs are decided once per compilation (by the config layer);
+ * [dispatchForFile] is the per-file seam that turns that decision into a fresh [StreamDispatch].
  *
- * Each call to [dispatchForFile] calls [WUninitializedRule.initRule] again for every
- * surviving rule, so every file gets its own rule instances — no shared per-file mutable
- * state, no reset step needed. A rule whose [isExcluded] check matches the current file is
- * skipped entirely: it is never instantiated for that file, not merely filtered afterward.
+ * Each call to [dispatchForFile] calls [WUninitializedRule.initRule] (or
+ * [WUninitializedRuleGroup.initGroup]) again for every surviving rule/group, so every file gets
+ * its own rule instances — no shared per-file mutable state, no reset step needed. A rule whose
+ * [isExcluded] check matches the current file is skipped entirely: it is never instantiated for
+ * that file, not merely filtered afterward. For a group, each id's config is filtered by
+ * [isExcluded] independently; the group is skipped entirely only if every one of its ids is
+ * excluded for this file, otherwise [WUninitializedRuleGroup.initGroup] receives exactly the
+ * surviving subset.
  *
  * Rebuilding [StreamDispatch]'s ordinal-indexed arrays costs `O(WNodeType.SIZE)`, fixed
  * regardless of how many rules are active, and negligible next to walking the file itself;
@@ -19,15 +24,26 @@ package com.varlanv.wrasse.model
  */
 class WRuleSet(
     private val activeRules: List<Pair<WUninitializedRule, WrasseRuleConfig>>,
+    private val activeGroups: List<Pair<WUninitializedRuleGroup, Map<String, WrasseRuleConfig>>> = emptyList(),
 ) {
-    /** True if any active rule opts into [WUninitializedRule.requiresResolution]. Computed once, not per file. */
-    val requiresResolution: Boolean = activeRules.any { (uninitialized, _) -> uninitialized.requiresResolution }
+    /**
+     * True if any active rule or group opts into requiring [WContext.resolvedUsage]. Computed
+     * once, not per file, from the compile-wide enabled set (before per-file exclude).
+     */
+    val requiresResolution: Boolean =
+        activeRules.any { (uninitialized, _) -> uninitialized.requiresResolution } ||
+            activeGroups.any { (group, configs) -> group.requiresResolution(configs.keys) }
 
     fun dispatchForFile(isExcluded: (WrasseRuleConfig) -> Boolean): StreamDispatch {
-        val rules = ArrayList<WRule>(activeRules.size)
+        val rules = ArrayList<WRule>(activeRules.size + activeGroups.size)
         for ((uninitialized, config) in activeRules) {
             if (isExcluded(config)) continue
             rules.add(uninitialized.initRule(config))
+        }
+        for ((group, configs) in activeGroups) {
+            val surviving = configs.filterValues { config -> !isExcluded(config) }
+            if (surviving.isEmpty()) continue
+            rules.add(group.initGroup(surviving))
         }
         return StreamDispatch(rules)
     }
