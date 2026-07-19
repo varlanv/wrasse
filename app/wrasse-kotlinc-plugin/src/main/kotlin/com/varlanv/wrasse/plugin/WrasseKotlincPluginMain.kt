@@ -20,6 +20,7 @@ fun wrasseMain(
     warnOnly: Boolean = false,
     fixEnabled: Boolean = false,
     fixOutputDir: Path? = null,
+    dumpResolvedUsage: Boolean = false,
 ): Result<WrassePlugin> {
     val uninitializedRules = sequenceOf(NoSemicolonsRule(), NoWildcardImportsRule(), TrailingNewlineRule())
         .associateBy { it.id }
@@ -41,6 +42,7 @@ fun wrasseMain(
             fixOutputDir = fixOutputDir,
             globalExclude = config.exclude,
             configDir = config.configDir,
+            dumpResolvedUsage = dumpResolvedUsage,
         )
     )
 }

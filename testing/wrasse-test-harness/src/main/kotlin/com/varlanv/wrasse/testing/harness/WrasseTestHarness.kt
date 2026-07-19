@@ -16,6 +16,7 @@ class WrasseTestHarness(
     private val extraConfigFiles: Map<String, String> = emptyMap(),
     private val fixOutputDir: Path? = null,
     private val multiPlatformCommonSources: Set<String> = emptySet(),
+    private val dumpResolvedUsage: Boolean = false,
 ) {
 
     companion object {
@@ -71,6 +72,9 @@ class WrasseTestHarness(
         if (fixOutputDir != null) {
             wrassePluginOptions.add("plugin:$PLUGIN_ID:fix=true")
             wrassePluginOptions.add("plugin:$PLUGIN_ID:fixOutputDir=$fixOutputDir")
+        }
+        if (dumpResolvedUsage) {
+            wrassePluginOptions.add("plugin:$PLUGIN_ID:dumpResolvedUsage=true")
         }
 
         val collector = DiagnosticCollector()

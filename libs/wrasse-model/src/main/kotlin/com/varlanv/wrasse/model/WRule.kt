@@ -10,6 +10,9 @@ package com.varlanv.wrasse.model
 interface WUninitializedRule {
     val id: String
 
+    /** True if this rule needs [WContext.resolvedUsage] collected for the files it runs on. */
+    val requiresResolution: Boolean get() = false
+
     fun initRule(config: WrasseRuleConfig): WRule
 }
 

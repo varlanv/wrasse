@@ -24,6 +24,13 @@ class WContext(
     /** Per-file collector of attributed fix edits (D18). Shares this context's per-file lifecycle. */
     val editPlan: EditPlan = EditPlan()
 
+    /**
+     * File-level resolution facade (Phase B.3), lazily collected by the compiler-plugin host
+     * only when a rule needs it or dump mode is on. Null means "not collected for this file".
+     */
+    var resolvedUsage: WResolvedUsage? = null
+        @JvmSynthetic set
+
     /** Node type of the current event (leaf token or interior node enter/exit). */
     var type: WNodeType = WNodeType.FILE
         @JvmSynthetic set

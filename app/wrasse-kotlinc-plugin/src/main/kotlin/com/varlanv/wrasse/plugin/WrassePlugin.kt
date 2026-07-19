@@ -5,9 +5,12 @@ import com.varlanv.wrasse.lang.FileEdits
 import com.varlanv.wrasse.lang.HexEncoding
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.lang.WPatchWriter
+import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
+import com.varlanv.wrasse.model.WCallableUsage
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WResolvedUsage
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WRuleSet
 import org.jetbrains.kotlin.KtLightSourceElement
@@ -23,6 +26,7 @@ class WrassePlugin(
     private val fixOutputDir: Path? = null,
     private val globalExclude: List<PathMatcher> = emptyList(),
     private val configDir: Path? = null,
+    private val dumpResolvedUsage: Boolean = false,
 ) {
 
     private val patchFileLock = Any()
@@ -32,6 +36,7 @@ class WrassePlugin(
         source: KtLightSourceElement,
         fileName: String,
         sourceFilePath: String,
+        resolvedUsage: (() -> WResolvedUsage)? = null,
     ): List<ViolationReport> {
         val filePath = resolveFilePath(sourceFilePath, fileName)
         if (matchesAny(globalExclude, filePath)) {
@@ -41,6 +46,9 @@ class WrassePlugin(
         val dispatch = ruleSet.dispatchForFile { config -> matchesAny(config.exclude, filePath) }
 
         val ctx = WContext(filePath = filePath.toString())
+        if (resolvedUsage != null && (dumpResolvedUsage || ruleSet.requiresResolution)) {
+            ctx.resolvedUsage = resolvedUsage()
+        }
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
 
@@ -80,7 +88,30 @@ class WrassePlugin(
             appendToPatchFile(fileEdits)
         }
 
+        val usage = ctx.resolvedUsage
+        if (dumpResolvedUsage && usage != null) {
+            reporter.reports.add(
+                ViolationReport(
+                    message = dumpMessage(usage),
+                    startOffset = 0,
+                    endOffset = 0,
+                    level = RuleLevel.ERROR,
+                )
+            )
+        }
+
         return reporter.reports
+    }
+
+    private fun dumpMessage(usage: WResolvedUsage): String {
+        val classifiers = usage.classifiers.sorted().joinToString(prefix = "[", postfix = "]")
+        val callables = usage.callables.map(::dumpCallable).sorted().joinToString(prefix = "[", postfix = "]")
+        return "resolved-usage: classifiers=$classifiers callables=$callables errors=${usage.hasResolutionErrors}"
+    }
+
+    private fun dumpCallable(usage: WCallableUsage): String {
+        val owner = usage.classFqName ?: usage.packageFqName
+        return "$owner/${usage.name}"
     }
 
     private fun requireWithinOpenAncestor(ctx: WContext, ruleId: String, edit: WEdit) {

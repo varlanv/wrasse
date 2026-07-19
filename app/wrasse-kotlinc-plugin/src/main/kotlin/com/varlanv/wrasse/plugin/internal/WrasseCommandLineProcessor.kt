@@ -1,5 +1,7 @@
 package com.varlanv.wrasse.plugin.internal
 
+import com.varlanv.wrasse.plugin.KEY_DUMP_RESOLVED_USAGE
+import com.varlanv.wrasse.plugin.KEY_DUMP_RESOLVED_USAGE_STR
 import com.varlanv.wrasse.plugin.KEY_ENABLED
 import com.varlanv.wrasse.plugin.KEY_ENABLED_STR
 import com.varlanv.wrasse.plugin.KEY_FIX
@@ -24,6 +26,7 @@ class WrasseCommandLineProcessor : CommandLineProcessor {
         CliOption(KEY_WARN_ONLY_STR, "<true|false>", "Report violations as warnings instead of errors", required = false),
         CliOption(KEY_FIX_STR, "<true|false>", "Emit autofix patch file", required = false),
         CliOption(KEY_FIX_OUTPUT_DIR_STR, "<path>", "Directory for autofix patch output", required = false),
+        CliOption(KEY_DUMP_RESOLVED_USAGE_STR, "<true|false>", "Dump the resolved-usage facade as a diagnostic per file", required = false),
     )
 
     override fun processOption(option: AbstractCliOption, value: String, configuration: CompilerConfiguration) {
@@ -32,6 +35,7 @@ class WrasseCommandLineProcessor : CommandLineProcessor {
             KEY_WARN_ONLY_STR -> configuration.put(KEY_WARN_ONLY, value.toBoolean())
             KEY_FIX_STR -> configuration.put(KEY_FIX, value.toBoolean())
             KEY_FIX_OUTPUT_DIR_STR -> configuration.put(KEY_FIX_OUTPUT_DIR, value)
+            KEY_DUMP_RESOLVED_USAGE_STR -> configuration.put(KEY_DUMP_RESOLVED_USAGE, value.toBoolean())
         }
     }
 }

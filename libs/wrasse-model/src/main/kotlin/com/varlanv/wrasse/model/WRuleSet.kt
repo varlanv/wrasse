@@ -20,6 +20,9 @@ package com.varlanv.wrasse.model
 class WRuleSet(
     private val activeRules: List<Pair<WUninitializedRule, WrasseRuleConfig>>,
 ) {
+    /** True if any active rule opts into [WUninitializedRule.requiresResolution]. Computed once, not per file. */
+    val requiresResolution: Boolean = activeRules.any { (uninitialized, _) -> uninitialized.requiresResolution }
+
     fun dispatchForFile(isExcluded: (WrasseRuleConfig) -> Boolean): StreamDispatch {
         val rules = ArrayList<WRule>(activeRules.size)
         for ((uninitialized, config) in activeRules) {

@@ -531,6 +531,35 @@ stubbed, separate FIR entry point, not yet unified into `WRule`. Closing the gap
 - Resolution is free because Host A rides a compile that already resolved everything. Inbound
   only (§2.4).
 
+**As-built (resolution facade spike):** `WResolvedUsage` (`wrasse-model`, zero kotlinc deps) is a
+file-level, not per-node, facade: `classifiers: Set<String>` (dot-separated FQNs, type arguments/
+annotation types/qualifiers included), `callables: Set<WCallableUsage>` (package/class/name triple,
+`classFqName == null` for top-level), `hasResolutionErrors: Boolean`. Held nullable on
+`WContext.resolvedUsage`, null meaning "not collected". `internal/ResolvedUsageCollector` builds it
+from the checker's `FirFile` via a `FirVisitorVoid` walking only `declarations` + file-level
+`annotations` (imports and the package directive are separate `FirFile` fields, never visited, so
+they never self-justify). Local declarations (`CallableId.packageName ==
+CallableId.PACKAGE_FQ_NAME_FOR_LOCAL`) are filtered out — they can never be import targets.
+Collection is lazy and gated: `WrassePlugin.checkFile` only invokes the provider when
+`dumpResolvedUsage` is on or `WRuleSet.requiresResolution` (computed once at construction from
+`WUninitializedRule.requiresResolution`, default false) is true — zero FIR walk otherwise. A
+`dumpResolvedUsage` plugin option (wired like `fix`/`warnOnly` through `Constants`,
+`WrasseCommandLineProcessor`, and all three registrars) emits one synthetic `RuleLevel.ERROR`
+diagnostic per file: `resolved-usage: classifiers=[a.B, c.D] callables=[a/foo, a.B/bar] errors=false`
+(ASCII-sorted, `packageFqName/name` for top-level, `classFqName/name` for members). The
+`SemanticWRule` family and LightTree↔FIR offset correlation are still future — this spike only
+proves the FIR surface is stable 2.1–2.4 and gets the facade onto `WContext`.
+
+**Hazard for the next FIR subtype added here:** `FirVisitorVoid` dispatches on a node's *exact*
+declared type, not via inheritance — a direct subtype of an overridden type (e.g.
+`FirResolvedCallableReference`, `FirPropertyWithExplicitBackingFieldResolvedNamedReference` under
+`FirResolvedNamedReference`; `FirErrorResolvedQualifier` under `FirResolvedQualifier`) falls through
+to `visitElement` (recurse-only) unless it has its own override, silently dropping the reference
+rather than erroring — check every direct subtype of a handled type, not just the type itself, when
+touching this visitor. `FirBackingFieldReference`/`FirDelegateFieldReference` (also direct
+`FirResolvedNamedReference` subtypes) are deliberately left unhandled — they are self-references to
+a property's own `field`/delegate storage and can never be import targets.
+
 ---
 
 ## 9. Performance
@@ -856,6 +885,9 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   deletions. Each gated by the idempotence harness; born-clean discipline.
 - **B.3 — ImportEngine (bucket S).** `SemanticWRule` + FIR resolution facade + LightTree↔FIR
   correlation adapter. One engine, several config keys. Bail on ambiguity. A mini-project.
+  Resolution-facade spike done (`WResolvedUsage` on `WContext`, lazy/gated collection,
+  `dumpResolvedUsage` debug option, §8) — de-risked the FIR surface across 2.1–2.4; the
+  `SemanticWRule` unification and offset correlation remain.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.

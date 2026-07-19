@@ -2,6 +2,7 @@ package com.varlanv.wrasse.plugin.k20
 
 import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.plugin.WrassePlugin
+import com.varlanv.wrasse.plugin.internal.ResolvedUsageCollector
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -18,7 +19,7 @@ class FirSyntacticChecker20(
         val source = declaration.source as? KtLightSourceElement ?: return
         val sourceFilePath = declaration.sourceFile?.path ?: declaration.name
 
-        for (violation in plugin.checkFile(source, declaration.name, sourceFilePath)) {
+        for (violation in plugin.checkFile(source, declaration.name, sourceFilePath) { ResolvedUsageCollector.collect(declaration) }) {
             val diagnostic = when (violation.level) {
                 RuleLevel.ERROR -> WrasseErrors20.WRASSE_ERROR
                 RuleLevel.WARN -> WrasseErrors20.WRASSE_WARNING

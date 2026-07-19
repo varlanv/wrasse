@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.plugin.k20
 
+import com.varlanv.wrasse.plugin.KEY_DUMP_RESOLVED_USAGE
 import com.varlanv.wrasse.plugin.KEY_ENABLED
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
 import com.varlanv.wrasse.plugin.wrasseMain
@@ -21,8 +22,9 @@ class WrasseCompilerPluginRegistrar20 : CompilerPluginRegistrar() {
         }
 
         val warnOnly = configuration[KEY_WARN_ONLY, false]
+        val dumpResolvedUsage = configuration[KEY_DUMP_RESOLVED_USAGE, false]
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
-        val plugin = wrasseMain(sourceRoots, warnOnly).getOrThrow()
+        val plugin = wrasseMain(sourceRoots, warnOnly = warnOnly, dumpResolvedUsage = dumpResolvedUsage).getOrThrow()
 
         FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar20(plugin))
     }
