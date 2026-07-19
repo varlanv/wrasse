@@ -25,10 +25,12 @@ import org.openjdk.jmh.annotations.Setup
 import org.openjdk.jmh.annotations.State
 import org.openjdk.jmh.annotations.TearDown
 
+class CorpusSource(val fileName: String, val lightSource: KtLightSourceElement)
+
 @State(Scope.Benchmark)
 open class WalkBenchmarkState {
 
-    lateinit var lightSource: KtLightSourceElement
+    lateinit var corpus: List<CorpusSource>
     private lateinit var disposable: Disposable
     private lateinit var uninitializedRules: List<WUninitializedRule>
 
@@ -42,14 +44,24 @@ open class WalkBenchmarkState {
             EnvironmentConfigFiles.JVM_CONFIG_FILES,
         )
         val psiFactory = KtPsiFactory(environment.project)
-        val ktFile = psiFactory.createFile(BenchmarkCorpus.load())
-        val psiSource = ktFile.toKtPsiSourceElement()
-        lightSource = KtLightSourceElement(
-            psiSource.lighterASTNode,
-            psiSource.startOffset,
-            psiSource.endOffset,
-            psiSource.treeStructure,
+        val generated = BenchmarkCorpusGenerator.generate()
+        println(
+            "wrasse-benchmarks: corpus version=${BenchmarkCorpusGenerator.CORPUS_VERSION} " +
+                "files=${generated.fileCount} totalBytes=${generated.totalBytes}",
         )
+        corpus = generated.files.map { file ->
+            val ktFile = psiFactory.createFile(file.fileName, file.content)
+            val psiSource = ktFile.toKtPsiSourceElement()
+            CorpusSource(
+                fileName = file.fileName,
+                lightSource = KtLightSourceElement(
+                    psiSource.lighterASTNode,
+                    psiSource.startOffset,
+                    psiSource.endOffset,
+                    psiSource.treeStructure,
+                ),
+            )
+        }
         uninitializedRules = listOf(NoSemicolonsRule(), TrailingNewlineRule())
     }
 
@@ -65,8 +77,9 @@ open class WalkBenchmarkState {
 
     fun shippedRuleDispatch(): StreamDispatch {
         val config = WrasseRuleConfig(RuleLevel.ERROR, emptyList(), RuleLevel.ERROR)
+        val engine = ImportEngine()
         val rules = uninitializedRules.map { it.initRule(config) } +
-            ImportEngine().initGroup(mapOf("no-wildcard-imports" to config))
+            engine.initGroup(engine.ids.associateWith { config })
         return StreamDispatch(rules)
     }
 

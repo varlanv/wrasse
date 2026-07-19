@@ -1562,9 +1562,13 @@ sibling coverage gap (needs a session-backed package→declarations query, §8 a
 
 The walk overhead budget at full rule count is **low single-digit % of compile time** — this is
 what keeps "lint is free" true, and it will creep silently as 200 rules land unless measured.
-Therefore (Phase A.5): a JMH benchmark over a real corpus (e.g. Kotlin stdlib sources) as a
-regression tripwire, **before** rule porting starts. Keep `WStreamRule` count small; keep
-disabled-rule cost at zero.
+Therefore (Phase A.5): a JMH benchmark over a fixed corpus as a regression tripwire, **before**
+rule porting starts. Keep `WStreamRule` count small; keep disabled-rule cost at zero. The corpus
+is a deterministic synthetic generator (`BenchmarkCorpusGenerator`, versioned via
+`CORPUS_VERSION`), not this repo's own sources — those grow every session, which made
+cross-session comparison meaningless; JMH settings are hardened to 2 forks / 5 warmup + 5
+measurement iterations to keep error bars under ~5% of score (2 warmup + 3 measurement, 1 fork
+was noise-dominated, occasionally inverting which variant looked faster).
 
 **Measured (2026-07-19, post-import-chain, 6 rules incl. the resolution facade and
 qualified-usage collection):** wall-clock A/B on a real external 134-file multi-module JVM
@@ -1695,7 +1699,8 @@ Kotlinc surface (adapter-only; rule code never imports these): LightTree
 - Rules are unit-testable without a compiler (`wrasse-model` has no kotlinc dep); fixture tests
   exercise the full plugin path.
 - **Walk-throughput benchmark** (A.5, §9): `testing:wrasse-benchmarks` (`me.champeau.jmh`) — run
-  via `./gradlew :testing:wrasse-benchmarks:jmh`; not part of `build`/`test`/`check`.
+  via `./gradlew :testing:wrasse-benchmarks:jmh`; not part of `build`/`test`/`check`. Corpus is a
+  fixed, versioned synthetic generator, not this repo's own sources (§9).
 
 ---
 
@@ -1836,10 +1841,14 @@ Remaining:
    staleness and dead `ActiveNodeEntry.depth` from §14 fixed alongside it. JMH landed as
    `testing:wrasse-benchmarks` (§11): standard `me.champeau.jmh` + the repo's own convention plugin,
    no band-aid wiring — `./gradlew :testing:wrasse-benchmarks:jmh` is the tripwire, not wired into
-   `build`/`test`/`check`. Smoke run (2 warmup + 3 measurement iterations, 1 fork) over this repo's
-   own concatenated `.kt` sources: zero-rules walk ~11.19ms/op after vs ~11.64ms/op before the
-   punch list; three-shipped-rules walk ~11.56ms/op after vs ~12.17ms/op before (single-fork JMH
-   noise is double-digit-percent at this iteration count — treat as directional, not precise).
+   `build`/`test`/`check`. Hardened later the same day (2 forks, 5 warmup + 5 measurement
+   iterations) over the fixed synthetic corpus (`BenchmarkCorpusGenerator`, `CORPUS_VERSION=1`:
+   100 files, 223544 bytes) instead of this repo's own growing sources: zero-rules walk
+   8.760 ± 0.160 ms/op (1.8% error) vs the current shipped rule set (`no-semicolons`,
+   `trailing-newline`, plus the full `ImportEngine` — `no-unused-imports`/`no-wildcard-imports`/
+   `import-ordering`/`no-unnecessary-fqn`) 9.827 ± 0.162 ms/op (1.6% error) — both comfortably
+   under the ~5%-of-score target this tripwire needs to be useful; the original 2+3/1-fork numbers
+   above predate the hardening and are superseded.
 6. ~~MPP double-fire check~~ — **no repro; confirmed safe by design, not just by test.** Read the
    K2 CLI pipeline sources (`JvmFrontendPipelinePhase`, `FirSessionConstructionUtils`,
    `fir/pipeline/firUtils.kt`/`convertToIr.kt`, identical across 2.1–2.4): each source file is

@@ -12,3 +12,13 @@ dependencies {
     jmh(projects.libs.wrasseLang)
     jmh(libs.kotlin.compiler.embeddable)
 }
+
+jmh {
+    fork = 2
+    warmupIterations = 5
+    iterations = 5
+    warmup = "1s"
+    timeOnIteration = "1s"
+    benchmarkMode.add("avgt")
+    timeUnit = "ms"
+}
