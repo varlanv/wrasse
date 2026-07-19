@@ -513,7 +513,9 @@ stating what is wrong, with parameterized facts inlined where they help fixing (
 7 parameters (max 5)"). All shipped rules already conform; every future port must too. Where
 ktlint/detekt/diktat chose a conservative exemption over an upstream shape, wrasse matches it rather
 than going further just because a broader fix is provably safe, unless the owner explicitly
-approves extending scope.
+approves extending scope. **KDoc states the code's contract only** — behavior, parameter/return
+semantics, non-obvious caller-facing invariants, in a few lines; development history, bug narratives,
+review-round stories, and phase/track references belong in this document (tersely), not in KDoc.
 
 ---
 
@@ -1608,6 +1610,79 @@ D.2's own report-only shape could never have surfaced (there was no "is a new im
 question to get wrong until D.3 asked it). Remaining in the engine's own growth-site bucket,
 unchanged by this track: own-package/default-redundant star removal, and the KDoc same-package-
 sibling coverage gap (needs a session-backed package→declarations query, §8 above).
+
+**Remediation (found dogfooding kryptoid, an external codebase): already-imported bypassed the
+collision checks.** `QualifiedUsageDecision.isSafeToDrop` returned safe unconditionally for an
+exact, non-aliased already-imported candidate, before the simple-name collision checks ran. Real
+shape: a file imports `kotlin.time.Instant` (so bare `Instant` means the Kotlin type) and also
+writes several `java.time.Instant` usages fully qualified, deliberately disambiguating the two
+worlds at each call site — kryptoid's `LbankFeedParser`. The old ordering flagged the
+already-imported `kotlin.time.Instant` occurrences as "unnecessary": compile-safe (bare `Instant`
+already resolves to it) but style-destructive, undoing the file's own deliberate disambiguation
+that the collision index already knows about (both FQNs share the simple name `Instant`). Fixed by
+running the collision checks (index + explicit-import-visible-name) unconditionally, before every
+variant including already-imported and same-package; only the written-elsewhere check (step 4) keeps
+its existing same-package/default-import exemption. Locked by
+`already-imported-collision-skip-clean` (the dual-`Widget` shape mirroring the real `Instant` one,
+failing before this fix and clean after) and a matching `QualifiedUsageDecisionSpec` case. Recompiling
+kryptoid's `feed-parsers` module before/after: 10 findings → 8 (the two `LbankFeedParser`
+already-imported-`Instant` false positives gone; the other 8, all genuine, unaffected).
+
+**Ground-truthed against detekt's `UnnecessaryFullyQualifiedName`** (`dev.detekt.rules.style`,
+`RequiresAnalysisApi`, real semantic resolution via the Kotlin Analysis API — not a PSI heuristic).
+Read its source plus its full test suite, and probed its real engine (`lintWithContext`) on the
+kryptoid shapes above plus the dual-`Widget`/dual-`List` collision pair. Its collision check
+(`hasNameCollision`) resolves the file's real lexical scope at the usage (imports, local/package
+declarations, type parameters), excluding only the two default-importing scopes, and bails iff a
+*different* symbol than the one actually resolved already binds that simple name there — this is
+asymmetric: for the dual-`Instant` shape, detekt still flags the already-imported `kotlin.time.Instant`
+occurrence (no self-collision) while skipping the unimported `java.time.Instant` one (collides with
+the import) — probe-confirmed, not assumed. Wrasse's fix above is deliberately narrower here on
+purpose (an explicit brief from the owner, not upstream parity): it skips *both* occurrences,
+treating "two FQNs share a simple name anywhere in this file" as a file-wide fact about deliberate
+disambiguation, not a per-occurrence safety check. Same-package handling needed no adjustment: it
+already matches detekt's scope-based result exactly (confirmed by re-reading the source against the
+already-shipped `same-package-shadowed-by-import-skip-clean` / `same-package-unshadowed-still-
+reported-error` pair) even though wrasse gets there via an explicit `isSamePackage` branch rather
+than real scope resolution.
+
+Two genuine, confirmed scope gaps found (wrasse narrower than upstream, kept narrower per the
+owner's scope-⊆-upstream directive, not fixed — both structural facade limitations, not detection
+bugs): (1) a fully-qualified **constructor call** with no accompanying type-position usage of the
+same target produces no `WQualifiedUsage` at all (FIR only records a `QUALIFIER` for an object-like
+reference — a plain-class constructor call is tracked only as callable resolution elsewhere,
+invisible to this facade) — locked clean by `constructor-call-only-skip-clean`, covering detekt's
+"constructor calls" and "empty and null selector expressions" cases, and explaining why
+`generic-type-report-error` only ever reports the type position, never the accompanying
+same-target constructor call, at one report per target rather than two. (2) a **package-qualified
+top-level function or property** (`kotlin.io.println(...)`, `kotlin.run { }`, `kotlin.math.max(...)`)
+produces no `WQualifiedUsage` either — the qualifier chain resolves to a package, not a class/object,
+so there is no object-like reference for FIR to record — locked clean by
+`package-qualified-toplevel-call-skip-clean`, covering detekt's "fully qualified function calls"
+(`kotlin.io`/`kotlin.collections`/`kotlin.math` cases) and "reports single-segment package qualified
+calls" cases; detekt's parallel case through an actual class (`java.lang.System.currentTimeMillis()`)
+*is* covered, confirmed by probe, via the same member-access-through-a-qualifier mechanism as
+`qualifier-member-access-report-error`. Detekt's three "property named same as kotlin package"
+tests and its "does not report function call when shadowed" case all use this same
+package-qualified-call shape, so they hold for wrasse too, incidentally, for the structural reason
+above rather than any shadowing awareness — the observable behavior (no report) still matches.
+
+`type-parameter-shadow-skip-clean` locks a case with no existing coverage: a type parameter whose
+name shadows a used FQN's simple name (mirroring detekt's "shadowed by enclosing type parameter"
+test) — confirmed clean, not because wrasse models type-parameter scoping at all, but because the
+type parameter's own declaration token is itself a written `IDENTIFIER` the step-4 written-elsewhere
+check already catches; the identical reasoning applies to detekt's declaration-based shadowing cases
+(a nested class/object whose name shadows an FQN) without a dedicated fixture per variant.
+
+Every other detekt test case maps onto wrasse's existing mechanism directly (one `QUALIFIER`/
+`TYPE_REF` per resolved class-like reference, syntactic-proof-gated, outermost-class-only,
+collision-checked) and is already exercised by the pre-existing `no-unnecessary-fqn/` fixtures —
+return/variable/parameter/catch-clause/generic/nullable/vararg/secondary-constructor type positions,
+object and static-member-through-a-class access, class literals, annotations, type aliases,
+supertypes, casts, `when`-branch `is` checks, and nested-chain dedup — no new fixture needed since
+none of these exercise a decision path the existing suite doesn't already cover; detekt's own
+message text (parameterized with the FQN) is not matched — wrasse's message stays the fixed,
+non-parameterized string per §6's message convention, not a gap.
 
 ---
 

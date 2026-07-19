@@ -130,7 +130,24 @@ class QualifiedUsageDecisionSpec : BaseSpec({
         reports.shouldBeEmpty()
     }
 
-    should("report unconditionally when a plain explicit import of the candidate already exists, bypassing collision checks") {
+    should("report unconditionally when a plain explicit import of the candidate already exists and nothing collides") {
+        val sourceText = "val c = a.b.C"
+        val usage = qualifier(sourceText, "a.b.C", "a.b.C", "a.b")
+
+        val reports = QualifiedUsageDecision.decideAll(
+            qualifiedUsages = listOf(usage),
+            sourceText = sourceText,
+            filePackageFqName = "other",
+            classifiers = setOf("a.b.C"),
+            callables = emptySet(),
+            explicitImports = listOf(explicitImport("a.b.C")),
+            identifierOccurrences = emptyList(),
+        )
+
+        reports shouldHaveSize 1
+    }
+
+    should("skip an already-imported candidate whose simple name collides with another used FQN's own simple name (kryptoid dual-Instant shape)") {
         val sourceText = "val c = a.b.C"
         val usage = qualifier(sourceText, "a.b.C", "a.b.C", "a.b")
 
@@ -144,7 +161,7 @@ class QualifiedUsageDecisionSpec : BaseSpec({
             identifierOccurrences = emptyList(),
         )
 
-        reports shouldHaveSize 1
+        reports.shouldBeEmpty()
     }
 
     should("not treat an aliased explicit import of the same FQN as already-imported (no bare name in scope)") {
