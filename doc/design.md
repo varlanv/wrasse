@@ -2156,6 +2156,58 @@ confirmed subsumed by the existing multi-modifier-soup and generic fewer-than-tw
 respectively — no new fixture needed for either. Both upstream checkouts left byte-clean (no
 probing needed this round; upstream sources were only read, never modified).
 
+Retroactive upstream-test backfill, wave 2 installment 5 (2026-07-20): `if-else-bracing` (ktlint's
+own `IfElseBracingRuleTest` + `MultiLineIfElseRuleTest` — both feed the same wrasse concept, per B.2
+above — plus detekt's own `BracesOnIfStatementsSpec`) ported against their real upstream test
+suites. detekt's suite is overwhelmingly config-permutation coverage (`singleLine`/`multiLine` ×
+`always`/`never`/`necessary`/`consistent`) that D21 already puts out of scope (no code-style knobs);
+only the cases run under the actual shipped default combination (`singleLine=never`,
+`multiLine=always`) were ported, closing two gaps the original ship-time probing hadn't fixtured:
+nested single-line `if`-expressions used as a chain's own condition/then/else content (`nested-if-
+condition-then-else-multiline-error`, `nested-if-single-branch-content-multiline-error`) and a
+locked assertion that an already-braced, fully single-line chain is never touched for removal
+(`single-line-if-else-already-braced-clean` — detekt's default would flag it for brace *removal*,
+but this rule only ever inserts, never removes, an asymmetry the original KDoc already stated but
+had never been fixtured). ktlint's own suite surfaced one genuine divergence, ground-truthed by
+reading detekt's real `BracesOnIfStatements.walk()` source directly rather than probing (both
+checkouts left byte-clean, read-only): an `else` whose content is a bare `if` starting on a *new*
+line (`else\n    if (...)`, as opposed to `else if (...)` on one line) is, per ktlint's own real
+formatted output, wrapped in its own explicit braces around the whole nested `if` — a shape ktlint
+treats differently from a same-line `else if`. detekt's `walk()` makes no such distinction: it
+excludes *any* `else` branch whose content `is KtIfExpression` from consideration unconditionally,
+regardless of same-line or different-line placement, deferring to that nested `if`'s own visit
+either way — structurally identical to wrasse's own `looksLikeBareIf` text check, which also doesn't
+distinguish the two. Since wrasse's scope is the strict intersection of both engines' defaults and
+detekt's default never wants this brace added, wrasse correctly matches detekt (not ktlint) here —
+confirmed against the deepest, most convoluted case in either suite, ktlint's own "Issue 727 - Given
+a deep nested if-else-if-statement" (four-level-deep nested `else if`/dangling-if mix, ported
+verbatim as `deep-nested-else-if-chains-error`, 13 real diagnostics fired against a real compile,
+matching ktlint's own 14 minus exactly this one documented divergence). Also confirmed as designed,
+not a bug, on the same fixture: the existing "bail whenever the branch's own bare-statement text
+already spans multiple lines" rule (§13 above) correctly bails on the two outermost chain levels
+(each one's own bare content is an entire multi-line nested chain) while still firing real edits on
+the innermost single-statement branches — a previously-untested recursive interaction, now locked.
+One genuine, contained bug found and fixed in-task (not a divergence): `columnOf`'s original
+algorithm used the chain head's own column directly, which silently misindents every brace in a
+chain whose head sits mid-line — `fun foo() = if (...)`, ktlint's own real "Issue 1560" shape,
+reproduced first via `property-assignment-midline-if-error` (a `fun` expression body) and confirmed
+independently via `else-chained-call-same-line-error` (a top-level `val` initializer, ktlint's own
+"Issue 2057" shape) before either fixture's expected output was written by hand — both failed
+against the *actual* algorithm before the fix, not a hypothetical. Fixed to compute the indentation
+of the chain head's own *physical line* instead (detail in B.2 above); regression-free against every
+pre-existing fixture, since none of them has a chain head mid-line. Twelve new fixtures ported
+overall, also covering ktlint's own "if inside a lambda" (`if-inside-lambda-last-expression-error`),
+"Issue 1079" (`if` as a multi-line call argument, `if-inside-call-argument-error`), "Issue 945"
+(comment on its own line before both branches' content, `else-own-line-comment-bail-error` — the
+existing suite only had same-line-as-condition and same-line-trailing comment shapes), the blank-
+line-preceded shape (`blank-line-preceded-if-error`, confirming no spurious blank line is
+introduced), and ktlint's own "Issue 2135" empty-`THEN`-branch null-pointer regression test
+(`empty-then-branch-clean`, confirming the existing empty-branch skip never throws in a genuine
+multi-line chain, not just the trivially-skipped single-line case). ktlint's own consistency-forcing
+`IfElseBracingRule` behavior (any-branch-already-braced forces the rest) and its unconditional
+`else-if`-chain bracing are unchanged, already-documented, out-of-scope divergences (B.2 above) — not
+re-fixtured. No open blockers from this installment.
+
 ### Phase A remainder — config & severity polish
 
 - ~~`@Suppress("rule-id")` at expression and declaration scope.~~ **Done 2026-07-19** — shipped at
@@ -2458,11 +2510,24 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   branch's own bare-content span and the gaps around it. A branch already wrapped in `BLOCK` (first
   content character `{`) is left alone entirely; an empty branch (`if (false) else { ... }` is
   legal Kotlin and must never throw) is skipped the same way. For a genuine bare branch, born-clean
-  indentation is computed purely from source facts, never guessed: `baseIndentColumn` is the chain
-  head's own column (found by scanning back to the previous newline), shared by every brace in the
-  chain (locked by the `else-if-tail-single-line-in-multiline-chain-error` fixture, where the
+  indentation is computed purely from source facts, never guessed: `baseIndentColumn` is the
+  indentation of the chain head's own *physical line* — the count of leading whitespace before that
+  line's first non-whitespace character, not the chain head's own column — shared by every brace in
+  the chain (locked by the `else-if-tail-single-line-in-multiline-chain-error` fixture, where the
   locally-mid-line `else if` tail's new closing braces still align to the outermost `if`'s own
-  column, not its own); the wrapped body sits at `baseIndentColumn + indentWidth` (D21's default,
+  column, not its own). **Corrected 2026-07-20 during the wave-2 installment-5 backfill**: the
+  original algorithm used the chain head's own column directly (distance back to the previous
+  newline), which coincides with the line's leading indentation whenever the chain head is itself
+  the first token on its line (every fixture at ship time), but diverges when the chain head sits
+  mid-line — `fun foo() = if (...)`, ktlint's own real Issue-1560 shape — misaligning every brace in
+  the chain to that arbitrary mid-line position instead of the enclosing statement's real
+  indentation depth; ported directly from real, reproduced failures (`property-assignment-midline-
+  if-error`, `else-chained-call-same-line-error`) rather than papered over, since both are ordinary,
+  unremarkable Kotlin shapes with no other reason to be out of scope. The fix is a three-line change
+  to the same column-computation function (scan back to the line start, then scan forward past
+  leading whitespace) with no other rule-shape change, and does not affect any existing fixture,
+  since none of them has a chain head sitting mid-line. The wrapped body sits at
+  `baseIndentColumn + indentWidth` (D21's default,
   4, hardcoded — not yet wired as config, no rule has needed it before this one). Two edits per
   fixed branch: the leading gap (condition's `RPAR`-end or `KW_ELSE`-end through the branch's own
   start) becomes `" {\n" + bodyIndent`; the trailing point (or, for a `THEN` immediately followed

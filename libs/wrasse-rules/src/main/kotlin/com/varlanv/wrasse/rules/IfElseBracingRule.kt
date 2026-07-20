@@ -211,10 +211,25 @@ class IfElseBracingRule : WUninitializedRule {
             return headStart to headEnd
         }
 
+        /**
+         * The indentation column of the physical line containing [offset] - the count of leading
+         * whitespace before the line's first non-whitespace character, not [offset]'s own column.
+         * These coincide whenever the chain head is itself the first token on its line (the common
+         * case); they diverge when the chain head sits mid-line (`fun foo() = if (...)`), where
+         * [offset]'s own column would misalign every brace in the chain to that arbitrary
+         * mid-line position instead of the enclosing statement's real indentation depth.
+         */
         fun columnOf(sourceText: CharSequence, offset: Int): Int {
-            var i = offset - 1
-            while (i >= 0 && sourceText[i] != '\n') i--
-            return offset - i - 1
+            var lineStart = offset - 1
+            while (lineStart >= 0 && sourceText[lineStart] != '\n') lineStart--
+            lineStart++
+            var column = 0
+            while (lineStart + column < sourceText.length &&
+                (sourceText[lineStart + column] == ' ' || sourceText[lineStart + column] == '\t')
+            ) {
+                column++
+            }
+            return column
         }
 
         fun looksLikeBareIf(sourceText: CharSequence, start: Int, end: Int): Boolean {
