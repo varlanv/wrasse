@@ -11,15 +11,13 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 /**
  * A supertype-list entry whose own source span is the literal text `"Any()"` or `"Object()"` is a
- * redundant supertype and, where deleting it stays provably safe, autofixed to remove it entirely.
+ * redundant supertype. Report-only.
  *
  * Matched purely as literal text on the `SUPER_TYPE_CALL_ENTRY`'s own span — no semantic
  * resolution — the same naive check detekt's own `UnnecessaryInheritance` uses (ground-truthed
  * directly against its real engine): `kotlin.Any()`, `Any ()` (whitespace inside the call), and a
  * type-aliased supertype are all never candidates, since none of their spans spell the bare
- * literal exactly. This also means the rule structurally never touches a qualified span, so it
- * can never share a deletion region with `no-unnecessary-fqn` (which only ever edits a qualified
- * prefix) — the two ids are disjoint by construction, not by a runtime check.
+ * literal exactly.
  *
  * `SUPER_TYPE_LIST` is targeted directly regardless of what declares it, covering class, object
  * (named, companion, and anonymous-literal), and enum-class declarations uniformly; an interface
@@ -29,7 +27,6 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  */
 class UnnecessaryInheritanceRule : WUninitializedRule {
     override val id: String = "unnecessary-inheritance"
-    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
@@ -39,46 +36,15 @@ class UnnecessaryInheritanceRule : WUninitializedRule {
             override val targetTypes = setOf(WNodeType.SUPER_TYPE_LIST)
 
             override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
-                val entryIndices = ArrayList<Int>(children.size)
                 for (i in 0 until children.size) {
                     val type = children.type(i)
                     if (type == WNodeType.COMMA || type.isWhitespaceOrComment) continue
-                    entryIndices.add(i)
-                }
-
-                for ((position, index) in entryIndices.withIndex()) {
-                    if (children.type(index) != WNodeType.SUPER_TYPE_CALL_ENTRY) continue
-                    val targetName = redundantTargetName(children.textSpan(index, ctx.sourceText)) ?: continue
-
-                    val entryStart = children.startOffset(index)
-                    val entryEnd = children.endOffset(index)
-                    val edit = when {
-                        entryIndices.size == 1 ->
-                            UnnecessaryInheritanceDeletionSpan.computeSoleEntry(ctx.sourceText, entryStart, entryEnd)
-
-                        position == entryIndices.size - 1 -> {
-                            val previousIndex = entryIndices[position - 1]
-                            UnnecessaryInheritanceDeletionSpan.computeTrailingEntry(
-                                previousEntryEnd = children.endOffset(previousIndex),
-                                entryEnd = entryEnd,
-                                hasAdjacentComment = hasComment(children, previousIndex + 1, index),
-                            )
-                        }
-
-                        else -> {
-                            val nextIndex = entryIndices[position + 1]
-                            UnnecessaryInheritanceDeletionSpan.computeLeadingEntry(
-                                entryStart = entryStart,
-                                nextEntryStart = children.startOffset(nextIndex),
-                                hasAdjacentComment = hasComment(children, index + 1, nextIndex),
-                            )
-                        }
-                    }
+                    if (type != WNodeType.SUPER_TYPE_CALL_ENTRY) continue
+                    val targetName = redundantTargetName(children.textSpan(i, ctx.sourceText)) ?: continue
 
                     reporter.report(
                         ruleId, "Unnecessary inheritance of '$targetName'",
-                        entryStart, entryEnd, this,
-                        edits = edit?.let { listOf(it) } ?: emptyList(),
+                        children.startOffset(i), children.endOffset(i), this,
                     )
                 }
             }
@@ -87,16 +53,6 @@ class UnnecessaryInheritanceRule : WUninitializedRule {
                 entryText.contentEquals("Any()") -> "Any"
                 entryText.contentEquals("Object()") -> "Object"
                 else -> null
-            }
-
-            private fun hasComment(children: ChildBuffer, from: Int, until: Int): Boolean {
-                for (i in from until until) {
-                    when (children.type(i)) {
-                        WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT, WNodeType.KDOC -> return true
-                        else -> {}
-                    }
-                }
-                return false
             }
         }
     }

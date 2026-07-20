@@ -23,12 +23,12 @@ targeted autofixes, which are lint-only, and which get dropped. Produced 2026-07
 | Catalog | F | S | T | L | X | Total |
 |---|---|---|---|---|---|---|
 | ktlint | 76 | 2 | 8 | 19 | 0 | 105 |
-| detekt | 9 | 2 | 10 | 73 | 0 | 94 |
+| detekt | 9 | 2 | 9 | 74 | 0 | 94 |
 | diktat-unique | 7 | 0 | 3 | 36 | 10 | 56 |
-| **Total** | **92** | **4** | **21** | **128** | **10** | **255** |
+| **Total** | **92** | **4** | **20** | **129** | **10** | **255** |
 
 The 4 S entries collapse to **one ImportEngine** (unused-import ×2, wildcard expansion,
-unnecessary-FQN). The 21 T entries overlap across catalogs and collapse to roughly **15 unique
+unnecessary-FQN). The 20 T entries overlap across catalogs and collapse to roughly **14 unique
 fixes**. The 92 F entries are not 92 implementations — they are **one printer**.
 
 ## The printer's contract (resolves cross-catalog disagreements)
@@ -44,7 +44,7 @@ Consequences, applied consistently where the per-catalog sweeps disagreed:
 - **`modifier-order`** → **T** (token reordering, not layout).
 - **Redundant-syntax deletions** (`no-empty-class-body`, `no-unit-return`,
   `unnecessary-parentheses*`, `redundant-visibility-modifier`, `redundant-constructor-keyword`,
-  `unnecessary-backticks`, `unnecessary-inheritance`, `explicit-it-lambda-parameter`,
+  `unnecessary-backticks`, `explicit-it-lambda-parameter`,
   `empty-default-constructor`, diktat `trivial-accessors`, `long-numerical-values`,
   `range-conventional`) → **T**.
 - **Semicolons and trailing commas** → **F** (the explicitly whitelisted token exceptions,
@@ -220,7 +220,7 @@ simplification the one-formatter decision buys. No per-rule format toggles exist
 | trim-multiline-raw-string | L | adding trimIndent changes runtime string value |
 | unnecessary-backticks | T | removing useless backticks is safe mechanical |
 | unnecessary-fully-qualified-name | S | resolution-powered FQN-to-import rewrite (ImportEngine) |
-| unnecessary-inheritance | T | deleting `: Any()` is trivially safe |
+| unnecessary-inheritance | L | matches detekt's own rule, which ships no autofix |
 | unnecessary-parentheses | T | parser-verified useless parens, safe removal |
 | unused-import | S | resolution-powered unused-import removal (ImportEngine) |
 | unused-parameter | L | dead-code signal; deletion changes API, report only |
