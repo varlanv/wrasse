@@ -54,6 +54,38 @@ class WrassePlugin(
             return emptyList()
         }
 
+        return runCatching { checkFileOrThrow(filePath, source, resolvedUsage) }
+            .getOrElse { failure -> internalFailureReports(filePath, failure) }
+    }
+
+    /**
+     * A wrasse bug (a rule/engine/printer throwing) must never cost the user their build — see
+     * design.md §12's D24 amendment to D18. On catch: this file's entire in-progress
+     * [ViolationReport] list and [com.varlanv.wrasse.model.EditPlan] are discarded (never
+     * partially applied or partially reported) in favor of one attributed warning, and the
+     * compile proceeds so kotlinc's own checkers still run and report normally.
+     */
+    private fun internalFailureReports(filePath: Path, failure: Throwable): List<ViolationReport> {
+        if (fixOutputDir != null) {
+            mergeAndWritePatchFile(fixOutputDir, filePath.toString(), null)
+        }
+        val exceptionType = failure::class.simpleName ?: failure.javaClass.name
+        return listOf(
+            ViolationReport(
+                message = "wrasse internal error while checking this file " +
+                    "($exceptionType: ${failure.message}); wrasse results for this file were skipped",
+                startOffset = 0,
+                endOffset = 0,
+                level = RuleLevel.WARN,
+            )
+        )
+    }
+
+    private fun checkFileOrThrow(
+        filePath: Path,
+        source: KtLightSourceElement,
+        resolvedUsage: ((collectQualifiedUsages: Boolean) -> WResolvedUsage)?,
+    ): List<ViolationReport> {
         val suppressionCollector = SuppressionCollectorRule()
         val alwaysOn = mutableListOf<WRule>(suppressionCollector)
         var docBuilder: DocBuilder? = null

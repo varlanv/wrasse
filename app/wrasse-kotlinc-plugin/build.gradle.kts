@@ -13,6 +13,7 @@ dependencies {
     implementation(projects.libs.wrasseLang)
     compileOnly(libs.kotlin.compiler.embeddable)
     compileOnly(libs.kotlin.reflect)
+    testImplementation(libs.kotlin.compiler.embeddable)
 }
 
 publishing {

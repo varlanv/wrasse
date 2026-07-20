@@ -1997,6 +1997,32 @@ information. Statuses: Accepted · Rejected · Superseded.
 - **D18 — EditPlan + keep edit-list format; bundle format rejected · Accepted 2026-07-18.** §5.2,
   §5.4. The bundle's claimed benefit (no overlap detection) was backwards — overlap detection is
   an invariant checker, now run earlier (compile time), not removed.
+  - **D24 — amends D18: an invariant violation is now a per-file warning, not a compile-killing
+    throw · Accepted 2026-07-20.** D18's "fail loudly at compile time" was implemented as an
+    uncaught `check(...)` in `EditPlan.finalEdits()` (and a sibling one in
+    `WrassePlugin.checkFile`'s ancestor-containment guard), which propagates out of the FIR
+    checker; kotlinc's own top-level handler turns that into an opaque `INTERNAL_ERROR` diagnostic
+    and kills the *entire* compile, including the compiler's own unrelated diagnostics for that
+    file and every other file in the module (reproduced and recorded in §14's now-superseded
+    wave-2-installment-7 entry). That is strictly worse than any other wrasse bug class: a rule
+    that reports a wrong offset or a bad edit at worst corrupts one file's fix; this killed the
+    build. `WrassePlugin.checkFile` now wraps its entire per-file body (walk, rule dispatch, edit
+    collection, printer/`DocBuilder` render, and `EditPlan.finalEdits()` itself) in one
+    `runCatching`, so this invariant check is caught exactly like any other wrasse bug: reported
+    as a single `RuleLevel.WARN` `ViolationReport` naming the exception type and message, this
+    file's diagnostics and edits are discarded wholesale (never partially applied), and the compile
+    proceeds — kotlinc's own checkers still run for this file and every other file. The loud-
+    failure *intent* survives in the message, not in killing the build: the overlap check's
+    existing rule-attributed text (`"EditPlan: overlapping edits from rule '<id>' (...) and rule
+    '<id>' (...)"`) is the exception's own message, so it flows into the warning verbatim — nothing
+    about *which* two rules collided is lost, only the ability to take down the user's build over
+    it. Rule/engine attribution beyond what the triggering exception's own message happens to carry
+    is deliberately not attempted: the SAX walk (`LightTreeStreamAdapter`) dispatches many rules per
+    leaf/node with no per-call bookkeeping today, and adding a "currently dispatching rule" write
+    before every dispatch call, across every rule kind, purely to attribute a hopefully-rare crash,
+    is overhead on the hot path for a benefit the exception's own message/type/stacktrace already
+    covers well enough to diagnose — guessing an attribution from stale state would risk being
+    wrong, which is worse than omitting it.
 - **D19 — Idempotence as a harness-enforced invariant, gating Phase B · Accepted 2026-07-18.** §5.1.
 - **D20 — Rules instantiated per file · Accepted 2026-07-18.** §4. Removes the data race if
   kotlinc parallelizes checkers; decided now because EditPlan adds more per-file state.
@@ -3725,4 +3751,30 @@ repo's own `format`-disabled `wrasse.json`, unaffected by this slice).
   bearing for genuine rule bugs; this entry's specific crash is now covered by a passing
   `modifier-order-visibility-combined/crash-repro-error` fixture (previously left un-fixture-tested
   on purpose, per this entry's own "no fixture for a permanently red case" reasoning — now that it
-  passes, it is a real regression test instead).
+  passes, it is a real regression test instead). Superseded by D24 (§12, 2026-07-20): had this
+  overlap still been reachable today, it would no longer take the whole compile down with it —
+  `WrassePlugin.checkFile` now catches any `Throwable` from wrasse's own code per file, so the same
+  `check(...)` failure this entry describes now surfaces as one `RuleLevel.WARN` diagnostic
+  carrying this exact overlap message, with the file's own wrasse output skipped and the rest of
+  the compile (including kotlinc's own diagnostics) unaffected.
+- **Found while building D24's isolation tests (2026-07-20), not fixed, not wrasse's bug: a
+  `warn`-level wrasse diagnostic is silently dropped by kotlinc whenever the same compile also
+  carries any `error`-severity diagnostic — even on a different file.** Reproduced two ways: (1)
+  directly against the production single-registrar harness with `no-semicolons` at `level: warn`
+  on a file that also has a genuine type-mismatch error — the semicolon warning never reaches the
+  `MessageCollector`, only the type-mismatch error does, though `WrassePlugin.checkFile` computes
+  the violation correctly (confirmed by instrumenting `FirSyntacticChecker` directly); (2) the same
+  shape across two files in one compile (one `error`, one `warn`, from two different rules) — same
+  result. Flipping the same diagnostic to `error` severity makes it appear reliably (also
+  confirmed), so this is specifically a severity-mixing interaction, not an offset, ordering, or
+  message-content issue. Consequently, **D24's own internal-error warning is subject to this same
+  constraint**: if the file that crashed a wrasse rule also has a genuine compiler error, the
+  internal-error warning itself may not be visible to the user, though the compile still proceeds
+  and reports that real error normally (`COMPILATION_ERROR`, never `INTERNAL_ERROR`) — the core
+  safety property D24 exists for is unaffected, only the attribution's visibility in that specific
+  combination. `InternalFailureIsolationSpec`'s first case works around this by running two
+  compiles rather than asserting both diagnostics from one. Not investigated further: the
+  mechanism lives inside kotlinc/FIR's own diagnostic-severity handling for plugin-contributed
+  (`FirAdditionalCheckersExtension`) diagnostics, not in any wrasse-owned code path — fixing or
+  even fully explaining it would mean instrumenting K2's checker/diagnostic-reporting internals, an
+  investigation of its own rather than a contained change.
