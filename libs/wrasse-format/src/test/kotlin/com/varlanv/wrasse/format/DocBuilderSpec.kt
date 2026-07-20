@@ -21,9 +21,18 @@ import io.kotest.matchers.shouldBe
  */
 class DocBuilderSpec : BaseSpec({
 
-    fun formatConfig(maxLineLength: Int = 140, multilineSignatureThreshold: Int = 1) = WFormatConfig(
+    fun formatConfig(
+        maxLineLength: Int = 140,
+        multilineSignatureThreshold: Int = 1,
+        trailingCommas: Boolean = true,
+    ) = WFormatConfig(
         enabled = true,
-        style = FormatStyle(indentWidth = 4, maxLineLength = maxLineLength, multilineSignatureThreshold = multilineSignatureThreshold),
+        style = FormatStyle(
+            indentWidth = 4,
+            maxLineLength = maxLineLength,
+            multilineSignatureThreshold = multilineSignatureThreshold,
+            trailingCommas = trailingCommas,
+        ),
         ruleConfig = WrasseRuleConfig(level = RuleLevel.ERROR, exclude = emptyList(), effectiveLevel = RuleLevel.ERROR),
     )
 
@@ -360,7 +369,7 @@ class DocBuilderSpec : BaseSpec({
         argumentList(builder, ctx, listOf("veryLongArgOne", "veryLongArgTwo"))
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "(\n    veryLongArgOne,\n    veryLongArgTwo\n)"
+        render(builder, ctx) shouldBe "(\n    veryLongArgOne,\n    veryLongArgTwo,\n)"
     }
 
     should("preserve an existing trailing comma without inserting a duplicate break before the closing paren") {
@@ -380,6 +389,54 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
         render(builder, ctx) shouldBe "(\n    veryLongArgOne,\n)"
+    }
+
+    should("drop an existing trailing comma when joining an argument list back onto one line") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "a")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(a)"
+    }
+
+    should("never emit a trailing comma when FormatStyle.trailingCommas is disabled, even for a broken argument list") {
+        val builder = DocBuilder(formatConfig(maxLineLength = 15, trailingCommas = false))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        argumentList(builder, ctx, listOf("veryLongArgOne", "veryLongArgTwo"))
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(\n    veryLongArgOne,\n    veryLongArgTwo\n)"
+    }
+
+    should("strip an existing trailing comma when FormatStyle.trailingCommas is disabled") {
+        val builder = DocBuilder(formatConfig(maxLineLength = 15, trailingCommas = false))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "veryLongArgOne")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(\n    veryLongArgOne\n)"
     }
 
     should("report no edit and no diagnostic when the rendered output already equals the source") {
@@ -880,7 +937,7 @@ class DocBuilderSpec : BaseSpec({
         funWithParameters(builder, ctx, listOf("a" to "Int", "b" to "Int"))
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "fun f(\n    a: Int,\n    b: Int\n)"
+        render(builder, ctx) shouldBe "fun f(\n    a: Int,\n    b: Int,\n)"
     }
 
     should("keep a FUN's own parameter list flat below the threshold when it fits") {
@@ -924,7 +981,7 @@ class DocBuilderSpec : BaseSpec({
         funWithParameters(builder, ctx, listOf("a" to "Int", "b" to "Int"))
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "fun f(\n    a: Int,\n    b: Int\n)"
+        render(builder, ctx) shouldBe "fun f(\n    a: Int,\n    b: Int,\n)"
     }
 
     should("leave a non-FUN parameter list untouched regardless of parameter count or threshold") {
@@ -960,7 +1017,7 @@ class DocBuilderSpec : BaseSpec({
         }
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "fun f(a: Int, // note\nb: Int)"
+        render(builder, ctx) shouldBe "fun f(a: Int, // note\nb: Int,)"
     }
 
     should("force a FUN's parameter list multiline when one parameter's own text already spans multiple lines") {
@@ -978,7 +1035,104 @@ class DocBuilderSpec : BaseSpec({
         }
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "fun f(\n    message: \"\"\"\nhi\n\"\"\"\n)"
+        render(builder, ctx) shouldBe "fun f(\n    message: \"\"\"\nhi\n\"\"\",\n)"
+    }
+
+    should("add a static trailing comma to an already multi-line type parameter list") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LT, "<")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_PARAMETER })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "T")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_PARAMETER })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.GT, ">")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "<\nT,\n>"
+    }
+
+    should("remove a stray trailing comma from a single-line type parameter list") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LT, "<")
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_PARAMETER })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "T")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_PARAMETER })
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.GT, ">")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "<T>"
+    }
+
+    should("add a static trailing comma to an already multi-line destructuring declaration") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.DESTRUCTURING_DECLARATION })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.DESTRUCTURING_DECLARATION_ENTRY })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "a")
+        builder.exitNode(ctx.apply { type = WNodeType.DESTRUCTURING_DECLARATION_ENTRY })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.DESTRUCTURING_DECLARATION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(\na,\n)"
+    }
+
+    should("add a static trailing comma to an already multi-line constructor parameter list") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        valueParameter(builder, ctx, "a", "Int")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(\n    a: Int,\n)"
+    }
+
+    should("bail on a subject-less when's entry, never inserting a comma a guard-free grammar wouldn't allow") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN })
+        leaf(builder, ctx, WNodeType.KW_WHEN, "when")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "flag")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.ARROW, "->")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "yes")
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "when {\n    flag\n    -> yes\n}"
     }
 })
 

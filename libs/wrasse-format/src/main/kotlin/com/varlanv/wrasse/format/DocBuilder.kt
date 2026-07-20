@@ -112,8 +112,10 @@ class DocBuilder(
      * chain flattening for a dot/safe-access link ([resolveChainFrame]), operator placement for a
      * binary expression ([resolveBinaryFrame]), argument wrapping for a call's argument list
      * ([resolveArgumentListFrame]), parameter wrapping for a function's own parameter list
-     * ([resolveValueParameterListFrame]), or the brace/indent-scope handling every other node
-     * shares ([resolveBraceFrame]).
+     * ([resolveValueParameterListFrame]), the trailing-comma-only decision for a generic list
+     * ([resolveAngleListFrame]), a destructuring declaration ([resolveDestructuringFrame]), or a
+     * `when`-entry's own condition list ([resolveWhenEntryFrame]), or the brace/indent-scope
+     * handling every other node shares ([resolveBraceFrame]).
      */
     private fun resolveFrame(frame: Frame, start: Int, end: Int, parentType: WNodeType?): Doc = when (frame.type) {
         WNodeType.DOT_QUALIFIED_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION ->
@@ -125,6 +127,12 @@ class DocBuilder(
         WNodeType.VALUE_ARGUMENT_LIST -> resolveArgumentListFrame(frame, start, end)
 
         WNodeType.VALUE_PARAMETER_LIST -> resolveValueParameterListFrame(frame, start, end, parentType)
+
+        WNodeType.TYPE_PARAMETER_LIST, WNodeType.TYPE_ARGUMENT_LIST -> resolveAngleListFrame(frame, start, end)
+
+        WNodeType.DESTRUCTURING_DECLARATION -> resolveDestructuringFrame(frame, start, end)
+
+        WNodeType.WHEN_ENTRY -> resolveWhenEntryFrame(frame, start, end)
 
         WNodeType.PREFIX_EXPRESSION, WNodeType.POSTFIX_EXPRESSION -> resolveUnaryFrame(frame, start, end)
 
@@ -216,6 +224,7 @@ class DocBuilder(
         is Doc.Indent -> isEmptyDoc(doc.body)
         is Doc.Group -> isEmptyDoc(doc.body)
         is Doc.Break -> false
+        is Doc.TrailingComma -> false
     }
 
     private fun normalizeLambdaHead(children: List<ChildEntry>): List<ChildEntry> {
@@ -489,6 +498,7 @@ class DocBuilder(
     private fun hasOwnIndentScope(doc: Doc): Boolean = when (doc) {
         is Doc.Text -> false
         is Doc.Break -> doc.kind == BreakKind.HARD
+        is Doc.TrailingComma -> false
         is Doc.Indent -> hasOwnIndentScope(doc.body)
         is Doc.Group -> hasOwnIndentScope(doc.body)
         is Doc.Concat -> doc.parts.any { hasOwnIndentScope(it) }
@@ -500,7 +510,9 @@ class DocBuilder(
      * list inside a long broken chain can still render flat. Break points: right after `(`, right
      * after every comma with another argument following it, and right before `)`. A pre-existing
      * trailing comma gets no break of its own, since the closing break already lands right after
-     * it. An existing trailing comma is preserved as-is; this never inserts one.
+     * it; its own text is replaced by [addDynamicTrailingComma]'s [Doc.TrailingComma], so its
+     * presence in the rendered output follows this same [Doc.Group]'s own broken-vs-flat choice
+     * rather than the source.
      */
     private fun resolveArgumentListFrame(frame: Frame, start: Int, end: Int): Doc {
         val children = frame.children
@@ -516,13 +528,14 @@ class DocBuilder(
 
         val lparDoc = resolveEntry(children[lparIdx])
         val rparDoc = resolveEntry(children[rparIdx])
+        val trailingCommaIdx = trailingCommaIndex(children, lparIdx + 1, rparIdx)
 
         val interior = ArrayList<Doc>()
         interior.add(wsBreakAt(children, lparIdx + 1, lparDoc.end, flat = ""))
         var i = lparIdx + 1
         while (i < rparIdx) {
             val entry = children[i]
-            if (entry.type == WNodeType.WHITE_SPACE) {
+            if (entry.type == WNodeType.WHITE_SPACE || i == trailingCommaIdx) {
                 i++
                 continue
             }
@@ -533,6 +546,7 @@ class DocBuilder(
             }
             i++
         }
+        addDynamicTrailingComma(interior, children, trailingCommaIdx)
 
         val interiorDoc = Doc.Concat(interior, interior.first().start, interior.last().end)
         val closingBreak = wsBreakAt(children, rparIdx - 1, rparDoc.start, flat = "")
@@ -540,6 +554,30 @@ class DocBuilder(
     }
 
     private fun Int.isWs(children: List<ChildEntry>): Boolean = children[this].type == WNodeType.WHITE_SPACE
+
+    /**
+     * Index of the trailing comma in `children[fromIdx until closeIdx]` — a [WNodeType.COMMA]
+     * followed by nothing but whitespace before `closeIdx` — or `null` if there is none.
+     */
+    private fun trailingCommaIndex(children: List<ChildEntry>, fromIdx: Int, closeIdx: Int): Int? =
+        (fromIdx until closeIdx).lastOrNull {
+            children[it].type == WNodeType.COMMA && !hasNonWsBetween(children, it + 1, closeIdx)
+        }
+
+    /**
+     * Appends [Doc.TrailingComma] right after [interior]'s last element when
+     * [FormatStyle.trailingCommas] is enabled: its span reuses [trailingCommaIdx]'s original comma
+     * when one already sits at the trailing position, or a zero-width point at the last element's
+     * end otherwise. [Layout] alone decides whether it renders, from the enclosing [Doc.Group]'s
+     * chosen mode — this is the comma-iff-broken mechanism for a fit-driven or threshold-forced
+     * list, so a single call site covers both the always-broken and the fits-dependent case.
+     */
+    private fun addDynamicTrailingComma(interior: MutableList<Doc>, children: List<ChildEntry>, trailingCommaIdx: Int?) {
+        if (!style.trailingCommas) return
+        val anchor = interior.lastOrNull() ?: return
+        val existing = trailingCommaIdx?.let { (children[it] as ChildEntry.Resolved).doc }
+        interior.add(Doc.TrailingComma(existing?.start ?: anchor.end, existing?.end ?: anchor.end))
+    }
 
     private fun hasNonWsBetween(children: List<ChildEntry>, from: Int, until: Int): Boolean =
         (from until until).any { children[it].type != WNodeType.WHITE_SPACE }
@@ -579,13 +617,14 @@ class DocBuilder(
 
         val lparDoc = resolveEntry(children[lparIdx])
         val rparDoc = resolveEntry(children[rparIdx])
+        val trailingCommaIdx = trailingCommaIndex(children, lparIdx + 1, rparIdx)
 
         val interior = ArrayList<Doc>()
         interior.add(wsBreakAt(children, lparIdx + 1, lparDoc.end, flat = "", kind = breakKind))
         var i = lparIdx + 1
         while (i < rparIdx) {
             val entry = children[i]
-            if (entry.type == WNodeType.WHITE_SPACE) {
+            if (entry.type == WNodeType.WHITE_SPACE || i == trailingCommaIdx) {
                 i++
                 continue
             }
@@ -596,6 +635,7 @@ class DocBuilder(
             }
             i++
         }
+        addDynamicTrailingComma(interior, children, trailingCommaIdx)
 
         val interiorDoc = Doc.Concat(interior, interior.first().start, interior.last().end)
         val closingBreak = wsBreakAt(children, rparIdx - 1, rparDoc.start, flat = "", kind = breakKind)
@@ -603,34 +643,132 @@ class DocBuilder(
     }
 
     /**
-     * The pre-existing verbatim/spacing-only handling for a [WNodeType.VALUE_PARAMETER_LIST]:
-     * wraps the interior in one [Doc.Indent] and dedents the line holding its own closing `)` when
-     * the list already spans multiple lines, mirroring [resolveBraceFrame]'s own placement for a
-     * closing `}`; a single-line list is an ordinary [Doc.Concat] with no indent scope of its own.
+     * The pre-existing verbatim/spacing-only handling for a [WNodeType.VALUE_PARAMETER_LIST] not
+     * owned by a [WNodeType.FUN]: a constructor's, a [WNodeType.FUNCTION_TYPE]'s, or a lambda's own
+     * list first gets the same static trailing-comma decision as
+     * [resolveAngleListFrame]/[resolveDestructuringFrame] ([applyTrailingComma], keyed on the
+     * list's own already-existing multi-line-ness, since none of these are ever reflowed; a
+     * lambda's own list has no [WNodeType.RPAR] of its own, so [closeIdx] falls back to the list's
+     * own child count). It then wraps the interior in one [Doc.Indent] and dedents the line holding
+     * its own closing `)` when the list already spans multiple lines, mirroring
+     * [resolveBraceFrame]'s own placement for a closing `}`; a single-line list is an ordinary
+     * [Doc.Concat] with no indent scope of its own.
      */
     private fun passthroughParameterList(children: List<ChildEntry>, start: Int, end: Int): Doc {
         if (children.isEmpty()) return Doc.Concat(emptyList(), start, end)
 
-        val lastIndex = children.size - 1
+        val rparIdx = children.indexOfLast { it.type == WNodeType.RPAR }
+        val closeIdx = if (rparIdx >= 0) rparIdx else children.size
+        val adjusted = applyTrailingComma(children, 0, closeIdx)
+
+        val lastIndex = adjusted.size - 1
         val dedentIndex = lastIndex - 1
-        val opensIndentScope = children[lastIndex].type == WNodeType.RPAR &&
-            dedentIndex >= 0 && children[dedentIndex] is ChildEntry.Ws
+        val opensIndentScope = adjusted[lastIndex].type == WNodeType.RPAR &&
+            dedentIndex >= 0 && adjusted[dedentIndex] is ChildEntry.Ws
         if (!opensIndentScope) {
-            return Doc.Concat(normalizeChildren(children, WNodeType.VALUE_PARAMETER_LIST), start, end)
+            return Doc.Concat(normalizeChildren(adjusted, WNodeType.VALUE_PARAMETER_LIST), start, end)
         }
 
-        val innerParts = normalizeChildren(children.subList(0, dedentIndex), WNodeType.VALUE_PARAMETER_LIST)
+        val innerParts = normalizeChildren(adjusted.subList(0, dedentIndex), WNodeType.VALUE_PARAMETER_LIST)
         val innerStart = innerParts.firstOrNull()?.start ?: start
         val innerEnd = innerParts.lastOrNull()?.end ?: start
         val parts = mutableListOf<Doc>(Doc.Indent(Doc.Concat(innerParts, innerStart, innerEnd)))
-        parts.add(clampWs(children[dedentIndex] as ChildEntry.Ws, newlineCount = 1))
-        parts.add(resolveEntry(children[lastIndex]))
+        parts.add(clampWs(adjusted[dedentIndex] as ChildEntry.Ws, newlineCount = 1))
+        parts.add(resolveEntry(adjusted[lastIndex]))
         return Doc.Concat(parts, start, end)
     }
+
+    /**
+     * A [WNodeType.TYPE_PARAMETER_LIST]'s or [WNodeType.TYPE_ARGUMENT_LIST]'s own closing
+     * [WNodeType.GT] anchors [applyTrailingComma]; everything else about the list (spacing,
+     * verbatim line breaks) is unchanged, delegated to [resolveBraceFrame].
+     */
+    private fun resolveAngleListFrame(frame: Frame, start: Int, end: Int): Doc {
+        val closeIdx = frame.children.indexOfFirst { it.type == WNodeType.GT }
+        if (closeIdx < 0) return resolveBraceFrame(frame, start, end)
+        return resolveBraceFrame(rebuildFrame(frame, applyTrailingComma(frame.children, 0, closeIdx)), start, end)
+    }
+
+    /**
+     * A [WNodeType.DESTRUCTURING_DECLARATION]'s own closing [WNodeType.RPAR] anchors
+     * [applyTrailingComma].
+     */
+    private fun resolveDestructuringFrame(frame: Frame, start: Int, end: Int): Doc {
+        val closeIdx = frame.children.indexOfLast { it.type == WNodeType.RPAR }
+        if (closeIdx < 0) return resolveBraceFrame(frame, start, end)
+        return resolveBraceFrame(rebuildFrame(frame, applyTrailingComma(frame.children, 0, closeIdx)), start, end)
+    }
+
+    /**
+     * A [WNodeType.WHEN_ENTRY]'s own [WNodeType.ARROW] anchors [applyTrailingComma] over its
+     * condition list, bailing entirely for: an `else` entry; an entry whose enclosing `when` has
+     * no parenthesized subject ([hasSubject]) — a subject-less entry's grammar has no comma
+     * production at all, so inserting one would break compilation; or an entry containing a
+     * structurally-unrecognized child ([WNodeType.UNKNOWN] — a guard clause has no [WNodeType] of
+     * its own, so this is the only way to detect one). In all three cases the entry is left
+     * untouched.
+     */
+    private fun resolveWhenEntryFrame(frame: Frame, start: Int, end: Int): Doc {
+        val children = frame.children
+        val arrowIdx = children.indexOfFirst { it.type == WNodeType.ARROW }
+        val hasSubject = frames.lastOrNull()?.children?.any { it.type == WNodeType.LPAR } == true
+        val bail = arrowIdx < 0 || !hasSubject ||
+            (0 until arrowIdx).any { children[it].type == WNodeType.KW_ELSE || children[it].type == WNodeType.UNKNOWN }
+        val adjusted = if (bail) children else applyTrailingComma(children, 0, arrowIdx)
+        return resolveBraceFrame(rebuildFrame(frame, adjusted), start, end)
+    }
+
+    private fun rebuildFrame(frame: Frame, children: List<ChildEntry>): Frame =
+        Frame(frame.type).also { it.children.addAll(children) }
+
+    /**
+     * The static trailing-comma decision for a list [resolveBraceFrame] renders verbatim (never
+     * reflowed): present when [FormatStyle.trailingCommas] is enabled and any child in
+     * `children[fromIdx until closeIdx]` already spans multiple lines ([isMultilineEntry]), absent
+     * otherwise — inserted or removed once, here, at build time (unlike
+     * [addDynamicTrailingComma]'s per-render decision for a list the printer actually reflows).
+     * `closeIdx` need not be a real delimiter's own index — a lambda's own parameter list has none
+     * of its own, so callers pass `children.size` to mean "right after the last child".
+     */
+    private fun applyTrailingComma(children: List<ChildEntry>, fromIdx: Int, closeIdx: Int): List<ChildEntry> {
+        val hasContent = (fromIdx until closeIdx).any {
+            children[it].type != WNodeType.COMMA && !isPlainWhitespace(children[it]) && children[it] !is ChildEntry.Ws
+        }
+        if (!hasContent) return children
+
+        val existingIdx = trailingCommaIndex(children, fromIdx, closeIdx)
+        if (!style.trailingCommas) {
+            return if (existingIdx != null) removeTrailingComma(children, existingIdx) else children
+        }
+        val multiline = (fromIdx until closeIdx).any { isMultilineEntry(children[it]) }
+        return when {
+            multiline && existingIdx == null -> insertTrailingComma(children, closeIdx)
+            !multiline && existingIdx != null -> removeTrailingComma(children, existingIdx)
+            else -> children
+        }
+    }
+
+    private fun isMultilineEntry(entry: ChildEntry): Boolean = when (entry) {
+        is ChildEntry.Ws -> true
+        is ChildEntry.Resolved -> spansMultipleLines(entry.doc)
+    }
+
+    private fun insertTrailingComma(children: List<ChildEntry>, closeIdx: Int): List<ChildEntry> {
+        val lastContentIdx = (0 until closeIdx).lastOrNull {
+            children[it].type != WNodeType.COMMA && !isPlainWhitespace(children[it]) && children[it] !is ChildEntry.Ws
+        } ?: return children
+        val anchor = (children[lastContentIdx] as ChildEntry.Resolved).doc.end
+        val comma = ChildEntry.Resolved(WNodeType.COMMA, Doc.Text(",", anchor, anchor))
+        return children.toMutableList().also { it.add(lastContentIdx + 1, comma) }
+    }
+
+    private fun removeTrailingComma(children: List<ChildEntry>, existingIdx: Int): List<ChildEntry> =
+        children.toMutableList().also { it.removeAt(existingIdx) }
 
     private fun spansMultipleLines(doc: Doc): Boolean = when (doc) {
         is Doc.Text -> doc.value.contains('\n')
         is Doc.Break -> doc.kind == BreakKind.HARD
+        is Doc.TrailingComma -> false
         is Doc.Indent -> spansMultipleLines(doc.body)
         is Doc.Group -> spansMultipleLines(doc.body)
         is Doc.Concat -> doc.parts.any { spansMultipleLines(it) }

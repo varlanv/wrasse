@@ -2,7 +2,7 @@ package sample
 
 fun compute(
     a: Int, // keep this comment
-    b: Int
+    b: Int,
 ): Int {
     val sum = a + b
 

@@ -1,0 +1,12 @@
+package sample
+
+fun f(a: Int, b: Int) {}
+
+fun demo() {
+    f(
+        1,
+        2,
+    )
+}
+
+// expect-error 1:1 format "File is not wrasse-formatted"

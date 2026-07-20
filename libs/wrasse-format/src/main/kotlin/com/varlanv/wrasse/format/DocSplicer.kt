@@ -207,6 +207,7 @@ object DocSplicer {
             return when (node) {
                 is Doc.Text -> splitText(node)
                 is Doc.Break -> splitBreak(node)
+                is Doc.TrailingComma -> null
                 is Doc.Indent -> rec(node.body)?.let { Doc.Indent(it) }
                 is Doc.Group -> rec(node.body)?.let { Doc.Group(it) }
                 is Doc.Concat -> {

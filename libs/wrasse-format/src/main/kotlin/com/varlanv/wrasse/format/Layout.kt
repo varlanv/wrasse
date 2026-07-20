@@ -40,6 +40,14 @@ object Layout {
 
             is Doc.Break -> renderBreak(sb, doc, indentDepth, column, mode, style)
 
+            is Doc.TrailingComma -> when (mode) {
+                Mode.FLAT -> column
+                Mode.BROKEN -> {
+                    sb.append(',')
+                    column + 1
+                }
+            }
+
             is Doc.Group -> {
                 val flatWidth = flatWidth(doc.body)
                 val chosenMode = if (flatWidth != null && column + flatWidth <= style.maxLineLength) Mode.FLAT else Mode.BROKEN
@@ -87,6 +95,7 @@ object Layout {
     private fun flatWidth(doc: Doc): Int? = when (doc) {
         is Doc.Text -> if (doc.value.contains('\n')) null else doc.value.length
         is Doc.Break -> if (doc.kind == BreakKind.HARD) null else doc.flat.length
+        is Doc.TrailingComma -> 0
         is Doc.Indent -> flatWidth(doc.body)
         is Doc.Group -> flatWidth(doc.body)
         is Doc.Concat -> {

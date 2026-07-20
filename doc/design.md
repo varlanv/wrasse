@@ -3957,7 +3957,9 @@ count-based half opted into per-project.
   `resolveArgumentListFrame` already does for call sites); a source that already had a trailing comma
   keeps it, since a comma already followed by nothing but whitespace gets no break of its own
   (doubling-up avoided the same way). Trailing-comma *insertion* remains a later slice's job
-  (`FormatStyle.trailingCommas` stays unconsumed).
+  (`FormatStyle.trailingCommas` stays unconsumed). **Resolved in Phase C.8** — comma presence for
+  this exact list now follows the group's own broken-vs-flat choice (`Doc.TrailingComma`), so a
+  source's own choice no longer matters at all.
 
 **Existing-fixture changes:** none required a `.fixed.kt` update. Six directories
 (`bracing-format-on`, `format-blank-lines`, `format-indentation`, `format-line-breaks`,
@@ -3992,6 +3994,165 @@ plus Part 1's 1 plus Part 2's 8 — zero failures; `wrasseLint` exercises the re
 this repo's own `format`-disabled `wrasse.json`, unaffected by this slice). `ktlint` checkout used for
 ground truth confirmed byte-clean (`git status`) throughout — read-only; `detekt` was not needed for
 this slice.
+
+#### Phase C.8 — Trailing-comma emission — **done 2026-07-21**
+
+`FormatStyle.trailingCommas` (D21, previously unconsumed) becomes real behavior: the printer now
+adds or removes a trailing comma on every multi-line list construct it recognizes, keyed off that
+one flag rather than hardcoded on. Ground-truthed against the local `ktlint` checkout's
+`trailing-comma-on-declaration-site`/`trailing-comma-on-call-site` rules (source + tests, read-only,
+confirmed byte-clean via `git status` throughout, never the internet); the checkout's own construct
+lists, per-construct multi-line definitions, and bail conditions are mirrored below, not ported
+verbatim (a later slice backfills tests directly from that source).
+
+**Mechanism — two mechanisms, not one, depending on whether the printer already reflows the list:**
+
+1. **Comma-iff-broken (dynamic), one new `Doc` node.** For the two constructs C.4/C.7 already
+   wrap in a `Doc.Group`/`Doc.Indent` and can join or break based on fit (`VALUE_ARGUMENT_LIST`,
+   and a `FUN`'s own `VALUE_PARAMETER_LIST`), the trailing comma's presence must follow *that same
+   group's* eventual flat-vs-broken choice, not a decision made when the `Doc` tree is built —
+   `Layout` renders the Group before the answer exists. New leaf `Doc.TrailingComma(start, end)`
+   (`Doc.kt`): `Layout.renderNode` appends `,` when the enclosing mode is `BROKEN`, nothing when
+   `FLAT` — the same `mode`-threading `Doc.Break`'s `flat`/broken split already uses, so no new
+   plumbing; `Layout.flatWidth` counts it as `0`, so it never affects a fits-check (a would-be comma
+   never makes an otherwise-fitting line "not fit"). `resolveArgumentListFrame`/
+   `resolveValueParameterListFrame`'s interior-building loop (`DocBuilder.kt`) now detects the
+   existing trailing comma's index (`trailingCommaIndex` — a `COMMA` with nothing but whitespace
+   before the closer), skips emitting it as literal text, and appends one `Doc.TrailingComma`
+   (`addDynamicTrailingComma`) reusing that comma's own span if one existed, or a zero-width point
+   right after the last element otherwise. One node, one mechanism, covers both the `HARD` (count-
+   or content-forced, C.7) and `SOFT` (fit-dependent) break-kind cases uniformly — no special-casing
+   needed for "statically-known-broken", since `Doc.TrailingComma`'s `BROKEN` rendering already
+   covers a `HARD`-forced group (whose `flatWidth` is always `null`) for free.
+2. **Static (build-time), for every list the printer renders verbatim.** `TYPE_PARAMETER_LIST`,
+   `TYPE_ARGUMENT_LIST`, `DESTRUCTURING_DECLARATION`, `WHEN_ENTRY`'s condition list, and a non-`FUN`
+   `VALUE_PARAMETER_LIST` (constructor, `FUNCTION_TYPE`, lambda) are never reflowed — `Layout` never
+   decides a break for them, so their comma decision can be made once, at `DocBuilder` build time,
+   from the construct's own already-fixed multi-line-ness. Shared helper `applyTrailingComma(children,
+   fromIdx, closeIdx)`: multi-line iff any child in that range already carries a hard break or an
+   embedded multi-line `Text` (`isMultilineEntry`, reusing the existing `spansMultipleLines`); if
+   multi-line and no trailing comma exists, splice in a synthetic `ChildEntry.Resolved(COMMA, ...)`
+   right after the last real element (`insertTrailingComma`); if single-line and one exists, drop
+   that `ChildEntry` (`removeTrailingComma`) and let the pre-existing `normalizeChildren` spacing
+   table (already flush against `RPAR`/`GT`) clean up the gap — no new spacing rule needed.
+   `closeIdx` need not be a real delimiter's index: a lambda's own parameter list has no `RPAR` of
+   its own (`{ a, b -> }`), so its call site passes `children.size`, reusing the identical function.
+
+**Dispatch (`resolveFrame`):** `TYPE_PARAMETER_LIST`/`TYPE_ARGUMENT_LIST` → `resolveAngleListFrame`
+(anchor: the list's own `GT`); `DESTRUCTURING_DECLARATION` → `resolveDestructuringFrame` (anchor:
+its own `RPAR`); `WHEN_ENTRY` → `resolveWhenEntryFrame` (anchor: its own `ARROW`); all three
+preprocess `frame.children` via `applyTrailingComma` then delegate to the pre-existing
+`resolveBraceFrame` for everything else (spacing, verbatim line breaks — unchanged). A non-`FUN`
+`VALUE_PARAMETER_LIST` gets the same treatment inside the pre-existing `passthroughParameterList`
+fallback, so a comment-bailed `FUN` parameter list (C.7's own bail) *also* gets the static comma
+decision on that same fallback path — ktlint's own rule doesn't bail on comments either, since
+adding/removing one comma character is orthogonal to the wrapping decision the comment bail exists
+to protect.
+
+**Construct coverage:**
+
+| Construct | Site | Mechanism | Anchor |
+|---|---|---|---|
+| `VALUE_ARGUMENT_LIST` | call | dynamic | own `RPAR` |
+| `VALUE_PARAMETER_LIST` (parent `FUN`) | declaration | dynamic | own `RPAR` |
+| `VALUE_PARAMETER_LIST` (parent constructor/`FUNCTION_TYPE`/lambda) | declaration | static | own `RPAR`, or list end for a lambda |
+| `TYPE_PARAMETER_LIST` | declaration | static | own `GT` |
+| `TYPE_ARGUMENT_LIST` | call | static | own `GT` |
+| `DESTRUCTURING_DECLARATION` | declaration | static | own `RPAR` |
+| `WHEN_ENTRY` condition list | declaration | static | own `ARROW`, bailed per below |
+
+**Both directions, both mechanisms:** add-on-multiline and remove-on-single-line are the same
+`if (multiline && no-comma) insert else if (!multiline && comma-exists) remove` shape for the
+static path, and the same `Doc.TrailingComma` resolving to `,` or `""` for the dynamic path — there
+is no separate "removal" code path to independently get wrong.
+
+**The `FormatStyle.trailingCommas = false` case:** `addDynamicTrailingComma` no-ops entirely (no
+node emitted, so an existing source comma is dropped since it's excluded from the interior loop
+regardless) and `applyTrailingComma`'s `!style.trailingCommas` branch removes an existing comma
+unconditionally, never inserting one — the mechanism reads the flag at every call site, it is never
+assumed true. Covered by four `DocBuilderSpec` unit tests, not a fixture (the project's own default
+is always `true`; a `trailingCommas: false` fixture would need its own directory-level override for
+a case with no repo-wide use).
+
+**Preserved-not-guessed, listed:**
+- `COLLECTION_LITERAL_EXPRESSION` (an annotation's array-literal argument) and `INDICES` (`a[i, j]`)
+  — both are call-site constructs in the checkout's rule, but neither has a `WNodeType` mapping in
+  wrasse's adapter today (both resolve to `UNKNOWN`); adding the mapping is an adapter-layer change
+  out of this slice's scope, not a trailing-comma decision.
+- `CLASS` enum-entry bodies — excluded entirely, not partially. The checkout's own rule sometimes
+  needs to *insert a semicolon* alongside the comma (when other class members follow the enum
+  entries and none exists yet); the printer's own contract (§5.3) permits removing a *provably-
+  redundant* separator semicolon, never inserting a new one. Splitting the enum case into "the
+  simple sub-case that never needs a semicolon" and "the one that does" was considered and rejected
+  as an inconsistent half-rule (whether a body's trailing comma gets fixed would depend on unrelated
+  class members downstream of the entries); deferred whole, flagged for owner input alongside a
+  semicolon-insertion policy decision.
+- Lambda-parameter trailing comma is decided from the parameter list's own span alone, not the
+  checkout's tighter `[paramList, arrow]` closed range: the two are one and the same `Doc` subtree
+  in the checkout's own AST, but wrasse's single-pass `DocBuilder` resolves `VALUE_PARAMETER_LIST`
+  into one opaque `Doc` at its own `exitNode`, before `FUNCTION_LITERAL` (the parent frame) ever
+  sees the `ARROW` sibling — there is no cross-frame lookahead in a streaming builder. Consequence:
+  a lambda whose parameters are single-line but separated from the arrow by a newline
+  (`{ a, b\n    -> }`) is not detected as multi-line by wrasse, though the checkout's own rule would
+  flag it. Judged an acceptable, narrow gap given the alternative (buffering `FUNCTION_LITERAL`'s
+  children unresolved) is a materially bigger structural change for one rare source shape.
+- A comment anywhere in a `TYPE_PARAMETER_LIST`/`TYPE_ARGUMENT_LIST`/`DESTRUCTURING_DECLARATION`/
+  `WHEN_ENTRY`/non-`FUN` parameter list has no special bail at all (unlike C.7's own comment bail
+  for a `FUN`'s reflowed signature): since none of these are reflowed, a comment inside one is
+  already preserved verbatim by the pre-existing spacing-only path, and the trailing-comma decision
+  composes with that unchanged.
+
+**Existing-fixture changes**, each a direct, mechanical consequence of the policy above — a
+previously-shipped multi-line, comma-less `FUN`/call-site list now gets one (all six are the
+dynamic mechanism's `Doc.TrailingComma` resolving to `,` for the first time, not a new wrapping
+decision):
+- `format-signatures/threshold-forces-multiline-error.fixed.kt`,
+  `format-signatures/kitchen-sink-error.fixed.kt` — `c: Int` → `c: Int,` (count-threshold-forced
+  `FUN` signature).
+- `format-signatures/fit-based-force-error.fixed.kt` — `ageParameter: Int` → `ageParameter: Int,`
+  (fit-forced signature).
+- `format-signatures/multiline-parameter-content-forces-error.fixed.kt` — the closing `}` of a
+  multi-line lambda-default parameter gains a comma (`    }` → `    },`; content-forced signature).
+- `format-signatures/comment-in-parameter-list-bail-error.fixed.kt` — `b: Int` → `b: Int,`: this one
+  is the *static* mechanism (comment bail routes to `passthroughParameterList`), confirming the
+  "comment bail only blocks rewrapping, not the comma decision" design point above with a real,
+  previously-shipped fixture.
+- `format-line-breaks/argument-list-long-error.fixed.kt` — `"second argument is long"` →
+  `"second argument is long",` (fit-forced call-site argument list).
+
+No other existing fixture changed: every other `format-*`/`bracing-format-on` directory was grepped
+for a multi-line argument/parameter list, a multi-condition `when`-entry, a destructuring
+declaration, or a multi-item generic list (angle-bracket or type-argument) and none exists beyond
+the six above (`if-else-bracing`/`when-entry-bracing`'s own multi-line call-argument fixtures don't
+enable `format` at all, so `DocBuilder` never runs there — untouched by construction, not by luck).
+
+**Fixtures:** new `testing/wrasse-test-harness/.../fixtures/format-trailing-commas/` directory (own
+`wrasse.json`, `maxLineLength: 40`/`multilineSignatureThreshold: 999999` — small enough to exercise
+the dynamic mechanism's fit-driven path without the count-threshold interfering), 15 fixtures: a
+fit-driven add and a join-that-removes pair for `VALUE_ARGUMENT_LIST`; an add and a remove pair each
+for `TYPE_PARAMETER_LIST`, `DESTRUCTURING_DECLARATION`, and a `FUN`-external `VALUE_PARAMETER_LIST`
+(constructor); one add fixture each for `TYPE_ARGUMENT_LIST`, `WHEN_ENTRY`, `FUNCTION_TYPE`'s own
+parameter list, and a lambda's own parameter list (the last confirming empirically that
+`FUNCTION_TYPE`'s unnamed, type-only parameters still register as content for `applyTrailingComma`,
+without needing to assume a specific PSI shape for them); a `when-entry-no-subject-bail-clean`
+`expect-clean` fixture isolating the subject-less bail (a single reference-expression condition
+whose own line break sits between it and the `ARROW`, so nothing else in `DocBuilder` — no chain,
+no binary expression, no argument list — could confound the result); a kitchen-sink combining four
+constructs in one file; and an `already-clean` canonical file exercising all four already-correct
+states (dynamic-broken-with-comma, dynamic-flat-without-comma, static-multiline-with-comma, static-
+single-line-without-comma). All 15 fixtures' expected outputs were captured from the real compiler-
+driven harness (not hand-derived) via a temporary, since-removed scratch spec, then re-verified by
+running the committed fixture suite itself. `libs/wrasse-format/DocBuilderSpec` gained 11 unit
+tests: 4 for the dynamic mechanism (join-drops-an-existing-comma, and `trailingCommas = false`
+suppressing/stripping in both a fit-forced and a plain-broken list) and 6 for the static mechanism
+across `TYPE_PARAMETER_LIST` (add/remove), `DESTRUCTURING_DECLARATION` (add), a constructor
+`VALUE_PARAMETER_LIST` (add), and the `WHEN_ENTRY` subject-less bail, hand-built against `DocBuilder`
+directly with no compiler.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (451 fixture-spec cases per Kotlin minor —
+436 plus this slice's 15 — zero failures). `ktlint` checkout confirmed byte-clean (`git status`)
+throughout — read-only; `detekt` was not needed for this slice.
 
 ### Phase D — Hardening & release
 

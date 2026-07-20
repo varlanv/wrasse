@@ -55,6 +55,15 @@ sealed interface Doc {
 
     /** Sequences [parts] with no layout decision of its own. */
     class Concat(val parts: List<Doc>, override val start: Int = 0, override val end: Int = 0) : Doc
+
+    /**
+     * A trailing comma candidate: renders `,` when the enclosing [Group] chooses broken mode,
+     * nothing when it renders flat. [start]/[end] address the original comma's span when the
+     * source already had one at this position, or a zero-width point right after the last element
+     * otherwise; contributes zero width to [Layout]'s flat-fit measurement either way, since a
+     * flat render never emits it.
+     */
+    class TrailingComma(override val start: Int = 0, override val end: Int = 0) : Doc
 }
 
 enum class BreakKind {
