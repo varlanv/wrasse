@@ -60,6 +60,12 @@ class WPatchWriterReaderSpec : BaseSpec({
             result[0].edits[0].replacement shouldBe "a\\n\nb"
         }
 
+        should("preserve significant leading and trailing spaces in a replacement around an escaped newline") {
+            val input = FileEdits("src/E.kt", "h5", listOf(WEdit(0, 0, " {\n        body\n    } ")))
+            val result = roundTrip(input)
+            result[0].edits[0].replacement shouldBe " {\n        body\n    } "
+        }
+
         should("handle multiple edits in one file sorted descending") {
             val edits = listOf(WEdit(5, 6, ""), WEdit(20, 25, "x"), WEdit(10, 11, "y"))
             val input = FileEdits("src/D.kt", "h4", edits)

@@ -3,6 +3,11 @@ package com.varlanv.wrasse.lang
 /**
  * Parses wrasse text patch files produced by [WPatchWriter] back into [FileEdits].
  * Ignores comment lines (starting with `#`). Unescapes `\n` → newline, `\\` → backslash.
+ *
+ * Each line is used verbatim (never `trim()`-ed): a replacement's escaped payload is the tail of
+ * its `edit:` line, and leading/trailing spaces there are significant content (e.g. indentation of
+ * inserted text before a real, unescaped newline further along the same replacement) — not
+ * incidental formatting of the patch file itself, which [WPatchWriter] never indents anyway.
  */
 object WPatchReader {
 
@@ -12,8 +17,7 @@ object WPatchReader {
         var currentHash: String? = null
         var currentEdits = mutableListOf<WEdit>()
 
-        for (rawLine in input.lineSequence()) {
-            val line = rawLine.trim()
+        for (line in input.lineSequence()) {
             if (line.isEmpty() || line.startsWith("#")) continue
 
             when {

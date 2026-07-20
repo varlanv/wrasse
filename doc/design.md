@@ -2240,7 +2240,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (4/15).** Braces family,
+- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (5/15).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -2404,6 +2404,99 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   additionally relocate the annotation to the front), a comment-bail (report-only), an
   `@Suppress`-clean, an already-ordered-clean, and `fun`-interface/`value`-class clean shapes
   confirming both keywords are inert.
+  `if-else-bracing` shipped fifth — the brace-insertion family opener, and the first T-bucket fix
+  that *inserts* tokens rather than deleting/reordering them. One wrasse id for ktlint's
+  `multiline-if-else` + `if-else-bracing` and detekt's `BracesOnIfStatements`. Ground-truthed both
+  engines directly (temporary probe cases added to each upstream's own real test file — `KtLint
+  AssertThat`-based probes against the real `ktlint-rule-engine`/`ktlint-ruleset-standard` 1.8.0
+  jars for ktlint, source + `default-detekt-config.yml` reading for detekt — both checkouts left
+  byte-clean, `git status` verified). The two upstreams disagree far more than they agree:
+  - ktlint's `if-else-bracing` (restricted to `RuleV2.OfficialCodeStyle`, but `ktlint_official` is
+    itself `CodeStyleValue`'s documented default, so it is active out of the box) forces
+    *consistency* — any branch already braced forces the rest braced too, even on an otherwise
+    single-line statement (probe-confirmed: `if (true) { a() } else b()` → `else { b() }`, an
+    asymmetric single/multi-line result).
+  - ktlint's `multiline-if-else` (unconditional, no code-style gate) braces every unbraced branch
+    whenever the branch does not start on the same physical line as its condition/`else` keyword —
+    *and*, separately, unconditionally braces every branch of any `else if` chain (3+ branches)
+    regardless of line count, even a chain sitting entirely on one physical line (probe-confirmed:
+    `if (true) a() else if (false) b() else c()`, fully single-line, still gets fully braced by
+    this rule alone).
+  - detekt's `BracesOnIfStatements` ships `active: false` in `default-detekt-config.yml` — ground-
+    truthed its *own* default option values regardless (`singleLine = "never"`, `multiLine =
+    "always"`), matching the project's practice of ground-truthing an upstream's decision logic
+    under its own defaults rather than its default enablement (mirrors how every T-bucket rule so
+    far is itself off-by-default in wrasse, D9). Its policy is decided **once per outermost
+    `KtIfExpression`** (the whole chain, including any `else if` descendants, evaluated together)
+    from whether *that whole statement's own text* contains a newline anywhere — never per-branch,
+    never per-`else if`-segment. Its own real shipped test suite explicitly accepts a fully single-
+    line `else if` chain with zero braces (`"no braces are accepted"`, `singleLine = "never"`) —
+    directly contradicting ktlint's unconditional-`else if`-bracing quirk above. detekt has no
+    autocorrect mechanism at all (`BracesOnIfStatements` implements no `Correctable`-style
+    interface) — lint-only, every finding above is a "would flag", never a real fix to compare
+    output shape against.
+  Resolved by strict intersection, per the assignment's brief: wrasse only inserts braces where
+  *both* engines' defaults would actually want them added. Since detekt never fixes anything, only
+  its *lint* verdict constrains scope; ktlint's real, byte-exact formatter output is what wrasse's
+  edits are grounded in wherever both agree bracing belongs. Concretely: a currently-unbraced
+  branch gets braced if and only if (a) it is not itself an `else if` continuation (an `ELSE` whose
+  sole content is a bare `IF` — `else { if ... }` is never attempted, the branch is handled when
+  that nested `IF` is visited on its own instead) and (b) the *enclosing if/else-if/else chain's
+  own full source span* (walked up through consecutive `ELSE`/`IF` ancestor pairs to the true chain
+  head — this is what makes a locally single-line `else if` tail still get braced when some other
+  part of the same chain is multi-line, probe-confirmed against both engines) contains a newline
+  anywhere. Purely consistency-driven bracing (any-branch-already-braced forces the rest) and
+  ktlint's unconditional-`else if`-chain quirk are both deliberately **out of scope** — detekt's own
+  default never wants either, so neither is in the intersection; a fully single-line `if`/`if-else`/
+  `else if` chain of any depth is left completely untouched (no report, no fix), matching detekt's
+  own real, shipped test assertions for that shape.
+
+  Mechanically: a `WBufferedNodeRule` on `IF` reads its own direct children (`RPAR`, `THEN`,
+  `KW_ELSE`, `ELSE`, plus whitespace/comment siblings between them — confirmed via a direct dump of
+  the real LightTree structure that leading/trailing whitespace and comments around `THEN`/`ELSE`
+  are siblings at the `IF` level, never children of `THEN`/`ELSE` themselves) to locate each
+  branch's own bare-content span and the gaps around it. A branch already wrapped in `BLOCK` (first
+  content character `{`) is left alone entirely; an empty branch (`if (false) else { ... }` is
+  legal Kotlin and must never throw) is skipped the same way. For a genuine bare branch, born-clean
+  indentation is computed purely from source facts, never guessed: `baseIndentColumn` is the chain
+  head's own column (found by scanning back to the previous newline), shared by every brace in the
+  chain (locked by the `else-if-tail-single-line-in-multiline-chain-error` fixture, where the
+  locally-mid-line `else if` tail's new closing braces still align to the outermost `if`'s own
+  column, not its own); the wrapped body sits at `baseIndentColumn + indentWidth` (D21's default,
+  4, hardcoded — not yet wired as config, no rule has needed it before this one). Two edits per
+  fixed branch: the leading gap (condition's `RPAR`-end or `KW_ELSE`-end through the branch's own
+  start) becomes `" {\n" + bodyIndent`; the trailing point (or, for a `THEN` immediately followed
+  by `else`, the whole gap up to `KW_ELSE`) becomes `"\n" + closeIndent + "}"` (with a trailing
+  space folded in for the `THEN`-followed-by-`else` case, so `"} else"` lands on one line exactly
+  as ktlint's own real output does).
+
+  Bails (reported, never autofixed) whenever a comment sits anywhere in the gap around the branch
+  (established uniform-bail precedent — same posture as `no-unit-return`/`no-empty-parens-before-
+  trailing-lambda`/`modifier-order`, chosen over replicating ktlint's own per-shape comment handling
+  which a real probe showed is *not* uniformly safe: a leading same-line-as-condition or own-line
+  comment before the body gets its indentation corrupted by ktlint's real autocorrect, though a
+  trailing same-line comment after the body does not — wrasse does not attempt the distinction) or
+  whenever the branch's own bare-statement text already spans multiple lines on its own (a chained
+  call split across lines, ktlint's own real formatter output for this exact shape leaves the
+  newly-nested continuation line's indentation completely uncorrected — a genuine upstream
+  formatting gap, not something safe to replicate byte-for-byte). Both bail categories report a
+  zero-width point at the branch's own content start rather than its full span: the branch can
+  contain an independent nested `if` this same rule fixes on its own subsequent visit, and a wider
+  span would spuriously overlap that inner fix's edits under the idempotence harness's overlap-
+  based "did this diagnostic get fixed" heuristic, wrongly predicting the outer bail's diagnostic
+  should vanish in D2 when it never had an edit and is expected to persist unchanged (caught by the
+  `dangling-else-nested-error` fixture, the dedicated grammar-risk case per the assignment brief —
+  the `else` there keeps binding to the *inner* `if` after bracing, never appearing to shift toward
+  the outer one, locked by `IfElseBracingSafetySpec` across all four Kotlin minors alongside an
+  `else if`-chain compile/re-lint-clean check).
+
+  This port surfaced a real pre-existing framework bug, invisible until a fix's replacement text
+  finally carried significant leading/trailing whitespace around an escaped newline: `WPatchReader`
+  called `.trim()` on every raw patch line before parsing, silently eating that whitespace on
+  round-trip (every prior T-bucket edit's replacement was either a bare token swap or had no
+  whitespace adjacent to its field boundary, so this never fired). Fixed by dropping the `trim()`
+  entirely (`CharSequence.lineSequence()` already strips line terminators; `WPatchWriter` never
+  indents a structural line), locked by a dedicated round-trip case in `WPatchWriterReaderSpec`.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal

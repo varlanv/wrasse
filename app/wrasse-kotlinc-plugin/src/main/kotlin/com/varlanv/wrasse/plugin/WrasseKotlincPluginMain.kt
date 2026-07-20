@@ -8,6 +8,7 @@ import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
 import com.varlanv.wrasse.rules.ModifierOrderRule
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
@@ -23,6 +24,7 @@ private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 /** Every single-id rule wrasse ships. See [registeredRuleGroups] for fused multi-id engines. */
 internal fun registeredRules(): List<WUninitializedRule> =
     listOf(
+        IfElseBracingRule(),
         ModifierOrderRule(),
         NoEmptyClassBodyRule(),
         NoEmptyParensBeforeTrailingLambdaRule(),

@@ -24,6 +24,10 @@
             "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",
             "additionalProperties": false,
             "properties": {
+                "if-else-bracing": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require braces around a bare if/else branch belonging to a multi-line if-statement"
+                },
                 "modifier-order": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require modifiers to appear in the Kotlin coding-conventions canonical order"
