@@ -24,6 +24,10 @@
             "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",
             "additionalProperties": false,
             "properties": {
+                "modifier-order": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require modifiers to appear in the Kotlin coding-conventions canonical order"
+                },
                 "no-empty-class-body": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow class/interface/object/enum bodies containing nothing but whitespace"

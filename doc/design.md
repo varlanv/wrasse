@@ -2192,7 +2192,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (3/15).** Braces family,
+- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (4/15).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -2278,6 +2278,84 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   `eol-comment-gap-bail-error` (report-only, no `.fixed.kt`) plus a dedicated real-compile
   `NoEmptyParensBeforeTrailingLambdaSafetySpec` across all four Kotlin minors for both the
   plain-newline and blank-line shapes, mirroring `NoUnitReturnSafetySpec`.
+  `modifier-order` shipped fourth, one wrasse id covering ktlint's `modifier-order` and detekt's own
+  `dev.detekt.rules.style.ModifierOrder` (not the separate `dev.detekt.rules.ktlintwrapper.wrappers.
+  ModifierOrdering`, a thin re-export of ktlint's own engine under a different id — its own KDoc
+  says as much — not a second, independent implementation, so it never enters the intersection
+  calculation below). The canonical order itself is not invented or taken from memory: both
+  upstreams' own source comments say "subset of kotlinc's `KtTokens.MODIFIER_KEYWORDS_ARRAY`", read
+  directly from the compiler's own sources jar, whose KDoc warns the array is stub-serialization-
+  load-bearing and must never be reordered casually — the strongest possible confirmation this
+  really is *the* canonical order, not a per-tool opinion. Ground-truthed by adding temporary probe
+  cases directly to each upstream's own real test file (`ModifierOrderRuleTest.kt`,
+  `ModifierOrderSpec.kt`), running them against the real engines, then reverting — both checkouts
+  left byte-clean (`git status` verified) — covering full modifier-soup permutations, annotations in
+  every position (before/between/after), `expect`/`actual`, `companion`, vararg/crossinline/noinline
+  parameters, property-accessor modifiers, and enum entries.
+
+  A `WBufferedNodeRule` on `MODIFIER_LIST` classifies each non-whitespace direct child: the 25
+  canonical keyword types (visibility, `expect`/`actual`, modality, `const`/`external`/`override`/
+  `lateinit`/`tailrec`/`vararg`/`suspend`/`inner`/`enum`/the `annotation`-class keyword/`companion`/
+  `inline`/`infix`/`operator`/`data`) participate in the comparison; everything else — an
+  `@Annotation`, a context-parameter/receiver list, the `fun`/`value` declaration keywords, or any
+  future/unrecognized node — is inert, contributing nothing and never edited. A violation exists
+  only when two or more participating keywords are out of relative canonical order (`no-unit-return`'s
+  sibling precedent: fewer than two is always trivially ordered). Each out-of-place keyword gets its
+  own same-span replacement edit — its own token's text swapped for the correct keyword's spelling —
+  rather than one edit spanning the whole list, so anything physically interspersed among the
+  compared keywords is never touched, wherever it sits, with no explicit prefix/span-bail logic
+  needed at all (`ModifierOrderDecision`, unit-tested standalone). This generalizes to accessors,
+  enum entries, and value parameters for free, since a `MODIFIER_LIST` is always a direct child of
+  whatever it modifies — the same structural property `@Suppress`'s own region computation (§7.1)
+  already relies on. Five new `WNodeType` keyword entries this port needed that no earlier rule had
+  touched: `KW_FINAL`, `KW_INNER`, `KW_EXTERNAL`, `KW_EXPECT`, `KW_ACTUAL`.
+
+  **Ground-truthed upstream disagreements, resolved by conservatism (intersection of what both
+  engines actually fix):**
+  1. *Annotations and context-parameter/receiver lists.* ktlint's own `ORDERED_MODIFIERS` includes
+     `ANNOTATION_ENTRY`/`CONTEXT_RECEIVER_LIST` and repositions them (its own real, run test:
+     `override @Ann fun foo()` is flagged and fixed, moving `@Ann` before `override`); detekt's own
+     rule filters to `KtModifierKeywordToken` children only and never even looks at them (probe-
+     confirmed: the same shape produces zero detekt findings, since a single real keyword is
+     trivially ordered on its own) and has no autofix mechanism at all regardless. Wrasse matches
+     detekt's narrower scope exactly: annotations and context lists are never part of the comparison
+     and never touched by any edit, in any position (before, between, or after the real keywords) —
+     a structural guarantee from the classification above, not a per-shape bail.
+  2. *`fun`/`value` declaration keywords.* ktlint's own `tokenSet` omits both (probe-confirmed:
+     `value private fun interface Foo`/`value private class Foo` are never flagged — the keyword is
+     invisible to ktlint's own comparison); detekt's `order` array includes both (probe-confirmed:
+     `companion private fun interface Foo`/`companion private value class Foo` are flagged). Since
+     ktlint — the only one of the two with a real autofix — never considers these tokens at all,
+     wrasse matches ktlint's narrower scope here (detekt never fixes anything regardless, so nothing
+     is lost from the intersection).
+  3. *Comments.* Unlike `no-unit-return`/`no-empty-parens-before-trailing-lambda`, no upstream-native
+     corruption bug was found: probing confirmed ktlint's own `replaceChild`-based swap safely
+     reorders modifiers around an inline comment, position preserved. Wrasse still bails (report-only)
+     on any comment anywhere in the modifier list regardless, matching the project's established
+     comment-bail precedent over the actual-safety finding, for uniformity with the other two rules.
+
+  Real-compile note: several textbook ktlint/detekt test shapes are PSI-parseable but fail a real
+  `K2JVMCompiler` frontend check (bare `expect class`/`actual class` at file scope outside a real
+  multiplatform module, two simultaneous visibility keywords, `open` on a property setter, a getter
+  whose visibility doesn't match its property) — both upstreams' own harnesses skip real compilation
+  by default for exactly this reason (detekt's own `expect`/`actual` test passes `compile = false`
+  explicitly). Every wrasse fixture was hand-verified against a real `kotlinc` invocation before being
+  committed; `expect`/`actual` reordering is therefore locked only by the compiler-free
+  `ModifierOrderDecisionSpec` (no fixture — a standalone pair does not compile outside a real
+  multiplatform module), and the context-parameter/receiver-list exclusion above is ground-truthed by
+  probe only, for the same reason (the Kotlin 2.1–2.4 fixture matrix compiles single-target JVM
+  without the relevant experimental language feature enabled). Real modifier keywords are never legal
+  directly on an enum entry either (confirmed against kotlinc's own `ModifierCheckerHelpers` target
+  table and a real-compile probe) — only annotations realistically occur there, locked by
+  `enum-entry-annotation-clean`. Fixtures otherwise cover a top-level 2-keyword swap, a 3-keyword
+  member soup that is also the multiple-in-file case (3 violations in one file, ported verbatim from
+  ktlint's own real test), a constructor `vararg`/visibility parameter swap (detekt's own real test
+  shape), a property-accessor `inline`/visibility swap, a `companion object` visibility/modality
+  swap, the annotation-interspersed narrower-than-ktlint shape (wrasse's real fixed output,
+  `open @Deprecated(...) abstract class`, deliberately differs from ktlint's own, which would
+  additionally relocate the annotation to the front), a comment-bail (report-only), an
+  `@Suppress`-clean, an already-ordered-clean, and `fun`-interface/`value`-class clean shapes
+  confirming both keywords are inert.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal

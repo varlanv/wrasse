@@ -10,11 +10,12 @@ import io.kotest.matchers.shouldBe
  */
 class RuleRegistrationOrderSpec : BaseSpec({
 
-    should("register no-empty-class-body, no-empty-parens-before-trailing-lambda, no-semicolons, no-unit-return, and trailing-newline as single-id rules") {
+    should("register modifier-order, no-empty-class-body, no-empty-parens-before-trailing-lambda, no-semicolons, no-unit-return, and trailing-newline as single-id rules") {
         val ids = registeredRules().map { it.id }
 
         ids shouldBe
             listOf(
+                "modifier-order",
                 "no-empty-class-body",
                 "no-empty-parens-before-trailing-lambda",
                 "no-semicolons",
