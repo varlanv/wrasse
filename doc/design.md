@@ -2847,6 +2847,88 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   indistinguishable from any other already-braced entry to this rule's existing `== BLOCK` check —
   there is no code path where a bare `LAMBDA_EXPRESSION` could ever reach this rule as a when-entry's
   direct body. Both upstream checkouts left byte-clean, `git status` verified.
+
+  Retroactive upstream-test backfill, wave 2 installment 7 (2026-07-20): `redundant-visibility-
+  modifier` ported against detekt's own real `RedundantVisibilityModifierSpec` (13 cases)
+  independently — ktlint ships no equivalent rule at all, re-confirmed by a fresh grep of its real
+  checkout at the start of this installment (no `RedundantVisibility`-anything, no visibility-
+  redundancy concept anywhere in its standard or experimental rulesets or docs), so there is only one
+  upstream to intersect, not two to reconcile. Of detekt's 13 cases: the two "reports ..." function/
+  class/interface/field cases were already exact-matched ship-time (`member-function-error`, `top-
+  level-class-error`, `interface-with-member-error`, `member-property-error`); "does not report
+  overridden function of abstract class with public modifier" was already covered by `override-
+  clean`; "does not report overridden function of abstract class without public modifier" and "does
+  not report overridden field without public modifier" are trivially subsumed regardless of override
+  status (no `KW_PUBLIC` in the modifier list at all means `publicIndex` never leaves `-1`, the same
+  code path as `already-non-public-clean`) and were not re-fixtured; "does not report overridden
+  function of interface" is subsumed by `override-clean`'s own unconditional `KW_OVERRIDE`-anywhere
+  bail, which never inspects what the base declaration actually is (abstract class or interface) —
+  same code path, not re-fixtured; the `Explicit API mode` nested class (3 cases: strict/warning/
+  disabled) was already covered more thoroughly ship-time by the dedicated, real-compile
+  `RedundantVisibilityModifierExplicitApiSpec` (all three modes, not just the one the assignment
+  flagged as a possible gap — checked directly, no gap found). Two literal 1:1 gaps closed with new
+  fixtures: "does not report field without public modifier" and the function analogue, both folded
+  into one clean fixture (`no-modifier-member-clean`, a bare `fun`/`val` pair with no modifier at
+  all); and "does not report overridden field with public modifier" — `override-clean` only had a
+  function-override shape, not detekt's own dedicated property-override one, closed by
+  `property-override-clean` (parity with the function case, same unconditional bail). Detekt's own
+  bundled second check (a redundant `internal` on a member of a `private`/local class,
+  `visitDeclaration`'s `isInternal()` branch, 2 more cases) remains the already-documented,
+  deliberate out-of-scope divergence from ship time (rule KDoc and this section, above) — not
+  re-examined.
+
+  Beyond the ported spec, the assignment's own hunt list (nested/inner classes, companion objects,
+  annotated declarations, KDoc, expect/actual, enum entries, modifier-order interaction, explicit-API
+  mode, property accessors) was worked case by case, each ground-truthed against a real compile
+  (`./gradlew :testing:wrasse-kotlinc-plugin-tests-2-4-x:test`, not inferred from reading the rule).
+  **Nested/inner classes**: `public` on a `class` nested inside another `class`, and co-occurring with
+  `inner`, both fire correctly (`inner-class-error`) — the rule's `MODIFIER_LIST`-parent-is-`CLASS`
+  check has no notion of nesting depth, so this was never actually at risk, but wasn't locked before.
+  **Companion objects**: object-clean (ship-time) already proved the companion *declaration* itself is
+  never a candidate (`OBJECT_DECLARATION` is never `CLASS`); the open question was whether a *member*
+  declared inside a companion object still gets flagged — confirmed yes (`companion-object-member-
+  error`), since the parent-type check only ever looks at the immediate `MODIFIER_LIST` parent (`FUN`
+  here), never the grandparent container, exactly mirroring detekt's own `ChildrenVisitor` traversal
+  (which recurses into every container uniformly, `KtObjectDeclaration` included). **Annotated
+  declarations**: ship-time only exercised an annotated function (`annotation-interspersed-error`);
+  `annotated-class-error` extends the same shape to a class-level annotation on its own line, closing
+  it. **KDoc**: two new fixtures answer the question the ship-time KDoc (design.md, above) left
+  implicit for `KDOC` specifically rather than only `EOL_COMMENT`/`BLOCK_COMMENT` — a bare KDoc with no
+  preceding annotation sits **outside** `MODIFIER_LIST` exactly like a bare `//` comment (parser marker
+  reasoning identical either way), so the fix still applies untouched (`kdoc-leading-untouched-error`);
+  a KDoc interposed between a preceding annotation and `public` sits **inside** the list exactly like an
+  interposed `//` comment, so the rule correctly bails with the `" (no autofix for this shape)"` marker
+  (`kdoc-interspersed-bail-error`) — parity confirmed for the third comment-shaped node type the
+  `hasComment` scan already listed but had never actually fixture-exercised. **`expect`/`actual`**: no
+  new work — already deliberately not fixture-tested at ship time (a standalone `expect`/`actual` pair
+  doesn't compile outside a real multiplatform module, and `KW_EXPECT`/`KW_ACTUAL` never participate in
+  the `KW_PUBLIC`/`KW_OVERRIDE` scan regardless), re-verified correct on re-reading rather than
+  re-derived. **Enum entries**: ground-truthed directly against the real Kotlin compiler sources (a
+  local read-only checkout, `git status` verified clean before and after) rather than guessed —
+  `KotlinParsing.parseEnumEntry` calls the general `parseModifierList`, so `public RED` parses into an
+  `ENUM_ENTRY`'s own `MODIFIER_LIST`; `ModifierCheckerHelpers.kt`'s `defaultVisibilityTargetPredicate =
+  always(...)` for `PUBLIC_KEYWORD`, and the absence of any `possibleParentTargetPredicateMap` entry
+  for `PUBLIC_KEYWORD` restricting it against `KotlinTarget.ENUM_ENTRY_LIST`, together mean `public` on
+  an enum entry is **semantically legal, if pointless** — not a compile error, so (unlike the `expect`/
+  `actual` and modifier-order-2.1-backend-crash precedents) this shape *is* fixture-expressible.
+  `enum-entry-clean` confirms it end-to-end: the source compiles clean and wrasse stays silent, since
+  `ENUM_ENTRY` is never one of the three parent types this rule ever inspects — matching detekt's own
+  scope exactly (`ClassVisitor`/`ChildrenVisitor` never visit `KtEnumEntry` either). **Modifier
+  position**: ship-time's only multi-modifier shape (`multi-modifier-error`) had `public` first, already
+  in canonical order; `modifier-position-middle-error` (`open public suspend fun`) and
+  `modifier-position-last-error` (`suspend public fun`) confirm the `KW_PUBLIC` scan and the deletion
+  span's forward-whitespace walk are both positionally independent — correct regardless of where
+  `public` sits in the list. **Property accessors**: already correctly excluded ship-time
+  (`property-accessor-clean`), re-verified, no gap. **Explicit API mode**: already more thorough than
+  the assignment expected (see above), no gap.
+
+  One genuine bug found, not a wrasse rule-logic defect — escalated as an engine-shape blocker
+  rather than papered over in-task (full detail in §14): enabling `redundant-visibility-modifier`
+  together with `modifier-order` crashes the entire compile with `INTERNAL_ERROR` whenever a
+  redundant `public` also participates in an out-of-order modifier list (e.g. `suspend public fun
+  bar() {}`) — `EditPlan`'s cross-rule overlap check throws, uncaught, during plain linting, no
+  `-Pwrasse.fix` required. Reproduced directly against a real compile, independently confirmed a
+  second time via a forked sub-agent's own separate reproduction, matching exactly.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal
@@ -3086,3 +3168,47 @@ a separate `ktlint -F` invocation on the same files.
   matching the same real-compile-inexpressible precedent used for `expect`/`actual`, since it
   cannot be an end-to-end fixture without breaking the very version matrix `testMinorHarness`
   exists to guard.
+- **Blocker, flagged not fixed (wave-2 installment-7 backfill, 2026-07-20): `redundant-visibility-
+  modifier` + `modifier-order`, enabled together, crash the entire compile with `INTERNAL_ERROR`
+  whenever a redundant `public` also participates in an out-of-order modifier list.** e.g.
+  `suspend public fun bar() {}` inside a class, with both rules at `level: error`. Both rules
+  independently compute an edit anchored at the same `public` keyword's own token span the moment
+  it is *both* redundant *and* mis-ordered relative to a sibling modifier: `modifier-order`
+  replaces that span's text in place (a same-span swap with the correctly-ordered keyword),
+  `redundant-visibility-modifier` deletes that same span plus its trailing whitespace. Ground-
+  truthed against a real compile (not inferred from reading the two rules): `EditPlan.finalEdits()`
+  — the project's one existing cross-rule arbiter, whose own KDoc only ever documented the
+  single-rule-composing-its-own-nested-edits case — throws `IllegalStateException` on the
+  pairwise-disjointness `check(...)` (`"EditPlan: overlapping edits from rule 'modifier-order'
+  (40..46 -> \"suspend\") and rule 'redundant-visibility-modifier' (40..47 -> \"\")"`), uncaught by
+  `WrassePlugin.checkFile` (`ctx.editPlan.finalEdits()` is called unconditionally at line ~100,
+  *before* the `fixOutputDir != null` gate — this fires during plain linting, `-Pwrasse.fix` is not
+  required to trigger it). The exception propagates up through FIR's
+  `DeclarationCheckersDiagnosticComponent` and is caught only by kotlinc's own top-level
+  `FirCliExceptionHandler`, which turns it into an opaque `EXCEPTION`-severity diagnostic (a raw
+  internal stack trace, not a wrasse-attributed message) and `ExitCode.INTERNAL_ERROR` — the whole
+  file fails to compile with no clean wrasse diagnostic at all, worse UX than a normal `error`-level
+  finding. Confirmed twice independently (this session's own reproduction via a throwaway,
+  uncommitted probe spec against a real `K2JVMCompiler` invocation, discarded after confirmation —
+  not left in the tree — plus a forked sub-agent's own separate reproduction, matching exactly) and
+  by hand-tracing the pure decision objects (`ModifierOrderDecision.decide`/
+  `RedundantVisibilityModifierDeletionSpan.compute`) against the same input, which independently
+  predicted the exact overlapping `WEdit` ranges before either real-compile reproduction ran. A
+  realistic trigger, not a contrived edge case: both rules are ordinary, independently-reasonable
+  T-bucket style rules a real `wrasse.json` could enable together with no warning today. Not fixed
+  in-task: neither rule's own decision logic is wrong in isolation (`modifier-order`'s reorder is
+  correct; `redundant-visibility-modifier`'s deletion is correct), so there is no narrow, contained
+  fix available in `ModifierOrderRule`/`ModifierOrderDecision` or `RedundantVisibilityModifierRule`/
+  `RedundantVisibilityModifierDeletionSpan` — narrowing either rule's own deletion span cannot help,
+  since the conflict is two *different* rules disagreeing about the same span's fate, not a
+  self-inflicted span-computation bug in either one. A real fix means giving `EditPlan` an actual
+  cross-rule conflict policy — e.g. demote every entry in a detected overlap cluster to report-only
+  rather than throwing, mirroring the project's own established do-no-harm comment-bail precedent
+  but generalized across rule boundaries for the first time — which is new, cross-cutting
+  infrastructure with no precedent anywhere in the rule model, and a behavior change (from "crash"
+  to "silently drop autofix but keep both diagnostics") an owner should sign off on, not an
+  implementation detail: it is not obvious a silent downgrade is even the right choice over, say, a
+  config-time validation that rejects enabling both rules, or a documented restriction. No fixture
+  was added for this shape — a permanently red fixture is not how this project locks a known
+  blocker (see the `modifier-order`/Kotlin-2.1-backend-crash blocker, above, which took the same
+  approach).
