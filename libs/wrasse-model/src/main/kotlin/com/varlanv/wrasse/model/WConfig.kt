@@ -22,10 +22,11 @@ class WConfig(
             warnOnly: Boolean,
             configDir: Path? = null,
             resolveExtends: ((String) -> Result<ConfigValue>)? = null,
+            explicitApiActive: Boolean = false,
         ): Result<WConfig> {
             val raw = resolveRaw(configValue, resolveExtends, depth = 0)
                 .getOrElse { return Result.failure(it) }
-            return buildConfig(raw, ruleIds, warnOnly, configDir)
+            return buildConfig(raw, ruleIds, warnOnly, configDir, explicitApiActive)
         }
 
         private fun resolveRaw(
@@ -120,6 +121,7 @@ class WConfig(
             ruleIds: Set<String>,
             warnOnly: Boolean,
             configDir: Path?,
+            explicitApiActive: Boolean,
         ): Result<WConfig> {
             val globalExclude = raw.exclude.map { pathMatcher(it) }
             val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
@@ -133,6 +135,7 @@ class WConfig(
                     level = level,
                     exclude = rawRule.exclude.map { pathMatcher(it) },
                     effectiveLevel = effectiveLevel,
+                    explicitApiActive = explicitApiActive,
                 )
             }
 
@@ -214,6 +217,16 @@ class WrasseRuleConfig(
     val level: RuleLevel,
     val exclude: List<PathMatcher>,
     val effectiveLevel: RuleLevel,
+    /**
+     * True when the current compile runs under Kotlin's explicit API mode (`-Xexplicit-api=strict`
+     * or `-Xexplicit-api=warning`). Compile-wide, not user-configurable via `wrasse.json` — set
+     * uniformly on every rule's config from `WrasseCompilerPluginRegistrar`'s own read of
+     * `CompilerConfiguration.languageVersionSettings`. Only
+     * [com.varlanv.wrasse.rules.RedundantVisibilityModifierRule] consults it: an explicit `public`
+     * is a required declaration under that mode, not redundant, so the rule self-disables entirely
+     * rather than risk breaking an explicit-API build.
+     */
+    val explicitApiActive: Boolean = false,
 )
 
 enum class RuleLevel {

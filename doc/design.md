@@ -1970,6 +1970,16 @@ information. Statuses: Accepted · Rejected · Superseded.
 - **D12 — No `.editorconfig` support · Accepted.** Parsing it + ktlint's property semantics is a
   tar pit.
 - **D13 — `$schema` hosted statically for editor autocomplete · Accepted.**
+- **D23 — Compiler-wide facts reach a rule via `WrasseRuleConfig`, not just `wrasse.json` ·
+  Accepted 2026-07-20.** `WrasseRuleConfig` gained `explicitApiActive` (§13's `redundant-
+  visibility-modifier` entry): a fact about the current compile
+  (`CompilerConfiguration.languageVersionSettings`'s explicit-API flag), not something a user sets
+  in `wrasse.json`, threaded uniformly onto every rule's config from `WrasseCompilerPluginRegistrar`
+  rather than gated behind a config key. Precedent for any future rule needing a compiler-wide,
+  non-user-configurable fact (a language-version gate, a target-platform check): add a field to
+  `WrasseRuleConfig` with a safe default, populate it once in the registrar, thread it through
+  `wrasseMain`/`loadConfig`/`WConfig.from`/`buildConfig` uniformly — never branch by rule id at
+  config-construction time; the consuming rule alone decides what the field means.
 
 ### Fixing & formatting
 
@@ -2295,7 +2305,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (6/15).** Braces family,
+- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (7/15).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -2669,6 +2679,114 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   (`assertExpectedSurvivors`) rather than vanishing, since it never had an edit of its own — the exact
   same reasoning if-else-bracing's own `dangling-else-nested-error` fixture already established for a
   bail report's span never spuriously overlapping an inner fix's edits.
+
+  `redundant-visibility-modifier` shipped seventh, porting detekt's own `RedundantVisibilityModifier`
+  — ktlint ships no equivalent rule at all, confirmed by a full grep of its real checkout (no
+  `RedundantVisibility`-anything, no visibility-redundancy concept in any ruleset, standard or
+  experimental) and its own docs, so this is a single-upstream port, not an intersection. Both
+  checkouts were read-only for ground-truthing (`git status` verified clean before and after, no
+  probe cases needed — detekt's own `RedundantVisibilityModifierSpec`, 13 real cases, already covers
+  every shape needed). Detekt's own rule is two hand-written PSI visitors: `ClassVisitor.visitClass`
+  flags `public` on a `KtClass` (covers `class`/`interface`/`enum class`/`annotation class`/`sealed
+  class`, all one PSI type — confirmed identically true of LightTree's own `CLASS` node, ground-
+  truthed via a direct dump of the real tree: `interface`/`enum`/etc. are just a different keyword
+  child of the same node type), and `ChildrenVisitor.visitNamedFunction`/`visitProperty` flag `public`
+  on a function or property **only when not itself `override`**
+  (`isExplicitlyPublicNotOverridden`). Neither visitor exists for `KtObjectDeclaration` (a plain
+  `object` or `companion object`), `KtPrimaryConstructor`/`KtSecondaryConstructor`, `KtTypeAlias`, or a
+  property accessor — all four are silently never candidates upstream, by omission rather than an
+  explicit exemption, and wrasse matches that scope exactly rather than extending it: `MODIFIER_LIST`
+  is only ever inspected when its own immediate parent is `CLASS`, `FUN`, or `PROPERTY` (ground-
+  truthed to be the *only* three parent types that can carry the keyword worth checking, via the same
+  tree dump). Detekt's rule bundles a second, unrelated check into the same id (a redundant `internal`
+  on a member of a `private`/local class) — out of scope here per the assignment's own framing
+  ("delete redundant `public`"), tracked as a possible follow-up, not built.
+
+  **The hard call (autoformat-scope.md #4): Explicit API mode.** Detekt's own rule already gates on
+  this — `isExplicitApiModeActive()` reads
+  `languageVersionSettings.getFlag(AnalysisFlags.explicitApiMode) != DISABLED` and skips both visitors
+  entirely when active (its own `Explicit API mode` nested test class proves `STRICT`/`WARNING` →
+  zero findings, `DISABLED` → 2, for identical input) — the strongest possible confirmation this is
+  reachable, since detekt needed the exact same fact for the exact same reason. Verified independently
+  for wrasse's own use as a compiler plugin (not a standalone detekt CLI reading source): decompiled
+  `kotlin-compiler-embeddable` sources jars for all four supported minors (2.1.21, 2.2.21, 2.3.21,
+  2.4.0) plus a direct `javap` check against the real 2.4.0 jar on this machine confirm
+  `CompilerConfiguration.languageVersionSettings` (the `CommonConfigurationKeys.
+  LANGUAGE_VERSION_SETTINGS`-backed extension property) is fully populated by
+  `CLICompiler.setupCommonArguments` **before** `K2JVMCompiler.doExecute` loads plugins and calls
+  `CompilerPluginRegistrar.registerExtensions` — so the flag is unconditionally readable at plugin-
+  registration time on every supported Kotlin version, no version skew. There is no dedicated
+  `CommonConfigurationKeys`/`JVMConfigurationKeys` entry named anything like `EXPLICIT_API`; the
+  `AnalysisFlags.explicitApiMode`-inside-`LanguageVersionSettings` path is the only route, identical
+  across all four minors (2.2+ moved the CLI-arguments-to-flag copy into a separate
+  `CommonCompilerArgumentsConfigurator`, a refactor with no behavioral or key-name difference).
+  Threaded registrar → plugin → rule config, matching the assignment's own framing:
+  `WrasseCompilerPluginRegistrar.registerExtensions` reads
+  `configuration.languageVersionSettings.getFlag(AnalysisFlags.explicitApiMode) != ExplicitApiMode.
+  DISABLED` and passes it as `wrasseMain`'s new `explicitApiActive` parameter, threaded through
+  `loadConfig`/`WConfig.from`/`buildConfig` onto every `WrasseRuleConfig` uniformly (a compile-wide
+  fact, not a per-rule-id concept — every other rule ignores the field). `RedundantVisibilityModifierRule.
+  initRule` checks `config.explicitApiActive` first and, when true, returns a `WBufferedNodeRule` with
+  an empty `targetTypes` — a genuine self-disable (zero dispatch-array registration, not merely
+  "never reports"), exactly as the assignment demanded. **Real bug caught by the four-minor harness,
+  not the 2.4-only unit test:** the top-level registrar's `explicitApiActive` computation alone was
+  insufficient — `WrasseCompilerPluginRegistrar.registerExtensions` builds one `WrassePlugin` via
+  `wrasseMain` for its own direct (`K22Registrar`) path, but for older/other API shapes it instead
+  *delegates* to a completely separate `WrasseCompilerPluginRegistrar20`/`22.registerExtensions`
+  (`app/wrasse-kotlinc-internal-k20`/`-k22`, reflection-loaded, same `CompilerConfiguration` instance
+  passed through), each of which independently calls `wrasseMain` a second time — a pre-existing
+  duplication `dumpResolvedUsage` et al. already had to satisfy, that this port initially missed for
+  the new parameter. `testMinorHarness --rerun-tasks` failed on Kotlin 2.1/2.2/2.3 (`2.4` alone, run
+  via `test`, is the one minor whose delegation path stays in the top-level registrar and so passed
+  by coincidence) with `RedundantVisibilityModifierExplicitApiSpec` still emitting 2 diagnostics under
+  `strict`/`warning` — both delegate registrars needed the identical `explicitApiActive` computation
+  added independently. Locked by a dedicated `RedundantVisibilityModifierExplicitApiSpec` (subclassed
+  per Kotlin minor, the `SafetySpec` convention) proving three things against a real `K2JVMCompiler`
+  invocation: the same source is flagged (2 diagnostics) with the mode off — proving the rule is
+  genuinely wired, not just inert by accident — and silent under both `-Xexplicit-api=strict` and
+  `-Xexplicit-api=warning`, with the real compile still succeeding either way, across all four minors.
+  The test harness gained one new additive constructor parameter for this,
+  `WrasseTestHarness(explicitApiMode: String?)`, following the `multiPlatformCommonSources` precedent
+  exactly (a raw `K2JVMCompilerArguments.explicitApi: String` field set directly — no
+  plugin-option/`CliOption` machinery, since this mirrors a real compiler flag rather than a
+  wrasse-specific setting) rather than a `dumpResolvedUsage`-style plugin option, since explicit API is
+  a compiler-wide concern, not something wrasse itself defines.
+
+  A `MODIFIER_LIST` containing `KW_OVERRIDE` anywhere is skipped entirely — no report, not just no
+  fix — mirroring detekt's own `isExplicitlyPublicNotOverridden` exactly: overriding can legally
+  *widen* visibility from a more restrictive base member (`protected` → `public`, which Kotlin
+  explicitly permits, narrowing being the only illegal direction), and deciding whether a given
+  `public override` is a genuine widening or truly redundant needs the base declaration's own
+  visibility — never resolvable syntactically. Rather than add resolution to what is otherwise a
+  purely syntactic `T`-bucket rule, wrasse matches detekt's own blanket exclusion (locked clean by
+  `override-clean`, matching detekt's own real override test shapes over both an abstract-class base
+  and an interface base). Deletion span (`RedundantVisibilityModifierDeletionSpan`, compiler-free,
+  unit-tested standalone): the `public` keyword's own span plus whatever whitespace directly follows
+  it collapses to nothing, never touching anything before it (an annotation, indentation, an
+  unrelated leading comment — ground-truthed via a direct LightTree dump that a *bare* leading comment
+  with no preceding annotation sits **outside** `MODIFIER_LIST` entirely, as a sibling of the parent
+  declaration, while a comment interposed between an annotation and `public` sits **inside** the list
+  — the parser's own marker only backs off trailing whitespace, never leading trivia) or, past the
+  trailing whitespace, whatever real token or comment comes next. Reported but never autofixed
+  (uniform comment-bail precedent, same family as `no-unit-return`/`modifier-order`) whenever a
+  comment sits anywhere in the modifier list itself, or immediately follows the trailing whitespace —
+  applied here even though, unlike those two rules, no actual upstream-native corruption risk was
+  found: the forward whitespace scan always halts at the comment's own start byte, so the comment is
+  never swallowed by the deletion either way; bailing is pure uniformity with established precedent,
+  not a safety finding. Locked by `list-internal-comment-bail-error` and
+  `trailing-comment-bail-error`, with `bare-leading-comment-untouched-error` proving the converse — a
+  leading comment *outside* the list is never a reason to bail, since the edit never reaches it.
+  Fixtures otherwise cover a top-level class, a top-level interface with a member (detekt's own real
+  "reports interface with public modifier" two-finding shape), a class member function and property, a
+  nested class member, a multi-modifier list (`public open fun`, confirming only `public` itself is
+  ever touched), an annotation-interspersed member (confirming the deletion span never touches an
+  earlier annotation in the same list), and clean shapes for every excluded parent type (object/
+  companion object, primary/secondary constructor, typealias, property accessor) plus an
+  already-non-public clean and an `@Suppress` clean. `expect`/`actual` is deliberately not
+  fixture-tested — mirroring `modifier-order`'s own established limitation, a standalone `expect`/
+  `actual` pair does not compile outside a real multiplatform module — but is inert to this rule's
+  detection logic regardless (`KW_ACTUAL`/`KW_EXPECT` never participate in the `KW_PUBLIC`/
+  `KW_OVERRIDE` scan either way, so no special-casing was needed or added).
 
   Retroactive upstream-test backfill, wave 2 installment 6 (2026-07-20): `when-entry-bracing`
   (ktlint's own `WhenEntryBracingTest` — 7 real test cases — plus detekt's own

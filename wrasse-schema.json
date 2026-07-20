@@ -48,6 +48,10 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow a redundant explicit ': Unit' return type on a block-body function"
                 },
+                "redundant-visibility-modifier": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a redundant explicit 'public' visibility modifier on a class, function, or property"
+                },
                 "import-ordering": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require import directives to be in plain ASCII-alphabetical order"

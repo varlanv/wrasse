@@ -19,6 +19,7 @@ class WrasseTestHarness(
     private val fixOutputDir: Path? = null,
     private val multiPlatformCommonSources: Set<String> = emptySet(),
     private val dumpResolvedUsage: Boolean = false,
+    private val explicitApiMode: String? = null,
 ) {
 
     companion object {
@@ -93,6 +94,9 @@ class WrasseTestHarness(
             if (multiPlatformCommonSources.isNotEmpty()) {
                 multiPlatform = true
                 commonSources = multiPlatformCommonSources.map { srcDir.resolve(it).toString() }.toTypedArray()
+            }
+            if (explicitApiMode != null) {
+                explicitApi = explicitApiMode
             }
             val cp = kotlinStdlibPath
             if (cp != null) {

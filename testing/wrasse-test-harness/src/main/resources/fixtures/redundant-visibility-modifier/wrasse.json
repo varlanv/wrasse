@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "redundant-visibility-modifier": { "level": "error" }
+    }
+}

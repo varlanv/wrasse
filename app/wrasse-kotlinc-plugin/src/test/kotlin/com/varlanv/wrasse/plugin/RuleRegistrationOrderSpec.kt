@@ -10,7 +10,11 @@ import io.kotest.matchers.shouldBe
  */
 class RuleRegistrationOrderSpec : BaseSpec({
 
-    should("register if-else-bracing, modifier-order, no-empty-class-body, no-empty-parens-before-trailing-lambda, no-semicolons, no-unit-return, trailing-newline, and when-entry-bracing as single-id rules") {
+    should(
+        "register if-else-bracing, modifier-order, no-empty-class-body, no-empty-parens-before-trailing-lambda, " +
+            "no-semicolons, no-unit-return, redundant-visibility-modifier, trailing-newline, and when-entry-bracing " +
+            "as single-id rules"
+    ) {
         val ids = registeredRules().map { it.id }
 
         ids shouldBe
@@ -21,6 +25,7 @@ class RuleRegistrationOrderSpec : BaseSpec({
                 "no-empty-parens-before-trailing-lambda",
                 "no-semicolons",
                 "no-unit-return",
+                "redundant-visibility-modifier",
                 "trailing-newline",
                 "when-entry-bracing",
             )

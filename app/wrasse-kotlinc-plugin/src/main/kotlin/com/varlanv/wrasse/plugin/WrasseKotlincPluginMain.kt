@@ -15,6 +15,7 @@ import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
+import com.varlanv.wrasse.rules.RedundantVisibilityModifierRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
 import java.nio.file.Path
@@ -31,6 +32,7 @@ internal fun registeredRules(): List<WUninitializedRule> =
         NoEmptyParensBeforeTrailingLambdaRule(),
         NoSemicolonsRule(),
         NoUnitReturnRule(),
+        RedundantVisibilityModifierRule(),
         TrailingNewlineRule(),
         WhenEntryBracingRule(),
     )
@@ -48,6 +50,7 @@ fun wrasseMain(
     warnOnly: Boolean = false,
     fixOutputDir: Path? = null,
     dumpResolvedUsage: Boolean = false,
+    explicitApiActive: Boolean = false,
 ): Result<WrassePlugin> {
     val uninitializedRules = registeredRules().associateBy { it.id }
     val groups = registeredRuleGroups()
@@ -56,7 +59,8 @@ fun wrasseMain(
         loadConfig(
             sourceRoots = sourceRoots,
             ruleIds = allRuleIds,
-            warnOnly = warnOnly
+            warnOnly = warnOnly,
+            explicitApiActive = explicitApiActive,
         ).getOrElse { return Result.failure(it) }
     val activeRules = mutableListOf<Pair<WUninitializedRule, WrasseRuleConfig>>()
     for ((ruleId, ruleConfig) in config.rulesConfigs.idToConfig) {
@@ -83,7 +87,8 @@ fun wrasseMain(
 private fun loadConfig(
     sourceRoots: List<Path>,
     ruleIds: Set<String>,
-    warnOnly: Boolean
+    warnOnly: Boolean,
+    explicitApiActive: Boolean,
 ): Result<WConfig> {
     for (root in sourceRoots) {
         val startDir = if (root.toFile().isFile) root.parent ?: continue else root
@@ -108,6 +113,7 @@ private fun loadConfig(
             warnOnly = warnOnly,
             configDir = configDir,
             resolveExtends = resolveExtends,
+            explicitApiActive = explicitApiActive,
         )
             .getOrElse { return Result.failure(Exception("wrasse: invalid config in $configPath: ${it.message}", it)) }
             .let { Result.success(it) }

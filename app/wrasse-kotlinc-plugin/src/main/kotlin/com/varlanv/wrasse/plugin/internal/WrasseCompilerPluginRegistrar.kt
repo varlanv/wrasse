@@ -10,7 +10,10 @@ import java.nio.file.Paths
 import org.jetbrains.kotlin.cli.jvm.config.javaSourceRoots
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
+import org.jetbrains.kotlin.config.AnalysisFlags
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.ExplicitApiMode
+import org.jetbrains.kotlin.config.languageVersionSettings
 
 @OptIn(ExperimentalCompilerApi::class)
 class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
@@ -26,8 +29,9 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
         val warnOnly = configuration[KEY_WARN_ONLY, false]
         val fixOutputDir = configuration[KEY_FIX_OUTPUT_DIR]?.let { Paths.get(it) }
         val dumpResolvedUsage = configuration[KEY_DUMP_RESOLVED_USAGE, false]
+        val explicitApiActive = configuration.languageVersionSettings.getFlag(AnalysisFlags.explicitApiMode) != ExplicitApiMode.DISABLED
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
-        val plugin = wrasseMain(sourceRoots, warnOnly, fixOutputDir, dumpResolvedUsage).getOrThrow()
+        val plugin = wrasseMain(sourceRoots, warnOnly, fixOutputDir, dumpResolvedUsage, explicitApiActive).getOrThrow()
 
         val cl = this::class.java.classLoader
         when {
