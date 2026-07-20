@@ -20,9 +20,25 @@ class NoSemicolonsRule : WUninitializedRule {
             private var lastSignificantLeafType: WNodeType? = null
             private val classBodyOwnerEnumStack = mutableListOf<Boolean>()
 
+            /**
+             * True exactly while the next significant token is the semicolon standing in for a
+             * `for`/`while`'s empty [WNodeType.BODY] or an `if`'s empty [WNodeType.THEN]: that
+             * semicolon is required syntax (removing it is a compile break), never "unnecessary".
+             */
+            private var pendingBareConstructBody = false
+
             override fun enterNode(ctx: WContext) {
                 if (ctx.type == WNodeType.CLASS || ctx.type == WNodeType.OBJECT_DECLARATION) {
                     classBodyOwnerEnumStack.add(false)
+                }
+                if (ctx.startOffset == ctx.endOffset && !ctx.ancestors.isEmpty) {
+                    val parent = ctx.ancestors.peekType()
+                    val isEmptyLoopBody =
+                        ctx.type == WNodeType.BODY && (parent == WNodeType.FOR || parent == WNodeType.WHILE)
+                    val isEmptyThen = ctx.type == WNodeType.THEN && parent == WNodeType.IF
+                    if (isEmptyLoopBody || isEmptyThen) {
+                        pendingBareConstructBody = true
+                    }
                 }
             }
 
@@ -42,6 +58,7 @@ class NoSemicolonsRule : WUninitializedRule {
                 }
 
                 if (!ctx.type.isWhitespaceOrComment) {
+                    pendingBareConstructBody = false
                     lastSignificantLeafType = ctx.type
                 }
             }
@@ -56,6 +73,7 @@ class NoSemicolonsRule : WUninitializedRule {
              */
             private fun handleSemicolon(ctx: WContext, reporter: WReporter) {
                 if (lastSignificantLeafType == WNodeType.KW_OBJECT) return
+                if (pendingBareConstructBody) return
                 val parentType = if (ctx.ancestors.isEmpty) null else ctx.ancestors.peekType()
 
                 val isEnumTail = (parentType == WNodeType.CLASS_BODY || parentType == WNodeType.ENUM_ENTRY) &&
