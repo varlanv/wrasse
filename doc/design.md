@@ -3654,6 +3654,193 @@ regression directly) plus one test per remaining concern not otherwise exercised
 398 plus this slice's 16 — zero failures; `wrasseLint` exercises the rebuilt plugin against this
 repo's own `format`-disabled `wrasse.json`, unaffected by this slice).
 
+#### Phase C.6 — Blank-line (vertical whitespace) policies — **done 2026-07-21**
+
+Replaces `DocBuilder`'s remaining verbatim reproduction of blank-line *count* (every `WHITE_SPACE`
+leaf containing `\n` had, until now, its exact newline count copied into the `HARD` `Break`'s
+`literal`, per C.1) with a policy decision. Line-break *positions* are untouched — this slice only
+changes how many consecutive `\n`s a break may carry.
+
+**Preliminary (per the brief, folded into the same commit-unit): `where`-clause mapping and
+spacing.** `TYPE_CONSTRAINT_LIST`/`TYPE_CONSTRAINT` (`WNodeType`/`WNodeTypeMapping`) and the
+`where` soft keyword itself (`KW_WHERE`, `KtTokens.WHERE_KEYWORD`) were entirely unmapped — C.5
+had only flagged the constraint colon as unreachable, but the keyword wasn't even a `WNodeType`.
+A real LightTree dump (`fun <T> describe(x: T) where T : Any, T : Comparable<T> = ...`, checked
+directly rather than assumed) confirmed `KW_WHERE` and `TYPE_CONSTRAINT_LIST` are both **direct
+children of the declaring `FUN`** (the parser calls `advance()` over `WHERE_KEYWORD` *before*
+`mark()`ing `TYPE_CONSTRAINT_LIST`, so the keyword — and the whitespace after it — never nest
+inside the constraint list), which is exactly why `spacingDecision`'s existing frame-type
+dispatch reaches the keyword with no new plumbing: `KW_WHERE` joined
+`KEYWORDS_WANTING_SPACE_AFTER` (space after, matching `if`/`when`/`for`/`while`/`catch`), a new
+`nextType == KW_WHERE -> " "` case covers the space *before* it (a keyword none of the other five
+need, since `where` is never brace-adjacent), and `TYPE_CONSTRAINT` joined
+`COLON_WANTS_SPACE_BOTH_SIDES` (ground-truthed against `SpacingAroundColonRule`'s own
+`TYPE_CONSTRAINT -> true` case, spaced like a supertype-list or secondary-constructor colon, never
+like a type-annotation colon). The constraint list's own comma spacing needed no new code — it was
+already frame-agnostic. Locked by `format-spacing/where-clause-spacing-error` (fixture) and a new
+`DocBuilderSpec` test driven off the confirmed real tree shape.
+
+**Ground truth used:** ktlint's own rule implementations *and* tests (`ktlint-ruleset-standard`):
+`NoConsecutiveBlankLinesRule`, `NoBlankLineBeforeRbraceRule`, `NoEmptyFirstLineInMethodBlockRule`,
+`NoEmptyFirstLineInClassBodyRule`, `NoBlankLinesInChainedMethodCallsRule`,
+`BlankLineBetweenWhenConditions`, `PackageImportSpacingRule` — plus detekt's
+`SpacingAfterPackageAndImports` (its test suite is the one place that spells out the
+import-list→first-declaration half ktlint's own `PackageImportSpacingRule` doesn't cover).
+
+**Mechanism — one choke point, symmetric with C.5's horizontal one:** every `HARD` `Break` built
+from a real `ChildEntry.Ws` (C.1: any `WHITE_SPACE` leaf containing at least one `\n`, not only a
+"true" blank line) now goes through `clampWs(entry, newlineCount)`, which renders exactly
+`newlineCount` newlines — reusing the original literal verbatim (byte-identical, trailing
+blank-line whitespace included) when the count is already correct, or synthesizing a fresh
+`"\n".repeat(newlineCount)` otherwise (the only path that can *add* a newline, not just remove
+one). `newlineCount` itself comes from one of two dispatchers:
+- **`normalizeChildren`** (already C.5's horizontal choke point) gained a parallel `ChildEntry.Ws`
+  branch calling `verticalGapNewlineCount(frameType, prevEntry, nextEntry, isFirstAfterLbrace,
+  ancestorHasFun, actual)` — the position- and context-aware policy table (below). This is where
+  every rule that needs to know *which* gap this is (first-after-`{`, package/import boundary,
+  class/constructor) is decided.
+- **`resolveEntry`**'s fallback (every `ChildEntry.Ws` reached *without* going through
+  `normalizeChildren` — a chain/binary expression's non-anchor whitespace, a unary frame's
+  interior, an argument list's no-parens fallback) now applies only the **context-free default**
+  (cap to at most one blank line), matching `NoConsecutiveBlankLinesRule`'s own unconditional
+  `node.isWhiteSpace` check — ktlint's rule really does apply everywhere, not just inside a
+  `BLOCK`/`CLASS_BODY`.
+- **`no-blank-line-before-rbrace` is not a `normalizeChildren` case at all** — every `RBRACE` in
+  Kotlin's grammar is the last child of a `resolveBraceFrame`-handled `INDENTING_TYPES` node, and
+  the one whitespace that could precede it is always exactly the pre-existing `hasDedent` entry
+  `resolveBraceFrame` already special-cases (C.1). That call site now clamps it to `newlineCount =
+  1` directly, unconditionally, for all four indenting types (`BLOCK`, `CLASS_BODY`, `WHEN`,
+  `FUNCTION_LITERAL`) in one place — no `normalizeChildren` branch could ever see this gap, since
+  the dedent-plus-`RBRACE` pair is deliberately excluded from the sublist `normalizeChildren`
+  processes.
+- **`ancestorHasFun(frameType)`** (`frameType == BLOCK && frames.any { it.type == WNodeType.FUN
+  }`) — ktlint's `isPartOf(FUN)` is an *unbounded* ancestor walk, not "direct parent," so a nested
+  `if`/`else` block several levels inside a function body is in scope too (locked by a fixture with
+  nested `if`/`else if`/`else`, matching `NoEmptyFirstLineInMethodBlockRuleTest`'s own "if-statement
+  in a function" case exactly). `frames` (the still-open ancestor stack) already holds this for
+  free at the moment a child frame resolves, since the child's own frame was already popped.
+
+**The policy table** (`verticalGapNewlineCount`, `null`-free — every path returns a concrete count,
+since "preserve verbatim" here means "the general default happens to already match"):
+
+| Context | Newline count forced | ktlint rule |
+|---|---|---|
+| Any gap, no more specific rule applies | `min(actual, 2)` (at most one blank line) | `no-consecutive-blank-lines` |
+| Gap right before a `BLOCK`/`CLASS_BODY`/`WHEN`/`FUNCTION_LITERAL`'s own closing `}` | `1` (zero blank lines), always | `no-blank-line-before-rbrace` |
+| First gap after a `CLASS_BODY`'s own `{` | `1`, unconditionally | `no-empty-first-line-in-class-body` |
+| First gap after a `BLOCK`'s own `{`, when any ancestor is `FUN` | `1` | `no-empty-first-line-in-method-block` |
+| Class-name identifier → explicit `PRIMARY_CONSTRUCTOR` gap | `1` (zero blank lines, not one) | `no-consecutive-blank-lines`'s own special case |
+| `PACKAGE_DIRECTIVE` (non-empty) → non-empty `IMPORT_LIST` | `2` (exactly one blank line, can *add*) | `package-import-spacing` |
+| Non-empty `IMPORT_LIST` → whatever follows it | `2` (exactly one blank line, can *add*) | `spacing-after-package-and-imports` (detekt) |
+| Blank line inside a dot/safe-access chain gap | already `0` (structural, no new code) | `no-blank-lines-in-chained-method-calls` |
+
+**`no-blank-lines-in-chained-method-calls` needed no new code — confirmed, not assumed.** C.4's
+`spliceBreak`/`wsBreakAt` already consume the chain-operator's adjacent whitespace (`ChildEntry.Ws`
+or plain) into a `SOFT` `Break` whose `literal` field is never read in broken mode (`Layout.
+renderBreak`'s `BreakKind.SOFT` branch only ever emits one `'\n'`, regardless of how many the
+source had) — so a blank line inside a chain link's own gap was *already* being discarded, a side
+effect of C.4's mechanism no one had written a fixture for yet. `format-blank-lines/no-blank-
+lines-in-chained-method-calls-error` locks this directly (a long-enough receiver name to force the
+chain broken under this fixture's own `maxLineLength: 60`, so the fix is visible independent of the
+chain also collapsing flat) rather than merely asserting it by reasoning.
+
+**Deliberately not implemented, and why (preserved-not-guessed, same discipline as C.5):**
+- **`blank-line-between-when-conditions`'s *add* direction** (insert a blank line between every
+  `WHEN_ENTRY` when any one of them has a multiline condition) is not ported. Its own ktlint default
+  gates this behind `ij_kotlin_line_break_after_multiline_when_entry`, an `.editorconfig` property
+  wrasse has no equivalent surface for (D12); more importantly, it is structurally the same shape as
+  `blank-line-before-declaration` — an ADD-a-blank-line rule gated on a cross-sibling fact — which
+  this slice's brief explicitly excludes as a family. The *removal* half needs no special code: it
+  falls out of the generic "at most one blank line" default already applied inside a `WHEN` frame
+  (`format-blank-lines/when-entries-blank-lines-error` locks this — two blank lines between
+  `WHEN_ENTRY`s collapse to one, the same as anywhere else, never to zero).
+- **Blank lines at the true start of a file.** The brief's brief assumed `no-consecutive-blank-lines`
+  also strips leading blank lines; reading the rule source shows the opposite: it explicitly skips
+  any whitespace whose `prevSibling` is `null` (`node.isWhiteSpace && node.prevSibling != null`),
+  i.e. ktlint itself never touches file-leading blank lines. Implementing a stricter policy than
+  upstream is exactly what "never broader than upstream" forbids, so this was **not** added —
+  a discovery, not an oversight.
+- **Blank lines at true end-of-file.** ktlint's own rule *does* collapse them (its `eof` branch
+  removes every trailing blank line down to a bare `\n`, stricter than the generic one-blank-line
+  cap), but two things make porting it not worth doing in this slice: `TrailingNewlineRule` already
+  owns end-of-file behavior for wrasse (adding a missing final `\n`, never removing excess ones —
+  "file-end handled by trailing-newline, don't fight that rule," per the brief) and the two never
+  actually collide (they fire on disjoint shapes: a missing trailing newline has no `ChildEntry.Ws`
+  at EOF at all, so there is nothing to over-clamp). More decisively: `FixtureParser.parse` trims
+  every trailing blank source line from *every* fixture before it ever reaches the compiler (`while
+  (sourceLines.isNotEmpty() && sourceLines.last().isBlank()) sourceLines.removeLast()`), so this
+  shape is **structurally unexercisable by the harness** regardless of what `DocBuilder` does with
+  it — confirmed by reading `FixtureParser`, not assumed. Left as the generic one-blank-line-max
+  default (untested, unreachable by construction) rather than special-cased for a scenario that
+  cannot be locked by a fixture anyway.
+- **Package/import gaps joined on one physical line** (`package foo;import bar` with zero
+  whitespace at all between them, or with only single-line, no-newline whitespace) — detekt's own
+  test suite exercises this shape (`"package test;import a.b;class A {}"`), but `verticalGapNewlineCount`
+  only fires when the gap is already a real `ChildEntry.Ws`; turning a same-line, semicolon-joined
+  triple into three separate lines would also require deleting the now-redundant statement-separator
+  semicolons — exactly the cross-rule coupling §5.1 confines to a real fused engine, not something
+  this slice's choke point can decide alone. Bails (preserves verbatim), not guessed.
+
+**A pre-existing C.4 bug found by running a real fixture, not fixed (out of scope for this
+slice):** `wrapRoot`'s "exclude a trailing forced-break part from the fit-check/indent" logic
+(added to keep a chain's dot from wrapping onto its own line ahead of an inherently-multiline
+trailing lambda, C.4) assumes the forced-break part is *trailing*. A **raw multi-line string
+literal as the chain's own *receiver*** (`"""...multiple lines...""".trimIndent()`) is the forced-
+break part at `splitIdx == 0` — the *first* part, not a trailing one — so `wrapRoot` produces an
+empty head `Group` and renders the entire chain, dot included, as a bare, unwrapped sibling at
+ambient depth. Since a `SOFT` break outside any `Group` renders in whatever mode is ambient (`BROKEN`
+by default at the top level, per `Layout.render`), the dot moves onto its own line at the *wrong*
+(shallower, not one-level-deeper) depth instead of staying flush against the string's closing
+`"""`. First surfaced by `format-blank-lines/comment-and-string-interior-preserved-error`'s original
+draft (a `"""..."""` .trimIndent()`, chained on one line); the fixture was rewritten to assign the
+raw string to a `val` instead of chaining off it directly, sidestepping the bug rather than fixing
+it — `wrapRoot`'s split-point logic is C.4's, and fixing a leading-forced-break receiver is a
+chain-wrapping concern, not a blank-line one. Recorded here as a known gap for whoever next touches
+`resolveChainFrame`/`wrapRoot`, not fixed in this slice.
+
+**Fixtures:** `testing/wrasse-test-harness/.../fixtures/format-blank-lines/` (own `wrasse.json`,
+`{"format": {"enabled": true, "maxLineLength": 60}}` — lowered from the 140 default only so the
+chained-method-calls fixture can force a genuinely broken chain without inflating every other
+fixture's identifiers; verified every other fixture's real content stays well under 60 chars, so
+the lower width changes nothing else), 12 fixtures: `no-consecutive-blank-lines-error`,
+`no-blank-line-before-rbrace-error`, `no-empty-first-line-in-method-block-error` (fun body plus a
+nested `if`/`else if`/`else` chain, all three first-lines stripped), `lambda-first-line-preserved-
+error` (the same construct's *lambda* counterpart, deliberately left alone — `FUNCTION_LITERAL` is
+never in scope — alongside a real, unrelated excess blank line in the same file so the fixture still
+exercises a genuine fix), `no-empty-first-line-in-class-body-error` (nested class body too),
+`class-primary-constructor-blank-line-error`, `package-import-spacing-error` (both directions: a
+missing blank line forced in, an excess one capped to exactly one), `no-blank-lines-in-chained-
+method-calls-error`, `when-entries-blank-lines-error` (the generic cap, not the excluded add/remove-
+all behavior), `kitchen-sink-error` (all of the above at once in one file), an already-canonical
+`already-clean` (`expect-clean`, byte-identical), and `comment-and-string-interior-preserved-error`
+(blank comment lines inside a KDoc block and inside a raw string literal both stay byte-exact while
+a real excess blank line elsewhere in the same file still gets capped). Plus one new fixture in
+`format-spacing/` for the preliminary `where`-clause work (`where-clause-spacing-error`). The
+existing, already-generic D19 idempotence cycle (`fix(fix(x)) == fix(x)`, unchanged since C.1)
+exercises all 12 `-error`/kitchen-sink fixtures. `libs/wrasse-format/DocBuilderSpec` gained 9 unit
+tests: the `where`-clause spacing case (driven off the real, dumped tree shape); the generic
+more-than-one-blank-line cap; the before-`}` strip; the method-block and class-body first-line
+strips; the lambda-first-line preservation (built as a `BLOCK` inside a `FUN` *containing* a
+`FUNCTION_LITERAL`, to prove the exclusion is about frame type, not "inside a function" broadly);
+the class/primary-constructor case; and two package/import cases (forced insertion, and the
+`entryHasContent` guard proving an empty import list forces nothing — this second test's tree shape
+was corrected against a real compiler dump after an initial hand-built version assumed an
+impossible split-whitespace shape around an empty `IMPORT_LIST`, caught before it shipped as a
+wrong assertion rather than a real bug).
+
+**No existing fixture's `.fixed.kt` needed updating.** Checked structurally (not assumed): every
+`format-*`/`bracing-format-*` fixture already has exactly one blank line after its `package`
+statement (with or without imports) and no blank-line-before-rbrace/empty-first-line/class-
+constructor shapes anywhere — grepped across all six pre-existing format-enabled fixture
+directories before writing a single new fixture, confirmed clean, and the full ladder re-confirms
+it (`git status` on all of them stays clean after this slice).
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (427 fixture-spec cases per Kotlin minor —
+414 plus this slice's 13 — zero failures; `wrasseLint` exercises the rebuilt plugin against this
+repo's own `format`-disabled `wrasse.json`, unaffected by this slice). `ktlint`/`detekt` checkouts
+used for ground truth confirmed byte-clean (`git status`) throughout — read-only.
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.

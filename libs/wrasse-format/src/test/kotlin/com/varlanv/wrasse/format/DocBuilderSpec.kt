@@ -595,6 +595,217 @@ class DocBuilderSpec : BaseSpec({
 
         render(builder, ctx) shouldBe "[0]"
     }
+
+    should("insert a space before 'where', normalize the space after it, and space its constraint colons") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.KW_WHERE, "where")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "  ")
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_CONSTRAINT_LIST })
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_CONSTRAINT })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "T")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Any")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_CONSTRAINT })
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_CONSTRAINT_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun foo() where T : Any"
+    }
+
+    should("cap more than one blank line down to exactly one, anywhere in a block") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n  ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "stmt1")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n\n\n\n  ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "stmt2")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{\n    stmt1\n\n    stmt2\n}"
+    }
+
+    should("strip a blank line immediately before a closing brace") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n  ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "stmt1")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{\n    stmt1\n}"
+    }
+
+    should("strip the first blank line inside a function's own body block") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n\n  ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "stmt")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun foo() {\n    stmt\n}"
+    }
+
+    should("strip the first blank line inside a class body, unconditionally") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n\n  ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "stmt")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{\n    stmt\n}"
+    }
+
+    should("preserve a lambda body's own first blank line — FUNCTION_LITERAL is not in scope of no-empty-first-line") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n  ")
+        builder.enterNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "stmt")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n  ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun foo() {\n    {\n\n        stmt\n    }\n}"
+    }
+
+    should("remove a blank line between a class name and its explicit primary constructor") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+        leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n\n")
+        builder.enterNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        leaf(builder, ctx, WNodeType.KW_CONSTRUCTOR, "constructor")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo\nconstructor()"
+    }
+
+    should("force exactly one blank line after the package directive and after a non-empty import list") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PACKAGE_DIRECTIVE })
+        leaf(builder, ctx, WNodeType.KW_PACKAGE, "package")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "sample")
+        builder.exitNode(ctx.apply { type = WNodeType.PACKAGE_DIRECTIVE })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.IMPORT_LIST })
+        builder.enterNode(ctx.apply { type = WNodeType.IMPORT_DIRECTIVE })
+        leaf(builder, ctx, WNodeType.KW_IMPORT, "import")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "kotlin")
+        builder.exitNode(ctx.apply { type = WNodeType.IMPORT_DIRECTIVE })
+        builder.exitNode(ctx.apply { type = WNodeType.IMPORT_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "package sample\n\nimport kotlin\n\nfun foo"
+    }
+
+    should("never force a blank line around an empty import list") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PACKAGE_DIRECTIVE })
+        leaf(builder, ctx, WNodeType.KW_PACKAGE, "package")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "sample")
+        builder.exitNode(ctx.apply { type = WNodeType.PACKAGE_DIRECTIVE })
+        builder.enterNode(ctx.apply { type = WNodeType.IMPORT_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.IMPORT_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "package sample\nfun foo"
+    }
 })
 
 private val noopReporter = object : WReporter {

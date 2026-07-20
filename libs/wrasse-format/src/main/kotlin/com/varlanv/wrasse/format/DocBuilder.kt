@@ -12,11 +12,18 @@ private val INDENTING_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNode
 private val CHAIN_LINK_TYPES = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION)
 
 private val KEYWORDS_WANTING_SPACE_AFTER =
-    setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH)
+    setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH, WNodeType.KW_WHERE)
 private val CLOSERS_NOT_NEEDING_SPACE_AFTER_COMMA =
     setOf(WNodeType.RPAR, WNodeType.RBRACKET, WNodeType.GT, WNodeType.RBRACE)
 private val COLON_WANTS_SPACE_BOTH_SIDES =
-    setOf(WNodeType.CLASS, WNodeType.OBJECT_DECLARATION, WNodeType.OBJECT_LITERAL, WNodeType.SECONDARY_CONSTRUCTOR, WNodeType.TYPE_PARAMETER)
+    setOf(
+        WNodeType.CLASS,
+        WNodeType.OBJECT_DECLARATION,
+        WNodeType.OBJECT_LITERAL,
+        WNodeType.SECONDARY_CONSTRUCTOR,
+        WNodeType.TYPE_PARAMETER,
+        WNodeType.TYPE_CONSTRAINT,
+    )
 
 /**
  * The privileged stream consumer that turns the SAX walk into a [Doc] tree, one `when (ctx.type)`
@@ -140,24 +147,33 @@ class DocBuilder(
         val lastIndex = children.size - 1
         val opensIndentScope = frame.type in INDENTING_TYPES && children[lastIndex].type == WNodeType.RBRACE
         if (!opensIndentScope) {
-            return Doc.Concat(normalizeChildren(children, frame.type), start, end)
+            return Doc.Concat(normalizeChildren(children, frame.type, ancestorHasFun(frame.type)), start, end)
         }
 
         val dedentIndex = lastIndex - 1
         val hasDedent = dedentIndex >= 0 && children[dedentIndex] is ChildEntry.Ws
 
         val innerCount = if (hasDedent) dedentIndex else lastIndex
-        val innerParts = normalizeChildren(children.subList(0, innerCount), frame.type)
+        val innerParts = normalizeChildren(children.subList(0, innerCount), frame.type, ancestorHasFun(frame.type))
 
         val innerStart = innerParts.firstOrNull()?.start ?: start
         val innerEnd = innerParts.lastOrNull()?.end ?: start
         val parts = mutableListOf<Doc>(Doc.Indent(Doc.Concat(innerParts, innerStart, innerEnd)))
         if (hasDedent) {
-            parts.add(resolveEntry(children[dedentIndex]))
+            parts.add(clampWs(children[dedentIndex] as ChildEntry.Ws, newlineCount = 1))
         }
         parts.add(resolveEntry(children[lastIndex]))
         return Doc.Concat(parts, start, end)
     }
+
+    /**
+     * `no-empty-first-line-in-method-block`'s own ground truth (`isPartOf(FUN)`, an unbounded
+     * ancestor walk, not "direct parent") requires knowing whether *any* enclosing frame is a
+     * [WNodeType.FUN] — available here because [frames] still holds every still-open ancestor at
+     * the moment a child frame is resolved (the child's own frame was already popped).
+     */
+    private fun ancestorHasFun(frameType: WNodeType): Boolean =
+        frameType == WNodeType.BLOCK && frames.any { it.type == WNodeType.FUN }
 
     /**
      * A [WNodeType.PREFIX_EXPRESSION]/[WNodeType.POSTFIX_EXPRESSION] (`-x`, `!x`, `x++`, `x!!`) is
@@ -271,12 +287,25 @@ class DocBuilder(
      * tokens directly adjacent) — [spacingDecision] is asked for the correct rendering; `null` means
      * "no rule for this pair, preserve whatever was there verbatim" (§the printer contract's
      * "preserve, don't guess" for anything this slice doesn't cover). A real newline
-     * ([ChildEntry.Ws]) is never touched here — only horizontal space is in scope.
+     * ([ChildEntry.Ws]) is never touched for horizontal spacing here — its own newline *count* is
+     * instead normalized by [verticalGapNewlineCount]/[clampWs] (Phase C.6's blank-line policy),
+     * the vertical analog of the same choke point.
      */
-    private fun normalizeChildren(children: List<ChildEntry>, frameType: WNodeType): List<Doc> {
+    private fun normalizeChildren(children: List<ChildEntry>, frameType: WNodeType, ancestorHasFun: Boolean = false): List<Doc> {
         val out = ArrayList<Doc>(children.size + 2)
         for (i in children.indices) {
             val entry = children[i]
+            if (entry is ChildEntry.Ws) {
+                val prevEntry = children.getOrNull(i - 1)
+                val nextEntry = children.getOrNull(i + 1)
+                val isFirstAfterLbrace = i == 1 && prevEntry?.type == WNodeType.LBRACE
+                val newlineCount = verticalGapNewlineCount(
+                    frameType, prevEntry, nextEntry, isFirstAfterLbrace, ancestorHasFun,
+                    actual = entry.rawText.count { it == '\n' },
+                )
+                out.add(clampWs(entry, newlineCount))
+                continue
+            }
             if (isPlainWhitespace(entry)) {
                 val prevType = children.getOrNull(i - 1)?.type
                 val nextType = children.getOrNull(i + 1)?.type
@@ -295,6 +324,72 @@ class DocBuilder(
             }
         }
         return out
+    }
+
+    /**
+     * Phase C.6's blank-line policy table, ground-truthed against ktlint's own rules and tests:
+     * `no-consecutive-blank-lines` (default: at most one blank line anywhere, i.e. clamp an
+     * over-long gap down to 2 newlines, never up), `no-blank-line-before-rbrace` (handled directly
+     * at [resolveBraceFrame]'s own dedent call site, not here — RBRACE never appears as a `next`
+     * sibling reaching this function), `no-empty-first-line-in-method-block`/
+     * `-in-class-body` (the gap right after `{` collapses to zero blank lines, scoped to
+     * [WNodeType.CLASS_BODY] unconditionally or [WNodeType.BLOCK] only when [ancestorHasFun] —
+     * mirroring `isPartOf(FUN)`'s unbounded-ancestor check — never [WNodeType.WHEN]/
+     * [WNodeType.FUNCTION_LITERAL], which ktlint's rules don't cover either), the class-name/
+     * primary-constructor gap (`no-consecutive-blank-lines`' own special case: zero blank lines,
+     * never one), and `package-import-spacing`/`spacing-after-package-and-imports` (exactly one
+     * blank line — the only case that can *add* a newline, not just cap one — between a non-empty
+     * package directive and a non-empty import list, and between that import list and whatever
+     * follows it, gated on [entryHasContent] so an absent package statement or an empty import list
+     * never forces a blank line into existence).
+     */
+    private fun verticalGapNewlineCount(
+        frameType: WNodeType,
+        prevEntry: ChildEntry?,
+        nextEntry: ChildEntry?,
+        isFirstAfterLbrace: Boolean,
+        ancestorHasFun: Boolean,
+        actual: Int,
+    ): Int {
+        if (frameType == WNodeType.FILE) {
+            if (prevEntry?.type == WNodeType.PACKAGE_DIRECTIVE && nextEntry?.type == WNodeType.IMPORT_LIST &&
+                entryHasContent(prevEntry) && entryHasContent(nextEntry)
+            ) {
+                return 2
+            }
+            if (prevEntry?.type == WNodeType.IMPORT_LIST && nextEntry != null && entryHasContent(prevEntry)) {
+                return 2
+            }
+        }
+        if (isFirstAfterLbrace && (frameType == WNodeType.CLASS_BODY || (frameType == WNodeType.BLOCK && ancestorHasFun))) {
+            return 1
+        }
+        if (frameType == WNodeType.CLASS && prevEntry?.type == WNodeType.IDENTIFIER && nextEntry?.type == WNodeType.PRIMARY_CONSTRUCTOR) {
+            return 1
+        }
+        return if (actual > 2) 2 else actual
+    }
+
+    private fun entryHasContent(entry: ChildEntry?): Boolean = entry is ChildEntry.Resolved && !isEmptyDoc(entry.doc)
+
+    /**
+     * Renders [entry] as a `HARD` [Doc.Break] carrying exactly [newlineCount] newlines. When
+     * [newlineCount] already matches the source's own count, the original literal (and any
+     * trailing whitespace on its own blank lines) is reused verbatim, byte-identical to
+     * [resolveEntry]'s default; otherwise a fresh `"\n".repeat(newlineCount)` is synthesized —
+     * covering both directions, capping an over-long gap down *and* the one case
+     * ([verticalGapNewlineCount]'s package/import rule) that adds a newline where the source had
+     * none.
+     */
+    private fun clampWs(entry: ChildEntry.Ws, newlineCount: Int): Doc.Break {
+        val end = entry.start + entry.rawText.length
+        val actual = entry.rawText.count { it == '\n' }
+        val literal = if (newlineCount == actual) {
+            entry.rawText.substring(0, entry.rawText.lastIndexOf('\n') + 1)
+        } else {
+            "\n".repeat(newlineCount)
+        }
+        return Doc.Break(BreakKind.HARD, literal = literal, start = entry.start, end = end)
     }
 
     private fun isPlainWhitespace(entry: ChildEntry): Boolean =
@@ -338,6 +433,7 @@ class DocBuilder(
         }
 
         if (prevType in KEYWORDS_WANTING_SPACE_AFTER) return " "
+        if (nextType == WNodeType.KW_WHERE) return " "
 
         if (frameType == WNodeType.VALUE_ARGUMENT && prevType == WNodeType.MUL) return ""
 
@@ -554,11 +650,19 @@ class DocBuilder(
         else -> ""
     }
 
+    /**
+     * The default, context-free half of Phase C.6's blank-line policy (`no-consecutive-blank-lines`:
+     * at most one blank line, everywhere — ktlint's own rule applies to any whitespace token
+     * regardless of its parent) — the fallback for every [ChildEntry.Ws] this class resolves
+     * *without* going through [normalizeChildren]'s more specific, context-aware
+     * [verticalGapNewlineCount] dispatch (a chain/binary expression's non-anchor whitespace, a
+     * unary frame's interior, an argument list's fallback path with no real `(`/`)` found).
+     */
     private fun resolveEntry(entry: ChildEntry): Doc = when (entry) {
         is ChildEntry.Resolved -> entry.doc
         is ChildEntry.Ws -> {
-            val literal = entry.rawText.substring(0, entry.rawText.lastIndexOf('\n') + 1)
-            Doc.Break(BreakKind.HARD, literal = literal, start = entry.start, end = entry.start + entry.rawText.length)
+            val actual = entry.rawText.count { it == '\n' }
+            clampWs(entry, if (actual > 2) 2 else actual)
         }
     }
 

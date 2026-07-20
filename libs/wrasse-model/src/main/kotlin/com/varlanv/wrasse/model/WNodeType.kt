@@ -24,6 +24,8 @@ enum class WNodeType {
     VALUE_PARAMETER,
     TYPE_PARAMETER_LIST,
     TYPE_PARAMETER,
+    TYPE_CONSTRAINT_LIST,
+    TYPE_CONSTRAINT,
     CLASS_BODY,
     ENUM_ENTRY,
     ENUM_ENTRY_SUPERCLASS_REFERENCE_EXPRESSION,
@@ -239,6 +241,7 @@ enum class WNodeType {
     KW_ANNOTATION,
     KW_GET,
     KW_SET,
+    KW_WHERE,
 
     // -- Fallback for unmapped kotlinc types --
     UNKNOWN,

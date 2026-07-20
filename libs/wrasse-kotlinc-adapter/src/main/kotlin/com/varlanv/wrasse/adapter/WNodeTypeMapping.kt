@@ -25,6 +25,8 @@ object WNodeTypeMapping {
         put(KtNodeTypes.VALUE_PARAMETER, WNodeType.VALUE_PARAMETER)
         put(KtNodeTypes.TYPE_PARAMETER_LIST, WNodeType.TYPE_PARAMETER_LIST)
         put(KtNodeTypes.TYPE_PARAMETER, WNodeType.TYPE_PARAMETER)
+        put(KtNodeTypes.TYPE_CONSTRAINT_LIST, WNodeType.TYPE_CONSTRAINT_LIST)
+        put(KtNodeTypes.TYPE_CONSTRAINT, WNodeType.TYPE_CONSTRAINT)
         put(KtNodeTypes.CLASS_BODY, WNodeType.CLASS_BODY)
         put(KtNodeTypes.ENUM_ENTRY, WNodeType.ENUM_ENTRY)
         put(KtNodeTypes.ENUM_ENTRY_SUPERCLASS_REFERENCE_EXPRESSION, WNodeType.ENUM_ENTRY_SUPERCLASS_REFERENCE_EXPRESSION)
@@ -250,6 +252,7 @@ object WNodeTypeMapping {
         put(KtTokens.ANNOTATION_KEYWORD, WNodeType.KW_ANNOTATION)
         put(KtTokens.GET_KEYWORD, WNodeType.KW_GET)
         put(KtTokens.SET_KEYWORD, WNodeType.KW_SET)
+        put(KtTokens.WHERE_KEYWORD, WNodeType.KW_WHERE)
     }
 
     /**
