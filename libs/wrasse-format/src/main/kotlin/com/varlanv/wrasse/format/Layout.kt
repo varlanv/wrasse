@@ -3,12 +3,10 @@ package com.varlanv.wrasse.format
 import com.varlanv.wrasse.model.FormatStyle
 
 /**
- * The single deterministic pass over a [Doc] tree: thread the current column and the ambient
- * indent depth top-down; for each [Doc.Group], decide flat-vs-broken once by checking whether the
- * group's flat width fits in the remaining line width, then render its body in that mode. Nested
- * groups decide independently once their enclosing group's mode (and therefore their starting
- * column) is known, so the composition in `outer(inner(...))` falls out of the recursion with no
- * extra bookkeeping. Never re-derives tokens, so it can never re-trigger a rule (§5.3).
+ * The single deterministic pass over a [Doc] tree: threads the current column and the ambient
+ * indent depth top-down; for each [Doc.Group], decides flat-vs-broken once by checking whether the
+ * group's flat width fits in the remaining line width, then renders its body in that mode. Nested
+ * groups decide independently once their enclosing group's mode is known. Never re-derives tokens.
  */
 object Layout {
 

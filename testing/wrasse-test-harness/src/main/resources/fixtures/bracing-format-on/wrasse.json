@@ -1,5 +1,5 @@
 {
-    "format": { "enabled": true },
+    "format": { "enabled": true, "multilineSignatureThreshold": 999999 },
     "rules": {
         "if-else-bracing": { "level": "error" },
         "when-entry-bracing": { "level": "error" }

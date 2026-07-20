@@ -21,9 +21,9 @@ import io.kotest.matchers.shouldBe
  */
 class DocBuilderSpec : BaseSpec({
 
-    fun formatConfig(maxLineLength: Int = 140) = WFormatConfig(
+    fun formatConfig(maxLineLength: Int = 140, multilineSignatureThreshold: Int = 1) = WFormatConfig(
         enabled = true,
-        style = FormatStyle(indentWidth = 4, maxLineLength = maxLineLength),
+        style = FormatStyle(indentWidth = 4, maxLineLength = maxLineLength, multilineSignatureThreshold = multilineSignatureThreshold),
         ruleConfig = WrasseRuleConfig(level = RuleLevel.ERROR, exclude = emptyList(), effectiveLevel = RuleLevel.ERROR),
     )
 
@@ -66,6 +66,46 @@ class DocBuilderSpec : BaseSpec({
         }
         leaf(builder, ctx, WNodeType.RPAR, ")")
         builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+    }
+
+    fun valueParameter(builder: DocBuilder, ctx: WContext, name: String, typeName: String, body: (() -> Unit)? = null) {
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, name)
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        if (body != null) {
+            body()
+        } else {
+            builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+            leaf(builder, ctx, WNodeType.IDENTIFIER, typeName)
+            builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        }
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+    }
+
+    fun funWithParameterList(builder: DocBuilder, ctx: WContext, buildParams: () -> Unit) {
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "f")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        buildParams()
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+    }
+
+    fun funWithParameters(builder: DocBuilder, ctx: WContext, params: List<Pair<String, String>>) {
+        funWithParameterList(builder, ctx) {
+            params.forEachIndexed { index, (name, typeName) ->
+                if (index > 0) {
+                    leaf(builder, ctx, WNodeType.COMMA, ",")
+                    leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                }
+                valueParameter(builder, ctx, name, typeName)
+            }
+        }
     }
 
     fun render(builder: DocBuilder, ctx: WContext): String {
@@ -275,6 +315,32 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
         render(builder, ctx) shouldBe "aaaaaaaaaaaaaaaaaaaa\n    ?: b"
+    }
+
+    should("wrapRoot: a chain whose receiver is a raw multi-line string indents the continuation one level, not zero") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"\"\"")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n    line one\n    line two\n")
+        leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"\"\"")
+        builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        leaf(builder, ctx, WNodeType.DOT, ".")
+        builder.enterNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "trimIndent")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    line two\n\"\"\"\n    .trimIndent()"
     }
 
     should("keep a short argument list flat") {
@@ -805,6 +871,114 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
         render(builder, ctx) shouldBe "package sample\nfun foo"
+    }
+
+    should("force a FUN's own parameter list one-per-line once the parameter count meets the threshold") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 2))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithParameters(builder, ctx, listOf("a" to "Int", "b" to "Int"))
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun f(\n    a: Int,\n    b: Int\n)"
+    }
+
+    should("keep a FUN's own parameter list flat below the threshold when it fits") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 3))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithParameters(builder, ctx, listOf("a" to "Int", "b" to "Int"))
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun f(a: Int, b: Int)"
+    }
+
+    should("join an already wrapped FUN parameter list back onto one line once it fits below the threshold") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 3))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "f")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        valueParameter(builder, ctx, "a", "Int")
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        valueParameter(builder, ctx, "b", "Int")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun f(a: Int, b: Int)"
+    }
+
+    should("break a FUN's own parameter list below the threshold when it exceeds maxLineLength") {
+        val builder = DocBuilder(formatConfig(maxLineLength = 15, multilineSignatureThreshold = 3))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithParameters(builder, ctx, listOf("a" to "Int", "b" to "Int"))
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun f(\n    a: Int,\n    b: Int\n)"
+    }
+
+    should("leave a non-FUN parameter list untouched regardless of parameter count or threshold") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 1))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        valueParameter(builder, ctx, "a", "Int")
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        valueParameter(builder, ctx, "b", "Int")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(a: Int, b: Int)"
+    }
+
+    should("bail on a FUN's parameter list containing a comment, preserving it verbatim") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 1))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithParameterList(builder, ctx) {
+            valueParameter(builder, ctx, "a", "Int")
+            leaf(builder, ctx, WNodeType.COMMA, ",")
+            leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+            leaf(builder, ctx, WNodeType.EOL_COMMENT, "// note")
+            leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+            valueParameter(builder, ctx, "b", "Int")
+        }
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun f(a: Int, // note\nb: Int)"
+    }
+
+    should("force a FUN's parameter list multiline when one parameter's own text already spans multiple lines") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 3))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithParameterList(builder, ctx) {
+            valueParameter(builder, ctx, "message", "String") {
+                builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+                leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"\"\"")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\nhi\n")
+                leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"\"\"")
+                builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+            }
+        }
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun f(\n    message: \"\"\"\nhi\n\"\"\"\n)"
     }
 })
 

@@ -4,33 +4,26 @@ import com.varlanv.wrasse.lang.IndentScope
 import com.varlanv.wrasse.lang.WEdit
 
 /**
- * Splices [EditPlan][com.varlanv.wrasse.model.EditPlan] edits into a `Doc` tree (§5.3's
- * "content → layout" contract): every remaining rule fix, cast as an atomic `Doc.Text` run at its
- * original span, replaces whatever `Doc` content that span used to cover. Layout then renders the
- * result without ever re-deriving tokens, so a spliced edit can never re-trigger a rule.
+ * Splices [EditPlan][com.varlanv.wrasse.model.EditPlan] edits into a `Doc` tree: every remaining
+ * rule fix, cast as an atomic `Doc.Text` run at its original span, replaces whatever `Doc` content
+ * that span used to cover. `Layout` then renders the result without re-deriving tokens.
  *
- * [splice] first resolves every [IndentScope.OPEN]/[IndentScope.CLOSE] pair (see
- * [applyIndentScopes]), then applies each [WEdit] independently against [Doc.start]/[Doc.end]
- * spans, never against rendered text — edits are pairwise disjoint by construction
- * ([EditPlan][com.varlanv.wrasse.model.EditPlan]'s own invariant), so application order never
- * matters. A single edit may:
- * - fully cover one or more `Doc` leaves/subtrees (whole-leaf or whole-subtree replacement) —
- *   the first covered node becomes the replacement `Doc`, every further covered node this same
- *   edit reaches is dropped (it would otherwise duplicate the same replacement text); a
- *   replacement containing embedded newlines becomes alternating `Text`/`Break(HARD)` segments
- *   (see [replacementDoc]) rather than one opaque `Text`, so `Layout` derives each subsequent
- *   line's column from ambient indent depth instead of whatever the rule happened to bake in —
- *   the mechanism [applyIndentScopes] relies on to lay out a newly-braced multiline body;
- * - land inside a single `Doc.Text` leaf (always cleanly splittable — a `Text.value` is always
- *   the exact source substring of its span) or a `Doc.Break` leaf (splittable only up to its
- *   [Doc.Break.literal]'s represented length; a cut strictly inside the elided trailing-indent
- *   tail cannot be honored and is refused, see below);
- * - be a zero-width insertion, threaded to the exactly one leaf whose span starts at the
- *   insertion point (or, at true end-of-file, appended after everything).
+ * [splice] first resolves every [IndentScope.OPEN]/[IndentScope.CLOSE] pair
+ * ([applyIndentScopes]), then applies each [WEdit] independently against [Doc.start]/[Doc.end]
+ * spans, never against rendered text — sound because edits are pairwise disjoint by construction.
+ * A single edit may:
+ * - fully cover one or more `Doc` leaves/subtrees: the first covered node becomes the replacement
+ *   `Doc`, every further covered node this same edit reaches is dropped. A replacement containing
+ *   embedded newlines becomes alternating `Text`/`Break(HARD)` segments ([replacementDoc]) rather
+ *   than one opaque `Text`, so `Layout` derives each subsequent line's column from ambient indent
+ *   depth;
+ * - land inside a single `Doc.Text` leaf (always cleanly splittable) or a `Doc.Break` leaf
+ *   (splittable only up to its [Doc.Break.literal]'s represented length; a cut strictly inside the
+ *   elided trailing-indent tail is refused);
+ * - be a zero-width insertion, threaded to the one leaf whose span starts at the insertion point
+ *   (or, at true end-of-file, appended after everything).
  *
- * Returns `null` if any edit cannot be cleanly mapped this way — never guessed at (§5.3): a
- * `Doc.Break`'s elided trailing-indent tail (the whitespace `Layout` regenerates instead of
- * storing) has no addressable position for a cut to land on other than its own two ends.
+ * Returns `null` if any edit cannot be cleanly mapped this way.
  */
 object DocSplicer {
 
@@ -45,34 +38,21 @@ object DocSplicer {
     }
 
     /**
-     * Wraps, in one ambient [Doc.Indent] level, the span between each [IndentScope.OPEN] edit's
-     * own start and its matching [IndentScope.CLOSE] edit's own start — a stack match over
-     * [edits] in their already-span-sorted order, sound because every emitted pair nests exactly
-     * as its own source construct does (a brace-insertion inside a branch's body is textually
-     * inside that branch's own open/close span, never straddling it). The wrapped span always
-     * starts at the *open* edit's own start (not its end): the inserted `" {\n"`'s trailing break
-     * belongs inside the new indent scope (it decides the following line's column) while its `"{"`
-     * is indent-inert (nothing precedes it inside this scope), so folding the whole open edit in
-     * is equivalent to splitting it and costs nothing.
+     * Wraps, in one [Doc.Indent] level, the span between each [IndentScope.OPEN] edit's own start
+     * and its matching [IndentScope.CLOSE] edit's own start — a stack match over [edits] in their
+     * already-span-sorted order. The wrapped span starts at the open edit's own start, since its
+     * trailing break belongs inside the new scope and decides the following line's column.
      *
-     * The matching close edit is left *outside* the new `Indent`, exactly as `DocBuilder.
-     * resolveBraceFrame` leaves a `BLOCK`'s own dedent-whitespace-plus-`RBRACE` outside its `Indent` —
-     * its break decides the closing line's column, which must stay at the outer (ambient) depth.
-     * A **non-zero-width** close edit (a `THEN` followed by `else`, replacing a real gap) is left
-     * for the ordinary per-edit [spliceOne] pass afterward — a `fullyCovered` replace of an exact
-     * node, no different from any other rule's edit. A **zero-width** close edit (the last branch
-     * in its chain/`when`, nothing to its right) cannot be left to [spliceOne]: its generic
-     * insertion rule threads it to "the one leaf whose span starts at the insertion point," and
-     * that leaf can be the *enclosing* block's own dedent whitespace — itself deliberately placed
-     * one `Indent` shallower by `DocBuilder.resolveBraceFrame` — silently rendering the new closing
-     * brace one level too shallow (found only by running a real fixture through the full pipeline,
-     * not by reasoning about either mechanism alone). So a zero-width close edit is instead spliced
-     * here, directly, as a new sibling appended immediately after the wrapped `Indent` at the exact
-     * same tree level — never reaching [spliceOne]'s ambiguous threading at all — and returned in
-     * this call's consumed set so the later per-edit pass skips it.
+     * The matching close edit is left outside the new `Indent`, since its own break decides the
+     * closing line's column at the outer depth. A non-zero-width close edit (replacing a real gap)
+     * is left for the ordinary per-edit [spliceOne] pass. A zero-width close edit (nothing to its
+     * right) is instead spliced here directly, as a new sibling appended immediately after the
+     * wrapped `Indent` at the same tree level, and returned in this call's consumed set — the
+     * generic insertion rule in [spliceOne] would otherwise thread it to the enclosing block's own
+     * dedent whitespace, one level shallower than intended.
      *
      * Returns `null` if a `CLOSE` has no matching prior `OPEN`, an `OPEN` is never closed, or a
-     * wrap's span cannot be found as an exact node/part boundary in [doc] — never guessed at (§5.3).
+     * wrap's span cannot be found as an exact node/part boundary in [doc].
      */
     private fun applyIndentScopes(doc: Doc, edits: List<WEdit>): Pair<Doc, Set<WEdit>>? {
         var current = doc
@@ -98,11 +78,10 @@ object DocSplicer {
     }
 
     /**
-     * Wraps the exact `[start, end)` span of [doc] in one [Doc.Indent]. When [after] is non-null
-     * (only for a zero-width close edit, see [applyIndentScopes]), it is appended as a new sibling
-     * immediately following the wrapped `Indent`, at the same structural level — not threaded
-     * through any node lookup of its own, so it cannot land inside an unrelated shallower scope.
-     * Returns `null` if no node/contiguous run of `Doc.Concat` parts has those bounds.
+     * Wraps the exact `[start, end)` span of [doc] in one [Doc.Indent]. When [after] is non-null (a
+     * zero-width close edit, see [applyIndentScopes]), it is appended as a new sibling immediately
+     * following the wrapped `Indent`, at the same structural level. Returns `null` if no
+     * node/contiguous run of `Doc.Concat` parts has those bounds.
      */
     private fun wrapIndent(doc: Doc, start: Int, end: Int, after: Doc?): Doc? {
         if (doc.start == start && doc.end == end) {
@@ -139,10 +118,9 @@ object DocSplicer {
 
     /**
      * Materializes an edit's replacement text as a `Doc`: a single [Doc.Text] when it has no
-     * embedded newline (byte-identical to the pre-C.3 behavior), or alternating
-     * [Doc.Text]/`Doc.Break(HARD)` segments otherwise, so `Layout` synthesizes each subsequent
-     * segment's leading indent from ambient depth exactly as it would for a break sourced from
-     * real source whitespace — the mechanism a minimal, unindented brace edit
+     * embedded newline, or alternating [Doc.Text]/`Doc.Break(HARD)` segments otherwise, so `Layout`
+     * synthesizes each subsequent segment's leading indent from ambient depth — the mechanism a
+     * minimal, unindented brace edit
      * ([com.varlanv.wrasse.rules.BraceInsertion.wrapEditsMinimal]) relies on.
      */
     private fun replacementDoc(edit: WEdit): Doc {

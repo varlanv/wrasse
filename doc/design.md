@@ -3781,22 +3781,15 @@ chain also collapsing flat) rather than merely asserting it by reasoning.
   semicolons — exactly the cross-rule coupling §5.1 confines to a real fused engine, not something
   this slice's choke point can decide alone. Bails (preserves verbatim), not guessed.
 
-**A pre-existing C.4 bug found by running a real fixture, not fixed (out of scope for this
-slice):** `wrapRoot`'s "exclude a trailing forced-break part from the fit-check/indent" logic
-(added to keep a chain's dot from wrapping onto its own line ahead of an inherently-multiline
-trailing lambda, C.4) assumes the forced-break part is *trailing*. A **raw multi-line string
-literal as the chain's own *receiver*** (`"""...multiple lines...""".trimIndent()`) is the forced-
-break part at `splitIdx == 0` — the *first* part, not a trailing one — so `wrapRoot` produces an
-empty head `Group` and renders the entire chain, dot included, as a bare, unwrapped sibling at
-ambient depth. Since a `SOFT` break outside any `Group` renders in whatever mode is ambient (`BROKEN`
-by default at the top level, per `Layout.render`), the dot moves onto its own line at the *wrong*
-(shallower, not one-level-deeper) depth instead of staying flush against the string's closing
-`"""`. First surfaced by `format-blank-lines/comment-and-string-interior-preserved-error`'s original
-draft (a `"""..."""` .trimIndent()`, chained on one line); the fixture was rewritten to assign the
-raw string to a `val` instead of chaining off it directly, sidestepping the bug rather than fixing
-it — `wrapRoot`'s split-point logic is C.4's, and fixing a leading-forced-break receiver is a
-chain-wrapping concern, not a blank-line one. Recorded here as a known gap for whoever next touches
-`resolveChainFrame`/`wrapRoot`, not fixed in this slice.
+**A pre-existing C.4 bug found by running a real fixture (fixed in C.7):** `wrapRoot`'s "exclude a
+trailing forced-break part from the fit-check/indent" logic assumed the forced-break part is
+*trailing*. A raw multi-line string literal as the chain's own receiver
+(`"""...multiple lines...""".trimIndent()`) is the forced-break part at `splitIdx == 0` — the first
+part, not a trailing one — so `wrapRoot` produced an empty head `Group` and rendered the entire
+chain, dot included, as a bare, unwrapped sibling at ambient depth instead of one level deeper. First
+surfaced by `format-blank-lines/comment-and-string-interior-preserved-error`'s original draft; the
+fixture was rewritten at the time to sidestep the bug rather than fix it. See Phase C.7 below for the
+fix.
 
 **Fixtures:** `testing/wrasse-test-harness/.../fixtures/format-blank-lines/` (own `wrasse.json`,
 `{"format": {"enabled": true, "maxLineLength": 60}}` — lowered from the 140 default only so the
@@ -3840,6 +3833,165 @@ it (`git status` on all of them stays clean after this slice).
 414 plus this slice's 13 — zero failures; `wrasseLint` exercises the rebuilt plugin against this
 repo's own `format`-disabled `wrasse.json`, unaffected by this slice). `ktlint`/`detekt` checkouts
 used for ground truth confirmed byte-clean (`git status`) throughout — read-only.
+
+#### Phase C.7 — Function-signature wrapping, plus the wrapRoot receiver bug fixed — **done 2026-07-21**
+
+**Part 1 — the wrapRoot receiver bug, failing-first.** Reproduced the C.6 note directly: a
+`DocBuilderSpec` case building `"""..."""`.trimIndent()` as a root chain (hand-built SAX events, no
+compiler) rendered `.trimIndent()` flush at column 0 instead of one level deeper, confirmed failing
+against the pre-fix code (`AssertionFailedError`, actual `"""\n    line one\n    line two\n"""\n.trimIndent()`
+vs expected with 4-space indent). A matching integration fixture
+(`format-line-breaks/chain-multiline-string-receiver-error`) reproduced the identical defect through
+the real compiler and LightTree (`.trimIndent()` at 4 spaces instead of 8 inside a function body),
+confirmed failing by temporarily reverting the fix and re-running the fixture spec (test count went
+427 → 428, so the fixture was genuinely picked up, not vacuously passing).
+
+**Root cause:** `wrapRoot`'s split-point predicate (`containsForcedBreak`, now `hasOwnIndentScope`)
+treated a plain multi-line `Doc.Text` (a raw string/KDoc token) the same as a `Doc.Break(HARD)` —
+both "forced the split." That equivalence is wrong: a `Doc.Break(HARD)` implies a nested `Doc.Indent`
+scope of its own (a lambda body's block, which would double-indent if wrapped in another `Indent`),
+while a plain multi-line `Text` carries no `Indent`/`Break` of its own — wrapping it in the shared
+`Group`/`Indent` has no effect on its interior (`Layout` only re-indents at a `Break`, never inside a
+`Text`'s own characters) and `Layout.flatWidth` (unchanged) still forces that `Group` broken on its
+own whenever the embedded newline is present. The fix: `hasOwnIndentScope` returns `false` for
+`Doc.Text` unconditionally, checking only for an actual `Doc.Break(HARD)` (nested through
+`Indent`/`Group`/`Concat`). With this change, a receiver-only forced break no longer produces an
+empty head group — `wrapRoot`'s `splitIdx < 0` branch wraps the whole chain in one `Group`/`Indent`
+as usual, and `Layout.flatWidth`'s existing null-propagation still renders it broken, at the correct
+one-level-deeper depth. Verified against both the one-link (`""".."""`.trimIndent()`) and two-link
+(`""".."""`.trimIndent().length`) shapes by hand-tracing the `Doc` construction; the original C.4
+trailing-lambda case is untouched (a lambda body's interior always contains a real `Doc.Break(HARD)`,
+so `hasOwnIndentScope` still finds it).
+
+**Before/after** (`format-line-breaks/chain-multiline-string-receiver-error`, inside a function body,
+indent width 4):
+```kotlin
+// before (bug): flush, wrong depth
+    val x = """
+        line one
+        line two
+    """.trimIndent()
+// after (fixed): one level deeper
+    val x = """
+        line one
+        line two
+    """
+        .trimIndent()
+```
+
+**Part 2 — function-signature wrapping.** `DocBuilder` gains a `WNodeType.VALUE_PARAMETER_LIST`
+branch in `resolveFrame`, scoped to a `WNodeType.FUN`'s own parameter list (`parentType == FUN`,
+mirroring ktlint's `function-signature` rule's own `node.elementType == FUN` scope): a primary/
+secondary constructor's, a `FUNCTION_TYPE`'s, or a lambda's parameter list (also
+`VALUE_PARAMETER_LIST` in Kotlin's own grammar) is untouched.
+
+**Mechanism (`resolveValueParameterListFrame`):** identical break points to
+`resolveArgumentListFrame` — right after `(`, right after every comma with another parameter
+following it, right before `)` — wrapped in one `Doc.Group`/`Doc.Indent`, reusing `Layout`'s existing
+fit-check machinery (no parallel mechanism). The break `kind` is decided once per parameter list:
+`HARD` (always split, one parameter per line) when the parameter count is at least
+`FormatStyle.multilineSignatureThreshold`, or when any parameter's own text already spans multiple
+lines (ktlint's `hasMinimumNumberOfParameters() || containsMultilineParameter()`, ground-truthed
+against `FunctionSignatureRule`); `SOFT` (fit-dependent, inside the `Group`) otherwise — `Layout`'s
+unchanged fits-check then joins an already-wrapped signature back onto one line whenever it fits, or
+keeps a single-line signature wrapped whenever it doesn't, exactly the same join/break duality
+`resolveArgumentListFrame` already exercises for call sites. A comment (`EOL_COMMENT`/`BLOCK_COMMENT`)
+found directly inside the parameter list bails the whole decision to `passthroughParameterList`
+(verbatim, spacing-only) — ktlint's own rule refuses the entire signature rewrite whenever any
+comment appears anywhere in the signature; this narrower, structurally-reachable half (a comment
+*inside* the parameter list only — a comment on the return type or modifier list is not visible from
+this frame and is not detected) is preserved-not-guessed, not a claim of full parity.
+
+**A pre-existing indentation gap found and fixed alongside this slice:** `passthroughParameterList`
+(the fallback for every case above) previously never gave `VALUE_PARAMETER_LIST` an indent scope at
+all — a side effect of C.1's foundation, which only ever indented `{`/`}`-delimited `INDENTING_TYPES`
+nodes. An already-multi-line parameter list reaching this fallback (a constructor, a lambda, or a
+`FUN` bailing on a comment) rendered every continuation line at the *ambient* depth instead of one
+level deeper, discovered by the very first comment-bail fixture written for this slice
+(`comment-in-parameter-list-bail-error`: `a: Int, // keep this comment` lost its 4-space indent
+entirely). Fixed generally, not narrowly: `passthroughParameterList` now wraps its interior in one
+`Doc.Indent` and dedents the line holding the closing `)`, gated on the same "own last child is the
+closing delimiter, preceded by a real newline" structural check `resolveBraceFrame` already uses for
+`}` — applying uniformly to every parameter list that reaches this fallback (constructors, lambdas,
+`FUNCTION_TYPE`s, and a `FUN`'s own comment-bailed list alike), not special-cased to the one fixture
+that surfaced it. No existing fixture exercised a multi-line `VALUE_PARAMETER_LIST` before this slice
+(confirmed by grepping every fixture directory for an opening `(` immediately followed by a newline —
+the two hits found were both call-site `VALUE_ARGUMENT_LIST`s), so this fix changes no existing
+fixture's expected output.
+
+**What `multilineSignatureThreshold: Int = 1` actually produces:** the schema's own description
+("parameter count at or above which a signature is forced multiline. Default 1") means, read
+literally, *any* function with one or more parameters is force-wrapped, unconditionally, regardless
+of whether it fits — confirmed by running the full fixture ladder with the default value unchanged:
+every pre-existing `format-*`/`bracing-format-on` fixture containing a `FUN` with one or more
+parameters (`comma-spacing-error`'s `fun add(a: Int, b: Int, c: Int): Int`,
+`nested-class-fun-if-lambda`, `multiline-if-body-braced-error`'s helper functions, and 20 more) failed
+by rewriting a short, already-idiomatic one-line signature into one-parameter-per-line — the exact
+"absurd, forced multiline repo-wide" outcome the task brief anticipated. This is not a mechanism bug:
+`resolveValueParameterListFrame` correctly implements "paramCount >= threshold forces multiline" per
+the value it's given; the *value* itself is almost certainly not what a user would want as a repo-wide
+default (ktlint ships this feature *off* by default — `Int.MAX_VALUE`/`unset` — turning it on only
+under its own `ktlint_official` code style, at `2`, not `1`). **Not changed here** (FormatStyle's
+default is a product decision, not a mechanism one, and the task scope explicitly excludes changing
+it): the 6 affected fixture directories instead got an explicit
+`"multilineSignatureThreshold": 999999` override in their own `wrasse.json` (the same per-directory
+style-override pattern already used for `maxLineLength`), isolating each directory's own concern from
+this slice's absurd-by-default count trigger without touching the class default. **Flagged for owner
+input:** whether `1` should become `2` (matching ktlint's own opinionated-style choice) or some other
+value, or whether the "doesn't fit" half alone should be the real repo-wide default with the
+count-based half opted into per-project.
+
+**Preserved-not-guessed, listed:**
+- A comment elsewhere in the signature (return type, modifier list) — not visible from
+  `VALUE_PARAMETER_LIST`'s own frame, so not detected; only a comment directly inside the parameter
+  list is.
+- An annotated parameter forcing multiline under a `ktlint_official`-style code style — no equivalent
+  axis exists in wrasse's single, fixed style (D21 erased the code-style meta-knob entirely), so this
+  ktlint condition has no analog and is not ported.
+- The `=`/expression-body boundary (ktlint's `fixFunctionBodyExpression`: whether the body's first
+  line merges onto the same line as the signature, `functionBodyExpressionWrapping`'s three policies)
+  is not implemented — out of this slice's scope (parameter-list wrapping only), not a silent gap: the
+  `=`/body gap still gets only the pre-existing generic spacing/blank-line treatment, never rewrapped.
+- Trailing-comma interaction: a wrapped parameter list whose source had no trailing comma stays
+  without one (the closing break lands right after the last parameter, exactly as
+  `resolveArgumentListFrame` already does for call sites); a source that already had a trailing comma
+  keeps it, since a comma already followed by nothing but whitespace gets no break of its own
+  (doubling-up avoided the same way). Trailing-comma *insertion* remains a later slice's job
+  (`FormatStyle.trailingCommas` stays unconsumed).
+
+**Existing-fixture changes:** none required a `.fixed.kt` update. Six directories
+(`bracing-format-on`, `format-blank-lines`, `format-indentation`, `format-line-breaks`,
+`format-spacing`, and the new `format-signatures`' own default) needed a `multilineSignatureThreshold`
+override in their `wrasse.json` for the reason above; no fixture source or `.fixed.kt` content
+changed.
+
+**Fixtures:** the Part 1 fixture lives in `format-line-breaks/` (a chain-wrapping concern, alongside
+its C.4 siblings). A new `testing/wrasse-test-harness/.../fixtures/format-signatures/` directory (own
+`wrasse.json`, `{"format": {"enabled": true, "maxLineLength": 40, "multilineSignatureThreshold": 3}}`
+— a small `maxLineLength` so fit-based wrapping is exercisable without inflating fixture identifiers),
+8 fixtures: `threshold-forces-multiline-error` (3 short parameters, forced by count alone),
+`join-collapses-multiline-error` (an already-wrapped 2-parameter signature collapses once it fits
+below the threshold), `fit-based-force-error` (2 parameters, below threshold, wrapped only because the
+flat signature exceeds `maxLineLength`), `multiline-parameter-content-forces-error` (a single
+lambda-default parameter whose own body spans multiple lines forces wrapping regardless of count or
+fit), `primary-constructor-untouched-clean` (`expect-clean`: a 3-parameter primary constructor, which
+would be forced if it were a `FUN`, stays untouched and single-line), `comment-in-parameter-list-bail-
+error` (the comment bail, verbatim parameter list, alongside a real, unrelated excess-blank-line fix
+in the same file proving the file is still processed), `kitchen-sink-error` (all of the above
+combined in one file), and `already-clean` (`expect-clean`: a threshold-forced signature that already
+has its trailing comma and correct indentation, a below-threshold single-line signature, an empty
+parameter list, and an untouched constructor, all byte-identical). The existing, already-generic D19
+idempotence cycle exercises all 6 `-error`/kitchen-sink fixtures. `libs/wrasse-format/DocBuilderSpec`
+gained 8 unit tests: the Part 1 wrapRoot fix (hand-built one-link chain), and 7 for the Part 2 policy
+(threshold-forced, fit-based-flat, fit-based-join, fit-based-break, non-`FUN` untouched, comment bail,
+multiline-parameter-content force) — driven directly against hand-built SAX events, no compiler.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (436 fixture-spec cases per Kotlin minor — 427
+plus Part 1's 1 plus Part 2's 8 — zero failures; `wrasseLint` exercises the rebuilt plugin against
+this repo's own `format`-disabled `wrasse.json`, unaffected by this slice). `ktlint` checkout used for
+ground truth confirmed byte-clean (`git status`) throughout — read-only; `detekt` was not needed for
+this slice.
 
 ### Phase D — Hardening & release
 

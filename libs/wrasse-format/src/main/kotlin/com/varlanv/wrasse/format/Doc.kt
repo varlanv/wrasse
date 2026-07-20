@@ -1,18 +1,14 @@
 package com.varlanv.wrasse.format
 
 /**
- * The printer's layout vocabulary (§5.3). A `Doc` tree is built once per file by [DocBuilder] and
- * rendered once by [Layout]; nothing in this package ever re-parses or re-walks source text.
+ * The printer's layout vocabulary. A `Doc` tree is built once per file by [DocBuilder] and
+ * rendered once by [Layout]; nothing in this package re-parses or re-walks source text.
  *
- * Every node carries [start]/[end]: the original source span it was built from (§5.3's "doc
- * leaves reference original source spans, so they are addressable by offset"). [DocSplicer] is
- * the sole reader of these; [Layout] never touches them. [Text]/[Break] get theirs from the
+ * Every node carries [start]/[end], the original source span it was built from; [DocSplicer] is
+ * the sole reader of these, [Layout] never touches them. [Text]/[Break] take theirs from the
  * compiler leaf they were built from; [Indent]/[Group] forward their single [body]'s span
- * unchanged; [Concat] takes its span as an explicit constructor argument (its own node's bounds
- * for a whole resolved subtree, or the union of a synthetic slice's real parts — never inferred
- * from [parts], since an empty or degenerate first/last part would make inference lie).
- * [start]/[end] default to `0` so hand-built `Doc` trees that never exercise splicing (existing
- * [Layout]/[DocBuilder] unit tests) need no changes.
+ * unchanged; [Concat] takes its span as an explicit constructor argument, never inferred from
+ * [parts]. [start]/[end] default to `0` for hand-built `Doc` trees that address no real span.
  */
 sealed interface Doc {
 
@@ -31,10 +27,7 @@ sealed interface Doc {
      *   whitespace on those blank lines survive untouched); [Layout] appends the synthesized
      *   indent for the upcoming line after it.
      * - [BreakKind.SOFT] — renders as [flat] if the enclosing `Group` fits flat, or as a newline
-     *   plus the synthesized indent otherwise. Not emitted by [DocBuilder] in the Phase C.1
-     *   foundation slice (every real newline becomes a `HARD` break); the foundation harness
-     *   exercises `SOFT`/[Group] composition directly against [Layout] to prove the mechanism
-     *   ahead of the F-bucket work that will actually emit it.
+     *   plus the synthesized indent otherwise.
      *
      * [end] is the original whitespace leaf's true end, which may lie past [start] + [literal]'s
      * length: the trailing run of indentation spaces/tabs after the final `\n` is elided from
