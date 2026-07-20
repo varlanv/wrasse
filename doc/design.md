@@ -3058,6 +3058,81 @@ ktlint + detekt setup (minus parked outbound rules) at measurably lower wall-clo
 - Harness: `format(format(x)) == format(x)`; formatted fixtures re-format to themselves.
 - Resolve the 7 hard calls in autoformat-scope.md as they come up.
 
+#### Phase C.1 — Printer foundation, proven on indentation alone — **done 2026-07-20**
+
+`libs/wrasse-format` built for real: `Doc` (`Text`, `Break{HARD,SOFT}`, `Indent`, `Group`, `Concat`,
+~90 lines), `Layout` (single recursive pass threading column/indent depth/flat-vs-broken mode,
+~90 lines), `DocBuilder` (a `WStreamRule` registered via `WrassePlugin`'s existing `alwaysOn` seam
+— no `StreamDispatch`/`LightTreeStreamAdapter` changes were needed at all). Style parameters live
+as `WFormatConfig`/`FormatStyle` in `wrasse-model` (not `wrasse-format`, so `WConfig` can hold one
+without an upward dependency) with the D21 defaults; only `indentWidth` is consumed. `format` is a
+root `wrasse.json` key (own on/off + style block, not a `rules` entry), parsed in `WConfig` with
+the same `extends`-overrides-whole-block semantics as `exclude`.
+
+**DocBuilder's actual algorithm** (indentation only, everything else byte-identical): every leaf
+becomes `Text` verbatim; a `WHITE_SPACE` leaf containing `\n` becomes a `HARD Break` whose literal
+is the original text up to and including its final `\n` (blank lines and their own trailing
+whitespace survive exactly) — `Layout` synthesizes the indent for the following line from the
+ambient `Indent` depth instead of copying the original run of spaces/tabs, which is what
+normalizes too-little/too-much/tabs/mixed indentation uniformly with no per-case logic. Comment
+and string-literal leaves (`KDOC`, string-template entries) are never `WHITE_SPACE`, so their
+entire text — embedded newlines included — rides one `Text` node and is never touched, by
+construction, with no special-casing required. Children of a node are buffered until `exitNode`;
+whether that node opens an indent scope is decided then, from the completed children list: a node
+whose type is in `{BLOCK, CLASS_BODY, WHEN, FUNCTION_LITERAL}` **and** whose own last child is
+literally `RBRACE` wraps its interior in `Indent` and dedents the line holding that `RBRACE`
+(Wadler's standard closing-delimiter placement); a node that doesn't end in its own `RBRACE` is a
+transparent pass-through.
+
+**A design.md claim this falsified, found only by testing against reality (not assumed):** a
+lambda body's `BLOCK` does **not** own its own `{`/whitespace/`}` — those belong to the enclosing
+`FUNCTION_LITERAL`; the nested `BLOCK` is a bare statement-sequence with no delimiters of its own,
+confirmed off a real LightTree dump (`WNodeTypeMappingCompletenessSpec`-style, no compiler
+knowledge of this was assumed). A naive "every `BLOCK` opens an indent scope" rule double-indents a
+multi-statement lambda body while a single-statement one looks accidentally correct, which would
+have shipped silently wrong. This is exactly the risk §5.3 flags in the abstract ("the printer
+design has never been tested against reality") — it reproduces concretely here on the very first
+non-trivial construct, and is now the one required special case, gated structurally (own-`RBRACE`
+check) rather than by a hardcoded parent-type exception.
+
+**Patch record type — reused offset edits, no new format added.** A single `WEdit(0,
+sourceText.length, renderedText)` inside the existing per-file `FileEdits` already **is** a
+whole-file record: `WPatchWriter`/`WPatchReader`/`WPatchApplier`/`WPatchMerge` needed zero changes,
+the hash guard and atomic-rename-on-apply already cover it, and it composes for free with the
+suppression/`@Suppress("format")` and D22 merge-on-write machinery. §5.4's dedicated whole-file
+record type is deferred, not built: nothing in this slice needed the efficiency a distinct record
+type would buy (avoiding writing/escaping a full file as one line) — revisit only if that cost is
+ever measured to matter. **Known gap this leaves, stated plainly:** the format edit is *not*
+reconciled with other rules' `EditPlan` edits on the same file — it is a 0..length span, so it
+trivially "overlaps" any other emitted edit and the existing disjointness check (correctly, by
+design) fails loudly rather than corrupt output. Real coexistence needs the content→layout edit
+splicing §5.3 describes; the foundation's fixtures avoid the conflict by construction (`format`
+enabled with no other autofix-capable rule on) rather than solving it.
+
+**Group/soft `Break` — built, not yet exercised by a real file.** `Layout` implements the
+flat-vs-broken fit decision and nested-group composition per §5.3, proven by direct unit tests
+against hand-built `Doc` trees (`LayoutSpec`). `DocBuilder` emits zero `Group`/`SOFT Break` nodes
+in this slice — every real newline is a `HARD` break, so nothing here yet exercises the mechanism
+against an actual Kotlin file. That wiring is genuinely open work for the F-bucket phase, not a
+detail already covered by this foundation.
+
+**Harness:** a `format-indentation` fixture dir (`testing/wrasse-test-harness/.../fixtures/`) with
+its own `wrasse.json` (`{"format":{"enabled":true}}`) — no fixture-harness code changes were needed
+for `format(format(x)) == format(x)`/"formatted fixtures re-format to themselves": the existing D19
+idempotence cycle (apply → recompile → assert zero further edits) and `.fixed.kt` byte-exact
+assertion already generalize to any rule id that reports through `WReporter`, `format` included.
+Fixtures: too-little/too-much/tabs/mixed indentation (all normalize to the same canonical output,
+each with a `.fixed.kt`), nested class→function→if→lambda (proves depth-derived indentation and is
+what surfaced the `FUNCTION_LITERAL` finding above), an already-correctly-indented file
+(`expect-clean`, byte-identical), and a KDoc + multiline-string-literal file proving their
+interiors are preserved verbatim even while the surrounding structural indentation around them is
+corrected (ties directly to autoformat-scope.md's own flagged "comment interiors" uncertainty —
+this foundation's answer, an emergent consequence of the `WHITE_SPACE`-only `Break` rule rather
+than a deliberated general policy, is "never touch them," matching ktfmt/prettier precedent).
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green.
+
 **Exit:** the formatter reformats a real module idempotently via `./gradlew wrasseFix`;
 `wrasse.fix` expands a star import correctly on a real module; the compile-riding fix pass beats
 a separate `ktlint -F` invocation on the same files.

@@ -19,6 +19,38 @@
                 "type": "string"
             }
         },
+        "format": {
+            "type": "object",
+            "description": "The opinionated printer: a single on/off switch plus its style parameters (no per-rule format toggles).",
+            "additionalProperties": false,
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Turn the printer on. Defaults to true when the 'format' object itself is present."
+                },
+                "indentWidth": {
+                    "type": "integer",
+                    "description": "Spaces per indent level. Default 4."
+                },
+                "maxLineLength": {
+                    "type": "integer",
+                    "description": "Column width the printer wraps to. Default 140."
+                },
+                "trailingCommas": {
+                    "type": "boolean",
+                    "description": "Whether the printer adds a trailing comma to multiline call-site and declaration-site lists. Default true."
+                },
+                "importLayout": {
+                    "type": "string",
+                    "enum": ["ascii"],
+                    "description": "Import ordering the printer enforces. Default 'ascii'."
+                },
+                "multilineSignatureThreshold": {
+                    "type": "integer",
+                    "description": "Parameter count at or above which a signature is forced multiline. Default 1."
+                }
+            }
+        },
         "rules": {
             "type": "object",
             "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",

@@ -1,6 +1,7 @@
 package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
+import com.varlanv.wrasse.format.DocBuilder
 import com.varlanv.wrasse.lang.FileEdits
 import com.varlanv.wrasse.lang.HexEncoding
 import com.varlanv.wrasse.lang.WEdit
@@ -11,6 +12,7 @@ import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
 import com.varlanv.wrasse.model.WCallableUsage
 import com.varlanv.wrasse.model.WContext
+import com.varlanv.wrasse.model.WFormatConfig
 import com.varlanv.wrasse.model.WQualifiedUsage
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WResolvedImport
@@ -35,6 +37,7 @@ class WrassePlugin(
     private val globalExclude: List<PathMatcher> = emptyList(),
     private val configDir: Path? = null,
     private val dumpResolvedUsage: Boolean = false,
+    private val formatConfig: WFormatConfig? = null,
 ) {
 
     private val patchFileLock = Any()
@@ -52,9 +55,13 @@ class WrassePlugin(
         }
 
         val suppressionCollector = SuppressionCollectorRule()
+        val alwaysOn = mutableListOf<WRule>(suppressionCollector)
+        if (formatConfig != null && formatConfig.enabled) {
+            alwaysOn.add(DocBuilder(formatConfig))
+        }
         val dispatch = ruleSet.dispatchForFile(
             isExcluded = { config -> matchesAny(config.exclude, filePath) },
-            alwaysOn = listOf(suppressionCollector),
+            alwaysOn = alwaysOn,
         )
 
         val ctx = WContext(filePath = filePath.toString())

@@ -79,6 +79,7 @@ fun wrasseMain(
             globalExclude = config.exclude,
             configDir = config.configDir,
             dumpResolvedUsage = dumpResolvedUsage,
+            formatConfig = config.format,
         )
     )
 }
