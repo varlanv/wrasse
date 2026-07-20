@@ -7,4 +7,4 @@ import sample.aux.Widget
 val w: sample.aux.Widget = TODO()
 val other: sample.aux2.Widget = TODO()
 
-// expect-clean
+// expect-error 5:8 no-unnecessary-fqn "Unnecessary fully qualified name"

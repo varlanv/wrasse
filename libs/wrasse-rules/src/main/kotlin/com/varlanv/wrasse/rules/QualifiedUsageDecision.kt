@@ -33,12 +33,15 @@ class UnnecessaryFqnReport(val dropStart: Int, val dropEnd: Int, val newImportFq
  * Every usage sharing the same candidate import FQN is one target: the import-viability decision
  * below runs once per target, but every surviving usage still gets its own report at its own span.
  *
- * **Import viability, checked in order for every target, already-imported or same-package
- * included — see design.md §8.3 for why this order matters:**
- * 1. Skip if the candidate's simple name collides with another used FQN's own simple name
- *    ([SimpleNameCollisionIndex], shared with [WildcardExpansionDecision]'s bail 7), or with an
- *    explicit import's visible name (alias if present, else simple name) bound to a different FQN.
- * 2. Already imported (a non-aliased explicit `import a.b.C` for the exact candidate) — report.
+ * **Import viability, checked in order for every target — see design.md §8.3 for why this order
+ * matters, and for the detekt-matching asymmetry on a dual same-simple-name collision (one side
+ * imported reports, the other stays silent; neither imported stays silent both sides):**
+ * 1. Already imported (a non-aliased explicit `import a.b.C` for the exact candidate) — report
+ *    unconditionally, before either collision check below.
+ * 2. Otherwise, skip if the candidate's simple name collides with another used FQN's own simple
+ *    name ([SimpleNameCollisionIndex], shared with [WildcardExpansionDecision]'s bail 7), or with
+ *    an explicit import's visible name (alias if present, else simple name) bound to a different
+ *    FQN.
  * 3. No new import needed at all — same package, or a [DefaultImportPackages] target — report,
  *    skipping check 4.
  * 4. Otherwise (a new import is genuinely needed): skip if the candidate's simple name is a
@@ -156,12 +159,12 @@ object QualifiedUsageDecision {
         identifierOccurrences: List<IdentifierOccurrence>,
         ownSpans: List<IntRange>,
     ): Boolean {
+        if (alreadyImported) return true
+
         if (SimpleNameCollisionIndex.collidesWithOtherFqn(candidateImportFqn, topLevelSimpleName, collisionIndex)) return false
 
         val explicitImportCollision = explicitImports.any { (it.aliasName ?: it.simpleName) == topLevelSimpleName && it.fqn != candidateImportFqn }
         if (explicitImportCollision) return false
-
-        if (alreadyImported) return true
 
         if (needsNoNewImport) return true
 

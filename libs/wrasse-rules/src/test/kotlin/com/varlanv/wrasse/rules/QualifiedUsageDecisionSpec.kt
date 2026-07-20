@@ -147,7 +147,7 @@ class QualifiedUsageDecisionSpec : BaseSpec({
         reports shouldHaveSize 1
     }
 
-    should("skip an already-imported candidate whose simple name collides with another used FQN's own simple name (kryptoid dual-Instant shape)") {
+    should("report an already-imported candidate even when its simple name collides with another used FQN's own simple name (kryptoid dual-Instant shape, detekt asymmetry)") {
         val sourceText = "val c = a.b.C"
         val usage = qualifier(sourceText, "a.b.C", "a.b.C", "a.b")
 
@@ -161,7 +161,7 @@ class QualifiedUsageDecisionSpec : BaseSpec({
             identifierOccurrences = emptyList(),
         )
 
-        reports.shouldBeEmpty()
+        reports shouldHaveSize 1
     }
 
     should("not treat an aliased explicit import of the same FQN as already-imported (no bare name in scope)") {
