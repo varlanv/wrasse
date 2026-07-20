@@ -1684,6 +1684,33 @@ none of these exercise a decision path the existing suite doesn't already cover;
 message text (parameterized with the FQN) is not matched — wrasse's message stays the fixed,
 non-parameterized string per §6's message convention, not a gap.
 
+**Owner decision, adopting detekt's asymmetry on a dual same-simple-name collision (recorded
+verbatim):**
+
+> Dual same-simple-name FQN usage handling adopts detekt's asymmetry:
+> - If one colliding target has an exact non-aliased import: its qualified usages ARE flagged
+>   (rewrite = body-edit only, bare name already binds; D.3 attaches no import edit — variant (a)
+>   already behaves so); the OTHER target's qualified usages stay silent (mandatory
+>   disambiguation).
+> - If NEITHER colliding target is imported: everything stays silent (never invent an import amid
+>   ambiguity).
+
+This narrows the remediation two paragraphs above, which had gone further than detekt on purpose
+(deliberately silencing *both* sides of a dual collision, already-imported or not) — the probe cited
+there had already found detekt's real behavior asymmetric; this decision brings wrasse in line with
+it instead of staying narrower. `QualifiedUsageDecision.isSafeToDrop` moves the already-imported
+check back to the front, returning safe unconditionally before either collision check runs (the
+already-imported branch's own unconditional green light — bare name provably binds to the candidate
+regardless of what else in the file shares its simple name); the two collision checks now run only
+for the not-already-imported paths (same-package and import-needed alike), unchanged from the
+remediation above. Locked by flipping `already-imported-collision-skip-clean` (renamed
+`already-imported-collision-error`, `.fixed.kt` companion added: the imported target's usage is
+rewritten to the bare name, the other, unimported target's usage untouched) from clean to reporting,
+and `classifier-simple-name-collision-clean` (already the exact both-unimported dual shape, dual
+`Widget` usages with neither imported — verified, not a new fixture) staying clean unchanged.
+Recompiling kryptoid's `feed-parsers` module: 8 findings → 10 (the two `LbankFeedParser`
+already-imported-`Instant` occurrences report again, owner-endorsed; the other 8 unaffected).
+
 ---
 
 ## 9. Performance
@@ -1975,6 +2002,20 @@ Plugin loads; FIR checker fires; diagnostics with file/line/col; SAX rule engine
 dispatch; JSONC config + `extends` + tri-state `level`; runtime version shells (k20/k22), single
 JAR; 3 rules; fixture harness + 2.1–2.4 matrix; MVP offset-patch autofix end-to-end
 (`wrasseFix`/`wrasseApply`); repo self-lint.
+
+Retroactive upstream-test backfill, wave 2 installment 1 (2026-07-20): `no-semicolons`
+(ktlint `no-semi`, detekt's own id is a bare `KtlintRule` wrapper around the same ktlint rule —
+zero additional cases) and `trailing-newline` (ktlint `final-newline` + detekt
+`NewLineAtEndOfFile`) ported against their real upstream test suites — found and fixed three real
+false-positive/negative bugs (a redundant-semicolon-before-a-trailing-lambda-literal
+misdetection that was an unsafe autofix, a missing `companion object`-without-body exemption, and
+an enum entries-list terminator that was never flagged even when nothing followed it before the
+closing brace); one confirmed-unsafe-autofix gap left as an open blocker, not papered over: a bare
+`;` standing in as a `for`/`while`/`if` construct's entire (empty) body is structurally
+indistinguishable, in wrasse's LightTree mapping, from an ordinary trailing statement semicolon —
+flagging and autofixing it as "unnecessary" is a pre-existing, newly-confirmed bug (deleting it
+is a genuine compile break, confirmed via `IdempotenceCycle.assertNoNewCompileErrors`), needs a
+backward-scan (or grammar-level) fix, not attempted here.
 
 ### Phase A remainder — config & severity polish
 

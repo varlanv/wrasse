@@ -25,4 +25,10 @@ class TrailingNewlineEdgeCasesSpec : BaseSpec({
         diagnostic.location?.column shouldBe 1
         diagnostic.message shouldBe "wrasse: trailing-newline: File must end with a newline"
     }
+
+    should("report nothing for a file ending with multiple trailing newlines") {
+        val harness = WrasseTestHarness(wrasseConfig = config)
+        val result = harness.compile(listOf(TestSource("sample/test.kt", "val x = 1\n\n\n")))
+        result.wrasseDiagnostics.shouldBeEmpty()
+    }
 })
