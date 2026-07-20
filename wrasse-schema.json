@@ -52,6 +52,10 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow a redundant explicit 'public' visibility modifier on a class, function, or property"
                 },
+                "unnecessary-inheritance": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an explicit 'Any()' or 'Object()' supertype"
+                },
                 "import-ordering": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require import directives to be in plain ASCII-alphabetical order"

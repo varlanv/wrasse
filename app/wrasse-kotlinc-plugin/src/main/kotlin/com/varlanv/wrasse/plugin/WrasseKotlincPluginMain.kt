@@ -16,6 +16,7 @@ import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
+import com.varlanv.wrasse.rules.UnnecessaryInheritanceRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
 import java.nio.file.Path
 import org.jetbrains.kotlin.backend.common.push
@@ -31,6 +32,7 @@ internal fun registeredRules(): List<WUninitializedRule> =
         NoSemicolonsRule(),
         NoUnitReturnRule(),
         TrailingNewlineRule(),
+        UnnecessaryInheritanceRule(),
         WhenEntryBracingRule(),
     )
 

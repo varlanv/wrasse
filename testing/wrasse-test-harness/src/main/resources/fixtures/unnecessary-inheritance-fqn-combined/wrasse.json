@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "unnecessary-inheritance": { "level": "error" },
+        "no-unnecessary-fqn": { "level": "error" }
+    }
+}

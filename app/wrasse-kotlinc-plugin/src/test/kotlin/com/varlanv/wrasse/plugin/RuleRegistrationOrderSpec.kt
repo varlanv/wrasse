@@ -13,7 +13,8 @@ class RuleRegistrationOrderSpec : BaseSpec({
 
     should(
         "register if-else-bracing, no-empty-class-body, no-empty-parens-before-trailing-lambda, " +
-            "no-semicolons, no-unit-return, trailing-newline, and when-entry-bracing as single-id rules"
+            "no-semicolons, no-unit-return, trailing-newline, unnecessary-inheritance, and " +
+            "when-entry-bracing as single-id rules"
     ) {
         val ids = registeredRules().map { it.id }
 
@@ -25,6 +26,7 @@ class RuleRegistrationOrderSpec : BaseSpec({
                 "no-semicolons",
                 "no-unit-return",
                 "trailing-newline",
+                "unnecessary-inheritance",
                 "when-entry-bracing",
             )
     }

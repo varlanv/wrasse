@@ -2307,7 +2307,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (7/15).** Braces family,
+- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (8/15).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -2985,6 +2985,85 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   bar() {}`) — `EditPlan`'s cross-rule overlap check throws, uncaught, during plain linting, no
   `-Pwrasse.fix` required. Reproduced directly against a real compile, independently confirmed a
   second time via a forked sub-agent's own separate reproduction, matching exactly.
+  `unnecessary-inheritance` shipped eighth, porting detekt's own `UnnecessaryInheritance` — ktlint
+  ships no equivalent, confirmed by a full grep of its real checkout (no `inherit`/`supertype`
+  concept anywhere). Detekt's own engine (read directly, then ground-truthed with eight temporary
+  probe cases added to its real test file and run against the real `detekt-rules-style` module,
+  reverted after — `git status`/`git diff` verified byte-clean) turns out to be a **naive literal
+  text comparison**, not a semantic one: `visitClassOrObject` flags a `superTypeListEntries` entry
+  only when its own PSI text is exactly `"Any()"` or `"Object()"`. Confirmed empirically: a
+  qualified `kotlin.Any()`, an aliased `MyAny()` (`typealias MyAny = Any`), and even whitespace
+  inside the call (`Any ()`) are all silently **not** flagged by the real engine, since none of
+  their spans spell the literal text; a comment between the colon and the entry does not block
+  detection (the check only ever looks at the entry's own span); an anonymous object expression
+  (`object : Any() {}`) is flagged exactly like a named declaration, since `KtObjectDeclaration` is
+  a `KtClassOrObject` too. Wrasse's own detection matches this exactly — `SUPER_TYPE_CALL_ENTRY`'s
+  own source span must literally equal `"Any()"`/`"Object()"`, no FIR resolution at all — the
+  narrowest interpretation that is provably a subset of detekt's real behavior on every axis
+  (semantic resolution would in fact go *wider* on the alias case, a real superset risk, so plain
+  text is the correct choice here, not merely the simplest one). `SUPER_TYPE_LIST` is targeted
+  directly regardless of declaring kind, covering class/named-object/companion-object/anonymous-
+  object-literal uniformly with no parent-type branching. Interface and enum-class declarations are
+  never fixture-tested, not because of any exclusion in the rule but because neither shape compiles
+  with an explicit `Any()`/`Object()` supertype in the first place — ground-truthed against the real
+  compiler frontend rather than assumed: an interface cannot extend a class at all (only another
+  interface may appear in its supertype list), and `enum class Foo : Any()` fails a real compile
+  with FIR's `CLASS_IN_SUPERTYPE_FOR_ENUM` (`FirEnumClassSimpleChecker`, read directly from a local
+  kotlin checkout) — the same "considered, ground-truthed, excluded as uncompileable" category as
+  `modifier-order`'s enum-entry note and `no-unit-return`'s `expect`/`actual` note.
+
+  Deletion (`UnnecessaryInheritanceDeletionSpan`, compiler-free, unit-tested standalone) has three
+  disjoint shapes the rule picks by the entry's position among its list's siblings: a **sole**
+  entry folds the colon and the whitespace on both sides of it into the same deletion as the entry
+  itself (`class Foo : Any() {}` → `class Foo {}`), bailing (report-only) if anything other than
+  pure whitespace sits between the colon and the entry; a **leading** entry (followed by a sibling)
+  deletes forward through its own trailing comma and whitespace up to the next entry's own start
+  (`Any(), Bar` → `Bar`); a **trailing** entry (preceded by a sibling) deletes backward from its own
+  start through the previous entry's own end, taking the leading comma and whitespace
+  (`Bar, Any()` → `Bar`). Every case anchors its span to a sibling's own boundary rather than
+  scanning past unknown tokens (the `EmptyClassBodyDeletionSpan`/`ImportRemovalSpan` idiom), so a
+  comment sitting in the region that would otherwise be deleted between two list entries is
+  detected structurally (a `COMMA`/whitespace-only gap expected, a comment child found instead) and
+  bails — the uniform comment-bail precedent, applied here even though, like
+  `redundant-visibility-modifier`, no actual corruption risk was found (the forward/backward scans
+  never cross a comment either way); bailing is for uniformity, not a safety finding. Multi-line
+  supertype lists need no special casing at all — the whitespace/sibling-boundary anchoring already
+  collapses any amount of intervening newlines correctly, confirmed by dedicated fixtures.
+
+  **The `no-unnecessary-fqn` interaction, checked explicitly per this port's own assignment.** No
+  same-pass `EditPlan` overlap is possible, by construction rather than by a runtime check: this
+  rule only ever matches an *unqualified* entry span (`"Any()"`/`"Object()"` exactly, no dot), while
+  `no-unnecessary-fqn` only ever edits a *qualified* prefix span — the two ids can never propose an
+  edit over the same bytes in the same compile, unlike the `modifier-order`/`redundant-visibility-
+  modifier` crash this section's previous paragraph documents. A subtler, real, non-crashing
+  interaction *was* found and is deliberately not fixture-tested: `class Bar : kotlin.Any()`, with
+  both ids enabled, has only `no-unnecessary-fqn` fire in round 1 (`kotlin` is a default-import
+  package, confirmed empirically via a throwaway probe spec against the real harness, reverted after
+  — the supertype's own type reference is a genuine `WQualifiedUsage`, unlike a plain expression-
+  position constructor call, since FIR always resolves a supertype's type independently of its
+  delegated-constructor callable resolution); the resulting bare `Any()` only then becomes visible
+  to `unnecessary-inheritance` on a *second* `wrasseFix` pass — a narrow violation of §5.1's "no
+  fixed-point loop" ideal (fixing one id can retroactively make the other newly applicable), but not
+  a crash and not an `EditPlan` overlap. Building this exact shape into a combined fixture would fail
+  the existing idempotence harness's `assertExpectedSurvivors` check (round 2 would carry a
+  diagnostic that did not exist, in any form, in round 1) — correctly, since the harness's whole job
+  is catching exactly this class of non-convergence. Rather than launder that past the harness, the
+  `unnecessary-inheritance-fqn-combined/` fixture dir instead locks the safe, common case: both ids
+  enabled together, a bare `Any()` (fires only `unnecessary-inheritance`) alongside an unrelated
+  default-import-package FQN (fires only `no-unnecessary-fqn`), both fixed cleanly in one pass with
+  no crash and no cascade — proving peaceful coexistence without asserting a false convergence
+  guarantee the architecture doesn't actually make for this one narrow input shape. Not treated as a
+  blocker: it needs a user to enable both ids *and* write a qualified `kotlin.Any()`/`kotlin.Object()`
+  supertype, and resolves itself on a second `wrasseFix` run, the same repeatable-apply posture
+  `wrasseApply` already has generally.
+
+  Fixtures otherwise cover a sole entry with and without a body, `Object()` (via
+  `import java.lang.Object`), an anonymous object literal, a named object, a companion object, a
+  leading/trailing/middle position among multiple supertypes, a multi-line supertype list (both the
+  sole-entry and multiple-entry shapes), four comment-bail positions (before/after the shared comma
+  on both the leading and trailing side, and between the colon and a sole entry), and three clean
+  shapes proving the naive-text-match boundary: `kotlin.Any()`, `Any ()` (whitespace inside the
+  call), and a plain interface supertype.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal
