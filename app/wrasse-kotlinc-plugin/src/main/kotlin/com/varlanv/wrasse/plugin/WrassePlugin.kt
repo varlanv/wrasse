@@ -56,8 +56,10 @@ class WrassePlugin(
 
         val suppressionCollector = SuppressionCollectorRule()
         val alwaysOn = mutableListOf<WRule>(suppressionCollector)
+        var docBuilder: DocBuilder? = null
         if (formatConfig != null && formatConfig.enabled) {
-            alwaysOn.add(DocBuilder(formatConfig))
+            docBuilder = DocBuilder(formatConfig)
+            alwaysOn.add(docBuilder)
         }
         val dispatch = ruleSet.dispatchForFile(
             isExcluded = { config -> matchesAny(config.exclude, filePath) },
@@ -103,6 +105,7 @@ class WrassePlugin(
             dispatch = dispatch,
             reporter = reporter,
         )
+        docBuilder?.finish(ctx, reporter)
 
         val finalEdits = ctx.editPlan.finalEdits()
         if (fixOutputDir != null) {

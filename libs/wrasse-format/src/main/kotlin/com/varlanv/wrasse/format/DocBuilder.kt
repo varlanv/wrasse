@@ -49,14 +49,14 @@ class DocBuilder(
 
     private val style = formatConfig.style
     private val frames = ArrayDeque<Frame>()
-    private var rootDoc: Doc = Doc.Concat.EMPTY
+    private var rootDoc: Doc = Doc.Concat(emptyList())
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
         val text = ctx.leafText?.toString() ?: ""
         val entry = if (ctx.type == WNodeType.WHITE_SPACE && text.contains('\n')) {
-            ChildEntry.Ws(text)
+            ChildEntry.Ws(text, ctx.startOffset)
         } else {
-            ChildEntry.Resolved(ctx.type, Doc.Text(text))
+            ChildEntry.Resolved(ctx.type, Doc.Text(text, ctx.startOffset, ctx.endOffset))
         }
         frames.last().children.add(entry)
     }
@@ -67,7 +67,7 @@ class DocBuilder(
 
     override fun exitNode(ctx: WContext) {
         val frame = frames.removeLast()
-        val doc = resolveFrame(frame)
+        val doc = resolveFrame(frame, ctx.startOffset, ctx.endOffset)
         val parent = frames.lastOrNull()
         if (parent == null) {
             rootDoc = doc
@@ -76,9 +76,25 @@ class DocBuilder(
         }
     }
 
-    override fun afterFile(ctx: WContext, reporter: WReporter) {
+    /**
+     * Splices every edit still in [WContext.editPlan] into [rootDoc] (§5.3's "content → layout"
+     * contract), then renders. Called explicitly by the host, once, only after every other rule —
+     * including a deferred [com.varlanv.wrasse.model.WFileRule] — has made its own final
+     * contribution to the plan (never from [afterFile], which the walk calls too early for that
+     * guarantee to hold). [DocSplicer.splice] returning `null` means at least one edit could not
+     * be cleanly mapped onto a `Doc` leaf; per §5.3, that is never guessed at — this file's format
+     * pass is skipped entirely for this compile (no report, no edit) and the plan is handed back
+     * untouched so the declining rules' own edits still reach the patch.
+     */
+    fun finish(ctx: WContext, reporter: WReporter) {
         val original = ctx.sourceText.toString()
-        val rendered = Layout.render(rootDoc, style)
+        val taken = ctx.editPlan.takeAll()
+        val spliced = DocSplicer.splice(rootDoc, taken.map { it.edit })
+        if (spliced == null) {
+            ctx.editPlan.restore(taken)
+            return
+        }
+        val rendered = Layout.render(spliced, style)
         if (rendered == original) return
         reporter.report(
             id,
@@ -90,14 +106,14 @@ class DocBuilder(
         )
     }
 
-    private fun resolveFrame(frame: Frame): Doc {
+    private fun resolveFrame(frame: Frame, start: Int, end: Int): Doc {
         val children = frame.children
-        if (children.isEmpty()) return Doc.Concat.EMPTY
+        if (children.isEmpty()) return Doc.Concat(emptyList(), start, end)
 
         val lastIndex = children.size - 1
         val opensIndentScope = frame.type in INDENTING_TYPES && children[lastIndex].type == WNodeType.RBRACE
         if (!opensIndentScope) {
-            return Doc.Concat(children.map { resolveEntry(it) })
+            return Doc.Concat(children.map { resolveEntry(it) }, start, end)
         }
 
         val dedentIndex = lastIndex - 1
@@ -109,17 +125,22 @@ class DocBuilder(
             innerParts.add(resolveEntry(children[i]))
         }
 
-        val parts = mutableListOf<Doc>(Doc.Indent(Doc.Concat(innerParts)))
+        val innerStart = innerParts.firstOrNull()?.start ?: start
+        val innerEnd = innerParts.lastOrNull()?.end ?: start
+        val parts = mutableListOf<Doc>(Doc.Indent(Doc.Concat(innerParts, innerStart, innerEnd)))
         if (hasDedent) {
             parts.add(resolveEntry(children[dedentIndex]))
         }
         parts.add(resolveEntry(children[lastIndex]))
-        return Doc.Concat(parts)
+        return Doc.Concat(parts, start, end)
     }
 
     private fun resolveEntry(entry: ChildEntry): Doc = when (entry) {
         is ChildEntry.Resolved -> entry.doc
-        is ChildEntry.Ws -> Doc.Break(BreakKind.HARD, literal = entry.rawText.substring(0, entry.rawText.lastIndexOf('\n') + 1))
+        is ChildEntry.Ws -> {
+            val literal = entry.rawText.substring(0, entry.rawText.lastIndexOf('\n') + 1)
+            Doc.Break(BreakKind.HARD, literal = literal, start = entry.start, end = entry.start + entry.rawText.length)
+        }
     }
 
     private class Frame(val type: WNodeType) {
@@ -130,7 +151,7 @@ class DocBuilder(
         val type: WNodeType
 
         class Resolved(override val type: WNodeType, val doc: Doc) : ChildEntry
-        class Ws(val rawText: String) : ChildEntry {
+        class Ws(val rawText: String, val start: Int) : ChildEntry {
             override val type: WNodeType = WNodeType.WHITE_SPACE
         }
     }

@@ -3137,6 +3137,94 @@ than a deliberated general policy, is "never touch them," matching ktfmt/prettie
 `wrasse.fix` expands a star import correctly on a real module; the compile-riding fix pass beats
 a separate `ktlint -F` invocation on the same files.
 
+#### Phase C.2 — Edit splicing: format and fixes coexist — **done 2026-07-20**
+
+Closes Phase C.1's stated gap: `format` enabled alongside any autofix-capable rule now composes
+into one whole-file edit instead of tripping `EditPlan`'s disjointness check. `Doc` (`libs/wrasse-
+format/Doc.kt`) gained `start`/`end` on every node — `Text`/`Break` from the compiler leaf they were
+built from, `Indent`/`Group` forwarding their one `body`'s span, `Concat` taking its span as an
+explicit constructor argument (never inferred from `parts`, so an empty or degenerate first/last
+part can't make inference lie) — satisfying §5.3's "doc leaves reference original source spans, so
+they are addressable by offset" claim, which the C.1 foundation had not yet built.
+
+**The splicer (`DocSplicer`, new file):** `splice(doc, edits): Doc?` applies each `EditPlan` edit
+independently against `Doc.start`/`Doc.end` (never against rendered text or accumulated offsets) —
+sound because `EditPlan`'s own disjointness invariant means application order never matters. Per
+edit, a recursive descent classifies every node it touches into one of three shapes:
+
+- **Whole-leaf/whole-subtree replacement** (no-semicolons' deletion, no-unused-imports' multi-leaf
+  line removal, no-wildcard-imports' multi-line expansion, if-else-bracing's gap replacement): the
+  first node the edit's span fully contains becomes one atomic `Text(replacement)`; every further
+  node the same edit also fully contains is dropped, so a multi-leaf-spanning edit never duplicates
+  its own replacement text. A "first-covered-wins" flag, scoped to one edit's splice call, is the
+  only state threaded through the recursion.
+- **Partial-leaf split**: a `Text` leaf is always cleanly splittable at any offset (its `value` is
+  always the exact source substring of its span, by construction) into an unaffected prefix/suffix
+  either side of the replacement. A `Break` leaf is splittable only up to where its `literal`'s
+  represented length ends — the trailing indentation `Layout` regenerates instead of storing has no
+  addressable position of its own.
+- **Zero-width insertion** (if-else-bracing's brace-less-branch tail, trailing-newline's EOF
+  insert): threaded to the exactly one leaf whose span starts at the insertion point, via an
+  exclusive-end containment rule (`node.start <= X < node.end`) that resolves the leaf-boundary
+  tie deterministically without an emitted-flag; true end-of-file insertion (`X >= doc.end`, no
+  "next" leaf exists) is one explicit top-level case, appending after everything.
+
+**Unmappable edits are refused, never guessed:** a cut landing strictly inside a `Break`'s elided
+trailing-indent tail returns `null` from `splice`, propagated immediately through every enclosing
+frame. `DocBuilder.finish` treats `null` as: no format report, no format edit, and the rule edits
+that were pulled out of `EditPlan` to attempt the splice are handed back via a new `EditPlan.restore`
+(paired with `EditPlan.takeAll`) so the declining rules' own fixes still reach the patch. No fixture
+exercises this path (none of the shipped rule shapes produce it — see below); `DocSplicerSpec`
+covers it directly against a hand-built `Doc`.
+
+**A lifecycle bug found by construction, fixed before it could ship:** `DocBuilder`'s render used to
+run from `afterFile`, a hook the walk calls for every `WRule` **before** the separate,
+later-running `WFileRule` phase (`trailing-newline` is the only real one). Splicing needs to observe
+`EditPlan` only after every rule's *final* contribution, so `afterFile` is no longer where the
+printer finishes: `DocBuilder.finish(ctx, reporter)` is a new method the host (`WrassePlugin`) calls
+explicitly, once, strictly after `LightTreeStreamAdapter.walk` returns in full (both its `afterFile`
+loop and its `WFileRule` loop). This was invisible under C.1 (no fixture combined `format` with any
+other autofix-capable rule) and is not one of this slice's five required combinations either
+(`trailing-newline` isn't in that list) — found only because getting `finish`'s contract right
+("observe *every* remaining edit") forced tracing exactly when the last edit could possibly land.
+
+**A §5.3 claim this refined, found only by testing against a real combination:** the design's
+"content → layout, no cycles" framing implicitly assumes a fix's own computed indentation and the
+printer's structurally-derived indentation agree. They don't automatically: `if-else-bracing`
+computes its inserted braces' indentation from the *original* physical column of the branch's line
+(`BraceInsertion.physicalLineIndentColumn`), read directly off the pre-fix source text, while the
+printer derives indentation for the *real* structural nodes around it (the enclosing function's
+`BLOCK`) purely from tree depth × `indentWidth`. When the file's original physical indentation
+already matches canonical depth-based indentation at that line, these coincide and the combination
+is idempotent in one pass (proven by this slice's fixtures). When it doesn't — discovered by
+deliberately building a grand-slam fixture with a 2-space-per-level `if`/`else` nested under
+mis-indented siblings — the spliced brace text keeps its stale, physical-column-anchored indent
+while the surrounding real tokens get reindented to the new canonical depth by `Layout`, producing a
+file that is not stably formatted in one pass (a second `wrasseFix` cycle still emits edits,
+tripping the `fix(fix(x)) == fix(x)` invariant). This is a genuine, unclosed gap for a future slice
+(a T-bucket fix that inserts new indentation would need to read the *canonical* depth the printer
+will use, not the physical column the source happens to have) — the shipped fixtures below sidestep
+it by construction (every if/else chain sits at a line whose physical column already equals its
+canonical depth), which is not the same as solving it.
+
+**Fixtures:** `testing/wrasse-test-harness/.../fixtures/format-with-fixes/` (one `wrasse.json`,
+`format` plus `no-semicolons`/`no-unused-imports`/`no-wildcard-imports`/`if-else-bracing` all
+enabled) — `no-semicolons-and-reindent-error` (whole-leaf deletion + reindent), `no-unused-imports-
+and-reindent-error` (multi-leaf whole-line deletion + reindent), `no-wildcard-imports-expansion-and-
+reindent-error` (multi-line atomic-run insertion + reindent), `if-else-bracing-and-format-error`
+(gap replacement plus a zero-width tail insertion, both indentation-matched per the caveat above),
+and `grand-slam-error` (all four at once, plus an unrelated mis-indented sibling statement proving
+`format` still does real reindentation work alongside the composed fixes). Each has a `.fixed.kt`
+byte-exact companion; the existing D19 idempotence cycle (already generic over any reporting rule
+id, per C.1) exercises `fix(fix(x)) == fix(x)` on all five with no harness changes needed.
+`libs/wrasse-format/DocSplicerSpec` unit-tests every edit shape directly against hand-built `Doc`
+trees, including the refusal path.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (the last one exercises the rebuilt plugin
+against this repo's own, `format`-disabled `wrasse.json` — enabling `format` for self-lint is future
+work, not part of this slice).
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.

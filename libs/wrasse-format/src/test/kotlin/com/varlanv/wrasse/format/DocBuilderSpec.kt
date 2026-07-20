@@ -37,7 +37,7 @@ class DocBuilderSpec : BaseSpec({
         ctx.type = WNodeType.FILE
         ctx.sourceText = ""
         val recorder = RecordingReporter()
-        builder.afterFile(ctx, recorder)
+        builder.finish(ctx, recorder)
         return recorder.lastEdit?.replacement ?: error("DocBuilder reported no edit — rendered output equalled the (empty) placeholder source")
     }
 
@@ -92,7 +92,7 @@ class DocBuilderSpec : BaseSpec({
         ctx.sourceText = "x"
 
         val recorder = RecordingReporter()
-        builder.afterFile(ctx, recorder)
+        builder.finish(ctx, recorder)
 
         recorder.reports shouldBe emptyList()
         recorder.lastEdit shouldBe null

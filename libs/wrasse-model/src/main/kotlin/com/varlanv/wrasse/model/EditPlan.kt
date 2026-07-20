@@ -40,6 +40,22 @@ class EditPlan {
         entries.add(insertAt, entry)
     }
 
+    /**
+     * Removes and returns every currently-collected entry, in the plan's own span order. Used
+     * only by the printer (`DocBuilder.finish`), the single consumer that must observe the plan's
+     * final, fully-collected state before deciding whether it can splice all of it.
+     */
+    fun takeAll(): List<Entry> {
+        val all = entries.toList()
+        entries.clear()
+        return all
+    }
+
+    /** Puts back entries previously removed by [takeAll], verbatim, when a consumer declines them. */
+    fun restore(taken: List<Entry>) {
+        entries.addAll(taken)
+    }
+
     fun takeEditsIn(startOffset: Int, endOffset: Int): List<Entry> {
         if (entries.isEmpty()) return emptyList()
         val taken = mutableListOf<Entry>()
