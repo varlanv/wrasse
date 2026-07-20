@@ -56,7 +56,7 @@ object DocSplicer {
      * is equivalent to splitting it and costs nothing.
      *
      * The matching close edit is left *outside* the new `Indent`, exactly as `DocBuilder.
-     * resolveFrame` leaves a `BLOCK`'s own dedent-whitespace-plus-`RBRACE` outside its `Indent` —
+     * resolveBraceFrame` leaves a `BLOCK`'s own dedent-whitespace-plus-`RBRACE` outside its `Indent` —
      * its break decides the closing line's column, which must stay at the outer (ambient) depth.
      * A **non-zero-width** close edit (a `THEN` followed by `else`, replacing a real gap) is left
      * for the ordinary per-edit [spliceOne] pass afterward — a `fullyCovered` replace of an exact
@@ -64,7 +64,7 @@ object DocSplicer {
      * in its chain/`when`, nothing to its right) cannot be left to [spliceOne]: its generic
      * insertion rule threads it to "the one leaf whose span starts at the insertion point," and
      * that leaf can be the *enclosing* block's own dedent whitespace — itself deliberately placed
-     * one `Indent` shallower by `DocBuilder.resolveFrame` — silently rendering the new closing
+     * one `Indent` shallower by `DocBuilder.resolveBraceFrame` — silently rendering the new closing
      * brace one level too shallow (found only by running a real fixture through the full pipeline,
      * not by reasoning about either mechanism alone). So a zero-width close edit is instead spliced
      * here, directly, as a new sibling appended immediately after the wrapped `Indent` at the exact

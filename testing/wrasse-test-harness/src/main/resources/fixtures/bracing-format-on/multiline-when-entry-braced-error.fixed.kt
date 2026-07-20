@@ -6,8 +6,7 @@ fun demo(x: Int): String {
             "one"
         }
         2 -> {
-            "two"
-            .plus("!")
+            "two".plus("!")
         }
         else -> {
             "other"

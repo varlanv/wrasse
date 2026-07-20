@@ -3332,6 +3332,144 @@ untouched, per above.
 failures; `wrasseLint` exercises the rebuilt plugin against this repo's own `format`-disabled
 `wrasse.json`, unaffected by this slice).
 
+#### Phase C.4 — The printer starts deciding line breaks — **done 2026-07-20**
+
+Closes the two gaps C.1 stated plainly: `Layout`'s group-fit logic, unit-tested since C.1 but never
+exercised by real output, and the total absence of continuation-indent modeling. `DocBuilder` now
+emits `Group`/`SOFT` `Break` for three constructs — dot/safe-access chains, binary expressions, and
+call argument lists — narrowly, per this slice's brief; every other construct is still reproduced
+verbatim exactly as before.
+
+**Ground truth used:** ktfmt is not checked out anywhere under `/var/home/vlad/dev/IdeaProjects`;
+ktlint is (`ktlint-ruleset-standard`), so `ChainWrappingRule`/`ChainWrappingRuleTest` and
+`BinaryExpressionWrappingRule`/`BinaryExpressionWrappingRuleTest` were read directly for break-point
+and operator-position ground truth rather than inventing a house style: `.`/`?.` move to the *start*
+of the continuation line (a line must not end with the operator); `?:` does the same (ktlint groups
+elvis with the dot/safe-access set for exactly this reason — wrapping after `?:` would otherwise
+violate `chain-wrapping` itself); every other binary operator (`+`, `-`, `*`, `/`, `%`, `&&`, `||`,
+comparisons, `in`/`is`) stays at the *end* of the line it came from, with the operand moving down.
+
+**Break points chosen** (one `Group`/`Indent` per construct, per §5.3):
+- **Chain** (`WNodeType.DOT_QUALIFIED_EXPRESSION`/`SAFE_ACCESS_EXPRESSION`): a `SOFT` break before
+  each `.`/`?.`, flat form empty (no space). A chain is built bottom-up in the LightTree (`a.b().c()`
+  is a link whose *receiver* is itself the already-resolved `a.b()` link), so only the outermost
+  link — the one whose parent frame is not itself a chain-link type — wraps the fully-flattened body
+  in one `Group`/`Indent`; inner links just splice their own break into the flat body they hand
+  upward. Without this flattening, an *n*-link chain would nest *n* independent `Indent`s and each
+  further link would render one level deeper than the last — never what any real formatter does.
+- **Binary expression** (`WNodeType.BINARY_EXPRESSION`): a `SOFT` break *after* the
+  `OPERATION_REFERENCE`, flat form a single space — except when the operator's own text is `?:`,
+  detected by walking the already-built operator `Doc` back to its literal text (no new kotlinc-facing
+  type was needed), in which case the break goes *before* it instead, matching the chain case. The
+  same bottom-up flattening as chains applies (`a + b + c` nests `BINARY_EXPRESSION` the same way),
+  and for the same reason.
+- **Argument list** (`WNodeType.VALUE_ARGUMENT_LIST`): its own independent `Group`/`Indent`, right
+  after `(`, right after every comma with another argument following it, and right before `)`. A
+  comma already followed by nothing but whitespace (a pre-existing trailing comma) gets no break of
+  its own — the closing break already lands there, so doubling up would print a blank line before
+  `)`. Trailing-comma *insertion* is out of scope for this slice (`FormatStyle.trailingCommas` is
+  still unconsumed, per C.1); an argument list that already ends in one keeps it, byte-for-byte.
+
+**Continuation indent, modeled as `Doc.Indent`, not a column:** exactly as §5.3's Doc IR was designed
+to make possible. Each of the three constructs' outermost `Group` is wrapped in one `Doc.Indent`
+before being spliced into its enclosing frame — `Layout` derives every continuation line's column
+from ambient indent depth (depth × `indentWidth`) the same way it already does for a `BLOCK`'s
+interior, so "one level deeper than the statement's own depth" falls out of the existing recursion
+with no new machinery in `Layout` itself.
+
+**Evidence the fits-check drives real output** (from `format-line-breaks/chain-fits-flat-error.kt`
+and `format-line-breaks/chain-exceeds-max-line-length-error.kt`, `maxLineLength: 50`): the identical
+construction —
+```kotlin
+val x = "hi"
+    .uppercase()
+    .reversed()
+```
+renders **flat**, joining a hard-broken source, because the whole chain's flat width plus the current
+column fits in 50:
+```kotlin
+val x = "hi".uppercase().reversed()
+```
+— while the same shape with a longer receiver renders **broken**, one link per line, continuation
+indented one level (`chain-exceeds-max-line-length-error.fixed.kt`):
+```kotlin
+val x = "quite a long string literal here"
+    .uppercase()
+    .reversed()
+```
+`format-line-breaks/nested-group-short-arglist-stays-flat-error` proves independent nested-group
+composition directly: `"quite a long string literal here".padStart(10).reversed()` is too long
+overall (broken, per above), yet `.padStart(10)`'s own argument-list `Group` — measured from its own,
+post-break column — still renders flat (`(10)`, not `(\n    10\n)`), because `Layout` never forces a
+nested `Group`'s mode from its enclosing one; each decides independently once its own starting column
+is known (unit-tested since C.1, exercised by real `DocBuilder` output for the first time here).
+
+**A §5.3-adjacent claim that failed on contact, found only by running real fixtures, not by
+reasoning about the mechanism in isolation:** wrapping a chain's *entire* flattened body — including
+a trailing call argument that can never itself render on one line (a multi-statement lambda, e.g.
+`names.forEach { name -> println(...) }`, the exact shape in the pre-existing
+`format-indentation/already-correct` and `format-indentation/nested-class-fun-if-lambda` fixtures) —
+in one `Group`/`Indent` breaks that pairing two different ways at once. First, `Layout`'s
+already-shipped, already-tested rule that *any* `HARD` break anywhere inside a `Group` forces it
+broken (`LayoutSpec`, unchanged in this slice) means a lambda body's own interior line breaks would
+force the *chain's* dot onto its own line too, splitting `names` from `.forEach {` even though that
+pairing trivially fits — a regression against those two pre-existing, format-enabled fixtures,
+caught immediately by the ladder rather than assumed away. Second, even if the fit-check problem were
+solved, wrapping the lambda body inside the chain's own `Indent` would render its interior one level
+deeper than before, for no structural reason — the lambda's own indent scope
+(`resolveBraceFrame`/`FUNCTION_LITERAL`) already derives its depth correctly from *ambient* context
+and does not need the chain's continuation indent layered on top. The fix, not a workaround: a
+trailing part of a chain/binary expression's flattened body that can never render on one line by
+itself (`containsForcedBreak`, the same "hard break or embedded-newline `Text`" predicate `Layout`'s
+own `flatWidth` already uses, duplicated locally in `DocBuilder` rather than exposed from `Layout`,
+which stays unchanged) is excluded from *both* the fit-checked `Group` and the continuation `Indent`
+— it renders as a plain sibling, at its pre-existing ambient depth, exactly as `resolveBraceFrame`
+already gives it. This is a real, general rule (a group's fit-check and its continuation indent
+should only ever cover content that could actually render on one line), not a special case for
+trailing lambdas specifically, even though that is the only shape that surfaces it today. Both
+pre-existing fixtures needed no fixed-file changes once this was in place — collapsing
+`names\n.forEach {` back to `names.forEach {` reproduces their original, already-`.fixed.kt`-matching
+source verbatim.
+
+**Two pre-existing C.3 fixtures *did* need their `.fixed.kt` updated, correctly, not as a
+workaround:** `bracing-format-on/multiline-if-body-braced-error` and
+`bracing-format-on/multiline-when-entry-braced-error` each contain a genuine (no trailing-lambda)
+chain — `50.toString()`, `"two".plus("!")` — that C.3 explicitly flagged as surfacing "Phase C.1's
+known limitation (no continuation-indent modeling)... not one it introduces." Both chains trivially
+fit on one line; this slice's join logic now collapses them exactly as ktlint/any real formatter
+would, so their expected output changed from a two-line, same-depth rendering (the C.3-era stand-in
+for "no continuation-indent model yet") to one collapsed line. This is the fix the C.3 entry
+predicted, not a new limitation.
+
+**Fixtures:** `testing/wrasse-test-harness/.../fixtures/format-line-breaks/`, its own `wrasse.json`
+(`{"format": {"enabled": true, "maxLineLength": 50}}` — the config plumbing for a per-fixture style
+override already existed since C.1/`WConfigSpec`, so no harness changes were needed here): a chain
+that fits (`chain-fits-flat-error`, collapses a hard-broken source), one that doesn't
+(`chain-exceeds-max-line-length-error`, breaks at every `.`, continuation indented one level), the
+nested-group proof above (`nested-group-short-arglist-stays-flat-error`), a short and a long binary
+expression (`binary-expression-short-clean` — `expect-clean`, already canonical; `binary-expression-
+long-error` — breaks after `+`), and a short and a long argument list (`argument-list-short-clean` —
+`expect-clean`; `argument-list-long-error` — one argument per line, closing paren dedented). Each
+`-error` fixture has a `.fixed.kt` byte-exact companion; the existing, already-generic D19 idempotence
+cycle (`fix(fix(x)) == fix(x)`, no harness changes needed since C.1) exercises all of them. `libs/
+wrasse-format/DocBuilderSpec` gained matching unit tests driven directly against hand-built SAX
+events (no compiler) for all three constructs, both flat and broken, elvis's reversed break side, and
+the pre-existing-trailing-comma non-doubling case — these are what actually caught two real bugs
+before the fixture ladder ever ran: a break/whitespace-token index collision that silently ate the
+space after a non-elvis binary operator (`spliceBreak`'s "skip-then-maybe-insert" ordering), and the
+`ChildEntry.Ws`-only whitespace check that only recognizes a newline-carrying gap, missing the
+far-more-common plain-space gap in already-flat source (fixed to check `WHITE_SPACE` type generally,
+not the newline-carrying subclass specifically).
+
+**Not attempted, per the brief:** statement/declaration/blank-line wrapping, trailing-comma
+insertion, and any construct beyond these three (parameter lists, `when` conditions, `if`/`while`
+conditions, etc.) — all still reproduced verbatim, hard breaks only, exactly as before this slice.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (398 fixture-spec cases per Kotlin minor —
+391 plus this slice's 7 — zero failures; `wrasseLint` exercises the rebuilt plugin against this
+repo's own `format`-disabled `wrasse.json`, unaffected by this slice).
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.
