@@ -45,6 +45,7 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  */
 class IfElseBracingRule : WUninitializedRule {
     override val id: String = "if-else-bracing"
+    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id

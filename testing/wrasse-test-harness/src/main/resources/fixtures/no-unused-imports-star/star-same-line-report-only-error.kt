@@ -5,4 +5,4 @@ import sample.aux.Widget; import sample.aux.*
 
 val w = Widget()
 
-// expect-error 3:27 no-unused-imports "Unused import"
+// expect-error 3:27 no-unused-imports "Unused import (no autofix for this shape)"

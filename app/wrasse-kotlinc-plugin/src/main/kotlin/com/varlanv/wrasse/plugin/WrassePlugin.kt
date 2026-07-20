@@ -27,6 +27,7 @@ import java.security.MessageDigest
 import org.jetbrains.kotlin.KtLightSourceElement
 
 private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
+private const val NO_AUTOFIX_MARKER = " (no autofix for this shape)"
 
 class WrassePlugin(
     private val ruleSet: WRuleSet,
@@ -73,9 +74,11 @@ class WrassePlugin(
                 edits: List<WEdit>,
             ) {
                 if (suppressionCollector.index.isSuppressed(ruleId, startOffset, endOffset)) return
+                val declinedAutofix = edits.isEmpty() && ruleId in ruleSet.autofixCapableIds
+                val fullMessage = if (declinedAutofix) "$message$NO_AUTOFIX_MARKER" else message
                 reports.add(
                     ViolationReport(
-                        message = "${rule.id}: $message",
+                        message = "${rule.id}: $fullMessage",
                         startOffset = startOffset,
                         endOffset = endOffset,
                         level = rule.config.effectiveLevel,

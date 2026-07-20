@@ -16,6 +16,14 @@ interface WUninitializedRule {
     /** True if this rule needs [WResolvedUsage.qualifiedUsages] populated, a stronger ask than [requiresResolution] alone. */
     val requiresQualifiedUsages: Boolean get() = false
 
+    /**
+     * True if this rule ever attaches a [com.varlanv.wrasse.lang.WEdit] to one of its own reports
+     * (report-only rules — naming, metrics, smells — leave this false). Drives whether a report
+     * with no edit for this occurrence gets the "declined this occurrence" marker appended to its
+     * message (see `WrassePlugin.checkFile`); a report-only rule never carries that marker.
+     */
+    val canAutofix: Boolean get() = false
+
     fun initRule(config: WrasseRuleConfig): WRule
 }
 

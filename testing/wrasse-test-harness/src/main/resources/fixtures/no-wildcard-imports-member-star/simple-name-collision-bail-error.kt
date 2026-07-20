@@ -7,4 +7,4 @@ import sample.auxenum.Status.*
 val s = ACTIVE
 val o = sample.auxother.ACTIVE
 
-// expect-error 3:1 no-wildcard-imports "Replace wildcard import with explicit imports"
+// expect-error 3:1 no-wildcard-imports "Replace wildcard import with explicit imports (no autofix for this shape)"

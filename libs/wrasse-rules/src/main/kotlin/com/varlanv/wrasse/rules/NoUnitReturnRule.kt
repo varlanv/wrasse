@@ -27,6 +27,7 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  */
 class NoUnitReturnRule : WUninitializedRule {
     override val id: String = "no-unit-return"
+    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id

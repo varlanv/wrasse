@@ -33,6 +33,7 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  */
 class NoEmptyParensBeforeTrailingLambdaRule : WUninitializedRule {
     override val id: String = "no-empty-parens-before-trailing-lambda"
+    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id

@@ -10,5 +10,5 @@ fun demo() {
 
 fun doOtherThing() {}
 
-// expect-error 5:9 if-else-bracing "Missing braces on branch of multi-line if-statement"
+// expect-error 5:9 if-else-bracing "Missing braces on branch of multi-line if-statement (no autofix for this shape)"
 // expect-error 8:9 if-else-bracing "Missing braces on branch of multi-line if-statement"

@@ -11,5 +11,5 @@ fun demo(x: Int): String {
     return s
 }
 
-// expect-error 7:13 if-else-bracing "Missing braces on branch of multi-line if-statement"
-// expect-error 10:13 if-else-bracing "Missing braces on branch of multi-line if-statement"
+// expect-error 7:13 if-else-bracing "Missing braces on branch of multi-line if-statement (no autofix for this shape)"
+// expect-error 10:13 if-else-bracing "Missing braces on branch of multi-line if-statement (no autofix for this shape)"

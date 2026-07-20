@@ -9,6 +9,7 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 
 class TrailingNewlineRule : WUninitializedRule {
     override val id: String = "trailing-newline"
+    override val canAutofix: Boolean = true
     override fun initRule(config: WrasseRuleConfig): WFileRule {
         val ruleId = id
         return object : WFileRule {

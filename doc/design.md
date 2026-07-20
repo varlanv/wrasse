@@ -510,7 +510,10 @@ names a prohibition, a bare noun phrase names a requirement (`import-ordering`, 
 One wrasse id per **concept** across the ktlint/detekt/diktat overlaps it replaces — never one id
 per source tool. Messages are one short declarative sentence: capitalized, no trailing period,
 stating what is wrong, with parameterized facts inlined where they help fixing (e.g. "Function has
-7 parameters (max 5)"). All shipped rules already conform; every future port must too. Where
+7 parameters (max 5)"). An autofix-capable rule's report that declines to attach an edit for this
+particular occurrence gets `" (no autofix for this shape)"` appended (§14's "Report-only bails"
+entry); report-only rules never carry it. All shipped rules already conform; every future port must
+too. Where
 ktlint/detekt/diktat chose a conservative exemption over an upstream shape, wrasse matches it rather
 than going further just because a broader fix is provably safe, unless the owner explicitly
 approves extending scope. **KDoc states the code's contract only** — behavior, parameter/return
@@ -2813,9 +2816,13 @@ a separate `ktlint -F` invocation on the same files.
   user must hand-edit or `@Suppress`. Found dogfooding `when-entry-bracing` on this repo, whose
   own `when`s hit the multiline-body bail repeatedly; its self-lint enablement is deferred for
   that reason (the rule itself is shipped and fixture-proven, and fixed 10 real findings here
-  correctly before the bails blocked convergence). Options if this becomes a product problem:
-  report-only bails could emit at `warn` regardless of configured level, or stay silent when they
-  cannot fix. Owner decision, not taken.
+  correctly before the bails blocked convergence). The build still cannot converge on its own —
+  that reality is unchanged — but the silent-dead-end part is fixed: `WrassePlugin.checkFile`'s
+  reporter now appends `" (no autofix for this shape)"` to a report's message whenever its rule is
+  autofix-capable ([WUninitializedRule.canAutofix] / [WUninitializedRuleGroup.canAutofix]) and this
+  particular occurrence attached no edit, so the user sees *why* `wrasseFix` didn't move it rather
+  than just a build that stayed red. Report-only rules (naming/metrics/smells) never carry the
+  marker — `canAutofix` defaults to false and is only set true on the shipped fixer rules/engine.
 - `ChildBuffer` allocated per `WBufferedNodeRule` enter — pool when engines land.
 - Registrar selection probes internal compiler class names (`classExists` markers); checker
   shells exist in triplicate (k20/k22/main) — any signature change must be mirrored. Version

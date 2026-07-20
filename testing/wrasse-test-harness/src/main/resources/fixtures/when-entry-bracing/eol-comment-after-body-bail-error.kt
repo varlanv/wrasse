@@ -10,5 +10,5 @@ fun classify(x: Int): String {
     }
 }
 
-// expect-error 8:14 when-entry-bracing "Missing braces on when-entry body"
+// expect-error 8:14 when-entry-bracing "Missing braces on when-entry body (no autofix for this shape)"
 // expect-error 9:17 when-entry-bracing "Missing braces on when-entry body"

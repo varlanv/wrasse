@@ -23,6 +23,7 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  */
 class NoEmptyClassBodyRule : WUninitializedRule {
     override val id: String = "no-empty-class-body"
+    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id

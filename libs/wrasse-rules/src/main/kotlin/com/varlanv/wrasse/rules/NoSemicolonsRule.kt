@@ -11,6 +11,7 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 class NoSemicolonsRule : WUninitializedRule {
     override val id: String = "no-semicolons"
+    override val canAutofix: Boolean = true
     override fun initRule(config: WrasseRuleConfig): WStreamRule {
         val ruleId = id
         return object : WStreamRule {

@@ -28,6 +28,7 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  */
 class ModifierOrderRule : WUninitializedRule {
     override val id: String = "modifier-order"
+    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id

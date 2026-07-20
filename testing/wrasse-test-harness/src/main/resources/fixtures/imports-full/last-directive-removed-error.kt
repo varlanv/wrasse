@@ -6,5 +6,5 @@ import sample.aux.Unused
 
 val w = Widget()
 
-// expect-error 4:1 no-unused-imports "Unused import"
+// expect-error 4:1 no-unused-imports "Unused import (no autofix for this shape)"
 // expect-error 3:1 import-ordering "Imports are not sorted"

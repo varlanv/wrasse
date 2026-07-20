@@ -31,6 +31,15 @@ interface WUninitializedRuleGroup {
     fun requiresQualifiedUsages(enabledIds: Set<String>): Boolean = false
 
     /**
+     * Mirrors [WUninitializedRule.canAutofix] at group granularity: true if any id backed by this
+     * group ever attaches an edit to its own reports. Group-, not per-id-, granularity, because
+     * every group wrasse ships today ([com.varlanv.wrasse.rules.ImportEngine]'s four ids) is
+     * uniformly fixer-capable — a future group mixing a pure-report id with fixer ids would need
+     * to widen this to a `Set<String>` of fixer ids instead; not needed yet, so not built.
+     */
+    val canAutofix: Boolean get() = false
+
+    /**
      * Produces a fresh, fused [WRule] instance for one file, configured with exactly the
      * enabled, non-excluded-for-this-file ids and their [WrasseRuleConfig]s. Never called with
      * an empty map — an empty surviving set means the group is skipped for this file entirely.

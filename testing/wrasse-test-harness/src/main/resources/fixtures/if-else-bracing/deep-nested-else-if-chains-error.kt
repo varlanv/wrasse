@@ -41,14 +41,14 @@ val innerCondition3 = true
 val innerCondition4 = true
 val innerCondition44 = true
 
-// expect-error 5:9 if-else-bracing "Missing braces on branch of multi-line if-statement"
-// expect-error 6:13 if-else-bracing "Missing braces on branch of multi-line if-statement"
+// expect-error 5:9 if-else-bracing "Missing braces on branch of multi-line if-statement (no autofix for this shape)"
+// expect-error 6:13 if-else-bracing "Missing braces on branch of multi-line if-statement (no autofix for this shape)"
 // expect-error 7:17 if-else-bracing "Missing braces on branch of multi-line if-statement"
 // expect-error 9:17 if-else-bracing "Missing braces on branch of multi-line if-statement"
 // expect-error 11:17 if-else-bracing "Missing braces on branch of multi-line if-statement"
 // expect-error 13:17 if-else-bracing "Missing braces on branch of multi-line if-statement"
 // expect-error 15:13 if-else-bracing "Missing braces on branch of multi-line if-statement"
-// expect-error 20:9 if-else-bracing "Missing braces on branch of multi-line if-statement"
+// expect-error 20:9 if-else-bracing "Missing braces on branch of multi-line if-statement (no autofix for this shape)"
 // expect-error 21:13 if-else-bracing "Missing braces on branch of multi-line if-statement"
 // expect-error 23:13 if-else-bracing "Missing braces on branch of multi-line if-statement"
 // expect-error 25:13 if-else-bracing "Missing braces on branch of multi-line if-statement"

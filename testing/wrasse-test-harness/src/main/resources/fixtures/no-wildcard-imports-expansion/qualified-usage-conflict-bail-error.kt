@@ -8,4 +8,4 @@ import sample.auxc1.*
 val q = Item()
 val p = sample.auxc1.Item.make()
 
-// expect-error 4:1 no-wildcard-imports "Replace wildcard import with explicit imports"
+// expect-error 4:1 no-wildcard-imports "Replace wildcard import with explicit imports (no autofix for this shape)"

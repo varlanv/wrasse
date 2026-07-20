@@ -8,4 +8,4 @@ fun main() {
     { }
 }
 
-// expect-error 6:10 no-empty-parens-before-trailing-lambda "Unnecessary empty parentheses before trailing lambda"
+// expect-error 6:10 no-empty-parens-before-trailing-lambda "Unnecessary empty parentheses before trailing lambda (no autofix for this shape)"
