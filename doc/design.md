@@ -2627,15 +2627,19 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   convention). Indentation reuses [BraceInsertion] (extracted from `if-else-bracing`'s own
   `physicalLineIndentColumn`/edit-construction during this port — the two rules are close enough
   cousins that duplicating the mid-line-construct fix from the if-else-bracing backfill would have
-  been a straight copy-paste, so it is now one shared helper instead) with `baseIndentColumn` computed
-  from the *entry's own* physical line start (there is no chain-head concept for `when`-entries — each
-  entry is independent, so it is its own equivalent of if-else-bracing's chain head).
+  been a straight copy-paste, so it is now one shared helper instead) with `baseIndentColumn` shared
+  by every entry in the `when`, computed once from the *enclosing `WHEN`'s* own physical line plus one
+  `indentWidth` level — **corrected 2026-07-20 during the wave-2 backfill** from the original per-entry
+  computation (each entry's own physical line, no shared base); see the dated backfill paragraph below
+  for the mid-line-`WHEN` bug this replaced.
 
-  Bails (reported, never autofixed) whenever a comment sits anywhere between the entry's `ARROW` and
-  its body (same uniform-bail precedent as every other T-bucket rule; locked by
-  `comment-before-body-bail-error` — a comment sitting *before* the whole entry, outside the
-  `ARROW`-to-body gap, is untouched and unaffected, locked by `comment-before-entry-preserved-error`)
-  or whenever the entry's own bare-expression text already spans multiple lines (a chained call split
+  Bails (reported, never autofixed) whenever a comment sits anywhere in the gap around the entry's
+  body — between the `ARROW` and the body, or trailing the body on its own line before the next
+  sibling (same uniform-bail precedent as every other T-bucket rule; leading case locked by
+  `comment-before-body-bail-error`, trailing case by `eol-comment-after-body-bail-error` — a comment
+  sitting *before* the whole entry, outside the `ARROW`-to-body gap, is untouched and unaffected,
+  locked by `comment-before-entry-preserved-error`) or whenever the entry's own bare-expression text
+  already spans multiple lines (a chained call split
   across lines, locked by `chained-call-multiline-body-bail-error` — ktlint's own real test suite
   confirms this shape needs a *second*, separate `IndentationRule` pass to reindent correctly, so
   replicating `when-entry-bracing`'s own real output byte-for-byte on its own would not itself be
@@ -2662,6 +2666,66 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   (`assertExpectedSurvivors`) rather than vanishing, since it never had an edit of its own — the exact
   same reasoning if-else-bracing's own `dangling-else-nested-error` fixture already established for a
   bail report's span never spuriously overlapping an inner fix's edits.
+
+  Retroactive upstream-test backfill, wave 2 installment 6 (2026-07-20): `when-entry-bracing`
+  (ktlint's own `WhenEntryBracingTest` — 7 real test cases — plus detekt's own
+  `BracesOnWhenStatementsSpec`, restricted per D21 to the two config-combination nested classes that
+  actually exercise the shipped default (`singleLine=necessary`, `multiLine=consistent`); the rest of
+  detekt's suite is config-permutation coverage fixed at other `singleLine`/`multiLine` values and is
+  out of scope) ported against both real upstream suites independently. Six of ktlint's seven cases
+  and both in-scope detekt nested classes were already subsumed by the ship-time fixtures (`all-bare-
+  single-line-clean`, `mixed-braced-bare-all-single-line-clean`, `fully-bare-multiline-clean`,
+  `chained-call-multiline-body-bail-error`, `comment-before-entry-preserved-error`); one new fixture,
+  `all-braced-single-line-clean`, closes a gap symmetric to if-else-bracing's own `single-line-if-
+  else-already-braced-clean` (detekt's `singleLine=necessary` wants these single-statement braces
+  *removed*; this insert-only rule stays silent, matching the sibling rule's already-documented
+  asymmetry).
+
+  Two real, contained bugs found and fixed, both from probing shapes neither upstream suite's own
+  fixed test inputs happened to combine, in the same spirit as the if-else-bracing wave's mid-line-
+  head bug: (1) ktlint's own seventh case (a bare entry with an EOL comment trailing its body on the
+  same line, `BAR1 -> "bar1" // comment`) exposed that the leading/trailing comment-bail was only
+  ever checking the gap *before* the body (between `ARROW` and the body), never the gap *after* it —
+  unlike `if-else-bracing`'s own sibling check, which already covers both sides. A bare entry with a
+  trailing same-line comment was silently braced with the comment left stranded after the closing
+  brace (`"two"\n} // trailing`) instead of bailing, an asymmetry with the sibling rule the KDoc's own
+  "same established uniform-bail precedent" claim didn't actually hold. Fixed by scanning the
+  enclosing `WHEN`'s own children (available at the `WHEN` exit, once all entries are already
+  recorded) for a comment immediately following each candidate entry, before any intervening newline;
+  locked by `eol-comment-after-body-bail-error`. (2) Constructing a `WHEN`-entries-inside-a-lambda-
+  and-mid-line-expression probe (per the assignment's own hunt list) surfaced the if-else-bracing
+  wave's exact class of bug recurring here: `baseIndentColumn` was computed from *each entry's own*
+  physical line, which coincides with the entry's own column only when the entry itself starts its
+  line — false whenever an earlier entry on that `WHEN` sits mid-line (`= when (x) { 1 -> "one"` on a
+  function's expression-body line, reproduced as `midline-when-expression-error`), misaligning that
+  one entry's inserted braces to the enclosing statement's own column while every sibling entry (each
+  starting its own line normally) stayed correctly indented. Fixed analogously to the if-else-bracing
+  precedent: `baseIndentColumn` is now computed once per `WHEN` (not per entry) from the *enclosing
+  `WHEN` node's* own physical line plus one `indentWidth` level, shared by every entry in that `when` —
+  correct both in the common case (identical to the old per-entry value, since a normally-formatted
+  entry's own physical line already equals the `WHEN`'s line indent plus one level) and in the mid-
+  line case. Regression-free against every pre-existing fixture, since none has an entry sitting
+  mid-line.
+
+  Four more fixtures close shapes from the assignment's own hunt list that neither upstream suite's
+  ship-time-adjacent probing had combined: a self-nested `when` (a bare entry's own body is itself a
+  `when` expression, `nested-when-entry-body-error` — confirms the per-`when` accumulator stack
+  composes correctly for a rule nesting inside itself, not just against `if-else-bracing`, exactly as
+  already documented for the cross-rule case); a multi-line condition list before a single-line bare
+  entry (`multiline-condition-list-error` — confirms the leading condition list, which sits entirely
+  before `ARROW`, never leaks into the multiline-body gate check); an already-multi-line block as the
+  *sole* trigger for bracing bare single-line siblings, with no bare entry itself ever starting on a
+  new line (`multiline-block-triggers-bracing-error` — the broad `arrowEnd..contentEnd` newline check
+  picks up a block's own internal newlines exactly as detekt's real `isMultiLine` sibling-text check
+  does, a previously-implicit-but-untested code path); and a `when` used as a constructor-call argument
+  (`when-inside-constructor-call-error`, closing the "whens inside constructor calls" hunt item with a
+  normally-indented case once the mid-line fix above covers the misindentation risk). A `WHEN_ENTRY`
+  body written as a lambda literal (`1 -> { { 1 } }`, the one genuinely tricky shape in detekt's own
+  suite) was considered and ruled out as a risk without a new fixture: Kotlin's own grammar always
+  parses a `{` immediately after `ARROW` as a `BLOCK`, never a lambda value, so this shape is already
+  indistinguishable from any other already-braced entry to this rule's existing `== BLOCK` check —
+  there is no code path where a bare `LAMBDA_EXPRESSION` could ever reach this rule as a when-entry's
+  direct body. Both upstream checkouts left byte-clean, `git status` verified.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal

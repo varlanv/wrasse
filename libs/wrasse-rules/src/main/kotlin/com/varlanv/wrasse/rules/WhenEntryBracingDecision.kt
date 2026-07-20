@@ -26,27 +26,15 @@ class WhenEntryBracingVerdict(
 /**
  * Pure verdict logic for `when-entry-bracing`, compiler-free and unit-testable without kotlinc.
  *
- * [shouldBraceEntries] gates the whole feature for one `when` expression: ktlint's own
- * `when-entry-bracing` braces every bare entry as soon as *either* some entry already has a block
- * body *or* some entry's body doesn't start on the same line as its own `ARROW`; detekt's own
- * `BracesOnWhenStatements` (shipped defaults `singleLine = "necessary"`, `multiLine = "consistent"`)
- * only ever wants entries braced when both hold at once — a bare-vs-braced mix (`consistent`) is
- * only evaluated for the whole `when` once some entry's body is multiline (its own policy switches
- * from `singleLine` to `multiLine` on that basis; `singleLine = "necessary"` never examines bare
- * entries at all, only ever flags an already-braced entry for *removal*). Requiring both conditions
- * together is the strict intersection: a fully-bare `when` — single or multi-line entries alike —
- * is never touched (matches detekt's `multiLine = "consistent"` "no braces are accepted" verdict,
- * even though ktlint alone would brace it), and a fully single-line, braced/bare-mixed `when` is
- * never touched either (matches detekt's `singleLine = "necessary"`, which only ever wants brace
- * *removal* there, the opposite direction from what ktlint's own consistency-forcing would do) —
- * see design.md §13 for the ground-truthed disagreement inventory this narrows down from.
+ * [shouldBraceEntries] gates the whole rule for one `when` expression: bracing only fires when
+ * some entry already has a non-empty block body *and* some entry's body doesn't start on the same
+ * line as its own `ARROW`. Either condition alone, or neither, leaves every entry untouched.
  *
- * [decideEntry] bails (empty [WhenEntryBracingVerdict.edits], report-only) whenever
+ * [decideEntry] returns a report-only bail (empty [WhenEntryBracingVerdict.edits]) whenever
  * [WhenEntryBracingCandidate.hasAdjacentComment] is set or the entry's own bare-expression text
- * already spans multiple lines — same established uniform-bail precedent and reindentation-scope
- * limit as [IfElseBracingDecision]. Otherwise, both new edits are computed purely from
- * [baseIndentColumn] (the entry's own physical line indentation) and [indentWidth] via the shared
- * [BraceInsertion] helper — never copied from whatever whitespace happened to already be there.
+ * already spans multiple lines. Otherwise, both edits are computed purely from
+ * [baseIndentColumn] and [indentWidth] via the shared [BraceInsertion] helper — never copied from
+ * whatever whitespace happened to already be there.
  */
 object WhenEntryBracingDecision {
 

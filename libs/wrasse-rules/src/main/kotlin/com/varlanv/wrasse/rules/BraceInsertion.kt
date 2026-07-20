@@ -4,15 +4,12 @@ import com.varlanv.wrasse.lang.WEdit
 
 /**
  * Shared core for the brace-insertion family ([IfElseBracingDecision], [WhenEntryBracingDecision]):
- * the physical-line indentation lookup and the two-edit brace-wrap construction, identical between
- * both rules down to the byte.
+ * the physical-line indentation lookup and the two-edit brace-wrap construction.
  *
  * [physicalLineIndentColumn] returns the indentation of the physical line containing [offset] — the
  * count of leading whitespace before that line's first non-whitespace character, not [offset]'s own
- * column. These coincide whenever the wrapped construct is itself the first token on its line (the
- * common case); they diverge when it sits mid-line (`fun foo() = if (...)`), where [offset]'s own
- * column would misalign the inserted braces to that arbitrary mid-line position instead of the
- * enclosing statement's real indentation depth (design.md §13, the wave-2 if-else-bracing backfill).
+ * column. These coincide when the wrapped construct is the first token on its line; they diverge
+ * when it sits mid-line, where [offset]'s own column would misalign the inserted braces.
  */
 object BraceInsertion {
 

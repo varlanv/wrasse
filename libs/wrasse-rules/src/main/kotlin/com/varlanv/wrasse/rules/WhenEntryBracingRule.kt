@@ -30,8 +30,9 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  * `hasUnnecessaryBraces` exemption for an empty block, which never counts toward its consistency
  * tally either.
  *
- * Reports but never autofixes (report-only bail): a comment anywhere between the entry's `ARROW`
- * and its body (established uniform-bail precedent, same posture as `if-else-bracing`); an entry
+ * Reports but never autofixes (report-only bail): a comment anywhere in the gap around the entry's
+ * body — between the `ARROW` and the body, or trailing the body on its own line before the next
+ * sibling (established uniform-bail precedent, same posture as `if-else-bracing`); an entry
  * whose own bare-expression text already spans multiple lines (a chained call split across lines,
  * or — the key cross-rule shape — a bare `if`/`when` expression `if-else-bracing`/this same rule's
  * own subsequent visit fixes independently) — ktlint's own real formatter output for this shape is
@@ -73,8 +74,16 @@ class WhenEntryBracingRule : WUninitializedRule {
                 if (!WhenEntryBracingDecision.shouldBraceEntries(pending.anyEntryHasBlockBody, pending.anyEntryHasMultilineBody)) {
                     return
                 }
+                val baseIndentColumn = BraceInsertion.physicalLineIndentColumn(ctx.sourceText, ctx.startOffset) + INDENT_WIDTH
+                var siblingIdx = 0
                 for (candidate in pending.candidates) {
-                    report(ctx, reporter, candidate)
+                    while (siblingIdx < children.size &&
+                        !(children.type(siblingIdx) == WNodeType.WHEN_ENTRY && children.startOffset(siblingIdx) == candidate.entryStartOffset)
+                    ) {
+                        siblingIdx++
+                    }
+                    val hasTrailingComment = siblingIdx < children.size && hasCommentImmediatelyAfter(ctx, children, siblingIdx)
+                    report(ctx, reporter, candidate, hasTrailingComment, baseIndentColumn)
                 }
             }
 
@@ -111,15 +120,20 @@ class WhenEntryBracingRule : WUninitializedRule {
                 )
             }
 
-            private fun report(ctx: WContext, reporter: WReporter, candidate: PendingCandidate) {
-                val baseIndentColumn = BraceInsertion.physicalLineIndentColumn(ctx.sourceText, candidate.entryStartOffset)
+            private fun report(
+                ctx: WContext,
+                reporter: WReporter,
+                candidate: PendingCandidate,
+                hasTrailingComment: Boolean,
+                baseIndentColumn: Int,
+            ) {
                 val verdict = WhenEntryBracingDecision.decideEntry(
                     ctx.sourceText,
                     WhenEntryBracingCandidate(
                         leadingGapStart = candidate.leadingGapStart,
                         contentStart = candidate.contentStart,
                         contentEnd = candidate.contentEnd,
-                        hasAdjacentComment = candidate.hasAdjacentComment,
+                        hasAdjacentComment = candidate.hasAdjacentComment || hasTrailingComment,
                     ),
                     baseIndentColumn,
                     INDENT_WIDTH,
@@ -129,6 +143,20 @@ class WhenEntryBracingRule : WUninitializedRule {
                     verdict.reportStart, verdict.reportEnd, this,
                     edits = verdict.edits,
                 )
+            }
+
+            private fun hasCommentImmediatelyAfter(ctx: WContext, children: ChildBuffer, entryIdx: Int): Boolean {
+                var i = entryIdx + 1
+                while (i < children.size) {
+                    val type = children.type(i)
+                    if (type == WNodeType.WHITE_SPACE) {
+                        if (children.textSpan(i, ctx.sourceText).contains('\n')) return false
+                        i++
+                        continue
+                    }
+                    return type.isWhitespaceOrComment
+                }
+                return false
             }
 
             private fun findBodyStartIdx(children: ChildBuffer, arrowIdx: Int): Int {

@@ -32,30 +32,16 @@ class IfElseBracingVerdict(
 /**
  * Pure verdict logic for `if-else-bracing`, compiler-free and unit-testable without kotlinc.
  *
- * [chainSpansMultipleLines] gates the whole feature: ktlint's own `multiline-if-else` and
- * detekt's own `BracesOnIfStatements` (default `multiLine = "always"`) only agree on requiring
- * braces when the if/else-if/else chain, as physically written, spans more than one source line
- * — see design.md §13 for the ground-truthed disagreement inventory this narrows down from.
+ * [chainSpansMultipleLines] gates the whole rule: no branch is touched unless the if/else-if/else
+ * chain, as physically written, spans more than one source line.
  *
- * [decideBranch] bails (empty [IfElseBracingVerdict.edits], report-only) whenever
- * [IfElseBracingCandidate.hasAdjacentComment] is set (established project precedent: never
- * autofix past a comment rather than risk misplacing it) or the branch's own bare-statement text
- * already spans multiple lines (a chained call, wrapped binary expression, …) — reindenting that
- * content correctly would require re-flowing every interior line, which is out of this rule's
- * single-edit-pair scope; ktlint's own real formatter output for this shape is demonstrably
- * *not* reindented either (ground-truthed), so replicating it byte-for-byte would ship code that
- * is not itself born-clean. Otherwise, both new edits are computed purely from
- * [baseIndentColumn] (the enclosing chain-head statement's own column) and [indentWidth]
- * (D21's `indentWidth` style parameter, not yet wired as config — hardcoded to its documented
- * default by the caller) — never copied from whatever whitespace happened to already be there.
- *
- * A bail reports a zero-width point at [IfElseBracingCandidate.contentStart] rather than the
- * branch's full span: the branch's bare statement can itself be — or contain — an independent
- * nested `if` this same rule fixes on its own subsequent visit to that inner `IF` node, and a
- * wider report span could spuriously overlap that inner fix's edits (which start exactly where
- * this bail's content does), breaking the idempotence harness's "this D1 diagnostic disappears
- * in D2" prediction for a report that in fact never had an edit of its own and is expected to
- * persist unchanged.
+ * [decideBranch] returns a report-only bail (empty [IfElseBracingVerdict.edits]) whenever
+ * [IfElseBracingCandidate.hasAdjacentComment] is set or the branch's own bare-statement text
+ * already spans multiple lines; the bail reports a zero-width point at
+ * [IfElseBracingCandidate.contentStart] rather than the branch's full span, so a wider span never
+ * spuriously overlaps an independent nested-`if` fix starting at that same offset. Otherwise, both
+ * edits are computed purely from [baseIndentColumn] and [indentWidth] via [BraceInsertion] — never
+ * copied from whatever whitespace happened to already be there.
  */
 object IfElseBracingDecision {
 
