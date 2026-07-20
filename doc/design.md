@@ -2292,7 +2292,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~128, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (5/15).** Braces family,
+- **B.2 — targeted fixes (~15, bucket T) — chain started 2026-07-20 (6/15).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -2562,6 +2562,106 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   whitespace adjacent to its field boundary, so this never fired). Fixed by dropping the `trim()`
   entirely (`CharSequence.lineSequence()` already strips line terminators; `WPatchWriter` never
   indents a structural line), locked by a dedicated round-trip case in `WPatchWriterReaderSpec`.
+  `when-entry-bracing` shipped sixth — the brace-insertion family's second and, per the
+  ground-truthed disagreement inventory below, its narrowest-scoped member. One wrasse id for
+  ktlint's own `when-entry-bracing` and detekt's `BracesOnWhenStatements`. Ground-truthed both
+  engines directly (both checkouts read only — `WhenEntryBracingTest.kt`/`WhenEntryBracing.kt` for
+  ktlint, `BracesOnWhenStatements.kt`/`BracesOnWhenStatementsSpec.kt` plus
+  `default-detekt-config.yml` for detekt's shipped defaults — no probe cases added this time, both
+  upstream test suites already cover every shape needed; both checkouts left byte-clean, `git status`
+  verified). The two upstreams disagree even more sharply here than in the if-family:
+  - ktlint's single `when-entry-bracing` rule (`RuleV2.OfficialCodeStyle`, active by ktlint's own
+    default code style) braces every currently-bare entry in a `when` as soon as *either* some entry
+    already has a block body (`hasAnyWhenEntryWithBlockAfterArrow`) *or* some entry's body doesn't
+    start on the same line as its own `ARROW` (`hasAnyWhenEntryWithMultilineBody`) — either
+    condition alone is sufficient, and once triggered, *every* bare entry in that `when` gets braced,
+    including ones that are themselves single-line.
+  - detekt's `BracesOnWhenStatements` ships `active: false` in `default-detekt-config.yml` (ground-
+    truthed its own default *option* values regardless, per the if-else-bracing precedent) with
+    `singleLine = "necessary"`, `multiLine = "consistent"` — a materially different pair of defaults
+    from `BracesOnIfStatements`' own `multiLine = "always"`. Its policy is chosen **per `when`
+    expression**, from whether *any* entry's own body starts on a line after its `ARROW` (the same
+    underlying grammar fact as ktlint's `hasAnyWhenEntryWithMultilineBody`): `singleLine =
+    "necessary"` never examines bare entries at all — reading its own real shipped test suite
+    (`existing braces are flagged` under `=necessary`) confirms it only ever flags an *already-braced*
+    entry for **removal** when unnecessary, the opposite direction from bracing; `multiLine =
+    "consistent"` flags a mix of braced and bare entries (`inconsistent braces are flagged`), but its
+    own `no braces are accepted` case (verified directly in `BracesOnWhenStatementsSpec`) shows a
+    fully-bare `when` — single-line entries or multi-line alike — is accepted outright, never
+    flagged, even though ktlint alone would brace it.
+  Resolved by strict intersection, same methodology as if-else-bracing: wrasse only braces a bare
+  entry where *both* engines' defaults actually want a change there. Concretely, an entry is a
+  candidate only when, within its own `when`, (a) some entry (any entry, braced or bare) has a body
+  that doesn't start on the same line as its own `ARROW` — the trigger that flips detekt from
+  `singleLine` to `multiLine` mode — **and** (b) some entry already has a non-empty block body — the
+  only way `multiLine = "consistent"` ever flags anything, since a fully-bare `when` is accepted
+  regardless of (a). Requiring both is what excludes two shapes ktlint alone would fix: a fully-bare
+  `when` with a multiline entry but nothing already braced (locked clean by
+  `fully-bare-multiline-clean` — ktlint's own real
+  `Given a when-statement with a multiline body not contained in a block then add braces to all
+  entries` test, reproduced and confirmed to disagree with detekt's `no braces are accepted`), and a
+  fully single-line `when` mixing a braced and a bare entry with no entry ever spanning multiple
+  lines (locked clean by `mixed-braced-bare-all-single-line-clean` — ktlint's own real `Given a
+  when-statement containing an entry with braces and an entry without braces then add braces to all
+  entries` test, where detekt's `singleLine = "necessary"` would want the *opposite* — removing the
+  existing braces, never adding to the bare one). An empty block (`1 -> {}`) never counts as "already
+  braced" for gate (b) either way — matches detekt's own `hasUnnecessaryBraces` exemption for an
+  empty block, which excludes it from the consistency tally too (locked by
+  `empty-block-sibling-not-counted-clean`). A single-entry `when` can never satisfy gate (b) at all
+  (locked by `single-entry-when-clean`).
+
+  Mechanically: a `WBufferedNodeRule` targeting both `WHEN` and `WHEN_ENTRY` (`ctx.type` distinguishes
+  which fired, the same idiom `NoEmptyClassBodyRule` uses for its `companionStack`) pushes a small
+  per-`when` accumulator (`anyEntryHasBlockBody`, `anyEntryHasMultilineBody`, the list of bare
+  candidates) on `WHEN` enter and pops it on `WHEN` exit, evaluating the two gates and reporting only
+  then; nesting (a `when` in another's subject, condition, or entry body) composes for free since the
+  accumulator is a stack, not a single field. Each `WHEN_ENTRY`'s own direct children (found via its
+  own `ChildBuffer`, confirmed via the real fixture harness rather than a separate dump probe —
+  `ARROW` is a direct child regardless of how many comma-separated conditions precede it, unaffected
+  by a `when` subject's presence or absence) locate the body's start precisely: the first non-
+  whitespace-non-comment child after `ARROW`, whose own `WNodeType` is checked for `== BLOCK` (more
+  precise than if-else-bracing's own first-character check, and avoids that check's known imprecision
+  for a bare-lambda body, since a `WHEN_ENTRY`'s `ChildBuffer` — unlike `IF`'s `THEN`/`ELSE` — hands
+  back the body's real node type directly). An empty block is recognized by blanking the text between
+  its own braces (any comment or KDoc inside still counts as non-empty, same `NoEmptyClassBodyRule`
+  convention). Indentation reuses [BraceInsertion] (extracted from `if-else-bracing`'s own
+  `physicalLineIndentColumn`/edit-construction during this port — the two rules are close enough
+  cousins that duplicating the mid-line-construct fix from the if-else-bracing backfill would have
+  been a straight copy-paste, so it is now one shared helper instead) with `baseIndentColumn` computed
+  from the *entry's own* physical line start (there is no chain-head concept for `when`-entries — each
+  entry is independent, so it is its own equivalent of if-else-bracing's chain head).
+
+  Bails (reported, never autofixed) whenever a comment sits anywhere between the entry's `ARROW` and
+  its body (same uniform-bail precedent as every other T-bucket rule; locked by
+  `comment-before-body-bail-error` — a comment sitting *before* the whole entry, outside the
+  `ARROW`-to-body gap, is untouched and unaffected, locked by `comment-before-entry-preserved-error`)
+  or whenever the entry's own bare-expression text already spans multiple lines (a chained call split
+  across lines, locked by `chained-call-multiline-body-bail-error` — ktlint's own real test suite
+  confirms this shape needs a *second*, separate `IndentationRule` pass to reindent correctly, so
+  replicating `when-entry-bracing`'s own real output byte-for-byte on its own would not itself be
+  born-clean, same finding as if-else-bracing's own chained-call bail). An entry whose body is a
+  single-line `if`/`when` expression is not exempt from this shape and gets braced normally (locked by
+  `if-expression-body-single-line-error`) — only an embedded newline triggers the bail, not the
+  presence of a nested conditional as such.
+
+  **Cross-rule interaction with `if-else-bracing` (the assignment's key risk):** when a bare entry's
+  body is itself a bare, multi-line `if`/`else` (`1 -> if (big) "big" else "small"`, physically
+  spanning several lines), `when-entry-bracing`'s own embedded-newline bail fires on that entry —
+  report-only, zero edits — while `if-else-bracing`, visiting the nested `IF` node on its own
+  subsequent (post-order, child-before-parent) visit, braces its `THEN`/`ELSE` branches
+  independently. No `EditPlan` composition (`takeEditsIn`, §5.2) is needed at all: the two rules are
+  disjoint by construction, not by coincidence — whenever `when-entry-bracing` would otherwise succeed
+  (no embedded newline in the entry's own content), any `if`/`else` inside that entry is, by the same
+  token, itself confined to one physical line, so `if-else-bracing`'s own `chainSpansMultipleLines`
+  gate never fires there either; whenever that gate *does* fire (the chain spans multiple lines),
+  `when-entry-bracing`'s own bail has already fired first, emitting zero edits for that span. Proven
+  both by the dedicated `when-if-bracing-combined/entry-bare-if-body-error` fixture (both rules
+  enabled together, one `wrasseFix` pass, D19's idempotence cycle green) and by
+  `WhenEntryBracingSafetySpec`'s own second real-compile case across all four Kotlin minors, which
+  additionally confirms the bail's diagnostic persists unchanged into D2 as an expected survivor
+  (`assertExpectedSurvivors`) rather than vanishing, since it never had an edit of its own — the exact
+  same reasoning if-else-bracing's own `dangling-else-nested-error` fixture already established for a
+  bail report's span never spuriously overlapping an inner fix's edits.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal

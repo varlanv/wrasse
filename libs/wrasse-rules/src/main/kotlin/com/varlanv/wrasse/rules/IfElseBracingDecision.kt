@@ -73,16 +73,17 @@ object IfElseBracingDecision {
             return IfElseBracingVerdict(candidate.contentStart, candidate.contentStart, emptyList())
         }
 
-        val bodyIndent = " ".repeat(baseIndentColumn + indentWidth)
-        val closeIndent = " ".repeat(baseIndentColumn)
-        val trailingReplacement = if (candidate.hasFollowingBranch) "\n$closeIndent} " else "\n$closeIndent}"
-
         return IfElseBracingVerdict(
             reportStart = candidate.contentStart,
             reportEnd = candidate.contentEnd,
-            edits = listOf(
-                WEdit(candidate.leadingGapStart, candidate.contentStart, " {\n$bodyIndent"),
-                WEdit(candidate.contentEnd, candidate.trailingGapEnd, trailingReplacement),
+            edits = BraceInsertion.wrapEdits(
+                leadingGapStart = candidate.leadingGapStart,
+                contentStart = candidate.contentStart,
+                contentEnd = candidate.contentEnd,
+                trailingGapEnd = candidate.trailingGapEnd,
+                hasFollowingBranch = candidate.hasFollowingBranch,
+                baseIndentColumn = baseIndentColumn,
+                indentWidth = indentWidth,
             ),
         )
     }

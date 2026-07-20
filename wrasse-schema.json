@@ -67,6 +67,10 @@
                 "trailing-newline": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require a trailing newline at end of file"
+                },
+                "when-entry-bracing": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require braces around a bare when-entry body when some sibling entry is already braced and some entry has a multiline body"
                 }
             }
         }
