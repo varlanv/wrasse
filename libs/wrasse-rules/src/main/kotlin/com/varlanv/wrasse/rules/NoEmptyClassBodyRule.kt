@@ -12,11 +12,14 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * A class/interface/object/enum/nested-class body containing nothing but whitespace is reported
  * and, where deleting it stays compile-legal, autofixed to remove it entirely.
  *
- * Companion object bodies are exempt entirely (not reported, not fixed).
+ * Companion object bodies are exempt entirely (not reported, not fixed), matching upstream
+ * ktlint's own conservatism.
  *
- * Bails to report-only for an anonymous object expression's body (`object : Foo {}`, `object {}`)
- * — unlike every other empty-body shape, kotlinc's grammar requires that body syntactically; an
- * anonymous object with its braces removed is a syntax error, not merely restyled.
+ * An anonymous object expression's body (`object : Foo {}`, `object {}`) is exempt entirely too
+ * (not reported, not fixed) — matching both upstream ktlint (`!isPartOf(OBJECT_LITERAL)`) and
+ * detekt's own `EmptyClassBlock` (`isObjectLiteral()`), which never flag this shape at all, even
+ * though kotlinc's grammar requires that body syntactically (deleting it would be a syntax error,
+ * not merely a restyle) and is a separate, sufficient reason never to autofix it.
  */
 class NoEmptyClassBodyRule : WUninitializedRule {
     override val id: String = "no-empty-class-body"
@@ -50,19 +53,13 @@ class NoEmptyClassBodyRule : WUninitializedRule {
                 }
 
                 if (isCompanionObjectBody(ctx)) return
+                if (isAnonymousObjectBody(ctx)) return
                 if (!isEmptyBody(children)) return
-
-                val edits =
-                    if (isAnonymousObjectBody(ctx)) {
-                        emptyList()
-                    } else {
-                        listOf(EmptyClassBodyDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset))
-                    }
 
                 reporter.report(
                     ruleId, "Empty class body",
                     ctx.startOffset, ctx.endOffset, this,
-                    edits = edits
+                    edits = listOf(EmptyClassBodyDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset))
                 )
             }
 

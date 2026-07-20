@@ -2017,6 +2017,26 @@ flagging and autofixing it as "unnecessary" is a pre-existing, newly-confirmed b
 is a genuine compile break, confirmed via `IdempotenceCycle.assertNoNewCompileErrors`), needs a
 backward-scan (or grammar-level) fix, not attempted here.
 
+Retroactive upstream-test backfill, wave 2 installment 2 of 4 (2026-07-20): `no-empty-class-body`
+(ktlint `no-empty-class-body` + detekt's own, separately implemented `EmptyClassBlock`),
+`no-unit-return` (ktlint `no-unit-return`; detekt's own id is a bare `KtlintRule` wrapper around the
+same ktlint rule — zero additional cases), and `no-empty-parens-before-trailing-lambda` (ktlint
+`unnecessary-parentheses-before-trailing-lambda`; detekt's wrapper test reuses two of ktlint's own
+three cases verbatim — zero additional cases) ported against their real upstream test suites. Found
+and fixed one real bug: `no-empty-class-body` was reporting (without an edit) on an anonymous object
+expression's empty body (`object : Foo {}`, `object {}`), reasoning only from kotlinc's grammar
+(the body is syntactically mandatory there); both upstream ktlint and detekt's independently
+implemented `EmptyClassBlock` agree this shape is never flagged at all — corrected to a full
+exemption (see B.2 above for the detail). `no-unit-return`'s and
+`no-empty-parens-before-trailing-lambda`'s existing fixture sets already matched their real upstream
+suites case-for-case (comment-adjacency and newline-gap bails both confirmed as deliberate,
+narrower-than-upstream autofix scopes, not gaps); two small coverage gaps closed anyway —
+`no-unit-return` gained `other-return-type-clean` (upstream's own `fun foo(): String = "foo"` case,
+the one shape the existing suite hadn't exercised directly), and
+`no-empty-parens-before-trailing-lambda` gained `invoke-chain-multi-level-error` locking upstream
+issue #3016's full three-call-deep invoke chain verbatim (the existing `invoke-chain-clean` only
+exercised the minimal two-level case). No open blockers from this installment.
+
 ### Phase A remainder — config & severity polish
 
 - ~~`@Suppress("rule-id")` at expression and declaration scope.~~ **Done 2026-07-19** — shipped at
@@ -2111,16 +2131,27 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   class/nested-class/primary-constructor-class bodies. Matches upstream ktlint's own conservatism
   rather than going further: companion object bodies are exempt entirely (not reported, not fixed),
   same as ktlint, even though deleting one is provably compile-safe — extending scope beyond
-  upstream needs explicit owner approval, not just "it's safe." The one real bail found: an
-  anonymous object expression's body (`object : Foo {}`, `object {}`) is syntactically mandatory in
-  kotlinc's grammar — deleting it is a compile error, so that shape is reported but never
-  autofixed (locked by the `object-literal-bail-error` fixture with no `.fixed.kt` companion, plus
-  a dedicated real-compile `EmptyClassBodySafetySpec` across all four Kotlin minors). The idempotence
+  upstream needs explicit owner approval, not just "it's safe." An anonymous object expression's
+  body (`object : Foo {}`, `object {}`) is exempt entirely too (not reported, not fixed) —
+  **corrected 2026-07-20 during the wave-2 installment-2 backfill**: the rule originally reported
+  (without an edit) on this shape, reasoning only from kotlinc's grammar (the body is syntactically
+  mandatory there, so deletion is a compile error). Porting upstream ktlint's own real test suite
+  (`Given an object declaration with empty body of an abstract class`) and detekt's own, separately
+  implemented `EmptyClassBlock` (`does not report the object if it is of an anonymous class`) found
+  both upstream tools agree: this shape is never flagged at all, not merely never autofixed —
+  reporting it was an unapproved widening past upstream's line, the same category of thing the
+  companion-object exemption above explicitly guards against, so it's corrected to match, not kept
+  as a hand-rolled exception. Locked by `object-literal-clean`,
+  `object-literal-with-generic-supertype-clean` (the exact upstream abstract-class-supertype shape),
+  and `object-literal-in-function-clean` (detekt's local-scope shape), all with no `.fixed.kt`
+  companion since nothing is emitted at all; the dedicated real-compile `EmptyClassBodySafetySpec`
+  across all four Kotlin minors now asserts zero diagnostics instead of one. The idempotence
   harness itself gained a general guard here too: `IdempotenceCycle.assertNoNewCompileErrors` now
   compares round-1 vs. round-2 non-wrasse `e:`-severity diagnostic messages on every fixture's
-  cycle, so a fix that silently breaks compilation (proven by temporarily forcing the object-literal
-  bail to `false`: the file still applied, D19's own bookkeeping still reported success, and only
-  this new guard caught the resulting syntax error) fails loudly instead of passing.
+  cycle, so a fix that silently breaks compilation (proven at original ship time by temporarily
+  forcing the anonymous-object-literal shape to compute a deletion edit anyway: the file still
+  applied, D19's own bookkeeping still reported success, and only this new guard caught the
+  resulting syntax error) fails loudly instead of passing.
   `no-unit-return` shipped second: a `WBufferedNodeRule` on `FUN` finds the return-type `COLON`
   among the node's direct children, checks the following significant child is a `TYPE_REFERENCE`
   whose own source span is the exact literal text `"Unit"` (no semantic resolution — the same
