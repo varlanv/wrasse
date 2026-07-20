@@ -32,15 +32,21 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  *
  * Reports but never autofixes (report-only bail): a comment anywhere in the gap around the entry's
  * body — between the `ARROW` and the body, or trailing the body on its own line before the next
- * sibling (established uniform-bail precedent, same posture as `if-else-bracing`); an entry
- * whose own bare-expression text already spans multiple lines (a chained call split across lines,
- * or — the key cross-rule shape — a bare `if`/`when` expression `if-else-bracing`/this same rule's
- * own subsequent visit fixes independently) — ktlint's own real formatter output for this shape is
- * not reindented either without a second, separate `IndentationRule` pass, so replicating it
+ * sibling (established uniform-bail precedent, same posture as `if-else-bracing`); with
+ * [com.varlanv.wrasse.model.WrasseRuleConfig.formatEnabled] `false`, also an entry whose own
+ * bare-expression text already spans multiple lines (a chained call split across lines, or — the
+ * key cross-rule shape — a bare `if`/`when` expression `if-else-bracing`/this same rule's own
+ * subsequent visit fixes independently) — ktlint's own real formatter output for this shape is not
+ * reindented either without a second, separate `IndentationRule` pass, so replicating it
  * byte-for-byte would not itself be born-clean (design.md §5.1). Both bail categories report a
  * zero-width point at the entry's own content start, mirroring `if-else-bracing`'s own bail-report
  * convention (see [IfElseBracingDecision] KDoc for why: the wider span could otherwise spuriously
- * overlap an inner fix's edits under the idempotence harness's overlap-based heuristic).
+ * overlap an inner fix's edits under the idempotence harness's overlap-based heuristic). With
+ * [com.varlanv.wrasse.model.WrasseRuleConfig.formatEnabled] `true` the multiline bail no longer
+ * applies (§5.3): [BraceInsertion.physicalLineIndentColumn] is never called, and the emitted edits
+ * carry no indentation at all — [BraceInsertion.wrapEditsMinimal] instead of
+ * [BraceInsertion.wrapEdits] — leaving `com.varlanv.wrasse.format.DocSplicer`/`Layout` to lay out
+ * every line, multiline body included.
  *
  * See [WhenEntryBracingDecision] for the pure verdict/edit logic and [BraceInsertion] for the
  * indentation/edit-construction core shared with `if-else-bracing`.
@@ -75,7 +81,11 @@ class WhenEntryBracingRule : WUninitializedRule {
                 if (!WhenEntryBracingDecision.shouldBraceEntries(pending.anyEntryHasBlockBody, pending.anyEntryHasMultilineBody)) {
                     return
                 }
-                val baseIndentColumn = BraceInsertion.physicalLineIndentColumn(ctx.sourceText, ctx.startOffset) + INDENT_WIDTH
+                val baseIndentColumn = if (config.formatEnabled) {
+                    0
+                } else {
+                    BraceInsertion.physicalLineIndentColumn(ctx.sourceText, ctx.startOffset) + INDENT_WIDTH
+                }
                 var siblingIdx = 0
                 for (candidate in pending.candidates) {
                     while (siblingIdx < children.size &&
@@ -138,6 +148,7 @@ class WhenEntryBracingRule : WUninitializedRule {
                     ),
                     baseIndentColumn,
                     INDENT_WIDTH,
+                    config.formatEnabled,
                 )
                 reporter.report(
                     ruleId, MESSAGE,

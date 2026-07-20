@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.rules
 
+import com.varlanv.wrasse.lang.IndentScope
 import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.matchers.shouldBe
 
@@ -23,7 +24,7 @@ class WhenEntryBracingDecisionSpec : BaseSpec({
             hasAdjacentComment = false,
         )
 
-        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4)
+        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = false)
 
         verdict.reportStart shouldBe contentStart
         verdict.reportEnd shouldBe contentEnd
@@ -53,7 +54,7 @@ class WhenEntryBracingDecisionSpec : BaseSpec({
             hasAdjacentComment = true,
         )
 
-        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4)
+        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = false)
 
         verdict.reportStart shouldBe contentStart
         verdict.reportEnd shouldBe contentStart
@@ -71,7 +72,66 @@ class WhenEntryBracingDecisionSpec : BaseSpec({
             hasAdjacentComment = false,
         )
 
-        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4)
+        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = false)
+
+        verdict.edits shouldBe emptyList()
+    }
+
+    should("wrap a bare entry body with minimal, unindented edits when formatEnabled is true") {
+        val source = "2 ->\n        \"two\""
+        val contentStart = source.indexOf("\"two\"")
+        val contentEnd = contentStart + "\"two\"".length
+        val candidate = WhenEntryBracingCandidate(
+            leadingGapStart = source.indexOf("->") + 2,
+            contentStart = contentStart,
+            contentEnd = contentEnd,
+            hasAdjacentComment = false,
+        )
+
+        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = true)
+
+        verdict.reportStart shouldBe contentStart
+        verdict.reportEnd shouldBe contentEnd
+        verdict.edits.size shouldBe 2
+        val (leading, trailing) = verdict.edits
+        leading.startOffset shouldBe candidate.leadingGapStart
+        leading.endOffset shouldBe contentStart
+        leading.replacement shouldBe " {\n"
+        leading.indentScope shouldBe IndentScope.OPEN
+        trailing.startOffset shouldBe contentEnd
+        trailing.endOffset shouldBe contentEnd
+        trailing.replacement shouldBe "\n}"
+        trailing.indentScope shouldBe IndentScope.CLOSE
+    }
+
+    should("not bail on an entry body spanning multiple lines when formatEnabled is true") {
+        val source = "2 -> x\n            .plus(\"!\")"
+        val contentStart = source.indexOf("x")
+        val contentEnd = source.length
+        val candidate = WhenEntryBracingCandidate(
+            leadingGapStart = source.indexOf("->") + 2,
+            contentStart = contentStart,
+            contentEnd = contentEnd,
+            hasAdjacentComment = false,
+        )
+
+        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = true)
+
+        verdict.edits.size shouldBe 2
+    }
+
+    should("still bail with no edits when a comment is adjacent, even when formatEnabled is true") {
+        val source = "2 ->\n        \"two\""
+        val contentStart = source.indexOf("\"two\"")
+        val contentEnd = contentStart + "\"two\"".length
+        val candidate = WhenEntryBracingCandidate(
+            leadingGapStart = source.indexOf("->") + 2,
+            contentStart = contentStart,
+            contentEnd = contentEnd,
+            hasAdjacentComment = true,
+        )
+
+        val verdict = WhenEntryBracingDecision.decideEntry(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = true)
 
         verdict.edits shouldBe emptyList()
     }

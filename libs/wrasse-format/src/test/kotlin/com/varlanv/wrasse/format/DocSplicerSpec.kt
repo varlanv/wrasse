@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.format
 
+import com.varlanv.wrasse.lang.IndentScope
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.model.FormatStyle
 import com.varlanv.wrasse.testing.BaseSpec
@@ -119,5 +120,74 @@ class DocSplicerSpec : BaseSpec({
         val doc = Doc.Concat(listOf(Doc.Text("x", 0, 1)), 0, 1)
         val spliced = DocSplicer.splice(doc, emptyList())
         render(spliced) shouldBe "x"
+    }
+
+    should(
+        "wrap a minimal brace pair one Indent level deeper than its enclosing block, splicing a " +
+            "zero-width close as a sibling rather than into the enclosing block's own dedent " +
+            "whitespace (the C.3 regression: a bare branch that is also the last statement in its " +
+            "block)"
+    ) {
+        val innerIf = Doc.Concat(
+            listOf(
+                Doc.Text("if (true)", 2, 11),
+                Doc.Text(" ", 11, 12),
+                Doc.Text("return \"yes\"", 12, 25),
+            ),
+            2,
+            25,
+        )
+        val doc = Doc.Concat(
+            listOf(
+                Doc.Text("{", 0, 1),
+                Doc.Indent(innerIf),
+                Doc.Break(BreakKind.HARD, "\n", start = 25, end = 26),
+                Doc.Text("}", 26, 27),
+            ),
+            0,
+            27,
+        )
+        val edits = listOf(
+            WEdit(11, 12, " {\n", indentScope = IndentScope.OPEN),
+            WEdit(25, 25, "\n}", indentScope = IndentScope.CLOSE),
+        )
+
+        val spliced = DocSplicer.splice(doc, edits)
+
+        render(spliced) shouldBe "{if (true) {\n        return \"yes\"\n    }\n}"
+    }
+
+    should("splice a non-zero-width close edit (a following branch) via the ordinary fullyCovered replace, no sibling insertion needed") {
+        val content = Doc.Concat(
+            listOf(
+                Doc.Text("if (true)", 0, 9),
+                Doc.Text(" ", 9, 10),
+                Doc.Text("return \"yes\"", 10, 22),
+                Doc.Text(" ", 22, 23),
+                Doc.Text("else", 23, 27),
+            ),
+            0,
+            27,
+        )
+        val edits = listOf(
+            WEdit(9, 10, " {\n", indentScope = IndentScope.OPEN),
+            WEdit(22, 23, "\n} ", indentScope = IndentScope.CLOSE),
+        )
+
+        val spliced = DocSplicer.splice(content, edits)
+
+        render(spliced) shouldBe "if (true) {\n    return \"yes\"\n} else"
+    }
+
+    should("bail (return null) when a CLOSE has no matching prior OPEN") {
+        val doc = Doc.Text("x", 0, 1)
+        val spliced = DocSplicer.splice(doc, listOf(WEdit(1, 1, "\n}", indentScope = IndentScope.CLOSE)))
+        spliced shouldBe null
+    }
+
+    should("bail (return null) when an OPEN is never closed") {
+        val doc = Doc.Text("x", 0, 1)
+        val spliced = DocSplicer.splice(doc, listOf(WEdit(0, 0, " {\n", indentScope = IndentScope.OPEN)))
+        spliced shouldBe null
     }
 })

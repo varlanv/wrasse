@@ -34,12 +34,18 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  * added there, even for an `else if` chain ktlint alone would force).
  *
  * Reports but never autofixes (report-only bail): a comment anywhere in the gap around the
- * branch (established project precedent — never autofix past a comment); a branch whose own
- * bare-statement text already spans multiple lines (a chained call split across lines, a wrapped
- * binary expression, …) — ground-truthed to be the one shape where ktlint's own real formatter
- * output is *not* reindented for the newly-nested content, so replicating it byte-for-byte would
- * not itself be born-clean (design.md §5.1); D19's idempotence + compile-safety guard would catch
- * this if it were ever emitted as an edit, but it is simpler and safer to never emit one.
+ * branch (established project precedent — never autofix past a comment); with
+ * [WrasseRuleConfig.formatEnabled] `false`, also a branch whose own bare-statement text already
+ * spans multiple lines (a chained call split across lines, a wrapped binary expression, …) —
+ * ground-truthed to be the one shape where ktlint's own real formatter output is *not* reindented
+ * for the newly-nested content, so replicating it byte-for-byte would not itself be born-clean
+ * (design.md §5.1); D19's idempotence + compile-safety guard would catch this if it were ever
+ * emitted as an edit, but it is simpler and safer to never emit one. With
+ * [WrasseRuleConfig.formatEnabled] `true` that bail no longer applies (re-indenting the interior
+ * is the printer's job, §5.3): [BraceInsertion.physicalLineIndentColumn] is never called, and the
+ * emitted edits carry no indentation at all — [BraceInsertion.wrapEditsMinimal] instead of
+ * [BraceInsertion.wrapEdits] — leaving `com.varlanv.wrasse.format.DocSplicer`/`Layout` to lay out
+ * every line, multiline body included.
  *
  * See [IfElseBracingDecision] for the pure verdict/edit logic.
  */
@@ -73,7 +79,11 @@ class IfElseBracingRule : WUninitializedRule {
                 val (chainStart, chainEnd) = chainHeadSpan(ctx)
                 if (!IfElseBracingDecision.chainSpansMultipleLines(ctx.sourceText, chainStart, chainEnd)) return
 
-                val baseIndentColumn = BraceInsertion.physicalLineIndentColumn(ctx.sourceText, chainStart)
+                val baseIndentColumn = if (config.formatEnabled) {
+                    0
+                } else {
+                    BraceInsertion.physicalLineIndentColumn(ctx.sourceText, chainStart)
+                }
                 val hasElse = elseKwIdx >= 0 && elseIdx >= 0
 
                 evaluateThen(
@@ -172,7 +182,9 @@ class IfElseBracingRule : WUninitializedRule {
                 baseIndentColumn: Int,
                 candidate: IfElseBracingCandidate,
             ) {
-                val verdict = IfElseBracingDecision.decideBranch(ctx.sourceText, candidate, baseIndentColumn, INDENT_WIDTH)
+                val verdict = IfElseBracingDecision.decideBranch(
+                    ctx.sourceText, candidate, baseIndentColumn, INDENT_WIDTH, config.formatEnabled,
+                )
                 reporter.report(
                     ruleId, MESSAGE,
                     verdict.reportStart, verdict.reportEnd, this,

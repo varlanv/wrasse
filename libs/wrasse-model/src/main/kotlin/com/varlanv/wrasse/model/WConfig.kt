@@ -140,6 +140,7 @@ class WConfig(
             explicitApiActive: Boolean,
         ): Result<WConfig> {
             val globalExclude = raw.exclude.map { pathMatcher(it) }
+            val format = buildFormatConfig(raw.format, warnOnly, explicitApiActive)
             val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
 
             for (ruleId in ruleIds) {
@@ -152,6 +153,7 @@ class WConfig(
                     exclude = rawRule.exclude.map { pathMatcher(it) },
                     effectiveLevel = effectiveLevel,
                     explicitApiActive = explicitApiActive,
+                    formatEnabled = format.enabled,
                 )
             }
 
@@ -160,7 +162,7 @@ class WConfig(
                     exclude = globalExclude,
                     rulesConfigs = WrasseRulesConfig(idToConfig = ruleIdToConfig),
                     configDir = configDir,
-                    format = buildFormatConfig(raw.format, warnOnly, explicitApiActive),
+                    format = format,
                 )
             )
         }
@@ -187,6 +189,7 @@ class WConfig(
                     exclude = emptyList(),
                     effectiveLevel = effectiveLevel,
                     explicitApiActive = explicitApiActive,
+                    formatEnabled = enabled,
                 ),
             )
         }
@@ -364,6 +367,16 @@ class WrasseRuleConfig(
      * self-disables entirely rather than risk breaking an explicit-API build.
      */
     val explicitApiActive: Boolean = false,
+    /**
+     * True when `format` is enabled for this compile (D23's pattern applied to a second
+     * cross-cutting fact: set uniformly on every rule's config from [WConfig.buildConfig], never
+     * gated behind a rule's own config key). Only `if-else-bracing`/`when-entry-bracing`
+     * ([com.varlanv.wrasse.rules.IfElseBracingRule], [com.varlanv.wrasse.rules.WhenEntryBracingRule])
+     * consult it: with the printer active, they stop computing indentation themselves and emit
+     * minimal, unindented brace edits for the printer to lay out (§5.3), lifting their own
+     * multiline-body bail in the same mode.
+     */
+    val formatEnabled: Boolean = false,
 )
 
 enum class RuleLevel {

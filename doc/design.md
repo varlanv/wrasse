@@ -3201,11 +3201,13 @@ deliberately building a grand-slam fixture with a 2-space-per-level `if`/`else` 
 mis-indented siblings — the spliced brace text keeps its stale, physical-column-anchored indent
 while the surrounding real tokens get reindented to the new canonical depth by `Layout`, producing a
 file that is not stably formatted in one pass (a second `wrasseFix` cycle still emits edits,
-tripping the `fix(fix(x)) == fix(x)` invariant). This is a genuine, unclosed gap for a future slice
-(a T-bucket fix that inserts new indentation would need to read the *canonical* depth the printer
-will use, not the physical column the source happens to have) — the shipped fixtures below sidestep
-it by construction (every if/else chain sits at a line whose physical column already equals its
-canonical depth), which is not the same as solving it.
+tripping the `fix(fix(x)) == fix(x)` invariant). This was a genuine, unclosed gap at the time —
+**closed in Phase C.3** (below): the fix is for `if-else-bracing`/`when-entry-bracing` to stop
+computing indentation at all under `format` and let `DocSplicer` derive it structurally, rather than
+for a T-bucket fix to somehow read the printer's canonical depth in advance. The shipped fixtures
+below (this slice) sidestep the gap by construction (every if/else chain sits at a line whose
+physical column already equals its canonical depth); the fixtures added in C.3 remove that
+constraint and exercise the previously-unhandled mismatch directly.
 
 **Fixtures:** `testing/wrasse-test-harness/.../fixtures/format-with-fixes/` (one `wrasse.json`,
 `format` plus `no-semicolons`/`no-unused-imports`/`no-wildcard-imports`/`if-else-bracing` all
@@ -3224,6 +3226,111 @@ trees, including the refusal path.
 `testPatchHarness`, `wrasseLint -Prepublish` all green (the last one exercises the rebuilt plugin
 against this repo's own, `format`-disabled `wrasse.json` — enabling `format` for self-lint is future
 work, not part of this slice).
+
+#### Phase C.3 — Brace-insertion rules stop computing indentation under `format` — **done 2026-07-20**
+
+Closes the C.2 gap above and lifts both brace rules' multiline-body bail while `format` is on,
+per §5.3's "layout belongs to the printer, content to the rules."
+
+**How the rules learn `format` is on:** `WrasseRuleConfig` gains `formatEnabled: Boolean = false`,
+populated uniformly for *every* rule from `WConfig.buildConfig` — the exact D23 precedent
+(`explicitApiActive`): a cross-cutting fact threaded onto every rule's config rather than gated
+behind a rule's own `wrasse.json` key, with only the consuming rule(s) deciding what it means. Only
+`if-else-bracing`/`when-entry-bracing` read it. The shared `BraceInsertion` helper gained a second
+edit constructor, `wrapEditsMinimal` (alongside the original `wrapEdits`), so both rules branch on
+`config.formatEnabled` through the *same* seam rather than duplicating the choice: `formatEnabled ==
+false` keeps calling `physicalLineIndentColumn` + `wrapEdits` exactly as before (this is the
+regression gate); `formatEnabled == true` skips the physical-column read entirely and calls
+`wrapEditsMinimal`, which emits only `" {\n"` / `"\n}"` (or `"\n} "` before a following branch) with
+no indentation characters at all, tagging the two edits `IndentScope.OPEN`/`CLOSE` (new
+`WEdit`/`IndentScope`, `wrasse-lang`). `IfElseBracingDecision.decideBranch` and
+`WhenEntryBracingDecision.decideEntry` both take the new `formatEnabled` flag directly: it gates only
+the multiline-content bail (`hasEmbeddedNewline && !formatEnabled`) — the *other* bail
+(`hasAdjacentComment`) and the unrelated chain/`when`-level scope gates are untouched in both modes.
+
+**Existing brace fixtures needed no change — confirmed, not merely assumed.** Every fixture in
+`if-else-bracing/`, `when-entry-bracing/`, `when-if-bracing-combined/`, and the five `format`+fixer
+combinations in `format-with-fixes/` (including `if-else-bracing-and-format-error` and
+`grand-slam-error`, which *do* run with `format` on) passed unmodified — `git status` on all four
+directories is clean after the full ladder. The `format`-enabled pair pass unmodified because their
+source was already built to sidestep the C.2 gap (physical column already equals canonical depth),
+so the new mechanism's output is byte-identical to the old baked-indentation output at that specific
+depth — not a coincidence the new code depends on, just the reason the old fixtures don't need new
+`.fixed.kt` content to keep passing.
+
+**`DocSplicer` gains the mechanism the C.2 gap was actually missing:** two additions, both scoped to
+the format package only (no `wrasse-lang`/`wrasse-model` consumer outside it reads `IndentScope`
+except to construct it).
+
+1. `replacementDoc` (replacing the old inline `Doc.Text(edit.replacement, ...)` construction):
+   whenever a spliced replacement contains an embedded `\n`, it is decomposed into alternating
+   `Text`/`Break(HARD)` segments instead of one opaque `Text` blob, so `Layout` synthesizes each
+   subsequent line's indentation from ambient depth exactly as it would for a break sourced from
+   real source whitespace. Byte-identical to the old behavior whenever the replacement embeds no
+   newline, and byte-identical even *with* an embedded newline at ambient depth 0 (verified: the
+   existing `DocSplicerSpec` cases, including the one hand-built to simulate the old baked-indent
+   `if-else-bracing` shape, pass unmodified) — the two rendering strategies coincide until something
+   actually wraps the surrounding tree in a *new* `Indent`, which only C.3's own mechanism does.
+2. `applyIndentScopes`, run once before the ordinary per-edit splice loop: stack-matches every
+   `IndentScope.OPEN` edit against its next unmatched `CLOSE` (sound because emitted pairs nest
+   exactly as their own source construct does) and wraps the span from the *open* edit's own start
+   to the *close* edit's own start in one `Doc.Indent` — mirroring `DocBuilder.resolveFrame`'s own
+   placement for a real `BLOCK`: the open edit's trailing break ends up inside the new indent (it
+   decides the following line's column), the close edit's leading break stays outside it (it decides
+   the closing line's column, which must stay at the outer depth).
+
+**A §5.3 claim that failed on contact, found only by running a real fixture through the full
+pipeline:** "leave the close edit outside the new `Indent` and let the ordinary per-edit splice loop
+place it" is *not* sound when the close edit is a **zero-width** insertion (the last branch in its
+chain/`when`, nothing textually to its right) — which is the common case, since most bare branches
+have no following sibling. The generic per-edit loop threads a zero-width insertion to "the one leaf
+whose span starts at the insertion point"; when the branch being braced is also the last statement
+in its *enclosing* block, that leaf is the enclosing `BLOCK`'s own dedent whitespace — which
+`DocBuilder.resolveFrame` deliberately places *outside* the `BLOCK`'s own `Indent`, one level
+shallower. Threading the zero-width close edit into that leaf silently rendered the new closing
+brace one level too shallow (reproduced directly: a debug harness dumping round-1/round-2 diagnostics
+and patched content, not caught by unit tests against hand-built `Doc` trees, only by a real
+`if`/`else` at the end of a function body). The fix: a zero-width `CLOSE` edit is never handed to the
+ordinary per-edit loop at all — `applyIndentScopes` splices it directly as a new sibling appended
+immediately after the wrapped `Indent`, at the exact same tree level, and returns it in a consumed
+set the per-edit loop skips. A **non-zero-width** close edit (`THEN` immediately followed by `else`)
+has no such ambiguity — it fully covers a real, pre-existing gap node, so the ordinary `fullyCovered`
+replace handles it correctly with no special-casing, confirmed by the pre-existing
+`if-else-bracing-and-format-error`/`grand-slam-error` fixtures continuing to pass unmodified.
+
+**The multiline-under-format results:** with the bail lifted, a bare branch/entry whose own content
+already spans multiple lines (a chained call split across lines) now gets braced instead of
+report-only. Its interior lines — never touched by either brace edit, since they sit *inside* the
+new `Indent` as unmodified original `Doc` nodes — get their indentation regenerated by `Layout` from
+the new ambient depth like any other line, exactly like the printer already does for ordinary source
+lines; Phase C.1's known limitation (no continuation-indent modeling — `DocBuilder` only tracks
+depth via `{BLOCK, CLASS_BODY, WHEN, FUNCTION_LITERAL}` nodes ending in `RBRACE`) means a
+user-written chained call's *own* extra continuation indent collapses to the same depth as the
+braced body's first line rather than one level further, one line converging to a *different* column
+than before formatting — a pre-existing printer limitation this slice surfaces for the first time,
+not one it introduces.
+
+**Fixtures:** two new directories, `bracing-format-on/` (`format` enabled, both bracing rules on) and
+`bracing-format-off/` (same rules, no `format` key) — the existing `if-else-bracing/`,
+`when-entry-bracing/`, `when-if-bracing-combined/`, and `format-with-fixes/` directories are
+untouched, per above.
+- `bracing-format-on/bad-indent-if-else-convergence-error` — the exact shape the C.2 gap's report
+  described but did not build: an `if`/`else` at a 2-space physical indent, braced under `format`.
+  One `wrasseFix` pass converges to canonical 4-space output; the D19 idempotence cycle (generic
+  since C.1) confirms a second pass emits nothing.
+- `bracing-format-on/multiline-if-body-braced-error` /
+  `bracing-format-on/multiline-when-entry-braced-error` — a chained-call multiline body braced
+  correctly under `format`, both the previously-bailed branch and its sibling.
+- `bracing-format-off/multiline-if-body-bail-error` / `bracing-format-off/multiline-when-entry-bail-
+  error` — the identical two sources, `format` off: the multiline branch still bails
+  report-only (with the "no autofix for this shape" marker) exactly as before, while its non-
+  multiline sibling still autofixes with the old baked-indentation edits — proving the bail and the
+  pre-C.3 code path are both untouched when `format` is off.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (391 fixture-spec cases per Kotlin minor, zero
+failures; `wrasseLint` exercises the rebuilt plugin against this repo's own `format`-disabled
+`wrasse.json`, unaffected by this slice).
 
 ### Phase D — Hardening & release
 

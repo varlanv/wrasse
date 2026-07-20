@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.rules
 
+import com.varlanv.wrasse.lang.IndentScope
 import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.matchers.shouldBe
 
@@ -30,7 +31,7 @@ class IfElseBracingDecisionSpec : BaseSpec({
             hasAdjacentComment = false,
         )
 
-        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4)
+        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = false)
 
         verdict.reportStart shouldBe contentStart
         verdict.reportEnd shouldBe contentEnd
@@ -62,7 +63,7 @@ class IfElseBracingDecisionSpec : BaseSpec({
             hasAdjacentComment = false,
         )
 
-        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4)
+        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = false)
 
         verdict.edits.size shouldBe 2
         val (leading, trailing) = verdict.edits
@@ -89,7 +90,7 @@ class IfElseBracingDecisionSpec : BaseSpec({
             hasAdjacentComment = true,
         )
 
-        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4)
+        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = false)
 
         verdict.reportStart shouldBe contentStart
         verdict.reportEnd shouldBe contentStart
@@ -109,7 +110,72 @@ class IfElseBracingDecisionSpec : BaseSpec({
             hasAdjacentComment = false,
         )
 
-        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4)
+        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = false)
+
+        verdict.edits shouldBe emptyList()
+    }
+
+    should("wrap a bare branch with minimal, unindented edits when formatEnabled is true") {
+        val source = "if (true)\n        doSomething()"
+        val contentStart = source.indexOf("doSomething()")
+        val contentEnd = contentStart + "doSomething()".length
+        val candidate = IfElseBracingCandidate(
+            leadingGapStart = source.indexOf(")") + 1,
+            contentStart = contentStart,
+            contentEnd = contentEnd,
+            trailingGapEnd = contentEnd,
+            hasFollowingBranch = false,
+            hasAdjacentComment = false,
+        )
+
+        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = true)
+
+        verdict.reportStart shouldBe contentStart
+        verdict.reportEnd shouldBe contentEnd
+        verdict.edits.size shouldBe 2
+        val (leading, trailing) = verdict.edits
+        leading.startOffset shouldBe candidate.leadingGapStart
+        leading.endOffset shouldBe contentStart
+        leading.replacement shouldBe " {\n"
+        leading.indentScope shouldBe IndentScope.OPEN
+        trailing.startOffset shouldBe contentEnd
+        trailing.endOffset shouldBe contentEnd
+        trailing.replacement shouldBe "\n}"
+        trailing.indentScope shouldBe IndentScope.CLOSE
+    }
+
+    should("not bail on a branch whose own content spans multiple lines when formatEnabled is true") {
+        val source = "if (true)\n        50\n            .toString()"
+        val contentStart = source.indexOf("50")
+        val contentEnd = source.length
+        val candidate = IfElseBracingCandidate(
+            leadingGapStart = source.indexOf(")") + 1,
+            contentStart = contentStart,
+            contentEnd = contentEnd,
+            trailingGapEnd = contentEnd,
+            hasFollowingBranch = false,
+            hasAdjacentComment = false,
+        )
+
+        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = true)
+
+        verdict.edits.size shouldBe 2
+    }
+
+    should("still bail with no edits when a comment is adjacent, even when formatEnabled is true") {
+        val source = "if (true)\n        doSomething()"
+        val contentStart = source.indexOf("doSomething()")
+        val contentEnd = contentStart + "doSomething()".length
+        val candidate = IfElseBracingCandidate(
+            leadingGapStart = source.indexOf(")") + 1,
+            contentStart = contentStart,
+            contentEnd = contentEnd,
+            trailingGapEnd = contentEnd,
+            hasFollowingBranch = false,
+            hasAdjacentComment = true,
+        )
+
+        val verdict = IfElseBracingDecision.decideBranch(source, candidate, baseIndentColumn = 4, indentWidth = 4, formatEnabled = true)
 
         verdict.edits shouldBe emptyList()
     }

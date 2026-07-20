@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "if-else-bracing": { "level": "error" },
+        "when-entry-bracing": { "level": "error" }
+    }
+}

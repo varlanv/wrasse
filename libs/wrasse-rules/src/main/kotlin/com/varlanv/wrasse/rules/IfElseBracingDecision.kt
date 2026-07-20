@@ -33,15 +33,20 @@ class IfElseBracingVerdict(
  * Pure verdict logic for `if-else-bracing`, compiler-free and unit-testable without kotlinc.
  *
  * [chainSpansMultipleLines] gates the whole rule: no branch is touched unless the if/else-if/else
- * chain, as physically written, spans more than one source line.
+ * chain, as physically written, spans more than one source line. Unaffected by [formatEnabled] —
+ * it decides whether this chain is in scope at all, not how an in-scope branch gets edited.
  *
  * [decideBranch] returns a report-only bail (empty [IfElseBracingVerdict.edits]) whenever
- * [IfElseBracingCandidate.hasAdjacentComment] is set or the branch's own bare-statement text
- * already spans multiple lines; the bail reports a zero-width point at
- * [IfElseBracingCandidate.contentStart] rather than the branch's full span, so a wider span never
- * spuriously overlaps an independent nested-`if` fix starting at that same offset. Otherwise, both
- * edits are computed purely from [baseIndentColumn] and [indentWidth] via [BraceInsertion] — never
- * copied from whatever whitespace happened to already be there.
+ * [IfElseBracingCandidate.hasAdjacentComment] is set, or the branch's own bare-statement text
+ * already spans multiple lines and [formatEnabled] is `false` — re-indenting a multi-line body's
+ * interior is beyond a text-patching rule, but with the printer active that indentation is its job
+ * by construction (§5.3), so the bail no longer applies to that case once [formatEnabled] is `true`.
+ * The bail reports a zero-width point at [IfElseBracingCandidate.contentStart] rather than the
+ * branch's full span, so a wider span never spuriously overlaps an independent nested-`if` fix
+ * starting at that same offset. Otherwise, edits come from [BraceInsertion.wrapEdits] (computed
+ * from [baseIndentColumn] and [indentWidth]) when [formatEnabled] is `false`, or
+ * [BraceInsertion.wrapEditsMinimal] (no indentation computed at all, left to the printer) when
+ * it's `true`.
  */
 object IfElseBracingDecision {
 
@@ -53,16 +58,23 @@ object IfElseBracingDecision {
         candidate: IfElseBracingCandidate,
         baseIndentColumn: Int,
         indentWidth: Int,
+        formatEnabled: Boolean,
     ): IfElseBracingVerdict {
         val hasEmbeddedNewline = sourceText.subSequence(candidate.contentStart, candidate.contentEnd).contains('\n')
-        if (candidate.hasAdjacentComment || hasEmbeddedNewline) {
+        if (candidate.hasAdjacentComment || (hasEmbeddedNewline && !formatEnabled)) {
             return IfElseBracingVerdict(candidate.contentStart, candidate.contentStart, emptyList())
         }
 
-        return IfElseBracingVerdict(
-            reportStart = candidate.contentStart,
-            reportEnd = candidate.contentEnd,
-            edits = BraceInsertion.wrapEdits(
+        val edits = if (formatEnabled) {
+            BraceInsertion.wrapEditsMinimal(
+                leadingGapStart = candidate.leadingGapStart,
+                contentStart = candidate.contentStart,
+                contentEnd = candidate.contentEnd,
+                trailingGapEnd = candidate.trailingGapEnd,
+                hasFollowingBranch = candidate.hasFollowingBranch,
+            )
+        } else {
+            BraceInsertion.wrapEdits(
                 leadingGapStart = candidate.leadingGapStart,
                 contentStart = candidate.contentStart,
                 contentEnd = candidate.contentEnd,
@@ -70,7 +82,12 @@ object IfElseBracingDecision {
                 hasFollowingBranch = candidate.hasFollowingBranch,
                 baseIndentColumn = baseIndentColumn,
                 indentWidth = indentWidth,
-            ),
+            )
+        }
+        return IfElseBracingVerdict(
+            reportStart = candidate.contentStart,
+            reportEnd = candidate.contentEnd,
+            edits = edits,
         )
     }
 }
