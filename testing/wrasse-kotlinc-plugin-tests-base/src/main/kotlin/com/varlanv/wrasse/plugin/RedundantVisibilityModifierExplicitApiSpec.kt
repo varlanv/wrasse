@@ -16,7 +16,7 @@ import org.jetbrains.kotlin.cli.common.ExitCode
  * breaks an explicit-API build. Confirms the same source is flagged with the mode off (proving the
  * rule is genuinely wired and would otherwise fire on this shape) and silent under both
  * `-Xexplicit-api=strict` and `-Xexplicit-api=warning`, with the real compile still succeeding
- * either way — see [com.varlanv.wrasse.rules.RedundantVisibilityModifierRule]'s KDoc and
+ * either way — see [com.varlanv.wrasse.rules.ModifierEngine]'s KDoc and
  * `WrasseRuleConfig.explicitApiActive`.
  */
 open class RedundantVisibilityModifierExplicitApiSpec : BaseSpec({

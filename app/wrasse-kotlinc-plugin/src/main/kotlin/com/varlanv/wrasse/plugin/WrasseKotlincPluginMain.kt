@@ -10,12 +10,11 @@ import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
-import com.varlanv.wrasse.rules.ModifierOrderRule
+import com.varlanv.wrasse.rules.ModifierEngine
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
-import com.varlanv.wrasse.rules.RedundantVisibilityModifierRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
 import java.nio.file.Path
@@ -27,23 +26,22 @@ private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 internal fun registeredRules(): List<WUninitializedRule> =
     listOf(
         IfElseBracingRule(),
-        ModifierOrderRule(),
         NoEmptyClassBodyRule(),
         NoEmptyParensBeforeTrailingLambdaRule(),
         NoSemicolonsRule(),
         NoUnitReturnRule(),
-        RedundantVisibilityModifierRule(),
         TrailingNewlineRule(),
         WhenEntryBracingRule(),
     )
 
 /**
- * Every fused multi-id engine wrasse ships — currently just [ImportEngine], backing
- * `no-unused-imports`/`no-wildcard-imports`/`import-ordering` behind one decision-maker.
- * Composition is internal to the engine, so unlike [registeredRules] this list carries no
+ * Every fused multi-id engine wrasse ships: [ImportEngine], backing
+ * `no-unused-imports`/`no-wildcard-imports`/`import-ordering`/`no-unnecessary-fqn` behind one
+ * decision-maker, and [ModifierEngine], backing `modifier-order`/`redundant-visibility-modifier`.
+ * Composition is internal to each engine, so unlike [registeredRules] this list carries no
  * registration-order constraint.
  */
-internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> = listOf(ImportEngine())
+internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> = listOf(ImportEngine(), ModifierEngine())
 
 fun wrasseMain(
     sourceRoots: List<Path>,

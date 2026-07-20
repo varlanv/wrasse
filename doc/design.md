@@ -267,7 +267,9 @@ per-file rebuild rather than a cached dispatch shape until profiling says otherw
 
 **Multi-id engines:** `WUninitializedRuleGroup` (`wrasse-model`) is the sibling contract for a
 fused engine backing several user-facing ids behind one implementation (§5.1, "fighting rules get
-fused"; §8 has `ImportEngine`, the first and so far only one). It declares `ids: Set<String>` and
+fused"; §8 has `ImportEngine`, the first one; §13's Phase B has `ModifierEngine`, the second,
+fusing `modifier-order`/`redundant-visibility-modifier` after a real cross-rule edit-overlap crash
+between them surfaced, §14). It declares `ids: Set<String>` and
 `initGroup(configs: Map<String, WrasseRuleConfig>): WRule`, called per file with exactly the
 enabled, non-excluded-for-this-file subset of its ids — an id missing from `configs` behaves as
 if that rule does not exist for this file. `WRuleSet` holds `(WUninitializedRuleGroup,
@@ -2788,6 +2790,60 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   detection logic regardless (`KW_ACTUAL`/`KW_EXPECT` never participate in the `KW_PUBLIC`/
   `KW_OVERRIDE` scan either way, so no special-casing was needed or added).
 
+  **As-built (`ModifierEngine`, the fusion — 2026-07-20, fixing the `modifier-order`/`redundant-
+  visibility-modifier` crash recorded in §14 as the wave-2-installment-7 blocker):** the two rules
+  above are now one `WBufferedNodeRule` behind `WUninitializedRuleGroup` (§4, "Multi-id engines"),
+  mirroring `ImportEngine`'s own shape (§8.2) at a much smaller scale — no resolution, one node
+  type, one pure decision object per id. Model: `ModifierEngine.ids` declares both ids; `WRuleSet`
+  gives `initGroup` exactly the enabled, non-excluded-for-this-file subset as a
+  `Map<id, WrasseRuleConfig>`; an id absent from that map behaves as if its rule doesn't exist for
+  this file, preserving each id's own standalone behavior exactly when the other is off/excluded —
+  the pre-existing `modifier-order/` and `redundant-visibility-modifier/` fixture dirs, each
+  enabling only their own id, pass unmodified (the refactor gate, same bar `ImportEngine`'s own
+  fusion was held to). `redundant-visibility-modifier`'s explicit-API self-disable (D23) is
+  unchanged: `initGroup` simply omits its facade from the group when `configs[REDUNDANT_
+  VISIBILITY_MODIFIER_ID]?.explicitApiActive == true`, exactly as the old `initRule` did.
+
+  One walk-side `exitNode` on `MODIFIER_LIST` replaces the two independent `exitNode`s: it
+  classifies every non-whitespace child exactly as the old `ModifierOrderRule` did (canonical-index
+  lookup against the same 25-entry `ORDERED_MODIFIER_TYPES` list, `hasComment` set by any
+  comment/KDoc child), while separately tracking whether `KW_PUBLIC` and `KW_OVERRIDE` are present.
+  `redundant-visibility-modifier`'s own decision (parent-type gate, `KW_OVERRIDE` bail,
+  `RedundantVisibilityModifierDeletionSpan`) runs first, exactly as before, and reports under its
+  own id. **The crash fix itself:** whenever that decision fires — reports, regardless of whether an
+  edit actually attaches (a comment-forced report-only fire still counts) — the `public` keyword's
+  own `ModifierKeywordOccurrence` is dropped from the list `ModifierOrderDecision.decide` sees for
+  this same list, before `modifier-order`'s own decision runs. Its position is moot: the other id is
+  deleting it outright, so `modifier-order` reorders only what will still be there afterward,
+  computing `expectedOrder`/edits/report-span from the survivors alone — never touching `public`'s
+  own span, so the two ids can never emit overlapping `WEdit`s for the same list again. When
+  `redundant-visibility-modifier` doesn't fire on a list (disabled, excluded, no `public` present,
+  `KW_OVERRIDE` present, wrong parent type), `modifier-order` sees the full keyword list exactly as
+  its old standalone `exitNode` did — bit-for-bit the pre-fusion behavior. Both pure decision
+  objects (`ModifierOrderDecision`, `RedundantVisibilityModifierDeletionSpan`) are unchanged and
+  still unit-tested standalone (`ModifierOrderDecisionSpec`, `RedundantVisibilityModifierDeletion
+  SpanSpec`) — the fusion touches only which rule *calls* them and with what keyword list, never
+  their own logic.
+
+  Locked by a new `modifier-order-visibility-combined/` fixture dir (both ids at `level: error`,
+  mirroring `when-if-bracing-combined/`'s own precedent for a cross-rule fixture): the exact crash
+  shape from §14 (`suspend public fun bar() {}`, now a passing `.fixed.kt` case emitting only the
+  `redundant-visibility-modifier` report/edit, since the sole surviving keyword after deletion is
+  trivially ordered — reproduced failing first, via a throwaway probe against a real
+  `K2JVMCompiler` invocation confirming the documented `IllegalStateException` before any fix code
+  was written, then as this same fixture against the pre-fusion rules, both discarded after
+  confirmation); a redundant-`public`-only and an order-violation-only case (each firing only its
+  own id, confirming independence when one problem is absent); a combined file exercising both
+  problems on one declaration alongside a redundant-only and an order-only declaration elsewhere in
+  the same file; a three-keyword case (`inner public open class Foo`) where the deletion still
+  leaves two survivors genuinely out of order, so both a deletion edit and a reorder-of-survivors
+  edit land on the same list without overlapping; and a suppression pair (`@Suppress` on one id but
+  not the other, on separate declarations) confirming each id's suppression stays independent inside
+  the fused engine, exactly as `WReporter.report`'s pre-existing offset-scoped suppression check
+  already guaranteed for any two ids sharing a report path. `RuleRegistrationOrderSpec`
+  (`app/wrasse-kotlinc-plugin`) now locks `ModifierEngine.ids` alongside `ImportEngine.ids` instead
+  of `modifier-order`/`redundant-visibility-modifier` as standalone single-id entries.
+
   Retroactive upstream-test backfill, wave 2 installment 6 (2026-07-20): `when-entry-bracing`
   (ktlint's own `WhenEntryBracingTest` — 7 real test cases — plus detekt's own
   `BracesOnWhenStatementsSpec`, restricted per D21 to the two config-combination nested classes that
@@ -3168,8 +3224,9 @@ a separate `ktlint -F` invocation on the same files.
   matching the same real-compile-inexpressible precedent used for `expect`/`actual`, since it
   cannot be an end-to-end fixture without breaking the very version matrix `testMinorHarness`
   exists to guard.
-- **Blocker, flagged not fixed (wave-2 installment-7 backfill, 2026-07-20): `redundant-visibility-
-  modifier` + `modifier-order`, enabled together, crash the entire compile with `INTERNAL_ERROR`
+- **Blocker (wave-2 installment-7 backfill, 2026-07-20), fixed the same day by fusion into
+  `ModifierEngine` — history kept below for the record: `redundant-visibility-modifier` +
+  `modifier-order`, enabled together, crash the entire compile with `INTERNAL_ERROR`
   whenever a redundant `public` also participates in an out-of-order modifier list.** e.g.
   `suspend public fun bar() {}` inside a class, with both rules at `level: error`. Both rules
   independently compute an edit anchored at the same `public` keyword's own token span the moment
@@ -3211,4 +3268,15 @@ a separate `ktlint -F` invocation on the same files.
   config-time validation that rejects enabling both rules, or a documented restriction. No fixture
   was added for this shape — a permanently red fixture is not how this project locks a known
   blocker (see the `modifier-order`/Kotlin-2.1-backend-crash blocker, above, which took the same
-  approach).
+  approach). **Fixed 2026-07-20**, the same day this was found: the two rules are now
+  `ModifierEngine`, one fused decision-maker behind both unchanged ids (§5.1's own "fighting rules
+  get fused" mechanism, §13's "Phase B" now carries the as-built paragraph). The `EditPlan`-level
+  conflict-policy question this entry raised — demote overlapping edits to report-only vs. reject
+  the config vs. document the restriction — turned out not to need answering at all: fusing the two
+  decision-makers means `modifier-order` never computes an edit for a keyword `redundant-visibility-
+  modifier` is deleting in the first place, so `EditPlan` never sees an overlap to arbitrate.
+  `EditPlan.finalEdits()`'s own pairwise-disjointness `check(...)` is unchanged and still load-
+  bearing for genuine rule bugs; this entry's specific crash is now covered by a passing
+  `modifier-order-visibility-combined/crash-repro-error` fixture (previously left un-fixture-tested
+  on purpose, per this entry's own "no fixture for a permanently red case" reasoning — now that it
+  passes, it is a real regression test instead).

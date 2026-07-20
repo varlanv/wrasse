@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "modifier-order": { "level": "error" },
+        "redundant-visibility-modifier": { "level": "error" }
+    }
+}

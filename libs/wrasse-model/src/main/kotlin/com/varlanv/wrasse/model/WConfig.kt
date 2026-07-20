@@ -222,9 +222,9 @@ class WrasseRuleConfig(
      * or `-Xexplicit-api=warning`). Compile-wide, not user-configurable via `wrasse.json` — set
      * uniformly on every rule's config from `WrasseCompilerPluginRegistrar`'s own read of
      * `CompilerConfiguration.languageVersionSettings`. Only
-     * [com.varlanv.wrasse.rules.RedundantVisibilityModifierRule] consults it: an explicit `public`
-     * is a required declaration under that mode, not redundant, so the rule self-disables entirely
-     * rather than risk breaking an explicit-API build.
+     * [com.varlanv.wrasse.rules.ModifierEngine] consults it for `redundant-visibility-modifier`: an
+     * explicit `public` is a required declaration under that mode, not redundant, so the id
+     * self-disables entirely rather than risk breaking an explicit-API build.
      */
     val explicitApiActive: Boolean = false,
 )
