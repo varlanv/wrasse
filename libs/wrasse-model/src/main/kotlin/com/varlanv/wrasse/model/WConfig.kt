@@ -54,16 +54,22 @@ class WConfig(
                 is Property.TypeMismatch -> {
                     return Result.failure(Exception("'extends' must be a string, got ${extendsProp.actual.typeName()}"))
                 }
-                is Property.Missing -> null
+                is Property.Missing -> {
+                    null
+                }
             }
 
             var excludeSet = false
             val exclude = when (val prop = root.get("exclude", ConfigValue.StrArr::class.java)) {
                 is Property.Val -> { excludeSet = true; prop.value.value }
-                is Property.Missing -> emptyList()
-                is Property.TypeMismatch -> return Result.failure(
-                    Exception("'exclude' must be a string array, got ${prop.actual.typeName()}")
-                )
+                is Property.Missing -> {
+                    emptyList()
+                }
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception("'exclude' must be a string array, got ${prop.actual.typeName()}")
+                    )
+                }
             }
 
             val rules = mutableMapOf<String, RawRuleConfig>()
@@ -77,9 +83,11 @@ class WConfig(
                     }
                 }
                 is Property.Missing -> {}
-                is Property.TypeMismatch -> return Result.failure(
-                    Exception("'rules' must be an object, got ${rulesProp.actual.typeName()}")
-                )
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception("'rules' must be an object, got ${rulesProp.actual.typeName()}")
+                    )
+                }
             }
 
             return if (base != null) {
@@ -141,9 +149,11 @@ class WConfig(
             val ruleObj = when (val prop = rulesProps.get(key, ConfigValue.Obj::class.java)) {
                 is Property.Val -> prop.value.value
                 is Property.Missing -> return Result.success(RawRuleConfig(level = null, exclude = emptyList(), excludeSet = false))
-                is Property.TypeMismatch -> return Result.failure(
-                    Exception("Rule '$key' must be an object, got ${prop.actual.typeName()}")
-                )
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception("Rule '$key' must be an object, got ${prop.actual.typeName()}")
+                    )
+                }
             }
 
             val level = when (val prop = ruleObj.get("level", ConfigValue.Str::class.java)) {
@@ -156,18 +166,24 @@ class WConfig(
                     )
                 }
                 is Property.Missing -> null
-                is Property.TypeMismatch -> return Result.failure(
-                    Exception("Property 'level' for rule '$key' must be a string, got ${prop.actual.typeName()}")
-                )
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception("Property 'level' for rule '$key' must be a string, got ${prop.actual.typeName()}")
+                    )
+                }
             }
 
             var excludeSet = false
             val exclude = when (val prop = ruleObj.get("exclude", ConfigValue.StrArr::class.java)) {
                 is Property.Val -> { excludeSet = true; prop.value.value }
-                is Property.Missing -> emptyList()
-                is Property.TypeMismatch -> return Result.failure(
-                    Exception("Property 'exclude' for rule '$key' must be a string array, got ${prop.actual.typeName()}")
-                )
+                is Property.Missing -> {
+                    emptyList()
+                }
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception("Property 'exclude' for rule '$key' must be a string array, got ${prop.actual.typeName()}")
+                    )
+                }
             }
 
             return Result.success(RawRuleConfig(level = level, exclude = exclude, excludeSet = excludeSet))

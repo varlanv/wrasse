@@ -106,8 +106,12 @@ fun main(args: Array<String>) {
         val result = WPatchApplier.apply(Path.of(arg))
         for (fileResult in result.files) {
             when (fileResult) {
-                is FileApplyResult.Applied -> println("Fixed: ${fileResult.filePath} (${fileResult.editCount} edits)")
-                is FileApplyResult.Skipped -> println("Skipped: ${fileResult.filePath} (${fileResult.reason})")
+                is FileApplyResult.Applied -> {
+                    println("Fixed: ${fileResult.filePath} (${fileResult.editCount} edits)")
+                }
+                is FileApplyResult.Skipped -> {
+                    println("Skipped: ${fileResult.filePath} (${fileResult.reason})")
+                }
                 is FileApplyResult.Failed -> {
                     System.err.println("FAILED: ${fileResult.filePath} - ${fileResult.reason}")
                     kotlin.system.exitProcess(1)

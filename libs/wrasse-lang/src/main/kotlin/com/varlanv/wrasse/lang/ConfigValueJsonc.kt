@@ -70,7 +70,9 @@ class ConfigValueJsonc private constructor(private val input: String) {
                     break
                 }
 
-                else -> error("Expected ',' or '}'")
+                else -> {
+                    error("Expected ',' or '}'")
+                }
             }
         }
         depth--
@@ -107,7 +109,9 @@ class ConfigValueJsonc private constructor(private val input: String) {
                     break
                 }
 
-                else -> error("Expected ',' or ']'")
+                else -> {
+                    error("Expected ',' or ']'")
+                }
             }
         }
         depth--
@@ -154,14 +158,30 @@ class ConfigValueJsonc private constructor(private val input: String) {
                     pos++
                     if (pos >= input.length) error("Unterminated string escape")
                     when (val esc = input[pos]) {
-                        '"' -> sb.append('"')
-                        '\\' -> sb.append('\\')
-                        '/' -> sb.append('/')
-                        'b' -> sb.append('\b')
-                        'f' -> sb.append('\u000C')
-                        'n' -> sb.append('\n')
-                        'r' -> sb.append('\r')
-                        't' -> sb.append('\t')
+                        '"' -> {
+                            sb.append('"')
+                        }
+                        '\\' -> {
+                            sb.append('\\')
+                        }
+                        '/' -> {
+                            sb.append('/')
+                        }
+                        'b' -> {
+                            sb.append('\b')
+                        }
+                        'f' -> {
+                            sb.append('\u000C')
+                        }
+                        'n' -> {
+                            sb.append('\n')
+                        }
+                        'r' -> {
+                            sb.append('\r')
+                        }
+                        't' -> {
+                            sb.append('\t')
+                        }
                         'u' -> {
                             if (pos + 4 >= input.length) error("Incomplete unicode escape")
                             val hex = input.substring(pos + 1, pos + 5)
@@ -171,7 +191,9 @@ class ConfigValueJsonc private constructor(private val input: String) {
                             pos += 4
                         }
 
-                        else -> error("Invalid escape: \\$esc")
+                        else -> {
+                            error("Invalid escape: \\$esc")
+                        }
                     }
                     pos++
                 }

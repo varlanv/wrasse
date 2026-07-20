@@ -2807,6 +2807,15 @@ a separate `ktlint -F` invocation on the same files.
 
 ## 14. Known issues & tech debt (beyond the A.5 list)
 
+- **Report-only bails + `level: error` cannot converge.** A rule that reports but attaches no
+  edit (every documented bail: comment adjacency, multiline bodies, ambiguity) makes `wrasseFix`
+  unable to clear the finding, so an error-level build stays red with no automated remedy — the
+  user must hand-edit or `@Suppress`. Found dogfooding `when-entry-bracing` on this repo, whose
+  own `when`s hit the multiline-body bail repeatedly; its self-lint enablement is deferred for
+  that reason (the rule itself is shipped and fixture-proven, and fixed 10 real findings here
+  correctly before the bails blocked convergence). Options if this becomes a product problem:
+  report-only bails could emit at `warn` regardless of configured level, or stay silent when they
+  cannot fix. Owner decision, not taken.
 - `ChildBuffer` allocated per `WBufferedNodeRule` enter — pool when engines land.
 - Registrar selection probes internal compiler class names (`classExists` markers); checker
   shells exist in triplicate (k20/k22/main) — any signature change must be mirrored. Version
