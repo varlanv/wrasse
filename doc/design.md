@@ -3496,6 +3496,164 @@ conditions, etc.) — all still reproduced verbatim, hard breaks only, exactly a
 391 plus this slice's 7 — zero failures; `wrasseLint` exercises the rebuilt plugin against this
 repo's own `format`-disabled `wrasse.json`, unaffected by this slice).
 
+#### Phase C.5 — Horizontal spacing normalization — **done 2026-07-21**
+
+Replaces `DocBuilder`'s remaining verbatim whitespace reproduction (everything but indentation and
+C.4's three Group-wrapped constructs) with normalized single-space/no-space emission for the ~13
+pure-spacing concerns ktlint covers, per this slice's brief. Line-break positions outside C.4's
+constructs are untouched — this is horizontal-only.
+
+**Ground truth used:** ktlint's own rule implementations *and* their tests (`ktlint-ruleset-
+standard`), not textbook Kotlin-style assumptions — `SpacingAroundOperatorsRule`,
+`SpacingAroundUnaryOperatorRule`, `SpacingAroundCommaRule`, `SpacingAroundColonRule`,
+`SpacingAroundParensRule`, `SpacingAroundSquareBracketsRule`, `SpacingAroundAngleBracketsRule`,
+`SpacingAroundCurlyRule`, `SpacingAroundDotRule`, `SpacingAroundDoubleColonRule`,
+`SpacingAroundRangeOperatorRule`, `SpacingAroundKeywordRule`,
+`SpacingBetweenFunctionNameAndOpeningParenthesisRule`, `NullableTypeSpacingRule` (plus
+`TypeArgumentListSpacingRule`/`TypeParameterListSpacingRule` for the asymmetric gap this slice
+deliberately does not close, below).
+
+**Mechanism — one choke point plus three specializations:**
+
+1. **`normalizeChildren`** (new): the generic pass every frame [resolveFrame] doesn't already give a
+   dedicated `Group`/break treatment to (chains, binary expressions, argument lists keep their own
+   C.4 machinery) now routes through, replacing `children.map { resolveEntry(it) }`. For every gap
+   between two direct children — whether an actual single-line `WHITE_SPACE` child or no child at
+   all (two tokens directly adjacent, the insertion case) — `spacingDecision(frameType, prevType,
+   nextType)` returns the exact rendered text, or `null` to preserve verbatim. A gap is *never*
+   double-decided: an explicit `WHITE_SPACE` child is handled in one branch, an absent gap in the
+   other, mutually exclusive by construction.
+2. **`resolveUnaryFrame`** (new `resolveFrame` branch, alongside chain/binary/arglist):
+   `PREFIX_EXPRESSION`/`POSTFIX_EXPRESSION` collapse every internal single-line whitespace to
+   nothing, unconditionally — the frame-type dispatch itself is the unary-vs-binary
+   disambiguation (matching ktlint's own parent-node-type check), so no token-level guessing is
+   needed the way `SpacingAroundOperatorsRule` needs `isUnaryOperator()`/`isSpreadOperator()`.
+3. **`normalizeLambdaBraces`** (new, called from `resolveBraceFrame` only for `FUNCTION_LITERAL`):
+   normalizes the gap right after `{` and right before `}` — the one curly-brace concern in scope
+   (ordinary `BLOCK`/`CLASS_BODY`/`WHEN` braces are always followed by a real line break in
+   practice). Collapses to `{}` when nothing real sits between; otherwise exactly one space each
+   side.
+4. **`spliceBreak`** (existing, extended): the gap on the side of a chain/binary anchor that is
+   *not* the break candidate now also gets normalized to the same `flat` text, as a plain `Doc.Text`
+   — previously left to `resolveEntry`'s verbatim default, an asymmetry C.4 didn't need to notice
+   because it never normalized flat-form spacing on both sides at once.
+
+**The normalization table** (`spacingDecision`, one `when`-cascade, `null` = preserve verbatim):
+no space before a comma, one space after (none before a closing delimiter); colon spacing keyed on
+the *enclosing declaration* — one space both sides for a class/object's supertype-list colon, a
+secondary constructor's delegation colon, or a generic type parameter's bound colon
+(`COLON_WANTS_SPACE_BOTH_SIDES`), the declaration-style default (no space before, one after)
+otherwise, and no space at all for an annotation use-site-target colon (`@field:JvmField`); one
+space after `if`/`when`/`for`/`while`/`catch` regardless of what follows; a spread operator's `*`
+tight to its argument; no space just inside `(`/`)`/`[`/`]`; none between a name and its parameter
+or argument list — declaration *and* call site, one rule (`nextType == VALUE_PARAMETER_LIST ||
+VALUE_ARGUMENT_LIST`), matching ktlint's own division of labor, except a `FUNCTION_TYPE`'s own
+parameter list (may legitimately carry a preceding annotation) and a `FUNCTION_LITERAL`'s own
+parameter list (its gap from `{` is `normalizeLambdaHead`'s job, not this rule's — see the bug
+below); no space just inside `<`/`>` when the enclosing frame is itself a
+`TYPE_PARAMETER_LIST`/`TYPE_ARGUMENT_LIST` (the same structural signal that leaves a comparison
+`<`/`>` — a `BINARY_EXPRESSION` frame — untouched, mirroring how ktlint's own angle-bracket rule
+and op-spacing rule each key off structural parent type, never the bare token); `::` tight *after*
+always; `..`/`..<` tight both sides; no space before `?`.
+
+**Disambiguation mechanisms — all structural (parent/frame node type), never token-text guessing,**
+matching ktlint's own approach exactly:
+- **Colon kind** — the `COLON` leaf's own enclosing frame type (`spacingDecision`'s `frameType`
+  parameter, which *is* the declaration/expression node the colon is a direct child of).
+- **Angle brackets vs comparison** — `frameType == TYPE_PARAMETER_LIST/TYPE_ARGUMENT_LIST` (angle
+  brackets) vs `frameType == BINARY_EXPRESSION` (comparison, handled entirely by C.4's existing
+  `resolveBinaryFrame`, never reaching `normalizeChildren` at all).
+- **Unary vs binary** — `resolveFrame`'s own `when (frame.type)` dispatch (`PREFIX_EXPRESSION`/
+  `POSTFIX_EXPRESSION` vs `BINARY_EXPRESSION`) is the disambiguation; no operator token is ever
+  inspected to decide this.
+- **Star: spread vs multiply vs star-import** — `frameType == VALUE_ARGUMENT && prevType == MUL`
+  (spread) vs `BINARY_EXPRESSION` (multiply, handled by C.4) vs star-import (owned by
+  `no-wildcard-imports`/`ImportEngine`, never visible to this mechanism at all).
+
+**Two real bugs found only by running real fixtures through the full pipeline, not by reasoning
+about the mechanism in isolation:**
+- **A lambda's own parameter list got tightened against `{`.** The declaration/call-site "no space
+  before a nested parameter/argument list" rule (`nextType == VALUE_PARAMETER_LIST`) fired for
+  `names.forEach { name -> ... }` too — a lambda parameter list is *also* `VALUE_PARAMETER_LIST` in
+  Kotlin's own grammar (confirmed off a real LightTree dump, not assumed), so `{name ->` lost its
+  space instead of gaining one. Found by the pre-existing `format-indentation/already-correct`
+  fixture (previously `expect-clean`) failing for the first time this slice ran the full ladder —
+  exactly the kind of regression the ladder exists to catch. Fixed by excluding `FUNCTION_LITERAL`
+  from that rule, alongside the pre-existing `FUNCTION_TYPE` exception.
+- **A lambda body's `BLOCK` child is never absent, even when empty** — `names.forEach {}` is
+  `[LBRACE, BLOCK(empty), RBRACE]`, never bare `[LBRACE, RBRACE]` (confirmed off a real LightTree
+  dump). Treating only a literal `RBRACE`/`LBRACE` neighbor as "nothing here" made the empty case
+  get a space inserted on *both* sides of the empty `BLOCK` (`{  }`) instead of collapsing to `{}`.
+  The first fix attempt (checking `Doc.start == Doc.end` for "no real content") was itself wrong —
+  it happened to work against real compiler offsets but misfired against every hand-built
+  `DocBuilderSpec` fixture, where offsets default to `0` and every leaf looks "zero-width" by that
+  test, silently breaking three pre-existing unit tests. The real fix checks the resolved `Doc`'s
+  actual rendered content (`isEmptyDoc`: an empty `Text`, or a `Concat` whose parts are all empty),
+  never source span — offset-independent, and correct in both the real-compiler and hand-built-test
+  environments by construction rather than by coincidence.
+
+**A §5.3-adjacent claim C.4 made that failed on contact:** `resolveBinaryFrame`'s flat-form gap was
+one space unconditionally for every operator but `?:` (only the break *side* differs for elvis).
+The range operator (`..`) is a `BINARY_EXPRESSION` in Kotlin's own grammar too — no separate
+construct — so this generic default would have silently *spaced* `1..5` to `1 .. 5`, directly
+contradicting `SpacingAroundRangeOperatorRule`'s "tight, unconditionally" ground truth. Fixed by
+keying the flat text (not just the break side, which stays after the operator) off the operator's
+own literal text, the same way elvis-detection already worked.
+
+**Preserved verbatim, deliberately, for context this walk cannot cheaply provide (listed, not
+guessed at):**
+- The gap *before* `::` when it introduces a bound reference with no receiver (`foo(bar, ::isOdd)`)
+  — ktlint's own rule preserves (collapses to one space, never strips to zero) rather than
+  normalizes to a fixed 0-or-1 answer here, because stripping it can fuse the reference onto a
+  preceding token with zero separation; distinguishing "bound, no receiver" from "has a receiver"
+  needs a PSI/parent-chain fact (`CALLABLE_REFERENCE_EXPRESSION`, not currently in `WNodeType`) this
+  walk doesn't have. The *after*-`::` gap has no such exception and is always tightened.
+- `else`/`do`/`try`/`finally` keyword-to-brace/newline spacing — ktlint's `SpacingAroundKeywordRule`
+  covers these too, but also collapses a `}\nelse`-style newline back onto one line, which is a
+  line-*join* behavior this horizontal-only slice must not do; porting the space-only half without
+  the line-join half was judged not worth the inconsistency it would introduce and left out of
+  scope, per the brief's explicit keyword list (`if`/`when`/`for`/`while`/`catch` only).
+- A `TYPE_PARAMETER_LIST`'s *outer* spacing (`fun <T> foo` wants one space both before and after
+  `<T>`; `class Foo<T>` wants zero before) — a real ktlint behavior
+  (`TypeParameterListSpacingRule`) beyond this slice's "no space *inside* angle brackets" ask;
+  adding it asymmetrically for `FUN` only, without the matching `CLASS` case, was judged more
+  likely to surprise than help, so both directions are left verbatim.
+- `in`/`is`/`as`/`as?` as infix keyword-operators, named-argument `=` spacing, annotation-entry
+  interior spacing beyond its colon, and a `FUNCTION_TYPE`'s legitimately-preceded-by-annotation
+  parameter list gap (`@Composable () -> Unit`) — none named in this slice's 13-concern brief.
+- A trailing lambda's own gap from its call (`fun name {`, no explicit parens) — not one of the 13
+  concerns; whatever whitespace (or its absence) was already there stays as-is.
+- `where T : Any` generic constraints — `TYPE_CONSTRAINT` is not a `WNodeType` wrasse currently maps
+  at all (only `TYPE_PARAMETER`'s own bound colon, `<T : Any>`, is represented), so this shape isn't
+  reachable by this mechanism yet; not a deliberate scope cut, a genuine mapping gap.
+
+**Comments, strings, KDoc:** untouched by construction, same as C.1 — a comment/string-template
+leaf is never a `WHITE_SPACE` token, so it is never a candidate for `normalizeChildren`'s decision
+at all; its entire text, oddly-spaced interior included, rides one `Text` node unchanged.
+
+**Fixtures:** `testing/wrasse-test-harness/.../fixtures/format-spacing/` (own `wrasse.json`,
+`{"format": {"enabled": true}}`), 16 top-level `.kt` fixtures: one per concern with a `.fixed.kt`
+companion (`comma-spacing-error`, `colon-declaration-spacing-error`,
+`colon-supertype-and-generic-bound-spacing-error`, `paren-and-name-spacing-error`,
+`bracket-spacing-error`, `angle-bracket-spacing-error`, `curly-lambda-spacing-error`,
+`double-colon-spacing-error`, `range-spacing-error`, `keyword-spacing-error`,
+`nullable-type-spacing-error`, `unary-operator-spacing-error`, `spread-operator-spacing-error`), a
+kitchen-sink combining many at once (`kitchen-sink-error`), an already-canonical file
+(`already-clean`, `expect-clean`, byte-identical), and a preservation fixture
+(`comment-and-string-interior-preserved-error`: KDoc/line-comment/string-literal interiors —
+including oddly-spaced text that reads like Kotlin code inside a string value — stay byte-exact
+while a real spacing error elsewhere in the same file still gets fixed). The existing, already-
+generic D19 idempotence cycle (`fix(fix(x)) == fix(x)`, no harness changes needed since C.1)
+exercises all 14 `-error` fixtures. `libs/wrasse-format/DocBuilderSpec` gained 16 unit tests driven
+directly against hand-built SAX events, covering every disambiguation case called out above
+(colon kinds ×3, angle brackets vs comparison, unary vs binary, the lambda-parameter-list
+regression directly) plus one test per remaining concern not otherwise exercised structurally.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (414 fixture-spec cases per Kotlin minor —
+398 plus this slice's 16 — zero failures; `wrasseLint` exercises the rebuilt plugin against this
+repo's own `format`-disabled `wrasse.json`, unaffected by this slice).
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.

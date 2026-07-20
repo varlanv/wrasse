@@ -11,6 +11,13 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 private val INDENTING_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN, WNodeType.FUNCTION_LITERAL)
 private val CHAIN_LINK_TYPES = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION)
 
+private val KEYWORDS_WANTING_SPACE_AFTER =
+    setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH)
+private val CLOSERS_NOT_NEEDING_SPACE_AFTER_COMMA =
+    setOf(WNodeType.RPAR, WNodeType.RBRACKET, WNodeType.GT, WNodeType.RBRACE)
+private val COLON_WANTS_SPACE_BOTH_SIDES =
+    setOf(WNodeType.CLASS, WNodeType.OBJECT_DECLARATION, WNodeType.OBJECT_LITERAL, WNodeType.SECONDARY_CONSTRUCTOR, WNodeType.TYPE_PARAMETER)
+
 /**
  * The privileged stream consumer that turns the SAX walk into a [Doc] tree, one `when (ctx.type)`
  * decision at a time (§5.3). Registered alongside ordinary rules (see `WrassePlugin`'s `alwaysOn`
@@ -111,6 +118,8 @@ class DocBuilder(
 
         WNodeType.VALUE_ARGUMENT_LIST -> resolveArgumentListFrame(frame, start, end)
 
+        WNodeType.PREFIX_EXPRESSION, WNodeType.POSTFIX_EXPRESSION -> resolveUnaryFrame(frame, start, end)
+
         else -> resolveBraceFrame(frame, start, end)
     }
 
@@ -125,23 +134,20 @@ class DocBuilder(
      * `BLOCK`) while a single-statement one would accidentally look right, masking the bug.
      */
     private fun resolveBraceFrame(frame: Frame, start: Int, end: Int): Doc {
-        val children = frame.children
+        val children = if (frame.type == WNodeType.FUNCTION_LITERAL) normalizeLambdaBraces(frame.children) else frame.children
         if (children.isEmpty()) return Doc.Concat(emptyList(), start, end)
 
         val lastIndex = children.size - 1
         val opensIndentScope = frame.type in INDENTING_TYPES && children[lastIndex].type == WNodeType.RBRACE
         if (!opensIndentScope) {
-            return Doc.Concat(children.map { resolveEntry(it) }, start, end)
+            return Doc.Concat(normalizeChildren(children, frame.type), start, end)
         }
 
         val dedentIndex = lastIndex - 1
         val hasDedent = dedentIndex >= 0 && children[dedentIndex] is ChildEntry.Ws
 
         val innerCount = if (hasDedent) dedentIndex else lastIndex
-        val innerParts = ArrayList<Doc>(innerCount)
-        for (i in 0 until innerCount) {
-            innerParts.add(resolveEntry(children[i]))
-        }
+        val innerParts = normalizeChildren(children.subList(0, innerCount), frame.type)
 
         val innerStart = innerParts.firstOrNull()?.start ?: start
         val innerEnd = innerParts.lastOrNull()?.end ?: start
@@ -151,6 +157,213 @@ class DocBuilder(
         }
         parts.add(resolveEntry(children[lastIndex]))
         return Doc.Concat(parts, start, end)
+    }
+
+    /**
+     * A [WNodeType.PREFIX_EXPRESSION]/[WNodeType.POSTFIX_EXPRESSION] (`-x`, `!x`, `x++`, `x!!`) is
+     * tight to its operand always, unconditionally — the frame-type dispatch in [resolveFrame] is
+     * itself the unary-vs-binary disambiguation (the same structural signal ktlint's
+     * `SpacingAroundUnaryOperatorRule` uses), so no token-level guessing is needed here: every
+     * single-line whitespace child inside one of these two frames collapses to nothing.
+     */
+    private fun resolveUnaryFrame(frame: Frame, start: Int, end: Int): Doc {
+        val parts = frame.children.map { entry ->
+            if (isPlainWhitespace(entry)) {
+                val ws = (entry as ChildEntry.Resolved).doc
+                Doc.Text("", ws.start, ws.end)
+            } else {
+                resolveEntry(entry)
+            }
+        }
+        return Doc.Concat(parts, start, end)
+    }
+
+    /**
+     * `{`/`}` spacing for a lambda body (`{ x -> ... }`), the one curly-brace concern this slice
+     * covers (ordinary `BLOCK`/`CLASS_BODY`/`WHEN` braces are always followed by a real line break
+     * in practice and need no horizontal decision). Only the gap right after the opening `{` and
+     * right before the closing `}` are in scope — a genuine newline there (multi-line body) is left
+     * untouched, since this slice normalizes horizontal space only. A lambda with nothing between
+     * its braces but whitespace collapses to `{}`; anything else gets exactly one space on that side.
+     */
+    private fun normalizeLambdaBraces(children: List<ChildEntry>): List<ChildEntry> {
+        if (children.size < 2) return children
+        return normalizeLambdaTail(normalizeLambdaHead(children))
+    }
+
+    /**
+     * A lambda's body is always a [WNodeType.BLOCK] child, even when nothing was written between
+     * `{`/`}` and `->` — a real, empty `BLOCK` that renders as zero characters (confirmed off a real
+     * LightTree dump: `names.forEach {}` is `[LBRACE, BLOCK(empty), RBRACE]`, never bare
+     * `[LBRACE, RBRACE]`). Treating only a literal `RBRACE`/`LBRACE` neighbor as "nothing here" is
+     * therefore not enough — an empty `BLOCK` must count the same way, or the empty-lambda case
+     * gets a space inserted on both sides of it instead of staying `{}`. Emptiness is decided from
+     * the resolved `Doc`'s actual rendered content (recursively: an empty `Text`, or a `Concat` whose
+     * parts are all empty), never from its source span — [Doc.start]/[Doc.end] both default to `0`
+     * for a `Doc` built without real offsets (every hand-built [DocBuilderSpec] fixture), which would
+     * make a span-equality check misfire as "empty" for perfectly real content.
+     */
+    private fun isEffectivelyEmpty(entry: ChildEntry?): Boolean =
+        entry == null ||
+            entry.type == WNodeType.RBRACE ||
+            entry.type == WNodeType.LBRACE ||
+            (entry is ChildEntry.Resolved && isEmptyDoc(entry.doc))
+
+    private fun isEmptyDoc(doc: Doc): Boolean = when (doc) {
+        is Doc.Text -> doc.value.isEmpty()
+        is Doc.Concat -> doc.parts.all { isEmptyDoc(it) }
+        is Doc.Indent -> isEmptyDoc(doc.body)
+        is Doc.Group -> isEmptyDoc(doc.body)
+        is Doc.Break -> false
+    }
+
+    private fun normalizeLambdaHead(children: List<ChildEntry>): List<ChildEntry> {
+        val gap = children.getOrNull(1) ?: return children
+        if (gap is ChildEntry.Ws) return children
+        val gapIsWs = isPlainWhitespace(gap)
+        val isEmpty = isEffectivelyEmpty(children.getOrNull(if (gapIsWs) 2 else 1))
+        val desired = if (isEmpty) "" else " "
+        return when {
+            gapIsWs -> {
+                val ws = (gap as ChildEntry.Resolved).doc
+                children.toMutableList().also { it[1] = ChildEntry.Resolved(WNodeType.WHITE_SPACE, Doc.Text(desired, ws.start, ws.end)) }
+            }
+
+            desired == " " -> {
+                val pos = (children[0] as ChildEntry.Resolved).doc.end
+                children.toMutableList().also { it.add(1, ChildEntry.Resolved(WNodeType.WHITE_SPACE, Doc.Text(" ", pos, pos))) }
+            }
+
+            else -> children
+        }
+    }
+
+    private fun normalizeLambdaTail(children: List<ChildEntry>): List<ChildEntry> {
+        val lastIndex = children.size - 1
+        val gapIndex = lastIndex - 1
+        if (gapIndex < 0) return children
+        val gap = children[gapIndex]
+        if (gap is ChildEntry.Ws) return children
+        val gapIsWs = isPlainWhitespace(gap)
+        val isEmpty = if (gapIsWs) isEffectivelyEmpty(children.getOrNull(gapIndex - 1)) else isEffectivelyEmpty(gap)
+        val desired = if (isEmpty) "" else " "
+        return when {
+            gapIsWs -> {
+                val ws = (gap as ChildEntry.Resolved).doc
+                children.toMutableList().also { it[gapIndex] = ChildEntry.Resolved(WNodeType.WHITE_SPACE, Doc.Text(desired, ws.start, ws.end)) }
+            }
+
+            desired == " " -> {
+                val pos = (children[lastIndex] as ChildEntry.Resolved).doc.start
+                children.toMutableList().also { it.add(lastIndex, ChildEntry.Resolved(WNodeType.WHITE_SPACE, Doc.Text(" ", pos, pos))) }
+            }
+
+            else -> children
+        }
+    }
+
+    /**
+     * The single choke point for horizontal-spacing normalization on every frame [resolveFrame]
+     * doesn't already give a dedicated `Group`/break treatment to (chains, binary expressions and
+     * call argument lists keep doing their own thing via [wsBreakAt]'s `flat` parameter, which
+     * already normalizes their anchor gaps). For every gap between two direct children — whether
+     * represented by an actual single-line [WNodeType.WHITE_SPACE] child or by no child at all (two
+     * tokens directly adjacent) — [spacingDecision] is asked for the correct rendering; `null` means
+     * "no rule for this pair, preserve whatever was there verbatim" (§the printer contract's
+     * "preserve, don't guess" for anything this slice doesn't cover). A real newline
+     * ([ChildEntry.Ws]) is never touched here — only horizontal space is in scope.
+     */
+    private fun normalizeChildren(children: List<ChildEntry>, frameType: WNodeType): List<Doc> {
+        val out = ArrayList<Doc>(children.size + 2)
+        for (i in children.indices) {
+            val entry = children[i]
+            if (isPlainWhitespace(entry)) {
+                val prevType = children.getOrNull(i - 1)?.type
+                val nextType = children.getOrNull(i + 1)?.type
+                val decision = if (prevType != null && nextType != null) spacingDecision(frameType, prevType, nextType) else null
+                val ws = (entry as ChildEntry.Resolved).doc
+                out.add(if (decision != null) Doc.Text(decision, ws.start, ws.end) else ws)
+                continue
+            }
+            out.add(resolveEntry(entry))
+            val next = children.getOrNull(i + 1)
+            if (next != null && !isPlainWhitespace(next) && next !is ChildEntry.Ws) {
+                if (spacingDecision(frameType, entry.type, next.type) == " ") {
+                    val pos = out.last().end
+                    out.add(Doc.Text(" ", pos, pos))
+                }
+            }
+        }
+        return out
+    }
+
+    private fun isPlainWhitespace(entry: ChildEntry): Boolean =
+        entry is ChildEntry.Resolved && entry.type == WNodeType.WHITE_SPACE
+
+    /**
+     * The normalization table for the ~13 pure-spacing concerns this slice covers (design.md
+     * Phase C.5), ground-truthed against ktlint's own rule implementations and tests rather than
+     * assumed style: no space before a comma, one space after (none before a closing delimiter);
+     * colon spacing keyed on the enclosing declaration ([COLON_WANTS_SPACE_BOTH_SIDES] — supertype
+     * list, secondary-constructor delegation, generic bound — versus the default type-annotation
+     * colon with no space before and one after, and no space at all for an annotation's use-site
+     * target colon); one space after `if`/`when`/`for`/`while`/`catch`
+     * ([KEYWORDS_WANTING_SPACE_AFTER]) regardless of what follows; a spread operator's `*` tight to
+     * its argument; no space just inside `(`/`)`/`[`/`]`, none between a name and its parameter or
+     * argument list (declaration *and* call site — one rule, matching ktlint's own division of
+     * labor — except a `FUNCTION_TYPE`'s own parameter list, which may legitimately carry a
+     * preceding annotation, and a `FUNCTION_LITERAL`'s own parameter list, whose gap from `{` is
+     * [normalizeLambdaHead]'s concern, not this one's); no space just inside `<`/`>` when the
+     * enclosing frame is itself a [WNodeType.TYPE_PARAMETER_LIST]/[WNodeType.TYPE_ARGUMENT_LIST]
+     * (the same structural signal that keeps a comparison `<`/`>` — a
+     * [WNodeType.BINARY_EXPRESSION] frame — untouched here);
+     * `::` tight after always (the "bound reference with no receiver" gap *before* `::` needs
+     * context this walk doesn't have — see the disambiguation note in the class KDoc — so that side
+     * is left alone, `null`); `..`/`..<` tight both sides; no space before `?`.
+     *
+     * `null` means "preserve verbatim" — deliberately, per the printer contract, for every pair this
+     * table doesn't recognize (an unrequested nuance, or one this walk can't cheaply disambiguate).
+     */
+    private fun spacingDecision(frameType: WNodeType, prevType: WNodeType, nextType: WNodeType): String? {
+        if (nextType == WNodeType.COMMA) return ""
+        if (prevType == WNodeType.COMMA) {
+            return if (nextType in CLOSERS_NOT_NEEDING_SPACE_AFTER_COMMA) "" else " "
+        }
+
+        if (nextType == WNodeType.COLON) {
+            return if (frameType in COLON_WANTS_SPACE_BOTH_SIDES) " " else ""
+        }
+        if (prevType == WNodeType.COLON) {
+            return if (frameType == WNodeType.ANNOTATION_ENTRY) "" else " "
+        }
+
+        if (prevType in KEYWORDS_WANTING_SPACE_AFTER) return " "
+
+        if (frameType == WNodeType.VALUE_ARGUMENT && prevType == WNodeType.MUL) return ""
+
+        if (prevType == WNodeType.LPAR) return ""
+        if (nextType == WNodeType.RPAR) return ""
+        if ((nextType == WNodeType.VALUE_PARAMETER_LIST || nextType == WNodeType.VALUE_ARGUMENT_LIST) &&
+            frameType != WNodeType.FUNCTION_TYPE && frameType != WNodeType.FUNCTION_LITERAL
+        ) {
+            return ""
+        }
+
+        if (prevType == WNodeType.LBRACKET) return ""
+        if (nextType == WNodeType.RBRACKET) return ""
+
+        if (frameType == WNodeType.TYPE_PARAMETER_LIST || frameType == WNodeType.TYPE_ARGUMENT_LIST) {
+            if (prevType == WNodeType.LT) return ""
+            if (nextType == WNodeType.GT) return ""
+        }
+
+        if (prevType == WNodeType.COLONCOLON) return ""
+
+        if (nextType == WNodeType.RANGE || prevType == WNodeType.RANGE) return ""
+
+        if (nextType == WNodeType.QUEST) return ""
+
+        return null
     }
 
     /**
@@ -176,15 +389,22 @@ class DocBuilder(
      * does: only the outermost expression wraps in [Doc.Group]/[Doc.Indent]. The break sits *after*
      * the operator for every operator but `?:` (ktlint's `chain-wrapping`/`binary-expression-wrapping`
      * ground truth: arithmetic/logical/comparison operators stay at the end of the line they came
-     * from; only elvis moves to the start of the next line, alongside `.`/`?.`).
+     * from; only elvis moves to the start of the next line, alongside `.`/`?.`). The flat-form gap
+     * is one space for every operator but the range operator (`..`, itself a `BINARY_EXPRESSION` in
+     * Kotlin's own grammar, not a separate construct) — Phase C.5's ground truth
+     * (`SpacingAroundRangeOperatorRule`: tight, unconditionally) means this generic flat=" " default
+     * would otherwise have silently *spaced* `1..5`, a C.4 assumption this slice's fixtures caught
+     * on contact.
      */
     private fun resolveBinaryFrame(frame: Frame, start: Int, end: Int, isRoot: Boolean): Doc {
         val children = frame.children
         val opIdx = children.indexOfFirst { it.type == WNodeType.OPERATION_REFERENCE }
         if (opIdx < 0) return Doc.Concat(children.map { resolveEntry(it) }, start, end)
 
-        val isElvis = flatText((children[opIdx] as ChildEntry.Resolved).doc) == "?:"
-        val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = isElvis, flat = " ")
+        val opText = flatText((children[opIdx] as ChildEntry.Resolved).doc)
+        val isElvis = opText == "?:"
+        val flat = if (opText == "..") "" else " "
+        val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = isElvis, flat = flat)
         return if (isRoot) wrapRoot(parts, start, end) else Doc.Concat(parts, start, end)
     }
 
@@ -274,6 +494,12 @@ class DocBuilder(
      * ordinary [ChildEntry.Resolved] `WHITE_SPACE`, not a [ChildEntry.Ws]. Shared by
      * [resolveChainFrame] (break before the dot/safe-access operator) and [resolveBinaryFrame] (break
      * after the operator, or before it for `?:`).
+     *
+     * The gap on the *other* side of [anchorIndex] wants the same [flat] text but is never itself a
+     * line-break candidate (`a  +  b`'s two operator gaps are symmetric spacing, not two independent
+     * decisions) — a plain, single-line `WHITE_SPACE` there is normalized to [flat] directly as a
+     * [Doc.Text], never left to [resolveEntry]'s verbatim default; a real newline on that side is
+     * left untouched (this slice normalizes horizontal space only).
      */
     private fun spliceBreak(children: List<ChildEntry>, anchorIndex: Int, breakBefore: Boolean, flat: String): List<Doc> {
         val wsIndex = if (breakBefore) anchorIndex - 1 else anchorIndex + 1
@@ -283,10 +509,19 @@ class DocBuilder(
         val fallback = if (breakBefore) anchorDoc.start else anchorDoc.end
         val breakDoc = wsBreakAt(children, wsIndex, fallback, flat)
 
+        val otherWsIndex = if (breakBefore) anchorIndex + 1 else anchorIndex - 1
+        val otherIsPlainWs = otherWsIndex in children.indices && isPlainWhitespace(children[otherWsIndex])
+
         val parts = ArrayList<Doc>(children.size + 1)
         for (idx in children.indices) {
             if (idx == insertIndex) parts.add(breakDoc)
-            if (!(hasWs && idx == wsIndex)) parts.add(resolveEntry(children[idx]))
+            if (hasWs && idx == wsIndex) continue
+            if (otherIsPlainWs && idx == otherWsIndex) {
+                val ws = (children[idx] as ChildEntry.Resolved).doc
+                parts.add(Doc.Text(flat, ws.start, ws.end))
+                continue
+            }
+            parts.add(resolveEntry(children[idx]))
         }
         if (insertIndex == children.size) parts.add(breakDoc)
         return parts

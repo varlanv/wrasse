@@ -33,14 +33,14 @@ class DocBuilderSpec : BaseSpec({
         builder.visitLeaf(ctx, noopReporter)
     }
 
-    fun binaryPlus(builder: DocBuilder, ctx: WContext, lhs: String, rhs: String) {
+    fun binaryOp(builder: DocBuilder, ctx: WContext, lhs: String, opType: WNodeType, opText: String, rhs: String) {
         builder.enterNode(ctx.apply { type = WNodeType.BINARY_EXPRESSION })
         builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
         leaf(builder, ctx, WNodeType.IDENTIFIER, lhs)
         builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
         leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
         builder.enterNode(ctx.apply { type = WNodeType.OPERATION_REFERENCE })
-        leaf(builder, ctx, WNodeType.PLUS, "+")
+        leaf(builder, ctx, opType, opText)
         builder.exitNode(ctx.apply { type = WNodeType.OPERATION_REFERENCE })
         leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
         builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
@@ -48,6 +48,9 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.BINARY_EXPRESSION })
     }
+
+    fun binaryPlus(builder: DocBuilder, ctx: WContext, lhs: String, rhs: String) =
+        binaryOp(builder, ctx, lhs, WNodeType.PLUS, "+", rhs)
 
     fun argumentList(builder: DocBuilder, ctx: WContext, args: List<String>) {
         builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
@@ -326,6 +329,271 @@ class DocBuilderSpec : BaseSpec({
 
         recorder.reports shouldBe emptyList()
         recorder.lastEdit shouldBe null
+    }
+
+    should("strip the space before a property's type-annotation colon and enforce one space after") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAL, "val")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Int")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "val x: Int"
+    }
+
+    should("space both sides of a class declaration's supertype-list colon") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+        leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Foo")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Bar")
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo : Bar"
+    }
+
+    should("space both sides of a generic type parameter's bound colon") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_PARAMETER })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "T")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Any")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_PARAMETER })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "T : Any"
+    }
+
+    should("keep angle brackets tight for a type argument list but spaced for a comparison operator") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_ARGUMENT_LIST })
+        leaf(builder, ctx, WNodeType.LT, "<")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Int")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.GT, ">")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_ARGUMENT_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        binaryOp(builder, ctx, "a", WNodeType.LT, "<", "b")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "<Int>\na < b"
+    }
+
+    should("keep a unary operator tight to its operand but a binary operator of the same token spaced") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PREFIX_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.OPERATION_REFERENCE })
+        leaf(builder, ctx, WNodeType.MINUS, "-")
+        builder.exitNode(ctx.apply { type = WNodeType.OPERATION_REFERENCE })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.PREFIX_EXPRESSION })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        binaryOp(builder, ctx, "a", WNodeType.MINUS, "-", "b")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "-x\na - b"
+    }
+
+    should("normalize comma spacing in a declaration-site parameter list: none before, one after") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "a")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "b")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(a, b)"
+    }
+
+    should("insert exactly one space after a control-flow keyword regardless of what follows") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.IF })
+        leaf(builder, ctx, WNodeType.KW_IF, "if")
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.IF })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "if (x)"
+    }
+
+    should("space out a non-empty single-line lambda's braces but collapse a truly empty one") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "   ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{ x }\n{}"
+    }
+
+    should("keep a nullable type's '?' tight to the preceding type") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.NULLABLE_TYPE })
+        builder.enterNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Int")
+        builder.exitNode(ctx.apply { type = WNodeType.TYPE_REFERENCE })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.QUEST, "?")
+        builder.exitNode(ctx.apply { type = WNodeType.NULLABLE_TYPE })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "Int?"
+    }
+
+    should("tighten the gap after '::' but preserve whatever the source had before it") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "  ")
+        leaf(builder, ctx, WNodeType.COLONCOLON, "::")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "  ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "class")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "Foo  ::class"
+    }
+
+    should("keep the range operator tight both sides") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, "1")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RANGE, "..")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, "5")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "1..5"
+    }
+
+    should("keep a spread operator's '*' tight to its argument") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        leaf(builder, ctx, WNodeType.MUL, "*")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "array")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "*array"
+    }
+
+    should("keep a lambda's own parameter list spaced from '{', not tightened by the name-before-param-list rule") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "names")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.DOT, ".")
+        builder.enterNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "forEach")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.LAMBDA_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "name")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.ARROW, "->")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "stmt")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        builder.exitNode(ctx.apply { type = WNodeType.LAMBDA_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "names.forEach { name ->\n    stmt\n}"
+    }
+
+    should("keep square brackets tight inside") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        leaf(builder, ctx, WNodeType.LBRACKET, "[")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, "0")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RBRACKET, "]")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "[0]"
     }
 })
 
