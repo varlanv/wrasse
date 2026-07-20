@@ -16,6 +16,18 @@ class ImportOrderingDecisionSpec : BaseSpec({
         ImportOrderingDecision.sortKeyOf("import   a.b.C") shouldBe "a.b.C"
     }
 
+    should("strip backticks from the sort key so a quoted identifier sorts by its plain letters") {
+        ImportOrderingDecision.sortKeyOf("import org.mockito.Mockito.`when`") shouldBe "org.mockito.Mockito.when"
+        val records = listOf(
+            record("import org.mockito.Mockito.`when`", 0),
+            record("import org.mockito.Mockito.verify", 40),
+        )
+
+        ImportOrderingDecision.firstOutOfOrder(records) shouldBe records[0]
+        ImportOrderingDecision.sortedReplacement(records) shouldBe
+            "import org.mockito.Mockito.verify\nimport org.mockito.Mockito.`when`"
+    }
+
     should("find no first-out-of-order record for fewer than two records") {
         ImportOrderingDecision.firstOutOfOrder(emptyList()) shouldBe null
         ImportOrderingDecision.firstOutOfOrder(listOf(record("import a.b.C", 0))) shouldBe null

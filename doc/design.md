@@ -877,11 +877,25 @@ resolved-import classification instead of an outright bail); bails 1 and 3–8 a
    invisibly to FIR — a name mentioned only in a doc comment never appears in `resolvedUsage` at
    all, so it can silently lose its only path to resolution if the star is expanded without it.
    A reference's leading segment (before its first `.`) must be covered by explicit imports'
-   visible names (alias if present, else simple name) or this star's own attributed simple names,
-   else that star bails. Coverage deliberately excludes the file's own top-level declaration
-   names — a second declaration-collecting pass is not "cheaply available" from this rule's
-   leaf-stream assembly, so that source is skipped outright rather than approximated; skipping it
-   only ever produces *more* bails, never a false "covered".
+   visible names (alias if present, else simple name), this star's own attributed simple names, or
+   any *other* star's own attributed simple names, else that star bails. Coverage deliberately
+   excludes the file's own top-level declaration names — a second declaration-collecting pass is
+   not "cheaply available" from this rule's leaf-stream assembly, so that source is skipped
+   outright rather than approximated; skipping it only ever produces *more* bails, never a false
+   "covered". **Bug found and fixed 2026-07-20 (wave-2 installment-3 backfill):** the cross-star
+   half of this (folding in *other* stars' attribution, not just this star's own) was missing
+   entirely — `WildcardExpansionDecision.decide` only ever checked its own star's `coveredNames`,
+   unlike `UnusedStarDecision.decide`'s already-correct `allStars`-aware loop (§8.2's "Fixtures"
+   list below). This was not just an inconsistency: with two stars in a file and a KDoc reference
+   covered only by the *other* star's attribution, pass 1 would bail this star (uncovered by its
+   own attribution alone) while the *other* star still expanded into explicit imports — at which
+   point the reference becomes covered by an explicit import file-wide, so pass 2 no longer bails
+   and expands the first star too, an outright D19 idempotence violation
+   (`fix(fix(x)) != fix(x)`) caught by a fixture built to probe exactly this shape
+   (`no-wildcard-imports-expansion/cross-star-kdoc-coverage-shared-error`) before it shipped.
+   Fixed by threading `allStars` into `WildcardExpansionDecision.decide` and folding every other
+   star's own attribution into `coveredNames`, mirroring `UnusedStarDecision` exactly — both stars
+   now correctly expand in one pass once the fix lands.
 
 **Fixtures:** `no-wildcard-imports-expansion/` (own `wrasse.json`, only `no-wildcard-imports`
 enabled) covers all four expansion shapes with `.fixed.kt` companions — a package star over an
@@ -937,7 +951,15 @@ stripped (`ImportOrderingDecision.sortKeyOf`) — `import a.b.C` sorts by `a.b.C
 sorts by `a.b.C as D` (so aliased duplicates of the same FQN order deterministically by their
 alias), `import a.b.*` sorts by `a.b.*`. Report fires once per file, at the first out-of-order
 directive's own span, message `Imports are not sorted`; no report at all for zero/one directive or
-an already-sorted list.
+an already-sorted list. **Bug found and fixed 2026-07-20 (wave-2 installment-3 backfill):** every
+backtick character is now also stripped from the sort key (`` import a.b.`when` `` sorts by
+`a.b.when`), matching ktlint's own `ImportSorter` comparator
+(`import.toString().replace("\`", "")`) — found porting ktlint's real
+`ImportOrderingRuleAsciiTest` suite, whose one backtick case (`org.mockito.Mockito.\`when\`` vs.
+`...verify`) failed against wrasse's original raw-text `sortKeyOf`: the backtick character's own
+ASCII value (0x60) sorts *before* every lowercase letter, so a backtick-quoted identifier sorted
+earlier than intended relative to plain ones, silently treating an actually-unsorted list as
+already sorted. Locked by `import-ordering/backtick-identifier-order-error`.
 
 **Why this can't compose at its own `exitNode`:** `no-unused-imports`' removal and `no-wildcard-
 imports`' expansion both decide their edits in `afterFile`, *after* `IMPORT_LIST` has already exited
@@ -1059,6 +1081,17 @@ attributed symbol already has an explicit import (a "default-redundant" star, as
 *zero*-attribution one) also stays untouched by `no-unused-imports` — its attribution is non-empty,
 so it is correctly out of this rule's scope by construction, and remains a `no-wildcard-imports`
 report-only finding until the engine grows this capability.
+
+**No exclude/allowlist knob, by design — confirmed against upstream 2026-07-20 (wave-2
+installment-3 backfill):** ktlint's `ij_kotlin_imports_layout`-adjacent
+`ij_kotlin_packages_to_use_import_on_demand` editorconfig property defaults to allowing
+`java.util.*`/`kotlinx.android.synthetic.**` unflagged outside `ktlint_official` style, and
+detekt's own `WildcardImport` rule ships an `excludeImports` config defaulting to
+`listOf("java.util.*")` — both mean neither upstream tool flags `java.util.*` out of the box.
+Wrasse has no such knob at all and flags every star unconditionally, matching only ktlint's
+strictest (`ktlint_official`) mode and diverging from both tools' actual defaults — a deliberate
+consequence of the project's minimal-config stance (no per-package exclude lists, no
+`ktlint_official`-style presets), not an oversight.
 
 **Fixtures:** `no-unused-imports-star/` (own `wrasse.json`, only `no-unused-imports` enabled) covers
 a zero-attribution star alongside a used explicit import (removed, `.fixed.kt` companion), a star
@@ -2037,6 +2070,44 @@ the one shape the existing suite hadn't exercised directly), and
 issue #3016's full three-call-deep invoke chain verbatim (the existing `invoke-chain-clean` only
 exercised the minimal two-level case). No open blockers from this installment.
 
+Retroactive upstream-test backfill, wave 2 installment 3 of 4 (2026-07-20): the import family — the
+largest dedup job, ~90 pre-existing fixtures — `no-unused-imports` (ktlint `no-unused-imports` +
+detekt's own, independently implemented `UnusedImport` in `detekt-rules-style`, plus a thin
+`NoUnusedImports` ktlint-wrapper with near-zero additional cases), `no-wildcard-imports` including
+its resolution-powered expansion autofix (ktlint `no-wildcard-imports` + detekt's own
+`WildcardImport` + its ktlint-wrapper), and `import-ordering` (ktlint's four-file `importordering`
+suite — only `ImportOrderingRuleAsciiTest` is in scope per D21, ASCII-only, no layout config;
+`Custom`/`Idea` are confirmed pure editorconfig-grouping variants, out of scope — plus detekt's
+thin `ImportOrdering` wrapper) ported against their real upstream test suites. wrasse's
+resolution-powered semantics deliberately diverge from ktlint's syntactic false positives/negatives
+throughout (KDoc-reference FPs, shadowing, same-simple-name-different-package precision, same-
+package-import handling) — every such upstream case was treated as a documented divergence, not a
+gap, with wrasse's resolution-correct behavior locked instead. Two real bugs found and fixed, both
+small and contained (mechanical/one-line, not engine-shape changes — reported separately below
+where a fix would have been engine-shape): the `import-ordering` sort key not stripping backticks
+(§8.2's `import-ordering` paragraph) and `WildcardExpansionDecision`'s KDoc-coverage bail missing
+the cross-star fold `UnusedStarDecision` already had, an actual D19 idempotence violation, not just
+an asymmetry (§8.2's bail-8 paragraph — both have full detail, including the exact fixtures that
+lock each). 16 new fixtures added across the family, closing gaps upstream porting surfaced that
+no prior installment's fixture set had considered: KDoc `@see`/reference-link
+syntax, operator-convention imports (`combine` infix, `plusAssign`, `rangeTo`/`rangeUntil`),
+`componentN` destructuring via real extension functions, property-delegate providers
+(`provideDelegate`), annotation-argument-only references, class-literal (`::class`) references,
+cross-package same-simple-name overload resolution (two same-named functions in different
+packages, only one call-shape actually resolving — a genuine precision win over both upstream
+tools' simple-name-based matching), same-package explicit-import handling (a real three-way split:
+ktlint always keeps it, detekt always flags it, wrasse is usage-driven and agrees with ktlint only
+when the import is genuinely unused), a no-package-directive star-import shape, and a
+cross-star KDoc-coverage shape (see the bug above). **Two blockers surfaced and deliberately not
+fixed in-task, both requiring an owner call before any implementation — tracked in §14: (1)** an
+alias-identity blind spot in `UnusedImportDecision` (two same-FQN imports under different aliases,
+only one used — the unused one is silently never flagged, since `WResolvedUsage`'s classifier/
+callable sets are keyed by resolved target, not by which import directive brought it into scope);
+**(2)** no mechanism anywhere in `ImportEngine` detects or removes exact-duplicate import
+directives at all (ktlint's own, long-standing "Duplicate 'import ...' found" behavior has no
+wrasse equivalent, for either explicit imports or stars whose target is actually used). Both are
+facade/engine-shape changes, not contained fixes — flagged for the owner, not attempted here.
+
 ### Phase A remainder — config & severity polish
 
 - ~~`@Suppress("rule-id")` at expression and declaration scope.~~ **Done 2026-07-19** — shipped at
@@ -2376,3 +2447,34 @@ a separate `ktlint -F` invocation on the same files.
   `wrasseFix` task because root `build.gradle.kts` has no test source set of its own and the real
   task spans the whole multi-module build — disproportionate for what is a generic
   fork/propagate question, decoupled from any wrasse-specific logic.
+- **Blocker, flagged not fixed (wave-2 installment-3 backfill, 2026-07-20): alias-identity blind
+  spot in `UnusedImportDecision` — a silent false negative.** `matchesClassifier`/`matchesCallable`
+  key purely on the import's own FQN; `WResolvedUsage.classifiers`/`callables` are whole-file,
+  deduplicated `Set`s keyed by resolved target, not by "which import directive brought this into
+  scope." Two import directives of the identical target FQN with different (or no) aliases are
+  legal, compiling Kotlin (confirmed elsewhere in this same section — the alias-blind-exclusion
+  fix in `no-wildcard-imports` expansion), e.g. `import foo.Bar as Bar1` / `import foo.Bar as
+  Bar2` with only `Bar1()` ever called: `matchesClassifier("foo.Bar", classifiers)` returns `true`
+  for **both** records, since the classifier set only records the resolved target, not which
+  alias reached it — `Bar2`'s dead import is silently kept forever, never reported. Only the
+  KDoc/comment textual fallback is alias-aware; the two primary classifier/callable branches are
+  not. Not a fixture-only gap: fixing it for real needs per-occurrence usage data (which import
+  directive a given reference actually went through), not the current whole-file `Set` facade —
+  the same shape of facade work `no-unnecessary-fqn`'s `qualifiedUsages`/`identifierOccurrences`
+  already carries, extended to `no-unused-imports`. Flagged as a blocker rather than fixed
+  in-task: touches `WResolvedUsage`'s facade shape, high blast radius, an owner call.
+- **Blocker, flagged not fixed (wave-2 installment-3 backfill, 2026-07-20): no mechanism anywhere
+  in `ImportEngine` detects or removes exact-duplicate import directives.** Ktlint's own
+  `ImportOrderingRule` treats a literal duplicate `ImportPath` (identical FQN and alias) as
+  unconditionally reportable and auto-removable — `"Duplicate 'import a.b.C' found"` — regardless
+  of whether the shared target is used; this is core, long-standing upstream behavior (ktlint
+  issue 1243's regression test), found porting `ImportOrderingRuleIdeaTest`/`-AsciiTest`. Wrasse
+  has no equivalent anywhere in the fused engine: `UnusedImportDecision` loops directives
+  independently with no cross-directive "have I seen this exact FQN+alias already" check, and
+  `UnusedStarDecision`/`WildcardExpansionDecision`'s star-duplicate bail only covers the
+  zero-attribution case, never "duplicate stars/explicit imports whose target *is* actually
+  used." A realistic, common pattern (merge-conflict duplicate imports, copy-paste) that ktlint
+  actively cleans up and wrasse currently cannot touch at all. Flagged as a blocker rather than
+  fixed in-task: a genuinely new decision path (which duplicate survives, the message, how it
+  composes with `import-ordering`'s own re-sort and `no-unused-imports`' removal), not a contained
+  bug fix — an owner call on scope, not an implementation detail.

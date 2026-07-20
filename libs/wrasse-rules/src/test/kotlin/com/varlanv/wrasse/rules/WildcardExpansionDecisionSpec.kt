@@ -40,6 +40,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
         val sourceText = "          import p.aux.*\n"
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 10, endOffset = 24),
+            allStars = listOf(star("p.aux", startOffset = 10, endOffset = 24)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -59,6 +60,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("attribute a nested classifier to its top-level owner only") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -76,6 +78,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("attribute a constructor call whose classFqName/name is the class's own FQN/simple name") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -93,6 +96,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("exclude a symbol already covered by an explicit import of the same FQN") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = listOf(explicitImport("p.aux.Widget")),
             filePackageFqName = "sample",
@@ -110,6 +114,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("NOT exclude a symbol covered only by an ALIASED explicit import of the same FQN, when its plain name is also written") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = listOf(explicitImport("p.aux.Outer", aliasName = "O")),
             filePackageFqName = "sample",
@@ -127,6 +132,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit when an attributed symbol's simple name is also used under a different FQN (conflict shape)") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.auxc1", startOffset = 0, endOffset = 16),
+            allStars = listOf(star("p.auxc1", startOffset = 0, endOffset = 16)),
             duplicatePackages = emptySet(),
             explicitImports = listOf(explicitImport("p.auxc2.Item")),
             filePackageFqName = "sample",
@@ -143,6 +149,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit when an attributed symbol's simple name collides with a default-resolved symbol (flip shape)") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.auxflip", startOffset = 0, endOffset = 18),
+            allStars = listOf(star("p.auxflip", startOffset = 0, endOffset = 18)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -159,6 +166,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("not bail when two stars attribute distinct simple names from different packages (no collision)") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -176,6 +184,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit when a cross-star collision puts the same simple name under two different attributed FQNs") {
         val editForFirstStar = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -188,6 +197,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
         )
         val editForSecondStar = WildcardExpansionDecision.decide(
             star = star("p.aux2", startOffset = 15, endOffset = 30),
+            allStars = listOf(star("p.aux2", startOffset = 15, endOffset = 30)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -205,6 +215,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit on zero attribution") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -221,6 +232,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit when the star's own package equals the file's package") {
         val edit = WildcardExpansionDecision.decide(
             star = star("sample", startOffset = 0, endOffset = 15),
+            allStars = listOf(star("sample", startOffset = 0, endOffset = 15)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -237,6 +249,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit when the star's package is in the caller-supplied duplicate set") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = setOf("p.aux"),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -253,6 +266,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit when the star has no matching resolved import (unresolved)") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -269,6 +283,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit when the star has no matching resolved import at all") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -285,6 +300,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("bail with no edit when the authoritative classification disagrees with the usage-based cross-check") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -302,6 +318,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
         val sourceText = "import p.aux.Widget; import p.aux.*\nval w = Widget()"
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 21, endOffset = 35),
+            allStars = listOf(star("p.aux", startOffset = 21, endOffset = 35)),
             duplicatePackages = emptySet(),
             explicitImports = listOf(explicitImport("p.aux.Widget")),
             filePackageFqName = "sample",
@@ -319,6 +336,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
         val sourceText = "/**\n * See [Gizmo] for details.\n */\nimport p.aux.*"
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 36, endOffset = 50),
+            allStars = listOf(star("p.aux", startOffset = 36, endOffset = 50)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -336,6 +354,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
         val sourceText = "/**\n * See [Widget] for details.\n */\nimport p.aux.*"
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 37, endOffset = 51),
+            allStars = listOf(star("p.aux", startOffset = 37, endOffset = 51)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -350,10 +369,32 @@ class WildcardExpansionDecisionSpec : BaseSpec({
         edit.replacement shouldBe "import p.aux.Widget"
     }
 
+    should("not bail when a KDoc bracket reference's leading segment is covered only by a sibling star's own attribution") {
+        val sourceText = "/**\n * See [Sensor] for details.\n */\nimport p.aux.*\nimport p.aux2.*"
+        val starAux = star("p.aux", startOffset = 37, endOffset = 51)
+        val starAux2 = star("p.aux2", startOffset = 52, endOffset = 67)
+        val edit = WildcardExpansionDecision.decide(
+            star = starAux,
+            allStars = listOf(starAux, starAux2),
+            duplicatePackages = emptySet(),
+            explicitImports = emptyList(),
+            filePackageFqName = "sample",
+            classifiers = setOf("p.aux.Widget", "p.aux2.Sensor"),
+            callables = emptySet(),
+            writtenIdentifiers = setOf("Widget", "Sensor"),
+            kdocSpans = listOf(0 until 36),
+            sourceText = sourceText,
+            resolvedImports = packageStar("p.aux") + packageStar("p.aux2"),
+        )
+        edit.shouldNotBeNull()
+        edit.replacement shouldBe "import p.aux.Widget"
+    }
+
     should("not bail when a qualified KDoc bracket reference's leading segment is covered by an explicit import") {
         val sourceText = "/**\n * See [Widget.Nested] for details.\n */\nimport p.aux.*"
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 44, endOffset = 58),
+            allStars = listOf(star("p.aux", startOffset = 44, endOffset = 58)),
             duplicatePackages = emptySet(),
             explicitImports = listOf(explicitImport("p.aux.Widget")),
             filePackageFqName = "sample",
@@ -371,6 +412,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("sort ASCII: uppercase-leading symbols before lowercase-leading ones") {
         val edit = WildcardExpansionDecision.decide(
             star = star("kotlin.math", startOffset = 0, endOffset = 21),
+            allStars = listOf(star("kotlin.math", startOffset = 0, endOffset = 21)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -391,6 +433,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("GATE: keep a classifier attribution whose simple name is written somewhere in the file") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -408,6 +451,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("GATE: drop a classifier attribution whose simple name is never written (inference-only usage)") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -424,6 +468,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("GATE: drop a member-callable attribution whose owner's simple name is never written (instance-member access)") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -440,6 +485,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("GATE: keep a top-level callable attribution even when its name is never written (operator/componentN/invoke conventions)") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux", startOffset = 0, endOffset = 14),
+            allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -457,6 +503,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("MEMBER-STAR: expand a used enum entry (isStatic) to an explicit import") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux.Status", startOffset = 0, endOffset = 21),
+            allStars = listOf(star("p.aux.Status", startOffset = 0, endOffset = 21)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -474,6 +521,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("MEMBER-STAR: expand only the subset of used enum entries, ASCII-sorted") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux.Status", startOffset = 0, endOffset = 21),
+            allStars = listOf(star("p.aux.Status", startOffset = 0, endOffset = 21)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -494,6 +542,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("MEMBER-STAR: expand a used nested classifier to an explicit import") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux.MyClass", startOffset = 0, endOffset = 23),
+            allStars = listOf(star("p.aux.MyClass", startOffset = 0, endOffset = 23)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -511,6 +560,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("MEMBER-STAR: SKIP a non-static instance member entirely, bailing on the resulting zero attribution") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux.MyClass", startOffset = 0, endOffset = 23),
+            allStars = listOf(star("p.aux.MyClass", startOffset = 0, endOffset = 23)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -527,6 +577,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("MEMBER-STAR: expand the legal member while SKIPPING a mixed-in non-static instance member") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux.MyClass", startOffset = 0, endOffset = 23),
+            allStars = listOf(star("p.aux.MyClass", startOffset = 0, endOffset = 23)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -547,6 +598,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("MEMBER-STAR: SKIP a same-classFqName constructor call — it never resolves through the star") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux.MyClass", startOffset = 0, endOffset = 23),
+            allStars = listOf(star("p.aux.MyClass", startOffset = 0, endOffset = 23)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -567,6 +619,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("MEMBER-STAR: bail with no edit on zero attribution (no-unused-imports/engine territory)") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux.Status", startOffset = 0, endOffset = 21),
+            allStars = listOf(star("p.aux.Status", startOffset = 0, endOffset = 21)),
             duplicatePackages = emptySet(),
             explicitImports = emptyList(),
             filePackageFqName = "sample",
@@ -583,6 +636,7 @@ class WildcardExpansionDecisionSpec : BaseSpec({
     should("MEMBER-STAR: bail with no edit when an attributed member's simple name collides with a different FQN") {
         val edit = WildcardExpansionDecision.decide(
             star = star("p.aux.Status", startOffset = 0, endOffset = 21),
+            allStars = listOf(star("p.aux.Status", startOffset = 0, endOffset = 21)),
             duplicatePackages = emptySet(),
             explicitImports = listOf(explicitImport("p.other.ACTIVE")),
             filePackageFqName = "sample",

@@ -5,9 +5,12 @@ import com.varlanv.wrasse.lang.WEdit
 /**
  * One import directive's own span and verbatim source text, in document order, as recorded by
  * [ImportEngine] off the leaf stream. [sortKey] is the directive's own text with the
- * leading `import` keyword and its following whitespace stripped — `import a.b.C` sorts by
- * `a.b.C`, `import a.b.C as D` sorts by `a.b.C as D` (so aliased duplicates of the same FQN order
- * deterministically by their alias), `import a.b.*` sorts by `a.b.*`.
+ * leading `import` keyword and its following whitespace stripped and every backtick removed —
+ * `import a.b.C` sorts by `a.b.C`, `import a.b.C as D` sorts by `a.b.C as D` (so aliased
+ * duplicates of the same FQN order deterministically by their alias), `import a.b.*` sorts by
+ * `a.b.*`, `` import a.b.`when` `` sorts by `a.b.when` (matching ktlint's own
+ * `import.toString().replace("`", "")` comparator — a backtick-quoted identifier sorts by its
+ * plain letters, not by the backtick's own ASCII value, which sorts before every letter).
  */
 class ImportOrderingRecord(
     val startOffset: Int,
@@ -24,7 +27,7 @@ class ImportOrderingRecord(
  */
 object ImportOrderingDecision {
 
-    fun sortKeyOf(directiveText: String): String = directiveText.removePrefix("import").trimStart()
+    fun sortKeyOf(directiveText: String): String = directiveText.removePrefix("import").trimStart().replace("`", "")
 
     /** The first record (in document order) whose position disagrees with ascending [ImportOrderingRecord.sortKey] order, or `null` if already sorted. */
     fun firstOutOfOrder(records: List<ImportOrderingRecord>): ImportOrderingRecord? {

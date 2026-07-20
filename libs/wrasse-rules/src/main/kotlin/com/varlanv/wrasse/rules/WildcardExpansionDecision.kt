@@ -49,9 +49,14 @@ class StarImportRecord(
  *    ambiguity here (including cross-star collisions) bails rather than risk emitting a wrong or
  *    behavior-flipping import.
  * 6. A KDoc `[Name]`/`[qualified.Name]` reference's leading segment isn't covered by an explicit
- *    import's visible name or this star's own attributed names
- *    ([StarAttribution.kdocReferencesUncovered]) — such references resolve through imports
- *    invisibly to FIR, so an uncovered one can't be verified safe.
+ *    import's visible name, this star's own attributed names, or any *other* star's own attributed
+ *    names ([StarAttribution.kdocReferencesUncovered]) — such references resolve through imports
+ *    invisibly to FIR, so an uncovered one can't be verified safe. Folding in every other star's
+ *    attribution (not just this star's own) mirrors [UnusedStarDecision]'s identical loop — without
+ *    it, a reference covered only by a sibling star would bail here on pass 1 but stop bailing once
+ *    that sibling star is itself expanded into explicit imports on a later pass, violating the D19
+ *    idempotence invariant (`fix(fix(x)) != fix(x)`, since pass 2 would then expand what pass 1 left
+ *    untouched).
  *
  * Otherwise the star directive is replaced with one ASCII-sorted `import P.x` per attributed
  * symbol.
@@ -60,6 +65,7 @@ object WildcardExpansionDecision {
 
     fun decide(
         star: StarImportRecord,
+        allStars: List<StarImportRecord>,
         duplicatePackages: Set<String>,
         explicitImports: List<ImportRecord>,
         filePackageFqName: String,
@@ -91,6 +97,20 @@ object WildcardExpansionDecision {
 
         val coveredNames = explicitImports.mapTo(mutableSetOf()) { it.aliasName ?: it.simpleName }
         filtered.mapTo(coveredNames) { it.substringAfterLast('.') }
+        for (other in allStars) {
+            if (other === star) continue
+            when (StarAttribution.classify(other.packageFqName, resolvedImports, callables)) {
+                StarClassification.MEMBER ->
+                    StarAttribution.attributedMembers(other.packageFqName, classifiers, callables, writtenIdentifiers)
+                        .mapTo(coveredNames) { it.substringAfterLast('.') }
+
+                StarClassification.PACKAGE ->
+                    StarAttribution.attributedSymbols(other.packageFqName, classifiers, callables, writtenIdentifiers)
+                        .mapTo(coveredNames) { it.substringAfterLast('.') }
+
+                StarClassification.UNRESOLVED_OR_AMBIGUOUS -> {}
+            }
+        }
         if (StarAttribution.kdocReferencesUncovered(kdocSpans, sourceText, coveredNames)) return null
 
         val replacement = filtered.joinToString("\n") { "import $it" }

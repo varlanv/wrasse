@@ -216,6 +216,7 @@ class ImportEngine : WUninitializedRuleGroup {
                     val edit = usableUsage?.let {
                         WildcardExpansionDecision.decide(
                             star = star,
+                            allStars = starImports,
                             duplicatePackages = duplicatePackages,
                             explicitImports = directives,
                             filePackageFqName = filePackageFqName,
