@@ -2108,6 +2108,54 @@ directives at all (ktlint's own, long-standing "Duplicate 'import ...' found" be
 wrasse equivalent, for either explicit imports or stars whose target is actually used). Both are
 facade/engine-shape changes, not contained fixes — flagged for the owner, not attempted here.
 
+Retroactive upstream-test backfill, wave 2 installment 4 of 4 (2026-07-20): `modifier-order`
+(ktlint's own `ModifierOrderRuleTest` + detekt's own, independently implemented `ModifierOrderSpec`
+— its ktlint-wrapper `ModifierOrdering` is a thin re-export, zero additional cases, per B.2 above)
+ported against their real upstream test suites. One genuine bug found, not a wrasse logic defect —
+escalated as an engine-shape blocker rather than papered over in-task (full detail in §14): a real
+Kotlin 2.1.x `K2JVMCompiler` crashes during Fir2Ir lowering (`IllegalStateException` in
+`Fir2IrDeclarationStorage.findContainingIrClassSymbol`) compiling the *fixed* output of detekt's own
+`data internal class Test(val test: String)` case — i.e. wrasse's own correct reorder,
+`internal data class ...`, not the reported-as-wrong input — confirmed deterministic (reproduced
+twice) via the real `testMinorHarness` idempotence check, absent on Kotlin 2.2/2.3/2.4, and
+unaffected by renaming every identifier in the fixture, so it is specific to the `data`+`internal`
+modifier pair's *textual order*, not incidental to the fixture's naming choices. Every other ported
+case passed against the shipped engine on the first try. ktlint's context-receiver/context-
+parameter cases (`Issue 3027`) map to the already-documented annotations/context-lists-untouchable
+divergence (B.2 above): each case has only one real comparable keyword once the context list and
+its annotation are excluded, so it is trivially non-violating under wrasse regardless, and — like
+the `expect`/`actual` shapes — isn't real-compilable in the fixture matrix without an experimental
+flag; no new test needed beyond the existing generic fewer-than-two-keywords coverage. Three detekt
+cases (`private actual class Test`, `annotation expect class Test`, both `compile = false` in
+detekt's own harness, plus the `data`/`internal` pair above once its real-compile crash was found)
+are real-compile-inexpressible across the full supported matrix and were ported as six new
+`ModifierOrderDecisionSpec` cases instead (violation + already-ordered clean for each pair),
+following the same real-compile-inexpressible-goes-to-the-decision-spec precedent B.2 itself set
+for `expect`/`actual`. Eight new fixtures added, closing gaps neither upstream case-by-case porting
+nor the original ship-time probing had locked as end-to-end fixtures: a visibility/`tailrec` swap
+(ktlint's `protected`/`tailrec` and detekt's `private`/`tailrec` cases deduped to one shape, same
+canonical pair), an `override`-centric 3-violation member soup (visibility/`override`,
+`suspend`/`override`, `tailrec`/`override`, ktlint's own real test verbatim), an `open`/`override`
+swap on a real overriding function (detekt's own real test shape), a 3-keyword swap with two
+annotations interspersed among real keywords on a real overriding+suspend function (locks the
+same same-span-edit/annotations-never-move behavior the decision spec already unit-tested, now
+end-to-end against a real compile) paired in the same file with the single-real-keyword-plus-
+annotation clean shape (ktlint flags this, wrasse doesn't — divergence, by construction, since one
+keyword is always trivially ordered), a multi-line array-valued-annotation prefix before a
+`suspend`/visibility swap (stresses report-span/offset tracking isn't confused by a large
+annotation blob before the modifier list), a `const`/`internal` swap on a companion object member
+(as opposed to the existing `companion-object-error` fixture's swap on the `companion` keyword
+itself), and a comment-adjacent-but-already-ordered clean shape (detekt's own real assertion that a
+comment between two correctly-ordered keywords never reports — trivially implied by
+`isAlreadyOrdered`'s check running before the comment bail, but locked end-to-end anyway for
+upstream parity). `vararg-parameter-error`, `fun-interface-keyword-ignored-clean`, and
+`value-class-keyword-ignored-clean` were confirmed verbatim matches of detekt's own real
+`a vararg argument`/`fun interface`/`value class` tests (already ported at ship time); detekt's
+`a kt parameter with modifiers` (`lateinit`/`internal`) and `an overridden function` clean case were
+confirmed subsumed by the existing multi-modifier-soup and generic fewer-than-two-keywords coverage
+respectively — no new fixture needed for either. Both upstream checkouts left byte-clean (no
+probing needed this round; upstream sources were only read, never modified).
+
 ### Phase A remainder — config & severity polish
 
 - ~~`@Suppress("rule-id")` at expression and declaration scope.~~ **Done 2026-07-19** — shipped at
@@ -2556,3 +2604,29 @@ a separate `ktlint -F` invocation on the same files.
   fixed in-task: a genuinely new decision path (which duplicate survives, the message, how it
   composes with `import-ordering`'s own re-sort and `no-unused-imports`' removal), not a contained
   bug fix — an owner call on scope, not an implementation detail.
+- **Blocker, flagged not fixed (wave-2 installment-4 backfill, 2026-07-20): `modifier-order`'s
+  autofix can produce code that crashes Kotlin 2.1.x's own backend for at least the `data`+
+  `internal` reorder.** Porting detekt's own real `data internal class Test(val test: String)`
+  case (`kt classes with modifiers`) into an end-to-end fixture, `testMinorHarness`'s idempotence
+  check (§11, D19) failed *only* on Kotlin 2.1 (2.2/2.3/2.4 all green): round 1 (the reported-as-
+  wrong `data internal class ...`) compiles cleanly, but round 2 — the applied fix, wrasse's own
+  *correct* reorder to `internal data class ...` — crashes the real `K2JVMCompiler`'s Fir2Ir
+  lowering phase with `java.lang.IllegalStateException` at
+  `Fir2IrDeclarationStorage.findContainingIrClassSymbol`. Confirmed deterministic (reproduced
+  running the same task twice) and confirmed specific to the two keywords' textual order, not
+  incidental to the fixture: renaming every identifier in the file (class name, constructor
+  parameter name) left the crash unchanged. This is a genuine Kotlin 2.1.x compiler defect, not a
+  wrasse logic bug — modifier order carries no FIR/IR semantics upstream, so kotlinc's own backend
+  should be insensitive to it — but wrasse's single JAR ships one behavior across the entire
+  2.1–2.4 matrix (§10) with no mechanism for a rule to know, or condition its edits on, the exact
+  Kotlin patch version compiling the host project. Concretely: a real project still on Kotlin 2.1.x
+  running `wrasseFix` on a `data`+`internal`-ordered class today would have its build broken by
+  this specific fix. Not fixed in-task: there is no contained change available in `modifier-order`
+  or `ModifierOrderDecision` itself (the reorder logic is correct; the target compiler is buggy),
+  and adding target-Kotlin-version awareness to a rule's edit decision would be new, cross-cutting
+  infrastructure with no precedent anywhere in the rule model — an owner call on whether/how to
+  build it (a version-conditioned edit suppression facade), not an implementation detail. Locked
+  instead as a compiler-free `ModifierOrderDecisionSpec` pair (violation + already-ordered clean),
+  matching the same real-compile-inexpressible precedent used for `expect`/`actual`, since it
+  cannot be an end-to-end fixture without breaking the very version matrix `testMinorHarness`
+  exists to guard.

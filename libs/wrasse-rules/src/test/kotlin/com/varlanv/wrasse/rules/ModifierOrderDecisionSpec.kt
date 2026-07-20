@@ -121,4 +121,61 @@ class ModifierOrderDecisionSpec : BaseSpec({
         verdict.expectedOrder shouldBe "expect actual"
         verdict.edits.size shouldBe 2
     }
+
+    should("swap a visibility keyword ahead of actual, matching detekt's own real assertion") {
+        val source = "actual private class Test"
+        val keywords = listOf(occurrence(source, "actual", 5), occurrence(source, "private", 2))
+
+        val verdict = ModifierOrderDecision.decide(keywords, source, hasComment = false)!!
+
+        verdict.expectedOrder shouldBe "private actual"
+        verdict.edits.size shouldBe 2
+    }
+
+    should("report no violation for a visibility keyword already ahead of actual") {
+        val source = "private actual class Test"
+        val keywords = listOf(occurrence(source, "private", 2), occurrence(source, "actual", 5))
+
+        ModifierOrderDecision.decide(keywords, source, hasComment = false) shouldBe null
+    }
+
+    should("swap expect ahead of the annotation-class keyword, matching detekt's own real assertion") {
+        val source = "annotation expect class Test"
+        val keywords = listOf(occurrence(source, "annotation", 19), occurrence(source, "expect", 4))
+
+        val verdict = ModifierOrderDecision.decide(keywords, source, hasComment = false)!!
+
+        verdict.expectedOrder shouldBe "expect annotation"
+        verdict.edits.size shouldBe 2
+    }
+
+    should("report no violation for expect already ahead of the annotation-class keyword") {
+        val source = "expect annotation class Test"
+        val keywords = listOf(occurrence(source, "expect", 4), occurrence(source, "annotation", 19))
+
+        ModifierOrderDecision.decide(keywords, source, hasComment = false) shouldBe null
+    }
+
+    should("swap internal ahead of data, matching detekt's own real assertion") {
+        // Compiler-free only: a real Kotlin 2.1.x K2JVMCompiler crashes during Fir2Ir lowering
+        // (`Fir2IrDeclarationStorage.findContainingIrClassSymbol`, IllegalStateException) on the
+        // *fixed* text "internal data class Foo(...)" specifically — confirmed via the real
+        // testMinorHarness idempotence check, not reproducible by swapping the identifiers, and
+        // absent on 2.2/2.3/2.4 — so this pair cannot be locked as an end-to-end fixture across
+        // the supported Kotlin matrix. See design.md §14.
+        val source = "data internal class Foo"
+        val keywords = listOf(occurrence(source, "data", 24), occurrence(source, "internal", 3))
+
+        val verdict = ModifierOrderDecision.decide(keywords, source, hasComment = false)!!
+
+        verdict.expectedOrder shouldBe "internal data"
+        verdict.edits.size shouldBe 2
+    }
+
+    should("report no violation for internal already ahead of data") {
+        val source = "internal data class Foo"
+        val keywords = listOf(occurrence(source, "internal", 3), occurrence(source, "data", 24))
+
+        ModifierOrderDecision.decide(keywords, source, hasComment = false) shouldBe null
+    }
 })
