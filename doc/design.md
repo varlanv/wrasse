@@ -4858,6 +4858,82 @@ verbatim. Failing-first per the dogfood hard rule:
 `format-raw-strings/whitespace-only-line-bail-clean.kt` (expect-clean, failed before the fix,
 passes after) plus a `DocBuilderSpec` untouched-rendering case.
 
+#### Phase C test backfill — porting upstream ktlint/detekt rule-test suites onto the printer fixtures, 2026-07-21
+
+A dedicated pass over the local `ktlint`/`detekt` checkouts' own rule test suites (read-only,
+confirmed byte-clean throughout, never the internet) for every printer family C.5–C.12, enumerating
+each upstream test case and classifying it: already covered by an existing fixture, worth porting as
+a new one, out of scope per an already-documented preserved-verbatim/D21 decision, or upstream-
+config-specific (a non-default `.editorconfig`/code-style axis with no wrasse analog). New fixtures
+were added to the existing per-family directories only — no production code, no existing fixture, no
+`wrasse.json`/`wrasse-schema.json` touched.
+
+**Coverage table** (per family; counts are approximate tallies across each family's upstream rule
+test files, not a strict per-`@Test` count):
+
+| Family (dir) | (a) already-covered | (b) newly-ported | (c) out-of-scope (cited) | (d) config-skip |
+|---|---|---|---|---|
+| C.5 spacing (`format-spacing/`) | ~120 | 18 | ~85 (§13 C.5's own preserved-verbatim list; D21's erased code-style axis) | ~5 |
+| C.6 blank-line caps (`format-blank-lines/`) | ~30 | 13 | ~13 (§13 C.6's "deliberately not implemented" list) | ~15 |
+| C.7/C.9 signatures/annotations (`format-signatures/`, `format-class-signatures/`, `format-annotations/`) | ~120 | 34 | ~90 (§13 C.7/C.9's own preserved-not-guessed lists; the printer contract) | ~50 |
+| C.8 trailing commas (`format-trailing-commas/`) | ~10 | 7 | ~20 (§13 C.8's own preserved-not-guessed list) | ~11 + detekt duplicates |
+| C.10 wrapping cluster (`format-wrapping/`) | ~18 | 13 | ~26 (§13 C.10's own three-bucket map "(c) preserved" rows) | ~1 |
+| C.11 declaration blank-line insertion (`format-declaration-blank-lines/`) | ~33 | 12 | ~9 (§13 C.11's own preserved-not-guessed list) | ~2 |
+| C.12 comment-spacing/raw-string indent (`format-comment-spacing/`, `format-raw-strings/`) | ~20 | 10 | ~19 (§13 C.12's own preserved-verbatim/eligibility-bail list) | ~4 |
+
+**Found bugs (quarantined, not fixed — production code and existing fixtures are out of this wave's
+scope).** Four distinct real gaps, each demonstrated by one or more fixtures moved to
+`testing/wrasse-test-harness/src/main/resources/fixtures-backfill-failing/<family>/` (a sibling of
+`fixtures/`, not scanned by `wrasse.fixtures.dir` — excluded from the harness by construction, not by
+any test-code change):
+
+1. **A `PROPERTY_ACCESSOR` (`get()`/`set()`) is never given its own indent level relative to the
+   property it belongs to** — the printer renders an accessor at the *same* depth as its owning
+   `PROPERTY`, not one level deeper, contradicting ordinary Kotlin style and every fixture's own
+   expectation. Reproduced independently by four fixtures, both top-level and class-body-scoped, both
+   with and without an accessor annotation: `fixtures-backfill-failing/format-declaration-blank-lines/
+   {annotated-first-accessor-clean.kt, consecutive-properties-with-accessors-clean.kt,
+   property-accessor-annotation-forces-error.{kt,fixed.kt}}`,
+   `fixtures-backfill-failing/format-spacing/property-accessor-keyword-paren-spacing-error.{kt,fixed.kt}`.
+   Actual vs expected (from `property-accessor-annotation-forces-error`): expected
+   `get() = field` / `set(value) { ... }` indented 4/8 spaces under `var foo: Boolean = false`; actual
+   renders both at column 0, flush with the property itself.
+2. **A comment nested inside a property's own initializer expression (after `=`, before the value) is
+   misread as that property's leading comment**, incorrectly forcing a blank-line-before-declaration
+   insertion above an unrelated *preceding* property, defeating the documented "two consecutive
+   properties, no force" carve-out (§13 C.11). `fixtures-backfill-failing/format-declaration-blank-
+   lines/comment-inside-initializer-not-leading-clean.kt` (`val foo =\n    // comment inside
+   initializer\n    "foo"` — expected clean/unchanged, actually receives the `format` diagnostic).
+3. **A trailing/attached comment defeats two of C.6's documented forced-newline special cases**,
+   whose structural-adjacency checks appear to key off a direct sibling-type pair that a comment's
+   presence disrupts: (a) the class-name-identifier→`PRIMARY_CONSTRUCTOR` zero-blank-line rule, when
+   a trailing `// comment` sits on the class-name line before the blank line
+   (`fixtures-backfill-failing/format-blank-lines/class-primary-constructor-comment-before-blank-line-
+   error.{kt,fixed.kt}}` — expected the blank line collapsed to zero; actual leaves it untouched, no
+   diagnostic at all); (b) the `PACKAGE_DIRECTIVE`→`IMPORT_LIST` forced-blank-line insertion, when a
+   comment sits directly between the package statement and the import
+   (`fixtures-backfill-failing/format-blank-lines/package-import-comment-attachment-error.{kt,
+   fixed.kt}` — expected a blank line inserted before the comment; actual leaves the file untouched).
+4. **The printer's reformatted output for two unrelated constructs (a `data class` with a supertype
+   forced multi-line by the parameter-count threshold, and a sequence of adjacent top-level
+   declarations gaining C.11-forced blank lines) crashes the Kotlin 2.1 compiler backend** during IR
+   lowering (`BackendException`, root cause `IllegalStateException` at
+   `Fir2IrDeclarationStorage.findContainingIrClassSymbol`) — reproducible, isolated to the
+   `wrasse-kotlinc-plugin-tests-2-1-x` module only (2.2/2.3/2.4 compile the identical reformatted
+   text without incident), caught by the D19 idempotence harness's own "a fix must never turn
+   compiling code into code that no longer compiles" check.
+   `fixtures-backfill-failing/format-class-signatures/data-class-supertype-join-error.{kt,fixed.kt}`,
+   `fixtures-backfill-failing/format-declaration-blank-lines/object-declaration-sequence-error.{kt,
+   fixed.kt}`. Whether this is a genuine Kotlin 2.1 compiler defect (most likely, given the crash
+   trace) or a wrasse-side shape the fix should avoid producing on that minor is unresolved — flagged
+   for owner triage, not diagnosed further here.
+
+**Totals:** 173 new fixture files added across the ten family directories; 19 files (9 distinct
+fixtures) quarantined under `fixtures-backfill-failing/` demonstrating the 4 bugs above. Full ladder
+(`build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`, `testPatchHarness`, `wrasseLint
+-Prepublish`) green against the resulting fixture set. `ktlint`/`detekt` checkouts confirmed
+byte-clean (`git status`) throughout — read-only.
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.
