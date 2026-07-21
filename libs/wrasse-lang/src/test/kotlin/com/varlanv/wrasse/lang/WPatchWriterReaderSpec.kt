@@ -105,13 +105,13 @@ class WPatchWriterReaderSpec :
                 should("skip empty lines") {
                     val input = """
                         # wrasse-fixes v1
-                        
+
                         file:src/Foo.kt
-                        
+
                         hash:abc
-                        
+
                         edit:0:1:
-                        
+
                         """
                         .trimIndent()
                     val result = WPatchReader.read(input)

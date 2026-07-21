@@ -19,15 +19,15 @@ open class QualifiedUsageCorrelationSpec :
                     "sample/aux/Aux.kt",
                     """
                         package sample.aux
-                        
+
                         annotation class A
-                        
+
                         object C {
                             fun staticLike(): Int = 1
-                        
+
                             class Nested
                         }
-                        
+
                         enum class Color {
                             RED,
                             GREEN,
@@ -76,9 +76,9 @@ open class QualifiedUsageCorrelationSpec :
                     "sample/aux/Widget.kt",
                     """
                         package sample.aux
-                        
+
                         class Widget
-                        
+
                         typealias WidgetAlias = Widget
                         """
                         .trimIndent(),
@@ -87,7 +87,7 @@ open class QualifiedUsageCorrelationSpec :
                     "sample/AliasSample.kt",
                     """
                         package sample
-                        
+
                         class AliasSample {
                             val w: sample.aux.WidgetAlias = sample.aux.Widget()
                         }

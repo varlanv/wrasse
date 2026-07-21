@@ -60,15 +60,14 @@ class InternalFailureIsolationSpec :
                 "warn once with the exception type and message, skip this file's own wrasse diagnostics, " +
                     "and still let kotlinc report its own compile error for the same file",
             ) {
-                val crashingSource = "sample/Sample.kt" to
-                    """
+                val crashingSource = "sample/Sample.kt" to """
                     package sample
-                    
+
                     private val wrasseCrashTestMarker = 0
-                    
+
                     fun sample(): Int = 1
                     """
-                        .trimIndent()
+                    .trimIndent()
 
                 val crashResult = compileWithThrowingRule(listOf(crashingSource))
 
@@ -101,23 +100,21 @@ class InternalFailureIsolationSpec :
             }
 
             should("not suppress a second file's normal wrasse diagnostics when the first file's rule throws") {
-                val crashing = "sample/Crash.kt" to
-                    """
+                val crashing = "sample/Crash.kt" to """
                     package sample
-                    
+
                     val wrasseCrashTestMarker = 0
                     """
-                        .trimIndent()
-                val clean = "sample/Clean.kt" to
-                    """
+                    .trimIndent()
+                val clean = "sample/Clean.kt" to """
                     package sample
-                    
+
                     fun sampleB(): Int {
                         val x = 1;
                         return x
                     }
                     """
-                        .trimIndent()
+                    .trimIndent()
 
                 val result = compileWithThrowingRule(listOf(crashing, clean), withEditingRule = true)
 
@@ -135,17 +132,16 @@ class InternalFailureIsolationSpec :
             should("discard already-collected edits from another rule when a later rule throws mid-walk") {
                 val fixOutputDir = Files.createTempDirectory("wrasse-throwing-rule-patch-")
                 try {
-                    val source = "sample/Sample.kt" to
-                        """
+                    val source = "sample/Sample.kt" to """
                         package sample
-                        
+
                         fun sample(): Int {
                             val x = 1;
                             val wrasseCrashTestMarker = 0
                             return x
                         }
                         """
-                            .trimIndent()
+                        .trimIndent()
 
                     val result = compileWithThrowingRule(listOf(source), fixOutputDir = fixOutputDir, withEditingRule = true)
 

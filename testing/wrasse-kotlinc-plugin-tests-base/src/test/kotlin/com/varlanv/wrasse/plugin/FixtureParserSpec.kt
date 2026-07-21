@@ -107,16 +107,15 @@ class FixtureParserSpec :
             }
 
             should("strip trailing blank lines from source") {
-                val fixture = FixtureParser
-                    .parse(
-                        """
+                val fixture = FixtureParser.parse(
+                    """
                         package sample
                         val x = 1
-                        
+
                         // expect-clean
                         """
-                            .trimIndent(),
-                    )
+                        .trimIndent(),
+                )
                 fixture.strippedSource shouldBe "package sample\nval x = 1"
             }
         },

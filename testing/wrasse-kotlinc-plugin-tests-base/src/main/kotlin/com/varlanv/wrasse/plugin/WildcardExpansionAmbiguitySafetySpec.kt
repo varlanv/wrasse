@@ -28,7 +28,7 @@ open class WildcardExpansionAmbiguitySafetySpec :
                     "sample/auxc1/Aux1.kt",
                     """
                         package sample.auxc1
-                        
+
                         class Item {
                             companion object {
                                 fun make(): Int = 1
@@ -41,7 +41,7 @@ open class WildcardExpansionAmbiguitySafetySpec :
                     "sample/auxc2/Aux2.kt",
                     """
                         package sample.auxc2
-                        
+
                         class Item
                         """
                         .trimIndent(),
@@ -50,10 +50,10 @@ open class WildcardExpansionAmbiguitySafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         import sample.auxc2.Item
                         import sample.auxc1.*
-                        
+
                         val q = Item()
                         val p = sample.auxc1.Item.make()
                         """
@@ -85,7 +85,7 @@ open class WildcardExpansionAmbiguitySafetySpec :
                     "sample/auxflip/AuxFlip.kt",
                     """
                         package sample.auxflip
-                        
+
                         class List
                         """
                         .trimIndent(),
@@ -94,9 +94,9 @@ open class WildcardExpansionAmbiguitySafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         import sample.auxflip.*
-                        
+
                         val bareList: List<Int> = listOf(1, 2, 3)
                         val qualified = sample.auxflip.List()
                         """

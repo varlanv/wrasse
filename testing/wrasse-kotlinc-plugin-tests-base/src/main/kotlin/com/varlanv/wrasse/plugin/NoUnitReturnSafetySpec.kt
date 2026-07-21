@@ -29,7 +29,7 @@ open class NoUnitReturnSafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun foo(): // trailing comment
                             Unit {}
                         """

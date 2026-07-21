@@ -28,7 +28,7 @@ open class FqnImportInsertionSafetySpec :
                     "sample/aux/Aux.kt",
                     """
                         package sample.aux
-                        
+
                         class Widget
                         """
                         .trimIndent(),
@@ -37,7 +37,7 @@ open class FqnImportInsertionSafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         val w: sample.aux.Widget = TODO()
                         """
                         .trimIndent(),
@@ -68,7 +68,7 @@ open class FqnImportInsertionSafetySpec :
                     "sample/aux/AuxMarker.kt",
                     """
                         package sample.marker
-                        
+
                         @RequiresOptIn
                         annotation class Marker
                         """
@@ -78,9 +78,9 @@ open class FqnImportInsertionSafetySpec :
                     "sample/Sample.kt",
                     """
                         @file:OptIn(sample.marker.Marker::class)
-                        
+
                         package sample
-                        
+
                         val x = 1
                         """
                         .trimIndent(),
@@ -111,7 +111,7 @@ open class FqnImportInsertionSafetySpec :
                     "sample/aux/Aux.kt",
                     """
                         package sample.aux
-                        
+
                         class Widget
                         """
                         .trimIndent(),
@@ -120,9 +120,9 @@ open class FqnImportInsertionSafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         import sample.aux.Widget
-                        
+
                         val w: sample.aux.Widget = TODO()
                         """
                         .trimIndent(),
@@ -153,7 +153,7 @@ open class FqnImportInsertionSafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun f(): kotlin.Unit = Unit
                         """
                         .trimIndent(),

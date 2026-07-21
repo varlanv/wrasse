@@ -24,7 +24,7 @@ open class NoSemicolonsBareConstructBodySafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun f(xs: IntArray) {
                             for (i in xs);
                         }
@@ -47,7 +47,7 @@ open class NoSemicolonsBareConstructBodySafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun f() {
                             while (System.currentTimeMillis() < 0);
                         }
@@ -70,7 +70,7 @@ open class NoSemicolonsBareConstructBodySafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun f(flag: Boolean) {
                             if (flag);
                         }

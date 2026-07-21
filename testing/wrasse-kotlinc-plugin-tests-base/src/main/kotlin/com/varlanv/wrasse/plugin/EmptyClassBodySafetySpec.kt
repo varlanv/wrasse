@@ -28,7 +28,7 @@ open class EmptyClassBodySafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         val anon = object {}
                         """
                         .trimIndent(),

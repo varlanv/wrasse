@@ -27,9 +27,9 @@ open class NoEmptyParensBeforeTrailingLambdaSafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun greet(f: () -> Unit) {}
-                        
+
                         fun main() {
                             greet()
                             { }
@@ -63,12 +63,12 @@ open class NoEmptyParensBeforeTrailingLambdaSafetySpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun greet(f: () -> Unit) {}
-                        
+
                         fun main() {
                             greet()
-                        
+
                             { }
                         }
                         """

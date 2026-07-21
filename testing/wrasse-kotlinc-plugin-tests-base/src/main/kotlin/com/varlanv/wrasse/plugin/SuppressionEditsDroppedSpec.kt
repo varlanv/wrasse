@@ -34,9 +34,9 @@ open class SuppressionEditsDroppedSpec :
                             "sample/test.kt",
                             """
                                 package sample
-                                
+
                                 import kotlin.text.Regex
-                                
+
                                 val x = 1
                                 """
                                 .trimIndent(),

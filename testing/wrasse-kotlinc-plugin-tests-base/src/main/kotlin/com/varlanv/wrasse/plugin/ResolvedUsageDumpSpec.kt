@@ -18,13 +18,13 @@ open class ResolvedUsageDumpSpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         import kotlin.math.abs
                         import kotlin.math.abs as kabs
                         import kotlin.math.absoluteValue
                         import kotlin.math.cbrt
                         import kotlin.text.Regex
-                        
+
                         fun sample(pattern: Regex): Int {
                             val n = abs(-1)
                             val k = kabs(-2)
@@ -53,7 +53,7 @@ open class ResolvedUsageDumpSpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun sample() {
                             unresolvedFunction()
                         }
@@ -74,7 +74,7 @@ open class ResolvedUsageDumpSpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         class Empty
                         """
                         .trimIndent(),
@@ -93,7 +93,7 @@ open class ResolvedUsageDumpSpec :
                     "sample/Sample.kt",
                     """
                             package sample
-                            
+
                             class Empty
                             """
                             .trimIndent() +
@@ -115,9 +115,9 @@ open class ResolvedUsageDumpSpec :
                     "sample/aux/Aux.kt",
                     """
                         package sample.aux
-                        
+
                         open class Base
-                        
+
                         typealias BaseAlias = Base
                         """
                         .trimIndent(),
@@ -126,9 +126,9 @@ open class ResolvedUsageDumpSpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         import sample.aux.BaseAlias
-                        
+
                         class Impl : BaseAlias()
                         """
                         .trimIndent(),
@@ -148,12 +148,12 @@ open class ResolvedUsageDumpSpec :
                     "sample/aux/Aux.kt",
                     """
                         package sample.aux
-                        
+
                         enum class Status {
                             ACTIVE,
                             INACTIVE,
                         }
-                        
+
                         class Widget
                         """
                         .trimIndent(),
@@ -162,10 +162,10 @@ open class ResolvedUsageDumpSpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         import sample.aux.*
                         import sample.aux.Status.*
-                        
+
                         val w = Widget()
                         val s = ACTIVE
                         """
@@ -186,7 +186,7 @@ open class ResolvedUsageDumpSpec :
                     "sample/Sample.kt",
                     """
                         package sample
-                        
+
                         fun sample(): Int = 1
                         """
                         .trimIndent(),

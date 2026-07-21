@@ -28,7 +28,7 @@ open class RedundantVisibilityModifierExplicitApiSpec :
                 "sample/Sample.kt",
                 """
                     package sample
-                    
+
                     public class Foo {
                         public fun bar(): Int = 1
                     }
