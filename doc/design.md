@@ -2332,7 +2332,101 @@ Remaining:
 
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
-- **B.1 — lint-only rules (~129, bucket L).** Report, never fix. Mechanical volume; no new infra.
+- **B.1 — lint-only rules (~129, bucket L) — first installment, the NAMING family, shipped
+  2026-07-21.** Report, never fix — a rename is cross-file and never automatic, so `canAutofix` is
+  false everywhere in this family and no rule attaches a `WEdit`. Dedupe map (28 catalog rows
+  across ktlint/detekt/diktat → 7 wrasse ids):
+
+  | wrasse id | dedupes |
+  |---|---|
+  | `class-naming` | ktlint `class-naming`, detekt `class-naming`, diktat `identifier-naming` (class sub-check) |
+  | `function-naming` | ktlint `function-naming`, detekt `function-naming`, diktat `identifier-naming` (function sub-check) |
+  | `property-naming` | ktlint `property-naming`, detekt `object-property-naming`/`top-level-property-naming`, diktat `identifier-naming` (property sub-check) |
+  | `enum-entry-naming` | ktlint `enum-entry-name-case`, detekt `enum-naming` (entries, not the enum class itself), diktat `identifier-naming` (enum sub-check) |
+  | `package-naming` | ktlint `package-name`, detekt `package-naming`, diktat `package-naming` (unique sub-checks) |
+  | `backing-property-naming` | ktlint `backing-property-naming`; diktat's `implicit-backing-property` is a related consistency check, not separately ported |
+  | `filename` | ktlint `filename` |
+
+  Deferred out of scope for this installment (documented, not silently dropped): detekt's
+  `constructor-parameter-naming`/`function-parameter-naming`/`lambda-parameter-naming`/
+  `variable-naming` (parameter and local-variable naming — a different scope-resolution shape than
+  member/top-level declarations, held for a follow-up batch); `forbidden-class-name` (a
+  user-supplied blocklist, a policy-config shape, not a casing check); `function-name-max-length`/
+  `function-name-min-length`/`variable-max-length`/`variable-min-length` (length metrics, a
+  different config axis than casing); diktat's `parameter-name-in-outer-lambda` (bespoke
+  `it`-naming judgment, a refactoring suggestion more than a casing check).
+
+  Per-rule semantics, exemptions, and where the three catalogs disagree:
+
+  - **`class-naming`** — PascalCase for `class`/`interface`/`object`. Exemptions: a backtick-
+    wrapped Kotlin keyword identifier (e.g. `` `data` ``) always; any backtick-wrapped name when the
+    file imports `org.junit.jupiter.api` (JUnit 5) — an import-based "this is test code" heuristic,
+    since wrasse's streaming model has no test-source-set concept and an import is the only
+    reachable signal (mirrors how the upstream rule this id derives from decides the same thing).
+
+  - **`function-naming`** — lowerCamelCase. Exemptions: an override (the name may be fixed by a
+    supertype outside this project); a factory function — the union of "declared return type equals
+    the function's own name" and "no declared return type, single-expression body is an unqualified
+    call to the same name" (two different catalogs' own factory carve-outs, both kept to minimize
+    false positives); a backtick-wrapped keyword always; in a file importing a known test library
+    (`io.kotest`, `junit.framework`, `kotlin.test`, `org.junit`, `org.testng`) any backtick-wrapped
+    name, or a plain name that may also contain underscores. No Compose `@Composable` carve-out —
+    not a documented exemption in any of the three source catalogs, so not invented here.
+
+  - **`property-naming`** — `const val` must be SCREAMING_SNAKE_CASE (`serialVersionUID` excepted
+    outright regardless of casing); otherwise lowerCamelCase, except: a leading-underscore backing
+    property (owned by `backing-property-naming` instead), a property with a custom getter, a
+    top-level `val`, or an object-member `val` — all three skipped because immutability, and thus
+    whether SCREAMING_SNAKE_CASE was actually intended, cannot be determined without resolution.
+    **Catalog disagreement**: one catalog's own rule leaves top-level/object-member `val` unchecked
+    entirely (its stated reason: can't reliably tell if the value is meant to be immutable);
+    another checks them anyway with a permissive pattern. Adopted the narrower, fewer-report
+    reading. A top-level or object-member `var` is not exempt either way (only `val` triggers the
+    exemption), so still needs plain lowerCamelCase.
+
+  - **`enum-entry-naming`** — PascalCase or SCREAMING_SNAKE_CASE, the union of the two conventions
+    checked side by side rather than picking one. **Catalog disagreement**: the three catalogs'
+    defaults range from "both allowed" to "either style, chosen by config, never both at once" to
+    "very permissive — arbitrary mixed casing after the first letter, not a real convention."
+    Adopted the two-real-conventions union over both the arbitrary-mixed-case permissiveness and
+    the single-style-only default (narrower than needed, would report the other convention).
+
+  - **`package-naming`** — no underscores anywhere; each dot-separated segment starts with a
+    lowercase letter followed by letters or digits (digits and mixed case allowed after a segment's
+    first letter). **Catalog disagreement**: one catalog requires a segment's first run of
+    characters to be pure lowercase letters only (no digits, no mixed case ever); the adopted
+    pattern is the more permissive of the two, reporting strictly fewer files. A corporate reverse-
+    domain-prefix policy (one catalog's own distinct check) is out of scope here — project-specific
+    policy, not a general naming convention.
+
+  - **`backing-property-naming`** — a leading-underscore *member* property (never top-level or
+    local, see narrowing below) must be `_` followed by lowerCamelCase, never on an override. When a
+    same-`CLASS_BODY` sibling property, or a single-empty-parameter-list getter function named
+    `get<Capitalized>`, correlates by name, that sibling must be public. **Narrowed from the
+    upstream rule this id derives from**: that rule also requires the property itself to carry
+    `private`, and reports an unconditional "no matching member" violation whenever none is found
+    in scope at all — including for *every* top-level or local underscore-prefixed identifier,
+    since no correlated-member concept even applies there. wrasse only ever looks for a sibling
+    within the same `CLASS_BODY` (the one reachable unit in the streaming model — no companion-
+    object indirection, no cross-class-body search); when no sibling is found there, the check is
+    skipped rather than reported, and top-level/local identifiers are never targets at all. Both
+    narrowings trade upstream's report volume for zero false positives from context this model
+    can't see. The standalone "must itself be `private`" requirement is dropped too — a visibility
+    convention, not a naming one, and out of this batch's scope.
+
+  - **`filename`** — a file with exactly one non-private top-level `class`/`interface`/`object`
+    must be named after it (exact, case-sensitive match); otherwise the file name must be
+    PascalCase. Folds a single-top-level-`typealias`-or-`object` file, and a file with several
+    top-level declarations where only one "doesn't extend" the sole class, into the same plain
+    PascalCase fallback rather than upstream's more particular per-shape branches — converges to
+    the same outcome whenever the object/typealias name is already properly cased (which
+    `class-naming` already enforces separately), and never reports *more* files than upstream's
+    finer branching would.
+
+  Casing itself is checked with `Char.isUpperCase`/`isLowerCase`/`isLetterOrDigit`
+  (`IdentifierCasing`, shared by all seven decisions) rather than porting an ASCII regex plus a
+  diacritic-normalization utility — Kotlin identifiers admit arbitrary Unicode letters, and
+  character-class checks handle that natively without a bespoke helper used nowhere else.
 - **B.2 — targeted fixes (~14, bucket T) — chain started 2026-07-20 (11/14).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and

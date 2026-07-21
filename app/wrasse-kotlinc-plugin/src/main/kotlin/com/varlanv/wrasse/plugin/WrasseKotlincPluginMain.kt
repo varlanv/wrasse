@@ -8,8 +8,13 @@ import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.rules.BackingPropertyNamingRule
+import com.varlanv.wrasse.rules.ClassNamingRule
 import com.varlanv.wrasse.rules.EmptyDefaultConstructorRule
+import com.varlanv.wrasse.rules.EnumEntryNamingRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
+import com.varlanv.wrasse.rules.FileNamingRule
+import com.varlanv.wrasse.rules.FunctionNamingRule
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
 import com.varlanv.wrasse.rules.LongNumericalValuesRule
@@ -18,6 +23,8 @@ import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
+import com.varlanv.wrasse.rules.PackageNamingRule
+import com.varlanv.wrasse.rules.PropertyNamingRule
 import com.varlanv.wrasse.rules.RangeConventionalRule
 import com.varlanv.wrasse.rules.RedundantConstructorKeywordRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
@@ -33,14 +40,21 @@ private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 /** Every single-id rule wrasse ships. See [registeredRuleGroups] for fused multi-id engines. */
 internal fun registeredRules(): List<WUninitializedRule> =
 listOf(
+    BackingPropertyNamingRule(),
+    ClassNamingRule(),
     EmptyDefaultConstructorRule(),
+    EnumEntryNamingRule(),
     ExplicitItLambdaParameterRule(),
+    FileNamingRule(),
+    FunctionNamingRule(),
     IfElseBracingRule(),
     LongNumericalValuesRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
     NoSemicolonsRule(),
     NoUnitReturnRule(),
+    PackageNamingRule(),
+    PropertyNamingRule(),
     RangeConventionalRule(),
     RedundantConstructorKeywordRule(),
     TrailingNewlineRule(),

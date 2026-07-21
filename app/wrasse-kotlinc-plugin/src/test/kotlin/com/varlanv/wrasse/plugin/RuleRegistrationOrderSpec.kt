@@ -14,24 +14,32 @@ class RuleRegistrationOrderSpec :
         {
 
             should(
-                "register empty-default-constructor, explicit-it-lambda-parameter, if-else-bracing, " +
+                "register backing-property-naming, class-naming, empty-default-constructor, enum-entry-naming, " +
+                    "explicit-it-lambda-parameter, filename, function-naming, if-else-bracing, " +
                     "long-numerical-values, no-empty-class-body, no-empty-parens-before-trailing-lambda, " +
-                    "no-semicolons, no-unit-return, range-conventional, redundant-constructor-keyword, " +
-                    "trailing-newline, trivial-accessors, unnecessary-backticks, unnecessary-inheritance, " +
-                    "and when-entry-bracing as single-id rules",
+                    "no-semicolons, no-unit-return, package-naming, property-naming, range-conventional, " +
+                    "redundant-constructor-keyword, trailing-newline, trivial-accessors, unnecessary-backticks, " +
+                    "unnecessary-inheritance, and when-entry-bracing as single-id rules",
             ) {
                 val ids = registeredRules().map { it.id }
 
                 ids shouldBe
                     listOf(
+                        "backing-property-naming",
+                        "class-naming",
                         "empty-default-constructor",
+                        "enum-entry-naming",
                         "explicit-it-lambda-parameter",
+                        "filename",
+                        "function-naming",
                         "if-else-bracing",
                         "long-numerical-values",
                         "no-empty-class-body",
                         "no-empty-parens-before-trailing-lambda",
                         "no-semicolons",
                         "no-unit-return",
+                        "package-naming",
+                        "property-naming",
                         "range-conventional",
                         "redundant-constructor-keyword",
                         "trailing-newline",

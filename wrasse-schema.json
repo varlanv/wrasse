@@ -56,6 +56,34 @@
             "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",
             "additionalProperties": false,
             "properties": {
+                "backing-property-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require a leading-underscore backing property to be lowerCamelCase with a public correlated member"
+                },
+                "class-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require PascalCase class/interface/object names"
+                },
+                "enum-entry-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require PascalCase or SCREAMING_SNAKE_CASE enum entry names"
+                },
+                "filename": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require a file's name to match its sole top-level class/object, or be PascalCase"
+                },
+                "function-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require lowerCamelCase function names (factory/override/test exemptions)"
+                },
+                "package-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require lowercase dotted package names with no underscores"
+                },
+                "property-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require camelCase property names; SCREAMING_SNAKE_CASE for const val"
+                },
                 "empty-default-constructor": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow an empty primary constructor with no annotations or modifiers"

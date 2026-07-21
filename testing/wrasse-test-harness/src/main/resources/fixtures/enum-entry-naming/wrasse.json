@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "enum-entry-naming": { "level": "error" }
+    }
+}
