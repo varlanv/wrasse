@@ -850,10 +850,11 @@ class DocBuilder(
      * original common leading-whitespace prefix (the exact prefix length `trimIndent()` itself would
      * strip) folded into the preceding break's elided tail, keeping only the content beyond that
      * prefix as its own [Doc.Text] — never changing what `trimIndent()` computes, only where the
-     * shared prefix physically sits. A blank line that is not the mandatory first/last line is left
-     * completely untouched, since `trimIndent()` discards a blank line's own content regardless of
-     * its indentation. Returns `null` for any other shape, including a single content line whose
-     * common indent is already zero.
+     * shared prefix physically sits. An interior whitespace-only line makes the whole string
+     * ineligible: `trimIndent()` keeps such a line's residual spaces beyond the stripped prefix,
+     * so its content is significant and no re-indentation of it is value-preserving. Returns
+     * `null` for any other shape, including a single content line whose common indent is already
+     * zero.
      */
     private fun buildReindentedRawString(children: List<ChildEntry>, start: Int, end: Int): Doc? {
         if (children.size < 3) return null
@@ -882,6 +883,7 @@ class DocBuilder(
         }
         val bodyLastIdx = closingTailIdx?.minus(1) ?: lastIdx
 
+        if ((0..bodyLastIdx).any { texts[it] != "\n" && texts[it].isBlank() }) return null
         val contentTexts = (0..bodyLastIdx).map { texts[it] }.filter { it != "\n" && it.isNotBlank() }
         if (contentTexts.isEmpty()) return null
         val commonIndent = contentTexts.minOf { line -> line.indexOfFirst { !it.isWhitespace() }.let { if (it < 0) line.length else it } }

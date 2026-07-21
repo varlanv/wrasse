@@ -2285,6 +2285,16 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "\"\"\"\n    line one\n    line two\n    \"\"\"\n    .trimIndent()"
     }
 
+    should("leave a trimIndent() raw string containing a whitespace-only interior line untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        trimIndentReceiver(builder, ctx, listOf("  line one", "      ", "  line two"), "  ")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\n  line one\n      \n  line two\n  \"\"\"\n    .trimIndent()"
+    }
+
     should("leave a standalone multiline raw string with no trimIndent() call untouched") {
         val builder = DocBuilder(formatConfig())
         val ctx = WContext(filePath = "test.kt")

@@ -4840,6 +4840,24 @@ Phase C, gathered here for the format-on-wrasse milestone that follows:
   the harness itself trims trailing blank source lines before any fixture ever compiles, making the
   end-of-file shape structurally unexercisable regardless (C.6).
 
+#### C.12 hardening: whitespace-only interior lines make trimIndent reindentation ineligible (found by format-on-wrasse dogfood, 2026-07-21)
+
+The first bug the format-on milestone caught, and it was a D19 violation. C.12's eligibility
+reasoning claimed "`trimIndent()` discards a blank line's own content regardless of its
+indentation" — false: kotlin's `trimIndent` keeps a whitespace-only line's residue beyond the
+stripped prefix (and keeps the whole line verbatim when it doesn't start with the full prefix), so
+that residue is significant content. `buildReindentedRawString` left such lines' text untouched
+while still converting the preceding newline entry into a `HARD` break — and `Layout` synthesizes
+ambient indent after every hard break, so each render PREPENDED one more ambient indent to the
+line: non-idempotent, growing whitespace every fix round. Hit 11 real files during the wrasse
+reformat (patch-format spec files whose raw strings deliberately carry whitespace-padded "blank"
+lines, e.g. `WPatchWriterReaderSpec`), plateauing the convergence loop at 15 iterations; the
+partial reformat was discarded (git stash) rather than committed. Fix (conservative, refusal not
+handling): any interior whitespace-only line makes the whole string ineligible — preserved
+verbatim. Failing-first per the dogfood hard rule:
+`format-raw-strings/whitespace-only-line-bail-clean.kt` (expect-clean, failed before the fix,
+passes after) plus a `DocBuilderSpec` untouched-rendering case.
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.
