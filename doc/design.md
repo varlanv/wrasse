@@ -3350,6 +3350,63 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   `format-with-fixes/long-numerical-values-and-format-error`, and
   `format-with-fixes/range-conventional-and-format-error` — the same low-risk shape as every prior
   T-bucket id.
+
+  T-rule test backfill (2026-07-21): the seven newest T-bucket ids — `unnecessary-backticks`,
+  `explicit-it-lambda-parameter`, `empty-default-constructor`, `redundant-constructor-keyword`,
+  `trivial-accessors`, `long-numerical-values`, and `range-conventional` — ported against their real
+  upstream test suites (detekt's `UnnecessaryBackticksSpec`, `ExplicitItLambdaParameterSpec`,
+  `EmptyDefaultConstructorSpec`, `RedundantConstructorKeywordSpec`; diktat's
+  `TrivialPropertyAccessorsWarnTest`/`FixTest`, `LongNumericalValuesSeparatedWarnTest`/`FixTest`,
+  `RangeConventionalRuleWarnTest`/`FixTest`; detekt's `UnderscoresInNumericLiterals` and
+  `RangeUntilInsteadOfRangeTo` evaluated for classification only, per each rule's own paragraph
+  above, since neither was the adopted port target). ktlint re-confirmed to ship none of the seven
+  by a fresh grep of its real checkout. Coverage table (already-covered / new-fixture /
+  out-of-scope-with-citation / upstream-config-specific, upstream case count in parens):
+
+  | rule | already-covered | new fixture | out-of-scope | config-specific | upstream cases |
+  |---|---|---|---|---|---|
+  | `unnecessary-backticks` | 9 | 2 | 1 | 0 | 12 |
+  | `explicit-it-lambda-parameter` | 7 | 0 | 0 | 0 | 7 |
+  | `empty-default-constructor` | 7 | 0 | 4 | 0 | 11 |
+  | `redundant-constructor-keyword` | 7 | 0 | 1 | 0 | 8 |
+  | `trivial-accessors` | 5 | 0 | 0 | 0 | 5 |
+  | `long-numerical-values` (diktat) | 15 | 1 | 2 | 16 | 34 |
+  | `long-numerical-values` (detekt, classification only) | — | 0 | 10 | 28 | 38 |
+  | `range-conventional` (diktat) | 12 | 2 | 1 | 2 | 17 |
+  | `range-conventional` (detekt, classification only) | — | 0 | 7 | 0 | 7 |
+
+  Five new fixtures closed real gaps: `unnecessary-backticks/type-annotation-usage-error` (a
+  backtick-quoted class name used in type-annotation position, detekt's own `class` test combo, not
+  previously exercised end-to-end even though the rule's own per-`IDENTIFIER` mechanism already
+  covered it structurally) and `unnecessary-backticks/string-template-short-form-adjacent-merge-error`
+  (locks the rule's own documented coarser-than-detekt string-template bail — detekt's own
+  `canPlaceAfterSimpleNameEntry` suppresses detection entirely when the following character would
+  extend the identifier, e.g. `` "$`foo`bar" ``; wrasse's own bail is deliberately coarser and still
+  reports, only declining the fix, per this rule's own paragraph above); `unnecessary-backticks/
+  import-with-spaces-clean` (a spaced backtick-quoted name in import position, detekt's own clean
+  case, not previously locked in that position); `long-numerical-values/short-hex-literal-clean` (a
+  short hex literal, `0xF`, implicitly clean in diktat's own "test bad" suite but never asserted
+  there, so never locked here either) and `long-numerical-values/already-underscored-oversized-block-
+  clean` (locks the rule's own documented divergence from diktat: a literal already containing an
+  underscore is skipped entirely regardless of block size, where diktat still emits a second,
+  differently-worded warn-only diagnostic per oversized block — per this rule's own paragraph above);
+  and `range-conventional/until-identifier-operand-error` (the `until` rewrite's left/right operands
+  need not be numeric literals — diktat's own `1..(b - 1)` → `1 until (b)` case, proving the rewrite
+  reads operand text verbatim rather than assuming a literal shape) and `range-conventional/
+  until-followed-by-step-error` (the `until` rewrite fires correctly when the range expression is
+  itself the left operand of an outer `step` infix call, diktat's own `1..(4 - 1) step 3` case,
+  proving detection isn't confused by an enclosing binary expression). No real bugs found — every
+  ported case either matched an existing fixture, was already a documented divergence from this
+  rule's own paragraph above (`empty-default-constructor`'s four `expect`/`actual` shapes, real-
+  compile-inexpressible per its own paragraph; `redundant-constructor-keyword`'s `data class` shape,
+  the already-recorded Kotlin 2.1.x `Fir2IrDeclarationStorage` crash; `range-conventional`'s
+  double-parens shape, the already-recorded depth-narrowing divergence — none needed a new
+  quarantine fixture), or fell to an upstream-configurable knob wrasse's own no-per-rule-config
+  stance never exposes (diktat's `isRangeToIgnore`/custom `maxNumberLength`/`maxBlockLength`
+  fix-test configs; detekt's `acceptableLength`/`allowNonStandardGrouping` on the non-adopted
+  `UnderscoresInNumericLiterals`). All three upstream checkouts (`ktlint`, `detekt`, `diktat`) left
+  byte-clean — read-only throughout, `git status` verified. Full ladder green: `build`, `test
+  --rerun-tasks`, `testMinorHarness --rerun-tasks`, `testPatchHarness`, `wrasseLint -Prepublish`.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal
