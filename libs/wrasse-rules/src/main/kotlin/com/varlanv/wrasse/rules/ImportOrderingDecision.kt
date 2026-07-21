@@ -8,9 +8,8 @@ import com.varlanv.wrasse.lang.WEdit
  * leading `import` keyword and its following whitespace stripped and every backtick removed —
  * `import a.b.C` sorts by `a.b.C`, `import a.b.C as D` sorts by `a.b.C as D` (so aliased
  * duplicates of the same FQN order deterministically by their alias), `import a.b.*` sorts by
- * `a.b.*`, `` import a.b.`when` `` sorts by `a.b.when` (matching ktlint's own
- * `import.toString().replace("`", "")` comparator — a backtick-quoted identifier sorts by its
- * plain letters, not by the backtick's own ASCII value, which sorts before every letter).
+ * `a.b.*`, `` import a.b.`when` `` sorts by `a.b.when` — a backtick-quoted identifier sorts by its
+ * plain letters, not by the backtick's own ASCII value, which sorts before every letter.
  */
 class ImportOrderingRecord(val startOffset: Int, val endOffset: Int, val text: String) {
     val sortKey: String = ImportOrderingDecision.sortKeyOf(text)

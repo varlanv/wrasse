@@ -10,39 +10,27 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 /**
- * Wraps a bare (unbraced) `if`/`else` branch in braces, one wrasse id covering ktlint's
- * `multiline-if-else` + `if-else-bracing` and detekt's `BracesOnIfStatements` (default
- * `singleLine = "never"`, `multiLine = "always"`).
- *
- * Ground-truthed against both real engines (probe harnesses against the actual jars/checkouts,
- * reverted byte-clean — see design.md §13): the two upstreams disagree sharply outside one
- * narrow overlap. ktlint's `if-else-bracing` forces *consistency* (any already-braced sibling
- * braces the rest) and its `multiline-if-else` unconditionally braces any `else if` chain even
- * when the whole chain sits on one physical source line; detekt's default config never wants
- * either of those (a fully single-line chain is `singleLine = "never"` — braces would be
- * *removed*, never added). The one thing both engines' *defaults* actually agree on adding
- * braces for: a currently-bare branch belonging to an if/else-if/else chain that, as physically
- * written, spans more than one source line. That intersection is this rule's entire scope —
- * consistency-only bracing and the single-line-else-if quirk are both deliberately left alone.
+ * Wraps a bare (unbraced) `if`/`else` branch in braces when it belongs to an if/else-if/else
+ * chain that, as physically written, spans more than one source line. A chain that is entirely
+ * one source line is left untouched, even across an `else if` continuation; consistency-only
+ * bracing (already-braced siblings forcing the rest) is not attempted.
  *
  * Never touches (no report, no fix): an already-braced branch; an empty branch (`if (false)
  * else { ... }` is legal Kotlin and must not throw); an `else` whose sole content is itself a
  * bare `if` (an `else if` continuation — wrapping it as `else { if ... }` would be a first-class
  * semantic hazard, never attempted, handled instead when that nested `IF` is visited on its own
  * so the whole chain still gets braced branch-by-branch); any chain that, as physically written,
- * is entirely one source line (matches detekt's `singleLine = "never"`, which never wants braces
- * added there, even for an `else if` chain ktlint alone would force).
+ * is entirely one source line.
  *
  * Reports but never autofixes (report-only bail): a comment anywhere in the gap around the
  * branch (established project precedent — never autofix past a comment); with
  * [WrasseRuleConfig.formatEnabled] `false`, also a branch whose own bare-statement text already
  * spans multiple lines (a chained call split across lines, a wrapped binary expression, …) —
- * ground-truthed to be the one shape where ktlint's own real formatter output is *not* reindented
- * for the newly-nested content, so replicating it byte-for-byte would not itself be born-clean
- * (design.md §5.1); D19's idempotence + compile-safety guard would catch this if it were ever
+ * the newly-nested content is not reindented in that case, so emitting a fix there would not be
+ * born-clean; D19's idempotence + compile-safety guard would catch this if it were ever
  * emitted as an edit, but it is simpler and safer to never emit one. With
  * [WrasseRuleConfig.formatEnabled] `true` that bail no longer applies (re-indenting the interior
- * is the printer's job, §5.3): [BraceInsertion.physicalLineIndentColumn] is never called, and the
+ * is the printer's job): [BraceInsertion.physicalLineIndentColumn] is never called, and the
  * emitted edits carry no indentation at all — [BraceInsertion.wrapEditsMinimal] instead of
  * [BraceInsertion.wrapEdits] — leaving `com.varlanv.wrasse.format.DocSplicer`/`Layout` to lay out
  * every line, multiline body included.
@@ -200,8 +188,8 @@ class IfElseBracingRule : WUninitializedRule {
         /**
          * Walks up through consecutive (`ELSE`, `IF`) ancestor pairs to find the outermost
          * `if`-statement heading this `else if` chain (or this node itself, if it isn't one) —
-         * the span both upstream engines actually key their multi-line decision on for every
-         * branch in the chain, including a locally single-line `else if` tail.
+         * the span this rule's multi-line decision is keyed on for every branch in the chain,
+         * including a locally single-line `else if` tail.
          */
         fun chainHeadSpan(ctx: WContext): Pair<Int, Int> {
             var headStart = ctx.startOffset

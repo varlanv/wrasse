@@ -10,25 +10,13 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 /**
- * Wraps a bare (unbraced) `when`-entry body in braces, one wrasse id covering ktlint's
- * `when-entry-bracing` and detekt's `BracesOnWhenStatements`.
- *
- * Ground-truthed against both real engines (design.md §13): ktlint's own rule braces every bare
- * entry in a `when` as soon as *either* one entry already has a block body *or* one entry's body
- * doesn't start on the same line as its own `ARROW` — either condition alone is enough. detekt's
- * shipped defaults (`singleLine = "necessary"`, `multiLine = "consistent"`) only ever want entries
- * braced when *both* hold together: `multiLine = "consistent"` (the policy in force once some
- * entry's body is multiline) flags a braced/bare mix, but a fully-bare `when` — however it's laid
- * out — is accepted outright; `singleLine = "necessary"` (the policy while every entry's body stays
- * on the arrow's own line) never examines bare entries at all, only ever flagging an already-braced
- * entry for *removal*, the opposite direction from what ktlint's consistency-forcing would do.
- * Requiring both conditions is therefore the strict intersection: a fully-bare `when` and a fully
- * single-line braced/bare mix are both left completely untouched (no report, no fix).
+ * Wraps a bare (unbraced) `when`-entry body in braces whenever the enclosing `when` has at least
+ * one entry with a block body, or at least one entry whose body doesn't start on the same line as
+ * its own `ARROW`. A `when` where every entry is bare and single-line is left completely untouched
+ * (no report, no fix).
  *
  * Never touches (no report, no fix): an already-braced entry (first significant child after
- * `ARROW` is a `BLOCK`); an empty block entry (`1 -> {}` is legal Kotlin) — matches detekt's own
- * `hasUnnecessaryBraces` exemption for an empty block, which never counts toward its consistency
- * tally either.
+ * `ARROW` is a `BLOCK`); an empty block entry (`1 -> {}` is legal Kotlin).
  *
  * Reports but never autofixes (report-only bail): a comment anywhere in the gap around the entry's
  * body — between the `ARROW` and the body, or trailing the body on its own line before the next
@@ -36,17 +24,16 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  * [com.varlanv.wrasse.model.WrasseRuleConfig.formatEnabled] `false`, also an entry whose own
  * bare-expression text already spans multiple lines (a chained call split across lines, or — the
  * key cross-rule shape — a bare `if`/`when` expression `if-else-bracing`/this same rule's own
- * subsequent visit fixes independently) — ktlint's own real formatter output for this shape is not
- * reindented either without a second, separate `IndentationRule` pass, so replicating it
- * byte-for-byte would not itself be born-clean (design.md §5.1). Both bail categories report a
- * zero-width point at the entry's own content start, mirroring `if-else-bracing`'s own bail-report
- * convention (see [IfElseBracingDecision] KDoc for why: the wider span could otherwise spuriously
- * overlap an inner fix's edits under the idempotence harness's overlap-based heuristic). With
+ * subsequent visit fixes independently) — the interior is not reindented in that case, so emitting
+ * a fix there would not be born-clean. Both bail categories report a zero-width point at the
+ * entry's own content start, mirroring `if-else-bracing`'s own bail-report convention (see
+ * [IfElseBracingDecision] KDoc for why: the wider span could otherwise spuriously overlap an inner
+ * fix's edits under the idempotence harness's overlap-based heuristic). With
  * [com.varlanv.wrasse.model.WrasseRuleConfig.formatEnabled] `true` the multiline bail no longer
- * applies (§5.3): [BraceInsertion.physicalLineIndentColumn] is never called, and the emitted edits
- * carry no indentation at all — [BraceInsertion.wrapEditsMinimal] instead of
- * [BraceInsertion.wrapEdits] — leaving `com.varlanv.wrasse.format.DocSplicer`/`Layout` to lay out
- * every line, multiline body included.
+ * applies: [BraceInsertion.physicalLineIndentColumn] is never called, and the emitted edits carry
+ * no indentation at all — [BraceInsertion.wrapEditsMinimal] instead of [BraceInsertion.wrapEdits]
+ * — leaving `com.varlanv.wrasse.format.DocSplicer`/`Layout` to lay out every line, multiline body
+ * included.
  *
  * See [WhenEntryBracingDecision] for the pure verdict/edit logic and [BraceInsertion] for the
  * indentation/edit-construction core shared with `if-else-bracing`.

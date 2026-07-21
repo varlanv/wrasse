@@ -14,10 +14,8 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  * redundant supertype. Report-only.
  *
  * Matched purely as literal text on the `SUPER_TYPE_CALL_ENTRY`'s own span — no semantic
- * resolution — the same naive check detekt's own `UnnecessaryInheritance` uses (ground-truthed
- * directly against its real engine): `kotlin.Any()`, `Any ()` (whitespace inside the call), and a
- * type-aliased supertype are all never candidates, since none of their spans spell the bare
- * literal exactly.
+ * resolution: `kotlin.Any()`, `Any ()` (whitespace inside the call), and a type-aliased supertype
+ * are all never candidates, since none of their spans spell the bare literal exactly.
  *
  * `SUPER_TYPE_LIST` is targeted directly regardless of what declares it, covering class, object
  * (named, companion, and anonymous-literal), and enum-class declarations uniformly; an interface

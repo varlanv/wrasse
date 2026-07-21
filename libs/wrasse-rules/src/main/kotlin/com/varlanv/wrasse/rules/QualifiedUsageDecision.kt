@@ -33,9 +33,8 @@ class UnnecessaryFqnReport(val dropStart: Int, val dropEnd: Int, val newImportFq
  * Every usage sharing the same candidate import FQN is one target: the import-viability decision
  * below runs once per target, but every surviving usage still gets its own report at its own span.
  *
- * **Import viability, checked in order for every target — see design.md §8.3 for why this order
- * matters, and for the detekt-matching asymmetry on a dual same-simple-name collision (one side
- * imported reports, the other stays silent; neither imported stays silent both sides):**
+ * **Import viability, checked in order for every target (see design.md §8.3 for the full
+ * collision-ordering rationale):**
  * 1. Already imported (a non-aliased explicit `import a.b.C` for the exact candidate) — report
  *    unconditionally, before either collision check below.
  * 2. Otherwise, skip if the candidate's simple name collides with another used FQN's own simple

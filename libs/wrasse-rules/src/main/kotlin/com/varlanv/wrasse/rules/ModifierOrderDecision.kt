@@ -23,17 +23,15 @@ class ModifierOrderVerdict(val reportStart: Int, val reportEnd: Int, val expecte
  *
  * A violation exists only when two or more [keywords] (already filtered by the caller to just the
  * canonically-comparable modifier keyword tokens — never annotations, `fun`/`value`, or a
- * context-parameter list, matching detekt's own narrower `ModifierOrder` scope over ktlint's
- * broader one; see design.md §13) are out of their [ModifierKeywordOccurrence.canonicalIndex]
- * order; fewer than two is always trivially ordered, and [decide] returns `null`.
+ * context-parameter list) are out of their [ModifierKeywordOccurrence.canonicalIndex] order; fewer
+ * than two is always trivially ordered, and [decide] returns `null`.
  *
  * When a violation exists, each keyword whose canonical position differs from where it currently
  * sits gets its own same-span replacement edit — the specific token's own `[startOffset, endOffset)`
  * swapped for the correct keyword's source text — rather than one edit spanning the whole list, so
  * anything physically between or around the compared keywords is never touched, wherever it sits.
  * [hasComment] (any `EOL_COMMENT`/`BLOCK_COMMENT`/`KDOC` anywhere in the modifier list, not just
- * between keywords) forces [ModifierOrderVerdict.edits] empty — report-only, matching the
- * established comment-bail precedent (`no-unit-return`, `no-empty-parens-before-trailing-lambda`).
+ * between keywords) forces [ModifierOrderVerdict.edits] empty — report-only.
  */
 object ModifierOrderDecision {
     fun decide(keywords: List<ModifierKeywordOccurrence>, sourceText: CharSequence, hasComment: Boolean): ModifierOrderVerdict? {

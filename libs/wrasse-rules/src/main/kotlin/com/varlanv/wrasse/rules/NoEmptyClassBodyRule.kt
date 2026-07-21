@@ -12,14 +12,11 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * A class/interface/object/enum/nested-class body containing nothing but whitespace is reported
  * and, where deleting it stays compile-legal, autofixed to remove it entirely.
  *
- * Companion object bodies are exempt entirely (not reported, not fixed), matching upstream
- * ktlint's own conservatism.
+ * Companion object bodies are exempt entirely (not reported, not fixed).
  *
  * An anonymous object expression's body (`object : Foo {}`, `object {}`) is exempt entirely too
- * (not reported, not fixed) — matching both upstream ktlint (`!isPartOf(OBJECT_LITERAL)`) and
- * detekt's own `EmptyClassBlock` (`isObjectLiteral()`), which never flag this shape at all, even
- * though kotlinc's grammar requires that body syntactically (deleting it would be a syntax error,
- * not merely a restyle) and is a separate, sufficient reason never to autofix it.
+ * (not reported, not fixed): kotlinc's grammar requires that body syntactically, so deleting it
+ * would be a syntax error, not merely a restyle.
  */
 class NoEmptyClassBodyRule : WUninitializedRule {
     override val id: String = "no-empty-class-body"
