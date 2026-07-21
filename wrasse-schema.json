@@ -108,6 +108,58 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow more than 11 functions in a file, class, interface, object, or enum"
                 },
+                "also-could-be-apply": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an also block whose body only uses its receiver"
+                },
+                "equals-null-call": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow calling equals(null) instead of a null comparison"
+                },
+                "explicit-it-lambda-multiple-parameters": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow naming a multi-parameter lambda's parameter 'it'"
+                },
+                "forbidden-comment": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow TODO:, FIXME:, and STOPSHIP: comment markers"
+                },
+                "function-only-returning-constant": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a function whose body only returns a constant"
+                },
+                "may-be-constant": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a compile-time-constant val that could be declared const"
+                },
+                "nested-classes-visibility": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a nested class more visible than its outer class"
+                },
+                "safe-cast": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an is-check followed by a cast instead of as?"
+                },
+                "string-should-be-raw-string": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an escape-heavy string literal better written as a raw string"
+                },
+                "trim-multiline-raw-string": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a multiline raw string without trimIndent or trimMargin"
+                },
+                "unused-parameter": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a declared function parameter that is never read"
+                },
+                "unused-private-class": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a private class that is never referenced in its file"
+                },
+                "use-let": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a null-check block better written as ?.let"
+                },
                 "backing-property-naming": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require a leading-underscore backing property to be lowerCamelCase with a public correlated member"

@@ -137,7 +137,7 @@ class RangeConventionalRule : WUninitializedRule {
                     return
                 }
                 if (opText.contentEquals("..")) {
-                    finalizeUntil(ctx, children, leftIdx, opIdx, rightIdx, hasComment, reporter)
+                    finalizeUntil(ctx, children, opIdx, rightIdx, hasComment, reporter)
                 }
             }
 
@@ -152,7 +152,6 @@ class RangeConventionalRule : WUninitializedRule {
             private fun finalizeUntil(
                 ctx: WContext,
                 children: ChildBuffer,
-                leftIdx: Int,
                 opIdx: Int,
                 rightIdx: Int,
                 hasComment: Boolean,

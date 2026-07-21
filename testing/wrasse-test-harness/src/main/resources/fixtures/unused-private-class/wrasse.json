@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "unused-private-class": { "level": "error" }
+    }
+}

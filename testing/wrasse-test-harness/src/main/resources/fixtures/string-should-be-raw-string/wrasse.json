@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "string-should-be-raw-string": { "level": "error" }
+    }
+}

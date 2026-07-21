@@ -14,32 +14,41 @@ class RuleRegistrationOrderSpec :
         {
 
             should(
-                "register backing-property-naming, class-naming, complex-condition, " +
+                "register also-could-be-apply, backing-property-naming, class-naming, complex-condition, " +
                     "destructuring-declaration-with-too-many-entries, empty-default-constructor, enum-entry-naming, " +
-                    "explicit-it-lambda-parameter, file-size, filename, function-naming, if-else-bracing, " +
-                    "long-numerical-values, long-parameter-list, no-empty-class-body, " +
-                    "no-empty-parens-before-trailing-lambda, no-semicolons, no-unit-return, package-naming, " +
-                    "property-naming, range-conventional, redundant-constructor-keyword, trailing-newline, " +
-                    "trivial-accessors, unnecessary-backticks, unnecessary-inheritance, and when-entry-bracing " +
-                    "as single-id rules",
+                    "equals-null-call, explicit-it-lambda-multiple-parameters, explicit-it-lambda-parameter, " +
+                    "file-size, filename, forbidden-comment, function-naming, function-only-returning-constant, " +
+                    "if-else-bracing, long-numerical-values, long-parameter-list, may-be-constant, " +
+                    "nested-classes-visibility, no-empty-class-body, no-empty-parens-before-trailing-lambda, " +
+                    "no-semicolons, no-unit-return, package-naming, property-naming, range-conventional, " +
+                    "redundant-constructor-keyword, safe-cast, string-should-be-raw-string, trailing-newline, " +
+                    "trim-multiline-raw-string, trivial-accessors, unnecessary-backticks, unnecessary-inheritance, " +
+                    "unused-parameter, unused-private-class, use-let, and when-entry-bracing as single-id rules",
             ) {
                 val ids = registeredRules().map { it.id }
 
                 ids shouldBe
                     listOf(
+                        "also-could-be-apply",
                         "backing-property-naming",
                         "class-naming",
                         "complex-condition",
                         "destructuring-declaration-with-too-many-entries",
                         "empty-default-constructor",
                         "enum-entry-naming",
+                        "equals-null-call",
+                        "explicit-it-lambda-multiple-parameters",
                         "explicit-it-lambda-parameter",
                         "file-size",
                         "filename",
+                        "forbidden-comment",
                         "function-naming",
+                        "function-only-returning-constant",
                         "if-else-bracing",
                         "long-numerical-values",
                         "long-parameter-list",
+                        "may-be-constant",
+                        "nested-classes-visibility",
                         "no-empty-class-body",
                         "no-empty-parens-before-trailing-lambda",
                         "no-semicolons",
@@ -48,10 +57,16 @@ class RuleRegistrationOrderSpec :
                         "property-naming",
                         "range-conventional",
                         "redundant-constructor-keyword",
+                        "safe-cast",
+                        "string-should-be-raw-string",
                         "trailing-newline",
+                        "trim-multiline-raw-string",
                         "trivial-accessors",
                         "unnecessary-backticks",
                         "unnecessary-inheritance",
+                        "unused-parameter",
+                        "unused-private-class",
+                        "use-let",
                         "when-entry-bracing",
                     )
             }

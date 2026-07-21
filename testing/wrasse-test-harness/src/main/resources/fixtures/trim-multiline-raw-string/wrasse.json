@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "trim-multiline-raw-string": { "level": "error" }
+    }
+}

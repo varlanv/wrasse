@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "forbidden-comment": { "level": "error" }
+    }
+}

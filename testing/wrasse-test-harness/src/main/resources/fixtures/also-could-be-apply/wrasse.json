@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "also-could-be-apply": { "level": "error" }
+    }
+}

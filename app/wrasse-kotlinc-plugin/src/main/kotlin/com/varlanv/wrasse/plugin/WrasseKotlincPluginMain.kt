@@ -8,6 +8,7 @@ import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.rules.AlsoCouldBeApplyRule
 import com.varlanv.wrasse.rules.BackingPropertyNamingRule
 import com.varlanv.wrasse.rules.ClassMetricsEngine
 import com.varlanv.wrasse.rules.ClassNamingRule
@@ -15,17 +16,23 @@ import com.varlanv.wrasse.rules.ComplexConditionRule
 import com.varlanv.wrasse.rules.DestructuringTooManyEntriesRule
 import com.varlanv.wrasse.rules.EmptyDefaultConstructorRule
 import com.varlanv.wrasse.rules.EnumEntryNamingRule
+import com.varlanv.wrasse.rules.EqualsNullCallRule
+import com.varlanv.wrasse.rules.ExplicitItLambdaMultipleParametersRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
 import com.varlanv.wrasse.rules.FileNamingRule
 import com.varlanv.wrasse.rules.FileSizeRule
+import com.varlanv.wrasse.rules.ForbiddenCommentRule
 import com.varlanv.wrasse.rules.FunctionMetricsEngine
 import com.varlanv.wrasse.rules.FunctionNameLengthEngine
 import com.varlanv.wrasse.rules.FunctionNamingRule
+import com.varlanv.wrasse.rules.FunctionOnlyReturningConstantRule
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
 import com.varlanv.wrasse.rules.LongNumericalValuesRule
 import com.varlanv.wrasse.rules.LongParameterListRule
+import com.varlanv.wrasse.rules.MayBeConstantRule
 import com.varlanv.wrasse.rules.ModifierEngine
+import com.varlanv.wrasse.rules.NestedClassesVisibilityRule
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
@@ -34,10 +41,16 @@ import com.varlanv.wrasse.rules.PackageNamingRule
 import com.varlanv.wrasse.rules.PropertyNamingRule
 import com.varlanv.wrasse.rules.RangeConventionalRule
 import com.varlanv.wrasse.rules.RedundantConstructorKeywordRule
+import com.varlanv.wrasse.rules.SafeCastRule
+import com.varlanv.wrasse.rules.StringShouldBeRawStringRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
+import com.varlanv.wrasse.rules.TrimMultilineRawStringRule
 import com.varlanv.wrasse.rules.TrivialAccessorsRule
 import com.varlanv.wrasse.rules.UnnecessaryBacktickRule
 import com.varlanv.wrasse.rules.UnnecessaryInheritanceRule
+import com.varlanv.wrasse.rules.UnusedParameterRule
+import com.varlanv.wrasse.rules.UnusedPrivateClassRule
+import com.varlanv.wrasse.rules.UseLetRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
 import java.nio.file.Path
 import org.jetbrains.kotlin.backend.common.push
@@ -47,19 +60,26 @@ private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 /** Every single-id rule wrasse ships. See [registeredRuleGroups] for fused multi-id engines. */
 internal fun registeredRules(): List<WUninitializedRule> =
 listOf(
+    AlsoCouldBeApplyRule(),
     BackingPropertyNamingRule(),
     ClassNamingRule(),
     ComplexConditionRule(),
     DestructuringTooManyEntriesRule(),
     EmptyDefaultConstructorRule(),
     EnumEntryNamingRule(),
+    EqualsNullCallRule(),
+    ExplicitItLambdaMultipleParametersRule(),
     ExplicitItLambdaParameterRule(),
     FileSizeRule(),
     FileNamingRule(),
+    ForbiddenCommentRule(),
     FunctionNamingRule(),
+    FunctionOnlyReturningConstantRule(),
     IfElseBracingRule(),
     LongNumericalValuesRule(),
     LongParameterListRule(),
+    MayBeConstantRule(),
+    NestedClassesVisibilityRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
     NoSemicolonsRule(),
@@ -68,10 +88,16 @@ listOf(
     PropertyNamingRule(),
     RangeConventionalRule(),
     RedundantConstructorKeywordRule(),
+    SafeCastRule(),
+    StringShouldBeRawStringRule(),
     TrailingNewlineRule(),
+    TrimMultilineRawStringRule(),
     TrivialAccessorsRule(),
     UnnecessaryBacktickRule(),
     UnnecessaryInheritanceRule(),
+    UnusedParameterRule(),
+    UnusedPrivateClassRule(),
+    UseLetRule(),
     WhenEntryBracingRule(),
 )
 

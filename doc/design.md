@@ -3707,6 +3707,177 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   off-by-one bugs hide — plus one Decision spec per rule family covering the exact threshold
   boundary and message text.
 
+- **B.5 — lint-only rules (bucket L), third installment, the POTENTIAL-BUGS/CORRECTNESS-SMELL
+  family — shipped 2026-07-21.** Report, never fix — `canAutofix` is false everywhere in this
+  family. Candidates were the detekt-style rows autoformat-scope.md classifies as L that the
+  naming (B.1) and metrics (B.4) installments hadn't yet covered. Triage table (verify-first, per
+  the task's own directive — every candidate was checked against its actual upstream source
+  before deciding, not assumed):
+
+  | candidate | syntax-only feasible? | outcome |
+  |---|---|---|
+  | `equals-null-call` | yes — upstream's own check is pure PSI (`calleeExpression.text == "equals"`, single-arg text `"null"`) | shipped |
+  | `safe-cast` | yes — upstream's own check is pure PSI (`KtIsExpression` + branch text comparison) | shipped |
+  | `use-let` | yes — upstream's own check is pure PSI (`operationToken` + either-operand text `"null"`) | shipped |
+  | `also-could-be-apply` | yes — upstream's own check is pure PSI (callee text + statement receiver text) | shipped |
+  | `function-only-returning-constant` | yes — upstream's own check is pure PSI (body-expression node type) | shipped |
+  | `may-be-constant` | yes, narrowed — upstream's own check is pure PSI, but its binary-expression/named-constant-reference extension needs whole-file forward-reference lookahead this single pass doesn't attempt | shipped, narrowed |
+  | `unused-parameter` | yes — upstream's own check is pure PSI name-matching (still true today; detekt never moved this one to resolution) | shipped |
+  | `unused-private-class` | yes, upstream's own check is a resolution-free heuristic (its own comment: "without type resolution it is hard to tell if this is really a class or part of a package") | shipped, further simplified |
+  | `unused-private-member` | **no** — ground-truth detekt's current `UnusedPrivateFunction`/`UnusedPrivateProperty` both declare `RequiresAnalysisApi` and resolve each reference to a specific K2 symbol to disambiguate overloads/operator conventions/property delegates; `WResolvedUsage.callables` is a file-level, name-collapsed `Set` (dedupes by package/class/name, not declaration identity) built for import correctness, not per-declaration attribution — insufficient granularity | **skipped** |
+  | `nested-classes-visibility` | yes — upstream's own check is pure PSI (modifier keywords only) | shipped |
+  | `forbidden-comment` | yes; config-shaped (word list) — hardcoded to the one list every one of ktlint/detekt/diktat ships as its own out-of-box default (`TODO:`/`FIXME:`/`STOPSHIP:`), no wrasse-specific list invented | shipped |
+  | `forbidden-suppress` | yes syntactically, but config-shaped (forbidden-rule-id list) with **no sensible hardcoded default** — unlike `forbidden-comment`'s markers, no rule-id blocklist is universally agreed, and upstream's own default (`rules: []`) is itself a no-op | **skipped** |
+  | `string-should-be-raw-string` | yes, narrowed — upstream's own check is pure PSI, but its multi-piece concatenation "pivot element" analysis is dropped | shipped, narrowed |
+  | `trim-multiline-raw-string` | yes, narrowed — upstream's own check is pure PSI; the chained-trim-call check here peeks raw text after the string rather than inspecting the parent node | shipped, narrowed |
+  | `explicit-it-lambda-multiple-parameters` | yes — upstream's own check is pure PSI (parameter name list) | shipped |
+  | `range-until-instead-of-range-to` | yes syntactically, but **already owned** by the shipped `range-conventional` engine (B.2, diktat): both target the identical shape (`a..b-1`) with the identical judgment, merely disagreeing on the preferred replacement spelling (`until` vs `..<`); shipping a second id reporting the same span with a competing suggested fix would violate this project's own "one wrasse id per concept, never one id per source tool" dedupe discipline and risk a same-span `EditPlan` collision once `range-conventional`'s own fix runs | **skipped** |
+
+  No candidate in this batch needed FIR resolution to avoid false positives (unlike
+  `unused-private-member`, genuinely a different case) — `WResolvedUsage`/`WQualifiedUsage` were
+  consulted (per the task's own instruction to check `requiresResolution`/`requiresQualifiedUsages`
+  and the facade's actual shape, §8.1) but none of the 13 shipped rules attaches either flag;
+  every one is `WLeafRule`/`WNodeRule`/`WBufferedNodeRule`/`WStreamRule` over syntax alone, exactly
+  matching how ktlint/detekt's own equivalents are themselves implemented (several of detekt's own
+  KDoc comments say as much explicitly, e.g. `UnusedPrivateClass`'s uppercase-first-letter heuristic
+  comment).
+
+  Dedupe map (13 wrasse ids, no cross-catalog collisions — every candidate here is detekt's own,
+  no ktlint/diktat sibling to fold in):
+
+  | wrasse id | dedupes |
+  |---|---|
+  | `equals-null-call` | detekt `EqualsNullCall` |
+  | `safe-cast` | detekt `SafeCast` |
+  | `use-let` | detekt `UseLet` |
+  | `also-could-be-apply` | detekt `AlsoCouldBeApply` |
+  | `function-only-returning-constant` | detekt `FunctionOnlyReturningConstant` |
+  | `may-be-constant` | detekt `MayBeConstant` |
+  | `unused-parameter` | detekt `UnusedParameter` |
+  | `unused-private-class` | detekt `UnusedPrivateClass` |
+  | `nested-classes-visibility` | detekt `NestedClassesVisibility` |
+  | `forbidden-comment` | detekt `ForbiddenComment` |
+  | `string-should-be-raw-string` | detekt `StringShouldBeRawString` |
+  | `trim-multiline-raw-string` | detekt `TrimMultilineRawString` |
+  | `explicit-it-lambda-multiple-parameters` | detekt `ExplicitItLambdaMultipleParameters` |
+
+  Per-rule semantics and narrowing notes:
+
+  - **`equals-null-call`** — a call whose callee text is exactly `equals` with a single argument
+    whose own trimmed text is exactly `null` (receiver-qualified or bare), reported at the call
+    expression's own span — matches upstream exactly, no narrowing.
+  - **`safe-cast`** — an `if`/`else` whose condition is exactly `<identifier> is T` (or `!is T`)
+    and whose branches reduce (after stripping one layer of `{ }`) to the identifier on one side
+    and `null` on the other, reported at the whole `if` expression — matches upstream exactly.
+  - **`use-let`** — an `if`/`else` whose condition is `<expr> != null`/`null != <expr>` with an
+    `else` reducing to `null`, or `<expr> == null`/`null == <expr>` with a `then` reducing to
+    `null` — matches upstream's own algorithm precisely: neither side of the condition is
+    inspected beyond "is one operand literally `null`," so the checked branch's own value is
+    never correlated back to the condition's non-null operand.
+  - **`also-could-be-apply`** — a single-lambda-argument `also` call whose block statements are
+    all non-empty and each begins with `it.` or `it?.` (checked as a literal text prefix on the
+    statement's own span, not a receiver-node inspection — `it` cannot be a prefix of any other
+    identifier without a following letter/digit/underscore, so this is exact, not approximate),
+    reported at the `also` callee's own span.
+  - **`function-only-returning-constant`** — a function whose body is exactly `= <literal>` or
+    `{ return <literal> }` (a bare numeric/character/boolean literal, or a non-interpolated string
+    template), reported at the function's own name. Exempt (hardcoded, upstream's own defaults,
+    no wrasse config surface beyond `level`): `override`/`open`, declared directly inside an
+    interface, or `actual`. Upstream's own `excludedFunctions` regex-list knob has no wrasse
+    equivalent — no per-rule config beyond `level` exists project-wide.
+  - **`may-be-constant`** — **narrowed**: a top-level or direct object/companion-member `val`
+    (never a plain class member, matching upstream's own scope restriction) whose own initializer
+    is *directly* a literal constant, with no `var`, no existing `const`, no `actual`, no
+    `override`, no getter, and no non-`@JvmField` annotation. Upstream's own extension — folding a
+    binary expression of two already-constant-foldable operands, including a bare reference to
+    another already-declared file-scope or companion constant — is dropped outright: correctly
+    resolving a forward-declared named constant needs a whole-file pre-pass this single
+    SAX walk does not attempt, and arbitrary-depth nested-binary-expression descent is a
+    materially larger feature for a shape (`val x = 1 + 2`, `val y = A + "suffix"`) that is
+    distinctly rarer than a bare literal initializer in practice. Strictly narrower — every report
+    this rule emits, upstream would also emit — never a false positive relative to upstream.
+  - **`unused-parameter`** — a function parameter whose name never occurs, in its own function's
+    subtree, as a plain name reference or a local property's own declared name (the two removal
+    triggers detekt's own visitor uses), reported at the parameter's own name. Every currently-open
+    enclosing `FUN` frame is checked on each occurrence — not just the innermost — mirroring
+    upstream's own whole-subtree, no-lexical-shadowing name matching exactly (upstream's visitor
+    also doesn't stop at a nested local function's boundary); this can mark an outer parameter
+    "used" by an unrelated nested function's own same-named parameter, a narrow false-negative
+    both here and upstream. Also narrowed: a named-argument label (`foo(paramName = value)`) is
+    not distinguished from a real reference and always counts as a use — the node model has no
+    distinct shape for an argument's name position; permissive, not a false-positive risk. Exempt
+    (hardcoded, upstream's own defaults): `abstract`/`open`/`override`/`operator`/`external`/
+    `expect`/`actual`/`protected` functions, a function literally named `main`, any function
+    inside an `expect`/`external` class or an interface, and a parameter name matching
+    `ignored|expected`. **Resolved autoformat-scope.md's own open question** (hard call #6: "verify
+    added value before porting" against kotlinc's own warnings) — confirmed empirically (compiled
+    representative unused-parameter/unused-variable samples with the embeddable K2 compiler, zero
+    extra flags) that kotlinc's own equivalent diagnostics live under FIR's `analysis/checkers/
+    extra/` package, gated behind `-Xextra-checkers`, not run by an ordinary compile — porting this
+    rule is not redundant with anything Host A's ride-along compile already gets for free.
+  - **`unused-private-class`** — **deliberately simplified, not merely narrowed**: a `private`
+    class (top-level or nested) whose simple name never occurs as a type reference (`USER_TYPE` —
+    covering supertypes, parameter/return/property types, `is`/`as` targets, generic arguments) or
+    a plain name reference (`REFERENCE_EXPRESSION` — covering constructor calls, qualifiers,
+    callable references) anywhere in the file, reported at the class's own span. Upstream tracks a
+    dozen distinct PSI node shapes one by one; every one of them, in this model, funnels through
+    exactly one of these two node types, so the two-check version here is a strict superset of
+    upstream's own tracked contexts — it only ever reports a class upstream would also flag, never
+    one it wouldn't. Upstream's own import-FQN correlation is dropped outright: a private
+    declaration cannot be imported from elsewhere by definition, so it has no bearing here.
+  - **`nested-classes-visibility`** — a nested class/object carrying an explicit `public` modifier,
+    declared directly inside a top-level, non-interface, `internal` class's own body, reported at
+    the nested declaration's own span. An enum entry, an `enum`-modified nested class, and a
+    companion object are exempt (matches upstream). Deeper-nested (grandchild) declarations are
+    never considered — matches upstream's own `klass.declarations` (direct-children-only) scope.
+  - **`forbidden-comment`** — a line comment, block comment, or KDoc whose raw text contains
+    `TODO:`, `FIXME:`, or `STOPSHIP:` (matched directly over the comment's own delimited text,
+    since none of the three markers can appear inside a comment delimiter itself), reported at the
+    comment's own span. The marker list is hardcoded — every one of ktlint/detekt/diktat ships
+    this exact three-marker default out of the box; wrasse has no `wrasse.json` surface for a
+    project-specific list (`level` only), so inventing one was out of scope, not merely deferred.
+  - **`string-should-be-raw-string`** — **narrowed**: a non-raw, non-empty string literal carrying
+    more than two `\t`/`\"`/`\\`/`\n` escape sequences (upstream's own default threshold and
+    exact character set), reported at its own span. Upstream's own multi-piece string-
+    concatenation "pivot element" analysis — where several adjacent `+`-joined pieces are jointly
+    counted and only the chain's own designated piece reports — is dropped; a string that is one
+    operand of a `+` expression is skipped entirely rather than analyzed as part of a chain,
+    narrower and strictly fewer reports. A string passed as an argument to `replaceIndent(...)`/
+    `prependIndent(...)` is exempt (checked via the nearest enclosing call's own callee name),
+    matching upstream's own carve-out for those two methods' own arguments.
+  - **`trim-multiline-raw-string`** — a raw (`"""`) string literal containing an actual newline
+    character with no `.trimIndent()`/`.trimMargin()` call chained onto it, reported at its own
+    span. The chained-call check peeks at the raw source text immediately after the closing `"""`
+    (spaces/tabs only skipped) rather than inspecting a parent qualified-expression node — a
+    comment or newline between the string and its trim call reads as "not trimmed," narrower than
+    upstream, never a false positive. Exempt (matching upstream): a `const val`'s own direct,
+    unwrapped initializer, and any string nested inside an `@`-annotation's arguments — both
+    contexts require a compile-time constant, so a trim call could never legally attach there.
+  - **`explicit-it-lambda-multiple-parameters`** — a lambda declaring more than one parameter,
+    one of them named `it`, reported at the lambda's own span — matches upstream exactly.
+
+  Fixture coverage: 87 fixtures across the 13 rule directories (error cases, clean cases, every
+  documented exemption, `@Suppress` happy/negative pairs per rule). One real, load-bearing
+  discovery from the `@Suppress` negative fixtures: `may-be-constant`'s own "no non-`@JvmField`
+  annotation" exemption fires for *any* annotation, `@Suppress` included — a wrong-id
+  `@Suppress` directly on the property silences the rule's own report all by itself, with no
+  suppression involved at all, so that fixture uses `@file:Suppress` instead (a file-level
+  annotation never touches the property's own modifier list). Also discovered: a `CLASS` node's
+  own span includes its leading `@Suppress` annotation when one is present, shifting the expected
+  report line for `nested-classes-visibility`/`unused-private-class`'s own wrong-id fixtures by
+  one line versus the no-annotation case. Unit specs: one Decision spec per rule (12 — `also-
+  could-be-apply` through `explicit-it-lambda-multiple-parameters`) plus three specs for the
+  shared syntax-only predicates introduced in this batch (`ConstantLiteralCheck`,
+  `StringTemplateText`, `WordBoundaryScan`), reused across `function-only-returning-constant`,
+  `may-be-constant`, `string-should-be-raw-string`, and `trim-multiline-raw-string` rather than
+  duplicated per rule.
+
+  **Known gap, out of this batch's scope by the task's own instruction:** `wrasse-schema.json`
+  (editor-autocomplete only, D13) was not touched — the 13 new rule ids are valid, effective
+  `wrasse.json` config today (the schema plays no role in what the plugin itself accepts, only in
+  editor tooling), but an editor validating against the schema's `"additionalProperties": false`
+  rule list would flag any of them as unrecognized until the schema is extended in a follow-up.
+
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.
 

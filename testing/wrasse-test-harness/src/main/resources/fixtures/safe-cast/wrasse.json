@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "safe-cast": { "level": "error" }
+    }
+}
