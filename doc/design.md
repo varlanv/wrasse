@@ -4631,6 +4631,215 @@ line).
 `testPatchHarness`, `wrasseLint -Prepublish` all green. `ktlint`/`kotlin` checkouts used for ground
 truth confirmed byte-clean (`git status`) throughout — read-only.
 
+#### Phase C.12 — Comment spacing and multiline raw-string indentation — **done 2026-07-21**
+
+The final planned printer slice, resolving autoformat-scope.md's hard calls #2
+(`comment-spacing`) and #3 (`multiline-raw-string-indentation`) — the only two of the seven listed
+hard calls that belong to the printer/F bucket at all; the other five (brace insertion, the
+Explicit-API/trivial-accessor T-bucket carve-outs, the two L-bucket rule-value questions) are
+outside `wrasse-format`'s remit and untouched here.
+
+**Part 1 — comment spacing.** Ground-truthed against the local `ktlint` checkout's
+`CommentSpacingRule` (source + test, read-only, confirmed byte-clean via `git status` throughout,
+never the internet): scoped to `WNodeType.EOL_COMMENT` only — block comments and KDoc are never
+touched, matching the checkout's own `node.elementType == EOL_COMMENT` gate exactly. Two
+independent mechanisms, both narrower-than-upstream where the checkout itself is narrow:
+
+- **Space after `//`** (`normalizeEolCommentText`, called once in `visitLeaf` when a leaf's own
+  text becomes its `Doc.Text`): a bare `//`, an already-`"// "`-prefixed comment, or one starting
+  with `//noinspection`, `//region`, `//endregion`, or `//language=` is left byte-exact; every other
+  `EOL_COMMENT` gets `"// "` substituted for its own leading `//`. This is the one place this slice
+  touches a comment token's own first characters — the printer's `Doc.Text`/span-length invariant
+  established by `clampWs`'s own existing "span may exceed rendered length" idiom absorbs the
+  one-character insertion the same way an inserted space or trailing comma already does elsewhere in
+  `DocBuilder`.
+- **Space before a trailing `//` comment** (`normalizeChildren`'s existing insertion-only branch,
+  one added clause): fires only when there is no whitespace at all between the preceding token and
+  the comment — an *existing* gap of any size, one space or five, is left completely alone, matching
+  the checkout's own `!prevLeaf.isWhiteSpace` check, which only ever detects total absence. This is
+  deliberately not folded into the general `spacingDecision` table, since that table is shared by
+  both the "gap already exists" and "gap absent" call sites and a table entry would have normalized
+  an existing multi-space gap down to one — broader than upstream.
+
+**Part 2 — multiline raw-string indentation, scoped to `trimIndent()` only.** Ground-truthed
+against the local `ktlint` checkout's `StringTemplateIndentRule` (source + test) — the only local
+checkout with any coverage of this concern at all; diktat's own semantics were deliberately not
+consulted, per the task's own framing, so as not to port a different tool's algorithm under the
+same rule name. The checkout's rule itself never touches `trimMargin()` either (`isFollowedByTrimIndent`
+checks literally `it.text == "trimIndent()"`), so `trimMargin()` has no local precedent and is
+preserved verbatim here too, not attempted — narrower than the hard-call note's own phrasing
+(`trimIndent`/`trimMargin`), a deliberate scope cut: `trimMargin()`'s trim decision is keyed on a
+per-line marker character rather than a common-whitespace computation, and confirming re-indentation
+never disturbs a line lacking that marker would need argument-value resolution (the marker can be
+overridden) this walk does not do.
+
+**The value-preservation argument.** `String.trimIndent()` computes the minimum leading-whitespace
+run shared by every non-blank line (its own opening and closing lines, when blank, are dropped
+whole) and strips exactly that many characters from every line, verbatim beyond that point; blank
+lines are wiped to `""` regardless of their own whitespace. `buildReindentedRawString` (new,
+`DocBuilder.kt`) only ever rewrites the *shared* prefix — the same prefix length `trimIndent()`
+itself would compute — replacing it with the printer's own ambient indent (via `Doc.Break`, so
+`Layout` derives it the same way it derives every other line's indent) and leaving everything from
+that offset onward, on every line, byte-identical. Since every content line ends up sharing the
+identical new prefix (`Layout` renders one `Break` kind, pure spaces, deterministically, for every
+break at one depth), `trimIndent()` re-run against the reformatted text recomputes the same minimum
+(now equal to the new prefix's own length) and strips it back to the identical remainder — the
+computed string value cannot change. A concrete instance, traced by hand: `"""\n    Roses are
+red\n    Violets are blue\n    """.trimIndent()` evaluates to `"Roses are red\nViolets are blue"`
+both before this slice's fixture reformats it (common prefix `4`, stripped) and after (common
+prefix `8`, stripped) — `format-raw-strings/trimindent-reindent-error.fixed.kt`. A completely blank
+non-mandatory interior line is left untouched on purpose (not merely accepted as safe): `trimIndent()`
+discards such a line's content regardless of how much whitespace it carries, so rewriting it would
+be a needless diff, not a needed one.
+
+**Eligibility (`buildReindentedRawString`, `resolveStringTemplateFrame`, new): every one of these
+must hold, or the receiver renders exactly as `resolveBraceFrame`'s pre-existing default already
+would (byte-identical to pre-C.12 output — confirmed by a dedicated unit test with no chain at
+all).**
+- The `STRING_TEMPLATE`'s only children are `WNodeType.OPEN_QUOTE`/`WNodeType.CLOSING_QUOTE` and
+  `WNodeType.LITERAL_STRING_TEMPLATE_ENTRY` — any `SHORT_STRING_TEMPLATE_ENTRY`/
+  `LONG_STRING_TEMPLATE_ENTRY` (`$x`/`${...}` interpolation) bails the whole receiver, per the
+  task's own explicit exemption list.
+- The first line (right after the opening `"""`) is exactly `"\n"` — content already starts on its
+  own line — and the last line (right before the closing `"""`) is either exactly `"\n"` or a
+  non-empty run of nothing but whitespace immediately preceded by one — the closing quotes already
+  sit on their own line. Either shape not holding bails: a raw string whose content touches the
+  opening or closing quotes is left exactly as written, never rewritten to move it — a narrower
+  scope than the checkout's own rule, which does perform that move (`checkAndFixNewLineAfterOpeningQuotes`/
+  `checkAndFixNewLineBeforeClosingQuotes`); moving content onto a new line changes which lines
+  `trimIndent()` itself considers when computing the shared minimum, which this single-pass walk
+  cannot safely re-verify, so it is left alone rather than guessed at.
+- At least one real (non-blank) content line exists, and the shared minimum indent among them is
+  strictly greater than zero — a string whose common indent is already `0` is left untouched (no
+  case in this repo's own fixtures needs it, and there is nothing to gain from adding indentation
+  where none existed).
+- The chain wrapping the receiver is exactly `<receiver>.trimIndent()` or `<receiver>?.trimIndent()`
+  — no arguments, nothing else in the same `DOT_QUALIFIED_EXPRESSION`/`SAFE_ACCESS_EXPRESSION`
+  (`substituteTrimIndentReceiver`, checked via the same `flatText`-comparison idiom C.4 already uses
+  for the elvis operator, so a comment or unusual spacing inside `trimIndent(...)`'s own parens
+  correctly fails the exact-text match and bails).
+
+**Mechanism.** Every entry equal to `"\n"` becomes a `Doc.Break(HARD)` so `Layout` synthesizes its
+own following line's indent from ambient depth, exactly like an ordinary source newline; a real
+content line has its own leading run of `commonIndent` characters folded into the *preceding*
+break's already-established elided tail (the same "trailing indent lives past the break's own
+`literal`, never independently addressable" contract `clampWs`/`Doc.Break` already document) so its
+own remaining `Doc.Text` keeps `Text.value.length == end - start` — no new invariant, the same one
+every other `Doc.Text` in this codebase already satisfies. The mandatory closing blank line is
+folded the same way, so the closing `"""` inherits the identical ambient depth with no separate
+code path.
+
+**Composing with C.7's chain-fix, not fighting it.** A reindented receiver's `Doc` now genuinely
+contains a `Doc.Break(HARD)` — unlike the plain, frozen `Doc.Text` C.7's own fix was about — so
+`wrapRoot`'s `hasOwnIndentScope` check (unchanged) finds it and would, unmodified, take the
+`splitIdx >= 0` branch meant for a *trailing* forced-break part (a lambda argument), producing the
+exact empty-head/unwrapped-tail defect C.7 fixed, just retriggered by a *leading* forced-break part
+instead. Fixed generally, not narrowly: `wrapRoot`'s `splitIdx < 0` guard becomes `splitIdx <= 0` —
+when the split-owning part is the chain's own first part there is no head content to protect from
+the fit-check, so it folds into the same shared `Group`/`Indent` the no-split path already builds,
+which is also exactly what lets the receiver's own break and the chain's continuation share one
+depth. This is inert for every case that currently reaches `splitIdx == 0` (none — confirmed the
+full ladder's existing chain fixtures are unaffected) and is what
+`format-raw-strings/chain-composition-error` (`.trimIndent().uppercase()`) exercises directly, the
+fixture the task asked for by name.
+
+**Existing-fixture audit — the full blast radius, one file.** Every `format-*`/`bracing-format-*`
+fixture directory was grepped for `//` (Part 1) and `"""` (Part 2) before writing a single new
+fixture. Comment hits (`format-annotations`, `format-spacing`, `format-wrapping`,
+`format-signatures`, `format-declaration-blank-lines`, `format-class-signatures`): every one already
+has a real, existing gap before its trailing comment and already starts with `"// "` — confirmed by
+inspection, then by the full ladder passing with zero diffs to any of them. Raw-string hits:
+`format-blank-lines/comment-and-string-interior-preserved-error` and
+`format-indentation/kdoc-and-multiline-string-preserved` — neither is followed by `trimIndent()`/
+`trimMargin()` at all, so Part 2 bails on both by construction (verified, not assumed).
+`format-line-breaks/chain-multiline-string-receiver-error` — this one *is* eligible (well-formed,
+`trimIndent()`-only) and its `.fixed.kt` is updated: the closing `"""` now joins the content lines'
+own depth (both move to the ambient depth one level past the statement) instead of staying frozen
+at the depth the original fixture's source happened to use, which is exactly the gap Part 2 closes.
+
+**Preserved verbatim, deliberately, listed:**
+- `trimMargin()` (Part 2's whole scope cut above) — including a raw string with no trim call
+  at all, which was never in scope for either upstream rule or this one.
+- Any raw string containing `$`/`${...}` interpolation, even when followed by `trimIndent()`.
+- A raw string whose content touches its opening or closing quotes (no blank first/last line).
+- A raw string whose shared indent is already zero.
+- A comment on the return type or modifier list of a `trimIndent()`-receiver's own statement — not
+  visible from this mechanism, same class of gap C.7/C.9 already documented for signatures/
+  annotations.
+- The checkout's own mixed-tab/space diagnostic (`containsMixedIndentationCharacters`) has no
+  analog here: it exists so the checkout's own line-by-line *rewrite* has an unambiguous character
+  count to work from, but `buildReindentedRawString`'s transform only ever counts and moves a
+  character run, never interprets tab width, so mixed indentation carries no extra value-preservation
+  risk and needed no bail.
+
+**Fixtures:** two new directories. `format-comment-spacing/` (own `wrasse.json`, `{"format":
+{"enabled": true}}`), 6 fixtures: `space-after-slash-slash-error` (both the after-`//` and
+before-comment insertions in one file), `space-before-trailing-comment-error`,
+`exempt-prefixes-clean` (`//region`/`//endregion`/`//noinspection`/`//language=`, `expect-clean`),
+`block-comment-and-kdoc-preserved-error` (both left byte-exact while an adjacent `EOL_COMMENT` in
+the same file still gets its space), a kitchen sink, and an already-clean canonical file.
+`format-raw-strings/` (same `wrasse.json`), 4 fixtures: `trimindent-reindent-error` (the traced
+value-preservation instance above), `chain-composition-error` (the required composition-with-C.7
+proof), `preserved-shapes-error` (interpolation/`trimMargin()`/no-trim-call all preserved verbatim
+in one file, alongside a real, unrelated comment fix proving the file is still genuinely
+processed), and an already-clean canonical file matching the reindent fixture's own expected
+output (idempotence by construction). Both new directories' `-error`/kitchen-sink fixtures exercise
+the existing, unchanged D19 idempotence cycle. `libs/wrasse-format/DocBuilderSpec` gained 15 new
+unit tests: 7 for comment spacing (after-`//` insertion, already-spaced, bare `//`, all four exempt
+prefixes in one test, block/KDoc untouched, before-comment insertion on a bare gap, and preserving
+an existing multi-space gap) and 8 for raw-string reindentation (the happy path with an explicit
+depth proof, the no-chain-at-all byte-identical-default proof, interpolation bail, `trimMargin()`
+bail, both touching-quotes bails, the zero-common-indent bail, and the two-link chain composition
+case) — all hand-built against `DocBuilder` directly, no compiler.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (518 fixture-spec cases per Kotlin minor —
+508 plus this slice's 6 (`format-comment-spacing`) plus 4 (`format-raw-strings`), plus the retained
+`format-line-breaks` fixture whose `.fixed.kt` changed but whose case count is unchanged — zero
+failures). `ktlint` checkout used for ground truth confirmed byte-clean (`git status`) throughout —
+read-only; `diktat`/`detekt` were deliberately not consulted for this slice, per the task's own
+scope.
+
+**This completes the planned Phase C roadmap.** Every printer concern autoformat-scope.md's F
+bucket lists is now either implemented (C.1–C.12) or explicitly recorded as preserved-verbatim with
+its own reason, never silently dropped. The consolidated preserved-verbatim list across all of
+Phase C, gathered here for the format-on-wrasse milestone that follows:
+
+- **Style-axis features with no analog** (D21 erased the code-style meta-knob entirely): every
+  `ktlint_official`-only condition named across C.7/C.9 (annotated-parameter-forces-multiline,
+  annotation-before-`constructor`), and `blank-line-between-when-conditions`'s own
+  `.editorconfig`-gated add direction (C.6).
+- **Comment-adjacent bails, one per reflowed construct, never guessed past:** a comment inside a
+  `FUN`'s parameter list (C.7), inside a class's supertype list or an annotation container (C.9),
+  inside a `WHEN_ENTRY`'s condition list (C.6/C.7), or anywhere in a `TYPE_PARAMETER_LIST`/
+  `TYPE_ARGUMENT_LIST`/`DESTRUCTURING_DECLARATION`/non-`FUN` parameter list (C.8, already
+  preserved by never being reflowed at all) — plus a comment on a return type or modifier list,
+  invisible from every one of these frames (C.7/C.9/C.12).
+  A local (`BLOCK`-scoped) `PROPERTY`'s own immediately-preceding comment never forces a blank line
+  either, since it does not nest as that declaration's own child at all (C.11).
+- **Narrow structural gaps, not scope cuts:** `where`-constraint colons were a genuine unmapped
+  gap closed in C.6; `COLLECTION_LITERAL_EXPRESSION`/`INDICES`/the bracket `@[A B]` annotation form
+  resolve to `WNodeType.UNKNOWN` today and bail wherever they're checked for (C.8/C.9); a lambda
+  parameter list separated from its own arrow by a newline is not detected as multi-line, a
+  single-pass streaming-builder limitation, not a decision (C.8).
+- **Deliberately narrower than a named upstream carve-out, never broader:** the `::`-bound-reference
+  leading-gap exemption (C.5); the annotation use-site-target receiver exemption (C.9); a
+  `DESTRUCTURING_DECLARATION`'s own blank-line-before-declaration eligibility (C.11); `trimMargin()`
+  and the two raw-string quote-line moves (C.12).
+- **Deferred whole, flagged for owner input:** enum `CLASS_BODY` trailing-comma insertion, since it
+  sometimes also needs a semicolon the printer's own contract cannot insert (C.8).
+- **No dedicated mechanism built (rare or materially bigger in scope):** a bare (non-list)
+  parenthesized expression spanning multiple lines; fit-driven forcing of an already-single-line
+  block/list into multi-line; a lambda's own first statement moving to its own line when the lambda
+  body is multi-line; a fully single-line nested `else if` chain forced multi-line regardless of
+  length (all C.10); a raw string's closing quotes moving onto their own line when they do not
+  already sit there (C.10's own preserved entry, subsumed by C.12's own, narrower, value-safety
+  reasoning for the identical construct).
+- **Blank lines at the true start or end of a file** — the base blank-line rule's own upstream
+  scope already excludes both; `TrailingNewlineRule` owns end-of-file behavior on wrasse's side, and
+  the harness itself trims trailing blank source lines before any fixture ever compiles, making the
+  end-of-file shape structurally unexercisable regardless (C.6).
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.

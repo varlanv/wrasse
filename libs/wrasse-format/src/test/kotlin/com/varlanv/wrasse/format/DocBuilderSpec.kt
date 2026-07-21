@@ -2140,6 +2140,256 @@ class DocBuilderSpec : BaseSpec({
 
         render(builder, ctx) shouldBe "class Foo\n\nclass Bar"
     }
+
+    should("insert a space after // when a line comment has none") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "//comment")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "// comment"
+    }
+
+    should("leave an already-spaced line comment untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "// comment")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "// comment"
+    }
+
+    should("leave a bare // line comment untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "//")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "//"
+    }
+
+    should("leave //region, //endregion, //noinspection and //language= line comments untouched") {
+        listOf("//region Foo", "//endregion", "//noinspection Foo", "//language=SQL").forEach { text ->
+            val builder = DocBuilder(formatConfig())
+            val ctx = WContext(filePath = "test.kt")
+            builder.enterNode(ctx.apply { type = WNodeType.FILE })
+            leaf(builder, ctx, WNodeType.EOL_COMMENT, text)
+            builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+            render(builder, ctx) shouldBe text
+        }
+    }
+
+    should("leave block comments and KDoc without a leading space untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        leaf(builder, ctx, WNodeType.BLOCK_COMMENT, "/*no space*/")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.KDOC, "/**no space*/")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "/*no space*/ /**no space*/"
+    }
+
+    should("insert exactly one space before a trailing line comment directly touching code") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAL, "val")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, "1")
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "//trailing")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "val x = 1 // trailing"
+    }
+
+    should("preserve an existing multi-space gap before a trailing line comment") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAL, "val")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, "1")
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "   ")
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "// trailing")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "val x = 1   // trailing"
+    }
+
+    fun multilineRawStringTemplate(builder: DocBuilder, ctx: WContext, lines: List<String>, closingIndent: String?) {
+        builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"\"\"")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+        lines.forEach { line ->
+            leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, line)
+            leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+        }
+        if (closingIndent != null) {
+            leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, closingIndent)
+        }
+        leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"\"\"")
+        builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+    }
+
+    fun trimIndentCall(builder: DocBuilder, ctx: WContext, methodName: String = "trimIndent") {
+        leaf(builder, ctx, WNodeType.DOT, ".")
+        builder.enterNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, methodName)
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
+    }
+
+    fun trimIndentReceiver(
+        builder: DocBuilder,
+        ctx: WContext,
+        lines: List<String>,
+        closingIndent: String?,
+        methodName: String = "trimIndent",
+    ) {
+        builder.enterNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        multilineRawStringTemplate(builder, ctx, lines, closingIndent)
+        trimIndentCall(builder, ctx, methodName)
+        builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+    }
+
+    should("reindent a well-formed trimIndent() raw string's content and closing quote to one ambient indent level") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        trimIndentReceiver(builder, ctx, listOf("  line one", "  line two"), "  ")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    line two\n    \"\"\"\n    .trimIndent()"
+    }
+
+    should("leave a standalone multiline raw string with no trimIndent() call untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        multilineRawStringTemplate(builder, ctx, listOf("  line one", "  line two"), "  ")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\n  line one\n  line two\n  \"\"\""
+    }
+
+    should("leave a raw string containing interpolation untouched even when followed by trimIndent()") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"\"\"")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "  hello ")
+        builder.enterNode(ctx.apply { type = WNodeType.SHORT_STRING_TEMPLATE_ENTRY })
+        leaf(builder, ctx, WNodeType.SHORT_TEMPLATE_ENTRY_START, "$")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "name")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.SHORT_STRING_TEMPLATE_ENTRY })
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "  ")
+        leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"\"\"")
+        builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        trimIndentCall(builder, ctx)
+        builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\n  hello \$name\n  \"\"\"\n    .trimIndent()"
+    }
+
+    should("leave a trimMargin() raw string untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        trimIndentReceiver(builder, ctx, listOf("  |line one", "  |line two"), "  ", methodName = "trimMargin")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\n  |line one\n  |line two\n  \"\"\"\n    .trimMargin()"
+    }
+
+    should("leave a trimIndent() raw string whose content touches the opening quotes untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"\"\"")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "line one")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "  ")
+        leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"\"\"")
+        builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        trimIndentCall(builder, ctx)
+        builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"line one\n  \"\"\"\n    .trimIndent()"
+    }
+
+    should("leave a trimIndent() raw string whose content touches the closing quotes untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"\"\"")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+        leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "  line one")
+        leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"\"\"")
+        builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        trimIndentCall(builder, ctx)
+        builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\n  line one\"\"\"\n    .trimIndent()"
+    }
+
+    should("leave a trimIndent() raw string with zero common indent untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        trimIndentReceiver(builder, ctx, listOf("line one", "  line two"), "  ")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\nline one\n  line two\n  \"\"\"\n    .trimIndent()"
+    }
+
+    should("compose reindentation with a further chain link after trimIndent()") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        trimIndentReceiver(builder, ctx, listOf("  line one"), "  ")
+        trimIndentCall(builder, ctx, "uppercase")
+        builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    \"\"\"\n    .trimIndent()\n    .uppercase()"
+    }
 })
 
 private val noopReporter = object : WReporter {

@@ -24,6 +24,7 @@ private val DECLARATION_SPACING_TYPES = BLANK_LINE_BEFORE_DECLARATION_TYPES +
     setOf(WNodeType.TYPEALIAS, WNodeType.SECONDARY_CONSTRUCTOR, WNodeType.ENUM_ENTRY)
 private val DECLARATION_GAP_CONTAINER_TYPES = setOf(WNodeType.FILE, WNodeType.CLASS_BODY, WNodeType.BLOCK)
 private val LEADING_COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT, WNodeType.KDOC)
+private val EOL_COMMENT_EXEMPT_PREFIXES = listOf("//noinspection", "//region", "//endregion", "//language=")
 
 private val KEYWORDS_WANTING_SPACE_AFTER =
     setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH, WNodeType.KW_WHERE)
@@ -68,12 +69,26 @@ class DocBuilder(
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
         val text = ctx.leafText?.toString() ?: ""
-        val entry = if (ctx.type == WNodeType.WHITE_SPACE && text.contains('\n')) {
-            ChildEntry.Ws(text, ctx.startOffset)
-        } else {
-            ChildEntry.Resolved(ctx.type, Doc.Text(text, ctx.startOffset, ctx.endOffset))
+        val entry = when {
+            ctx.type == WNodeType.WHITE_SPACE && text.contains('\n') -> ChildEntry.Ws(text, ctx.startOffset)
+            ctx.type == WNodeType.EOL_COMMENT ->
+                ChildEntry.Resolved(ctx.type, Doc.Text(normalizeEolCommentText(text), ctx.startOffset, ctx.endOffset))
+
+            else -> ChildEntry.Resolved(ctx.type, Doc.Text(text, ctx.startOffset, ctx.endOffset))
         }
         frames.last().children.add(entry)
+    }
+
+    /**
+     * An [WNodeType.EOL_COMMENT]'s own text, unchanged unless it is bare (`//`), already starts
+     * with `// `, or starts with `//noinspection`/`//region`/`//endregion`/`//language=` — otherwise
+     * a space is inserted right after `//`. Block comments and KDoc are never touched.
+     */
+    private fun normalizeEolCommentText(text: String): String = when {
+        text.length == 2 -> text
+        text.startsWith("// ") -> text
+        EOL_COMMENT_EXEMPT_PREFIXES.any { text.startsWith(it) } -> text
+        else -> "// " + text.removePrefix("//")
     }
 
     override fun enterNode(ctx: WContext) {
@@ -88,7 +103,9 @@ class DocBuilder(
             rootDoc = doc
         } else {
             val hasLeadingComment = frame.children.firstOrNull()?.type in LEADING_COMMENT_TYPES
-            frames.last().children.add(ChildEntry.Resolved(ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment))
+            frames.last().children.add(
+                ChildEntry.Resolved(ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment, frame.reindentedRawString)
+            )
         }
     }
 
@@ -157,6 +174,8 @@ class DocBuilder(
         WNodeType.PROPERTY -> resolvePropertyFrame(frame, start, end)
 
         WNodeType.PREFIX_EXPRESSION, WNodeType.POSTFIX_EXPRESSION -> resolveUnaryFrame(frame, start, end)
+
+        WNodeType.STRING_TEMPLATE -> resolveStringTemplateFrame(frame, start, end)
 
         else -> resolveBraceFrame(frame, start, end)
     }
@@ -465,9 +484,10 @@ class DocBuilder(
      * doesn't already give a dedicated `Group`/break treatment to. For every gap between two
      * direct children — an actual single-line [WNodeType.WHITE_SPACE] child, or no child at all
      * (two tokens directly adjacent) — [spacingDecision] is asked for the correct rendering; `null`
-     * preserves whatever was there verbatim. A real newline ([ChildEntry.Ws]) is never touched for
-     * horizontal spacing here — its newline count is normalized separately by
-     * [verticalGapNewlineCount]/[clampWs].
+     * preserves whatever was there verbatim, except when the gap is absent and the following child
+     * is a [WNodeType.EOL_COMMENT], which always gets one inserted space. A real newline
+     * ([ChildEntry.Ws]) is never touched for horizontal spacing here — its newline count is
+     * normalized separately by [verticalGapNewlineCount]/[clampWs].
      */
     private fun normalizeChildren(
         children: List<ChildEntry>,
@@ -515,7 +535,9 @@ class DocBuilder(
                 val isSuperTypeListLead = suppressSuperTypeListLeadGap &&
                     entry.type == WNodeType.COLON &&
                     next.type == WNodeType.SUPER_TYPE_LIST
-                if (!isSuperTypeListLead && spacingDecision(frameType, entry.type, next.type) == " ") {
+                val decision = if (isSuperTypeListLead) null else spacingDecision(frameType, entry.type, next.type)
+                val wantsSpace = decision == " " || (decision == null && next.type == WNodeType.EOL_COMMENT)
+                if (wantsSpace) {
                     val pos = out.last().end
                     out.add(Doc.Text(" ", pos, pos))
                 }
@@ -713,14 +735,37 @@ class DocBuilder(
      * the flat body it hands up, so the chain shares one continuation-indent level instead of
      * nesting one deeper per link. The break sits before the operator, flush against the receiver
      * in flat form.
+     *
+     * When the receiver is a raw multi-line string and the whole expression is exactly
+     * `<receiver>.trimIndent()` ([substituteTrimIndentReceiver]), the receiver's resolved `Doc` is
+     * swapped for its [ChildEntry.Resolved.reindentedRawString] candidate before flattening.
      */
     private fun resolveChainFrame(frame: Frame, start: Int, end: Int, isRoot: Boolean): Doc {
-        val children = frame.children
+        val children = substituteTrimIndentReceiver(frame.children)
         val opIdx = children.indexOfFirst { it.type == WNodeType.DOT || it.type == WNodeType.SAFE_ACCESS }
         if (opIdx < 0) return Doc.Concat(children.map { resolveEntry(it) }, start, end)
 
         val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = true, flat = "")
         return if (isRoot) wrapRoot(parts, start, end) else Doc.Concat(parts, start, end)
+    }
+
+    /**
+     * Replaces this chain link's receiver (always its first child) with
+     * [ChildEntry.Resolved.reindentedRawString] when [children] is exactly a raw string literal
+     * followed by `.`/`?.` and a no-argument `trimIndent()` call — the one shape
+     * [buildReindentedRawString] guarantees is value-preserving. Returns [children] unchanged
+     * otherwise.
+     */
+    private fun substituteTrimIndentReceiver(children: List<ChildEntry>): List<ChildEntry> {
+        val real = children.filter { it.type != WNodeType.WHITE_SPACE }
+        if (real.size != 3) return children
+        val receiver = real[0] as? ChildEntry.Resolved ?: return children
+        if (receiver.type != WNodeType.STRING_TEMPLATE) return children
+        if (real[1].type != WNodeType.DOT && real[1].type != WNodeType.SAFE_ACCESS) return children
+        val call = real[2] as? ChildEntry.Resolved ?: return children
+        if (call.type != WNodeType.CALL_EXPRESSION || flatText(call.doc) != "trimIndent()") return children
+        val reindented = receiver.reindentedRawString ?: return children
+        return children.mapIndexed { i, entry -> if (i == 0) ChildEntry.Resolved(entry.type, reindented) else entry }
     }
 
     /**
@@ -759,11 +804,14 @@ class DocBuilder(
      * the depth [resolveBraceFrame] already gives it. A part whose only forced break comes from a
      * plain multi-line [Doc.Text] (a raw string/KDoc token) has no indent scope of its own and
      * stays inside the shared `Group`/`Indent`; [Layout.flatWidth] still forces that group broken
-     * independently.
+     * independently. When the split-owning part is [parts]' own first element there is no head
+     * content to protect, so it folds into the same shared wrap instead of producing an empty head
+     * — this is also what lets a [buildReindentedRawString] receiver's own break sit at the same
+     * depth as the chain's continuation.
      */
     private fun wrapRoot(parts: List<Doc>, start: Int, end: Int): Doc {
         val splitIdx = parts.indexOfFirst { hasOwnIndentScope(it) }
-        if (splitIdx < 0) return Doc.Group(Doc.Indent(Doc.Concat(parts, start, end)))
+        if (splitIdx <= 0) return Doc.Group(Doc.Indent(Doc.Concat(parts, start, end)))
 
         val headEnd = parts.getOrNull(splitIdx - 1)?.end ?: start
         val head = Doc.Indent(Doc.Group(Doc.Concat(parts.subList(0, splitIdx), start, headEnd)))
@@ -778,6 +826,101 @@ class DocBuilder(
         is Doc.Indent -> hasOwnIndentScope(doc.body)
         is Doc.Group -> hasOwnIndentScope(doc.body)
         is Doc.Concat -> doc.parts.any { hasOwnIndentScope(it) }
+    }
+
+    /**
+     * Renders identically to [resolveBraceFrame]'s own default for [WNodeType.STRING_TEMPLATE];
+     * additionally computes [buildReindentedRawString]'s candidate onto [Frame.reindentedRawString]
+     * for [substituteTrimIndentReceiver] to read back once this node's enclosing chain (if any) is
+     * resolved.
+     */
+    private fun resolveStringTemplateFrame(frame: Frame, start: Int, end: Int): Doc {
+        frame.reindentedRawString = buildReindentedRawString(frame.children, start, end)
+        return resolveBraceFrame(frame, start, end)
+    }
+
+    /**
+     * Builds a re-indentable candidate for a raw multi-line string whose only children are
+     * [WNodeType.OPEN_QUOTE]/[WNodeType.CLOSING_QUOTE] and [WNodeType.LITERAL_STRING_TEMPLATE_ENTRY]
+     * (no interpolation) and whose shape already guarantees `trimIndent()` is value-preserving under
+     * re-indentation: the first line is blank (content already starts on its own line), the last
+     * line is blank (the closing quotes already sit on their own line), and at least one real,
+     * non-blank content line exists. Every entry equal to `"\n"` becomes a [Doc.Break] so [Layout]
+     * derives its following line's column from ambient depth; each real content line has its
+     * original common leading-whitespace prefix (the exact prefix length `trimIndent()` itself would
+     * strip) folded into the preceding break's elided tail, keeping only the content beyond that
+     * prefix as its own [Doc.Text] — never changing what `trimIndent()` computes, only where the
+     * shared prefix physically sits. A blank line that is not the mandatory first/last line is left
+     * completely untouched, since `trimIndent()` discards a blank line's own content regardless of
+     * its indentation. Returns `null` for any other shape, including a single content line whose
+     * common indent is already zero.
+     */
+    private fun buildReindentedRawString(children: List<ChildEntry>, start: Int, end: Int): Doc? {
+        if (children.size < 3) return null
+        val openEntry = children.first() as? ChildEntry.Resolved ?: return null
+        val closeEntry = children.last() as? ChildEntry.Resolved ?: return null
+        if (openEntry.type != WNodeType.OPEN_QUOTE || closeEntry.type != WNodeType.CLOSING_QUOTE) return null
+        if (flatText(openEntry.doc) != "\"\"\"") return null
+
+        val interior = children.subList(1, children.size - 1)
+        if (interior.isEmpty() ||
+            interior.any { it !is ChildEntry.Resolved || it.type != WNodeType.LITERAL_STRING_TEMPLATE_ENTRY }
+        ) {
+            return null
+        }
+        val entries = interior.map { it as ChildEntry.Resolved }
+        val texts = entries.map { flatText(it.doc) }
+        if (texts.any { it != "\n" && it.contains('\n') }) return null
+        if (texts.none { it == "\n" } || texts.first() != "\n") return null
+
+        val lastIdx = texts.lastIndex
+        val last = texts[lastIdx]
+        val closingTailIdx = when {
+            last == "\n" -> null
+            last.isNotEmpty() && last.isBlank() && lastIdx > 0 && texts[lastIdx - 1] == "\n" -> lastIdx
+            else -> return null
+        }
+        val bodyLastIdx = closingTailIdx?.minus(1) ?: lastIdx
+
+        val contentTexts = (0..bodyLastIdx).map { texts[it] }.filter { it != "\n" && it.isNotBlank() }
+        if (contentTexts.isEmpty()) return null
+        val commonIndent = contentTexts.minOf { line -> line.indexOfFirst { !it.isWhitespace() }.let { if (it < 0) line.length else it } }
+        if (commonIndent <= 0) return null
+
+        val out = ArrayList<Doc>(entries.size + 2)
+        out.add(openEntry.doc)
+        var i = 0
+        while (i <= bodyLastIdx) {
+            val entryDoc = entries[i].doc
+            val text = texts[i]
+            if (text != "\n") {
+                out.add(entryDoc)
+                i++
+                continue
+            }
+            val nextIdx = i + 1
+            when {
+                nextIdx > bodyLastIdx -> {
+                    val tailEnd = closingTailIdx?.let { entries[it].doc.end } ?: entryDoc.end
+                    out.add(Doc.Break(BreakKind.HARD, literal = "\n", start = entryDoc.start, end = tailEnd))
+                    i++
+                }
+
+                texts[nextIdx] != "\n" && texts[nextIdx].isNotBlank() -> {
+                    val nextDoc = entries[nextIdx].doc
+                    out.add(Doc.Break(BreakKind.HARD, literal = "\n", start = entryDoc.start, end = nextDoc.start + commonIndent))
+                    out.add(Doc.Text(texts[nextIdx].drop(commonIndent), nextDoc.start + commonIndent, nextDoc.end))
+                    i = nextIdx + 1
+                }
+
+                else -> {
+                    out.add(Doc.Break(BreakKind.HARD, literal = "\n", start = entryDoc.start, end = entryDoc.end))
+                    i++
+                }
+            }
+        }
+        out.add(closeEntry.doc)
+        return Doc.Concat(out, start, end)
     }
 
     /**
@@ -1324,6 +1467,7 @@ class DocBuilder(
         val children = mutableListOf<ChildEntry>()
         var ownsSuperTypeListLeadGap = false
         var hasLeadingAnnotation = false
+        var reindentedRawString: Doc? = null
     }
 
     private sealed interface ChildEntry {
@@ -1334,6 +1478,7 @@ class DocBuilder(
             val doc: Doc,
             val hasLeadingAnnotation: Boolean = false,
             val hasLeadingComment: Boolean = false,
+            val reindentedRawString: Doc? = null,
         ) : ChildEntry
         class Ws(val rawText: String, val start: Int) : ChildEntry {
             override val type: WNodeType = WNodeType.WHITE_SPACE
