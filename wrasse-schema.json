@@ -64,6 +64,18 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow explicitly declaring a lambda's own single 'it' parameter"
                 },
+                "long-numerical-values": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require underscore separators in long numeric literals"
+                },
+                "range-conventional": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Require conventional range forms: .. over rangeTo(), until over ..(x - 1)"
+                },
+                "trivial-accessors": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow trivial get()/set() accessors that only read or write the backing field"
+                },
                 "if-else-bracing": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require braces around a bare if/else branch belonging to a multi-line if-statement"

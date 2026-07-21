@@ -3257,6 +3257,99 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   `format-with-fixes/empty-default-constructor-and-format-error` and
   `format-with-fixes/redundant-constructor-keyword-and-format-error`, the same low-risk composition
   shape as every prior T-bucket id.
+
+  `trivial-accessors`, `long-numerical-values`, and `range-conventional` shipped twelfth,
+  thirteenth, and fourteenth, closing out the T bucket: all three port diktat's own
+  `TrivialPropertyAccessors`, `LongNumericalValuesSeparatedRule`, and `RangeConventionalRule` — a
+  full grep of both real checkouts turned up no ktlint equivalent for any of the three, and no
+  detekt equivalent for the first; detekt does ship its own, differently-shaped
+  `UnderscoresInNumericLiterals` (lint-only, no autocorrect, default acceptable length 4, an
+  explicit `serialVersionUID`-in-a-`Serializable`-type exemption, hex/binary excluded entirely) and
+  `RangeUntilInsteadOfRangeTo` (lint-only, recommends the `..<` operator for the exact same `b - 1`
+  shape); both were read and considered but not adopted as the port target, since the scope doc
+  attributes this trio to diktat and diktat is the only one of the three shipping an actual
+  autocorrect for any of them.
+
+  `trivial-accessors` narrows diktat's own detection to four exact shapes rather than its looser
+  "exactly one reference expression named `field` anywhere in the subtree" heuristic: a bare `get`
+  with no parameter list and no body at all (already identical to no accessor), `get() = field`,
+  `get() { return field }`, and `set(value) { field = value }` — a setter's block must be exactly
+  one statement, a plain-`=` assignment of the parameter to `field` verbatim; a compound-assignment
+  operator (`+=` and similarly) is never trivial, a deliberate correctness fix over diktat's own
+  check, which inspects only the assignment's left/right text and never its operator, so it would
+  misclassify `field += value` as removable. Diktat's own algorithm affords annotated getters only
+  accidental protection (an annotation entry's own type reference is itself a second
+  `REFERENCE_EXPRESSION`, which silently defeats its single-reference count) and setters none at
+  all; wrasse makes the guard explicit and uniform instead: any accessor carrying its own
+  `MODIFIER_LIST` (an annotation or a visibility modifier) is still reported — this is a real
+  trivial body, worth flagging — but never autofixed, since either may carry behavior (JVM
+  interop, restricted visibility) a plain deletion would silently drop. Deletion collapses leading
+  whitespace back to the prior real token,
+  the same precedent `EmptyClassBodyDeletionSpan` established, and swallows any comment living
+  inside the accessor's own body along with it (the whole construct is being removed, not merely
+  reformatted, so there is no separate "which side does this comment belong to" question the way
+  there is for a token-level deletion). Fixtures (17, 7 with a `.fixed.kt` companion): the four
+  trivial shapes (plus both accessors trivial on the same property at once, proving the two
+  deletions compose without overlap), four non-trivial clean shapes (a wrapping call, a transformed
+  setter parameter, the compound-assignment safety fix, a returned literal), two operand-mismatch
+  clean shapes for the setter, a bare `private set` full-silent-bail clean shape (matching diktat's
+  own behavior for that exact shape, since its setter check has no bare-form fallback at all), two
+  report-only bail occurrences (an annotated getter, a visibility-carrying setter), a
+  comment-swallowed-by-deletion shape, and `@Suppress` happy/negative cases.
+
+  `long-numerical-values` hardcodes diktat's own default thresholds (no configurable knob, per the
+  project's own no-per-rule-config-beyond-level stance): a digit run longer than three characters
+  is grouped in blocks of three, counted from the right for an integer literal's digits (and a
+  float literal's real part) and from the left for a float literal's fractional part; a hex (`0x`)
+  or binary (`0b`) literal's own prefix, and an `L`/`f`/`F` suffix, are preserved untouched outside
+  the grouped run. A literal already containing an underscore anywhere is skipped entirely — no
+  report at all — narrower than diktat's own behavior of still emitting a second, differently
+  worded warn-only diagnostic for any individual block that's still too long; dropped as
+  inconsistent with every other wrasse rule's one-message-per-occurrence convention. A float
+  literal in scientific notation (`e`/`E`) is out of scope entirely, sidestepping a real latent bug
+  in the ported algorithm: splitting on `.` alone for a dot-less exponent literal (`1e10`) leaves
+  nothing to index as the fractional part. `serialVersionUID` — detekt's own exemption — was
+  evaluated and deliberately not ported: getting it right needs either a name-only heuristic with
+  real double-counting risk across nested local properties in wrasse's own event-stream model, or
+  actual resolution, out of scope for a purely lexical T-rule; the existing `@Suppress` mechanism
+  already covers this one narrow, known false positive at zero extra engineering cost. Fixtures
+  (13, 8 with a `.fixed.kt` companion): a plain long decimal integer, one with an `L` suffix, a hex
+  literal, a binary literal, a float grouped on its real part only, one grouped on its fractional
+  part only, one with an `f` suffix, a short-literal clean shape, an already-underscored clean
+  shape for both an integer and a float, a scientific-notation clean shape, and `@Suppress`
+  happy/negative cases.
+
+  `range-conventional` fuses two independent rewrites under one id, mirroring diktat's own single
+  rule: a qualified, single-argument `rangeTo` call (`a.rangeTo(b)`) becomes `a..b`; a `..` range
+  whose upper bound is `<expr> - 1` (any single layer of parentheses around the subtraction left
+  exactly where they were) becomes `until <expr>` — reproducing diktat's own fixer's residual
+  `1 until (4)` shape byte-for-byte, verified directly against its own fix-test fixtures, rather
+  than the cleaner `1 until 4` a fresh design might prefer. Both matches are purely syntactic — no
+  resolution — so a locally-declared `rangeTo` overload is rewritten the same as the standard
+  library's, matching diktat's own scope exactly; a two-argument `rangeTo` call is untouched, the
+  same single-argument gate diktat's own rule applies. A subtraction wrapped in two or more layers
+  of parentheses is out of scope entirely — diktat's own fixer unwraps arbitrarily deep nesting via
+  a dedicated chain-unwrap helper; this port narrows to zero or one layer, comfortably past every
+  realistic case and far simpler to get right without that helper's own recursive-unwrap machinery.
+  detekt's own `RangeUntilInsteadOfRangeTo` recommends `..<` instead of `until` for the identical
+  `b - 1` shape; both operators are equally legal everywhere in wrasse's whole 2.1–2.4 support
+  matrix (`..<` stabilized well before Kotlin 2.1), so this was a real choice, not a version
+  constraint — `until` was kept both because the scope doc attributes this rule to diktat and
+  because it needs no version-gating logic to justify, an infix stdlib function present since
+  Kotlin's earliest releases. Both rewrites decline the fix (report only) whenever a comment sits
+  anywhere inside the matched span, the same posture as every other T-bucket id: the replacement
+  text is synthesized from sub-expression spans alone, with nowhere to relocate a comment found in
+  between. Fixtures (12, 5 with a `.fixed.kt` companion): the `rangeTo`-call rewrite, three shapes
+  of the `until` rewrite (no parens, one paren layer, pre-existing spaces on both sides of `..`), a
+  plain-range clean shape, a `- 2` (not `- 1`) clean shape, a two-argument `rangeTo` clean shape, a
+  double-paren clean shape proving the deliberate depth narrowing, one report-only comment-bail
+  occurrence per rewrite, and `@Suppress` happy/negative cases.
+
+  Each new id's own composition with `format` is proven in
+  `format-with-fixes/trivial-accessors-and-format-error`,
+  `format-with-fixes/long-numerical-values-and-format-error`, and
+  `format-with-fixes/range-conventional-and-format-error` — the same low-risk shape as every prior
+  T-bucket id.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal

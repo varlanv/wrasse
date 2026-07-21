@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "long-numerical-values": { "level": "error" }
+    }
+}

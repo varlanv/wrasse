@@ -12,13 +12,16 @@ import com.varlanv.wrasse.rules.EmptyDefaultConstructorRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
+import com.varlanv.wrasse.rules.LongNumericalValuesRule
 import com.varlanv.wrasse.rules.ModifierEngine
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
+import com.varlanv.wrasse.rules.RangeConventionalRule
 import com.varlanv.wrasse.rules.RedundantConstructorKeywordRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
+import com.varlanv.wrasse.rules.TrivialAccessorsRule
 import com.varlanv.wrasse.rules.UnnecessaryBacktickRule
 import com.varlanv.wrasse.rules.UnnecessaryInheritanceRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
@@ -33,12 +36,15 @@ listOf(
     EmptyDefaultConstructorRule(),
     ExplicitItLambdaParameterRule(),
     IfElseBracingRule(),
+    LongNumericalValuesRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
     NoSemicolonsRule(),
     NoUnitReturnRule(),
+    RangeConventionalRule(),
     RedundantConstructorKeywordRule(),
     TrailingNewlineRule(),
+    TrivialAccessorsRule(),
     UnnecessaryBacktickRule(),
     UnnecessaryInheritanceRule(),
     WhenEntryBracingRule(),

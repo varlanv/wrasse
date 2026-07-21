@@ -8,6 +8,9 @@
         "unnecessary-backticks": { "level": "error" },
         "explicit-it-lambda-parameter": { "level": "error" },
         "empty-default-constructor": { "level": "error" },
-        "redundant-constructor-keyword": { "level": "error" }
+        "redundant-constructor-keyword": { "level": "error" },
+        "trivial-accessors": { "level": "error" },
+        "long-numerical-values": { "level": "error" },
+        "range-conventional": { "level": "error" }
     }
 }
