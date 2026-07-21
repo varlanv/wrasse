@@ -2,6 +2,12 @@
     "$schema": "./wrasse-schema.json",
     "format": { "enabled": true },
     "rules": {
+        "backing-property-naming": { "level": "error" },
+        "class-naming": { "level": "error" },
+        "enum-entry-naming": { "level": "error" },
+        "filename": { "level": "error" },
+        "function-naming": { "level": "error" },
+        "package-naming": { "level": "error" },
         "empty-default-constructor": { "level": "error" },
         "explicit-it-lambda-parameter": { "level": "error" },
         "redundant-constructor-keyword": { "level": "error" },
