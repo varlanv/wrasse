@@ -2,7 +2,9 @@
     "$schema": "./wrasse-schema.json",
     "format": { "enabled": true },
     "rules": {
+        "empty-default-constructor": { "level": "error" },
         "explicit-it-lambda-parameter": { "level": "error" },
+        "redundant-constructor-keyword": { "level": "error" },
         "modifier-order": { "level": "error" },
         "unnecessary-backticks": { "level": "error" },
         "no-empty-class-body": { "level": "error" },
