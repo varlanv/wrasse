@@ -14,4 +14,8 @@ fun multiply(a: Int, b: Int): Int {
     return a * b
 }
 
-class Point(val x: Int, val y: Int, val z: Int)
+class Point(
+    val x: Int,
+    val y: Int,
+    val z: Int,
+)

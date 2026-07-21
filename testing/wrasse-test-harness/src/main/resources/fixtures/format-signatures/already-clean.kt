@@ -14,6 +14,10 @@ fun greet() {
     println("hi")
 }
 
-class Point(val x: Int, val y: Int, val z: Int)
+class Point(
+    val x: Int,
+    val y: Int,
+    val z: Int,
+)
 
 // expect-clean

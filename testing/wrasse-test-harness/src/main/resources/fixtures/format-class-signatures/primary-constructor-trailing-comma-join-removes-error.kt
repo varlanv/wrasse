@@ -1,10 +1,8 @@
 package sample
 
-class Point {
-    constructor(
-        x: Int,
-        y: Int
-    )
-}
+class Pair(
+    val a: Int,
+    val b: Int,
+)
 
 // expect-error 1:1 format "File is not wrasse-formatted"

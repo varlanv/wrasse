@@ -1,3 +1,5 @@
 package sample
 
-class Point(val x: Int, val y: Int)
+class Point {
+    constructor(x: Int, y: Int)
+}

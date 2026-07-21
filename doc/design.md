@@ -4154,6 +4154,202 @@ directly with no compiler.
 436 plus this slice's 15 — zero failures). `ktlint` checkout confirmed byte-clean (`git status`)
 throughout — read-only; `detekt` was not needed for this slice.
 
+#### Phase C.9 — Class-signature wrapping and annotation placement — **done 2026-07-21**
+
+**Part 1 — class-signature wrapping.** Two independent extensions, both reusing existing machinery
+rather than adding a parallel one.
+
+**1a. Primary-constructor parameter list joins `FUN`'s own mechanism.**
+`resolveValueParameterListFrame`'s scoping guard (`parentType != FUN` routed everything else to
+`passthroughParameterList`, per C.7) now also accepts `WNodeType.PRIMARY_CONSTRUCTOR`: the identical
+threshold/multiline-parameter/comment-bail decision C.7 built for `FUN` applies verbatim to a
+class's own parameter list, one shared code path, no branch duplication. A secondary constructor, a
+`FUNCTION_TYPE`, and a lambda's own list are still routed to `passthroughParameterList` unchanged.
+**Trailing-comma composition, proven, not assumed:** since `PRIMARY_CONSTRUCTOR` now reaches the same
+`Doc.Group`/`Doc.TrailingComma` construction `FUN` already used (C.8's dynamic, comma-iff-broken
+mechanism — §13 Phase C.8), the comma decision follows automatically, with zero new code;
+`format-class-signatures/primary-constructor-trailing-comma-join-removes-error` proves the join
+direction (a source with an existing trailing comma collapses to one line, dropping it, once it fits
+below the threshold) alongside `threshold-forces-multiline-error`/`fit-based-force-error` (already
+proving the add-on-break direction, mirroring C.8's own FUN-side fixtures).
+
+**1b. Supertype-list wrapping (`resolveSuperTypeListFrame`, new `WNodeType.SUPER_TYPE_LIST` branch),
+scoped to `parentType == CLASS`** — `WNodeType.OBJECT_DECLARATION`'s own supertype list (same node
+type, different parent) falls through untouched to `resolveBraceFrame`, matching ktlint's own
+`class-signature` rule scope (`CLASS` only). Bails the same way on a comment anywhere in the list.
+One supertype: joins the primary constructor's own closing line unconditionally when that
+constructor already spans multiple lines (`ctorWrapped`); otherwise wrapped in its own `Doc.Group` —
+`HARD` when the supertype's own text already spans multiple lines, `SOFT` (fit-dependent,
+Layout-decided) otherwise, the identical break-kind choice `resolveValueParameterListFrame` already
+makes. Two or more supertypes: always broken, one per line, one `Doc.Indent` level deeper than the
+class, comma-separated (reusing each source comma's own span) — never fit-dependent, mirroring
+ktlint's own unconditional (not-fit-based) rule for the 2+ case. The first supertype joins the
+constructor's closing line only when `ctorWrapped`; otherwise the colon ends that line and every
+supertype, including the first, starts its own line.
+
+**`ctorWrapped` mechanism — a same-frame peek, no new plumbing.** By the time `SUPER_TYPE_LIST`'s own
+`exitNode` fires, the enclosing `CLASS` frame is still open on the walk's frame stack (its own
+`exitNode` hasn't fired yet) and already holds `PRIMARY_CONSTRUCTOR`'s fully-resolved `Doc` as one of
+its buffered children — `resolveSuperTypeListFrame` reads it via `frames.lastOrNull()`, the same
+open-ancestor-peek idiom `ancestorHasFun` already established, then asks `spansMultipleLines` (an
+existing helper, unchanged) whether that `Doc` contains a `HARD` break. This is exact for every
+build-time-decidable case (count/multiline-parameter-forced, the comment-bail passthrough preserving
+a real source newline, and the empty-parameter-list case) and a documented approximation for the one
+case that genuinely cannot be decided before `Layout` runs: a `SOFT`-kind constructor group whose
+fit is still undetermined reads as `ctorWrapped = false` here, since `spansMultipleLines` only
+detects an already-committed `HARD` break, never a pending fit decision.
+
+**The colon→supertype-list gap — a `Frame`-flag handshake, not a blanket rule.** The single space (or
+break) between `CLASS`'s own `COLON` and its `SUPER_TYPE_LIST` child needs to move *inside*
+`SUPER_TYPE_LIST`'s own `Doc` (so it can become a breakable `Doc.Break` rather than static text), but
+`normalizeChildren`'s generic per-pair spacing table has no way to know, from the `CLASS` frame's own
+children alone, whether the adjacent `SUPER_TYPE_LIST` actually supplies its own lead (the bailed
+path never does). A new `Frame.ownsSuperTypeListLeadGap` boolean (default `false`), set by
+`resolveSuperTypeListFrame` the moment it commits to *not* bailing (on the same still-open `CLASS`
+frame the `ctorWrapped` peek already reads), is threaded into `normalizeChildren` as an explicit
+`suppressSuperTypeListLeadGap` parameter from `resolveBraceFrame`'s two call sites; only when both
+the flag is set *and* the adjacent pair is literally `(COLON, SUPER_TYPE_LIST)` does the gap — real
+`Ws`, plain single-space, or the zero-width "no gap at all" case (`class Foo :Bar`, no space in
+source) — collapse to nothing, in favor of `SUPER_TYPE_LIST`'s own leading `Doc.Text`/`Doc.Break`.
+Found failing-first: an earlier, unconditional (type-adjacency-only) version of this rule
+double-spaced a bailed supertype list's `class Foo(a: Int) : Sup1, /* keep */ Sup2` into
+`... :Sup1 ...` — dropping the *only* space present, since the CLASS-level default colon rule and
+the (never-taken, in the bail case) `SUPER_TYPE_LIST` lead had no way to coordinate without the flag;
+caught by `format-class-signatures/supertype-comment-bail-error`'s own patched-content assertion,
+fixed by gating on the flag instead of the raw type pair.
+
+**Preserved-not-guessed, listed:**
+- The `ctorWrapped` approximation above (a fit-undetermined `SOFT` constructor reads as not-wrapped).
+- ktlint's own `ktlint_official`-only "annotated parameter forces multiline" condition — no analog,
+  same reasoning as C.7 (D21 erased the code-style meta-knob entirely).
+- A comment on the return type or modifier list, or anywhere outside the parameter list itself — not
+  visible from this frame, same gap C.7 already documented for `FUN`.
+
+**Part 2 — annotation placement (`resolveAnnotationContainerFrame`), scoped to
+`WNodeType.MODIFIER_LIST` and `WNodeType.ANNOTATED_EXPRESSION`.** Bails to `resolveBraceFrame`
+(verbatim, spacing-only) when: the owning declaration is a `WNodeType.VALUE_PARAMETER` or
+`WNodeType.VALUE_ARGUMENT` (`parentType` — ktlint's own carve-out: an annotated value
+parameter/argument never wraps, regardless of arguments); no `WNodeType.ANNOTATION_ENTRY` is present
+at all; one is followed directly by a `WNodeType.LAMBDA_EXPRESSION` (an annotated trailing-lambda
+value, e.g. `val f = @Suppress("x") { ... }`, never wraps — ktlint's own
+`isAnnotatedExpressionBeforeLambdaExpression` exemption); a comment sits anywhere inside the
+container; or an unrecognized child is present (the bare `@[Foo Bar]` array-annotation syntax has no
+`WNodeType` mapping and resolves to `WNodeType.UNKNOWN` — detected and bailed on, not silently
+mishandled). Otherwise: a single argument-less annotation is left exactly as the source had it
+(ktlint permits both same-line and own-line placement for this case — a genuine "MAY", so wrasse
+does not pick a canonical direction and reflow it, unlike the force cases below); an annotation with
+arguments (`containsParen` — reliable since `(` cannot otherwise appear in an annotation entry's own
+text, the same "introspect the already-resolved child `Doc`" idiom `spansMultipleLines` already
+established) or two or more annotations always wrap, one per line, at the declaration's own ambient
+depth (no `Doc.Indent` — annotations sit at the same depth as the declaration they precede).
+**Canonical-form choice, not a ktlint port:** ktlint additionally permits consecutive argument-less
+annotations to stay clustered on one shared line as long as the declaration itself moves to the next
+line (`@Foo1 @Foo2\nfun foo() {}` is valid ktlint output); wrasse's printer needs exactly one
+canonical rendering and picks the simpler, always-one-per-line form for 2+ annotations — a valid
+*instance* of what ktlint accepts, never a broader one, just not the only one ktlint permits.
+
+**Mechanism — `wrapAnnotationEntries` embeds its own trailing break; `adjustAnnotationTrailingGap`
+(a `Frame`-flag-free version of the same handshake used for supertypes, keyed off doc *shape*
+instead) drops the now-redundant source gap.** Each annotation entry after the first is preceded by
+a `Doc.Break(HARD)` (reusing `wsBreakAt` to keep the original gap's own span where one exists); after
+the last entry, one more `Doc.Break(HARD)` is appended as the container's own trailing element,
+carrying the declaration onto its own line at the same depth. The owning declaration's frame (`FUN`,
+`CLASS`, `PROPERTY`, or any other node reaching the generic `resolveBraceFrame` default — this
+composes for every declaration kind for free, no per-declaration-type code) must not *also* render
+its own real or synthesized gap after the annotation container, or the two would double into a
+blank line: `adjustAnnotationTrailingGap` detects this via `endsWithHardBreak` (a new, purely
+structural helper — is the container's own last rendered element literally a `HARD` break?) on the
+already-resolved `MODIFIER_LIST`/`ANNOTATED_EXPRESSION` child, and — only when true — drops the
+following gap entirely (real `Ws`, plain space, or none) before the rest of that frame's children
+reach `normalizeChildren`. Unlike the supertype case, no `Frame` field is needed here: `endsWithHardBreak`
+is precise on its own, since only `wrapAnnotationEntries`'s own construction ever leaves a bare
+trailing `HARD` break as an annotation container's last element (confirmed against the real
+compiler's own shape for both a single bare annotation — `[ANNOTATION_ENTRY]`, no trailing
+whitespace child at all — and a bailed multi-keyword modifier list, neither of which end in one).
+
+**Preserved-not-guessed, listed:**
+- `WNodeType.FILE_ANNOTATION_LIST` (`@file:...` file-level annotations) — excluded entirely, not
+  partially: ktlint's own rule additionally enforces a blank line between the file-annotation block
+  and what follows it (`visitFileAnnotationList`), which — like the `CLASS`/colon gap above — is
+  owned by the *enclosing* `FILE` frame, not `FILE_ANNOTATION_LIST`'s own children; composing that
+  with C.6's existing blank-line policy was judged a separate, C.6-shaped concern out of this
+  slice's scope, so file annotations are untouched by construction (the existing `else ->
+  resolveBraceFrame` default), not a silent gap.
+- The annotation use-site-target receiver exemption (`@receiver:Foo(args)` staying inline even with
+  arguments) — ktlint's own rule carries this one narrow carve-out via `AnnotationUseSiteTarget`;
+  detecting it here would need a textual sniff of the target keyword with no clean structural
+  signal, judged not worth the fragility for a rare construct. An `@receiver:`-targeted argumented
+  annotation is treated the same as any other argumented annotation (forced to its own line) —
+  narrower behavior than ktlint's exemption, never broader.
+- ktlint's own `ktlint_official`-only "annotation before a `constructor` keyword" carve-out — no
+  analog, same reasoning as Part 1 and C.7.
+- A comment anywhere inside a `MODIFIER_LIST`/`ANNOTATED_EXPRESSION` bails the whole container
+  verbatim (no attempt to still move a comment-free trailing annotation) — the same discipline C.7's
+  own parameter-list comment bail established.
+
+**Existing-fixture changes, each a direct consequence of the mechanism, not a guess:**
+- `format-signatures/primary-constructor-untouched-clean.kt` (`class Point(val x: Int, val y: Int,
+  val z: Int)`, `expect-clean`) — its own premise (a primary constructor is never reflowed) is now
+  false by design; the file no longer exercises anything distinct once `FUN`'s own already-covered
+  threshold behavior applies identically. Replaced by
+  `format-signatures/secondary-constructor-untouched-clean.kt`, preserving the directory's original
+  point (a constructor list genuinely outside the wrap policy still exists — the secondary one) on a
+  construct Part 1 does not touch.
+- `format-signatures/already-clean.kt` and `kitchen-sink-error.fixed.kt` — both contained the same
+  3-parameter `class Point(val x: Int, val y: Int, val z: Int)` (that directory's own
+  `multilineSignatureThreshold` is `3`); now force-wrapped like any 3-parameter `FUN`. Updated to the
+  wrapped, trailing-comma-bearing canonical form in both files.
+- `format-trailing-commas/constructor-parameter-list-add-on-multiline-error.fixed.kt` — the whole
+  point of this fixture (C.8) was the *static* mechanism's "already multi-line → insert comma,
+  preserve the line breaks verbatim" behavior for a non-`FUN` parameter list, demonstrated on a
+  primary constructor. That construct is no longer static (Part 1 routes it through the *dynamic*
+  mechanism instead), and its 2-parameter flat text fits under the directory's `maxLineLength: 40`,
+  so it now *joins* instead of preserving the multi-line source — collapsing to
+  `class Point(val x: Int, val y: Int)`, dropping the comma the old expectation added. Both this
+  fixture and its `remove-on-single-line-error` sibling were repointed from a primary constructor to
+  a secondary one (`class Point { constructor(...) }`), preserving the directory's original intent
+  (the static mechanism, demonstrated on a `FUN`-external parameter list) on a construct Part 1
+  still does not touch, rather than asserting on behavior the mechanism no longer exhibits.
+- No other existing fixture directory has a primary constructor with 2+ parameters that is either
+  already multi-line in source or whose flat text exceeds that directory's own `maxLineLength`
+  (audited across every `format`-enabled fixture directory) — the change is otherwise silent by
+  construction.
+
+**Fixtures:** two new directories. `format-class-signatures/` (own `wrasse.json`, `maxLineLength:
+40`/`multilineSignatureThreshold: 3`, matching `format-signatures`' pattern), 14 fixtures: the four
+parameter-list concerns mirrored from `format-signatures` on a primary constructor
+(`threshold-forces-multiline-error`, `join-collapses-multiline-error`, `fit-based-force-error`,
+`multiline-parameter-content-forces-error`, `comment-in-parameter-list-bail-error`), a dedicated
+trailing-comma join-removes proof (`primary-constructor-trailing-comma-join-removes-error`), the five
+supertype-wrapping shapes (`supertype-single-fit-error`, `supertype-single-join-with-wrapped-ctor-error`,
+`supertype-multi-not-wrapped-error`, `supertype-multi-wrapped-ctor-error`,
+`supertype-comment-bail-error`), the `OBJECT_DECLARATION` scope-boundary proof
+(`object-declaration-supertype-untouched-clean`), a kitchen sink, and an already-clean canonical file.
+`format-annotations/` (own `wrasse.json`, same style), 11 fixtures: both single-annotation
+placements as independently clean (`single-annotation-inline-clean`,
+`single-annotation-own-line-clean`), the force cases (`argumented-annotation-forces-own-line-error`,
+`multiple-annotations-force-own-lines-error`, plus `multiple-annotations-already-own-lines-clean`
+proving the canonical form is stable), the two carve-outs
+(`value-parameter-annotation-untouched-clean`, `annotated-lambda-before-untouched-clean`), the
+`@[...]` array-syntax bail (`annotation-array-syntax-untouched-clean`), a comment bail
+(`comment-in-annotation-container-bail-error`), a kitchen sink, and an already-clean file. Both new
+directories' `-error` fixtures exercise the existing, unchanged D19 idempotence cycle.
+`libs/wrasse-format/DocBuilderSpec` gained 16 new unit tests (7 for supertype-list dispatch: flat,
+fit-forced wrap, ctor-wrapped join, multi unconditional split, multi first-joins,
+`OBJECT_DECLARATION` untouched, comment bail; 6 for annotation dispatch: single untouched, argumented
+forces own line, two-annotations split, value-parameter exemption, annotated-expression-before-lambda
+exemption, array-syntax bail; 3 for the `PRIMARY_CONSTRUCTOR`-now-dynamic parameter-list path: forced
+by threshold, dynamic trailing-comma add, join dropping the comma) and repointed 2 existing tests
+that had used `PRIMARY_CONSTRUCTOR` to demonstrate `passthroughParameterList`'s static behavior onto
+`SECONDARY_CONSTRUCTOR` instead, for the same reason as the `format-trailing-commas` fixture change
+above — all hand-built against `DocBuilder` directly, no compiler.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green (476 fixture-spec cases per Kotlin minor — 451
+plus this slice's 14 (`format-class-signatures`) plus 11 (`format-annotations`) — zero failures).
+`ktlint` checkout used for ground truth confirmed byte-clean (`git status`) throughout — read-only;
+`detekt` was not needed for this slice.
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.

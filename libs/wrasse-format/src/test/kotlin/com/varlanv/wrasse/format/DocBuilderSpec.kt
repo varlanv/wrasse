@@ -984,8 +984,27 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "fun f(\n    a: Int,\n    b: Int,\n)"
     }
 
-    should("leave a non-FUN parameter list untouched regardless of parameter count or threshold") {
+    should("leave a secondary constructor's parameter list untouched regardless of parameter count or threshold") {
         val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 1))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.SECONDARY_CONSTRUCTOR })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        valueParameter(builder, ctx, "a", "Int")
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        valueParameter(builder, ctx, "b", "Int")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.SECONDARY_CONSTRUCTOR })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(a: Int, b: Int)"
+    }
+
+    should("force a PRIMARY_CONSTRUCTOR's own parameter list one-per-line once the parameter count meets the threshold") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 2))
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
         builder.enterNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
@@ -1000,7 +1019,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "(a: Int, b: Int)"
+        render(builder, ctx) shouldBe "(\n    a: Int,\n    b: Int,\n)"
     }
 
     should("bail on a FUN's parameter list containing a comment, preserving it verbatim") {
@@ -1091,7 +1110,25 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "(\na,\n)"
     }
 
-    should("add a static trailing comma to an already multi-line constructor parameter list") {
+    should("add a static trailing comma to an already multi-line secondary constructor parameter list") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.SECONDARY_CONSTRUCTOR })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        valueParameter(builder, ctx, "a", "Int")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.SECONDARY_CONSTRUCTOR })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(\n    a: Int,\n)"
+    }
+
+    should("add a dynamic trailing comma to a PRIMARY_CONSTRUCTOR's own parameter list forced multiline by threshold") {
         val builder = DocBuilder(formatConfig())
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
@@ -1107,6 +1144,25 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
         render(builder, ctx) shouldBe "(\n    a: Int,\n)"
+    }
+
+    should("join a PRIMARY_CONSTRUCTOR's own parameter list back onto one line, dropping its comma, once it fits below the threshold") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 3))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        valueParameter(builder, ctx, "a", "Int")
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(a: Int)"
     }
 
     should("bail on a subject-less when's entry, never inserting a comma a guard-free grammar wouldn't allow") {
@@ -1133,6 +1189,304 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
         render(builder, ctx) shouldBe "when {\n    flag\n    -> yes\n}"
+    }
+
+    fun classHeader(builder: DocBuilder, ctx: WContext, name: String, buildParams: (() -> Unit)? = null) {
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+        leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, name)
+        if (buildParams != null) {
+            builder.enterNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+            builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+            leaf(builder, ctx, WNodeType.LPAR, "(")
+            buildParams()
+            leaf(builder, ctx, WNodeType.RPAR, ")")
+            builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+            builder.exitNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+        }
+    }
+
+    fun superTypeEntry(builder: DocBuilder, ctx: WContext, name: String) {
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_ENTRY })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, name)
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_ENTRY })
+    }
+
+    should("keep a single supertype flat when it fits and the primary constructor did not wrap") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        classHeader(builder, ctx, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        superTypeEntry(builder, ctx, "Bar")
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo : Bar"
+    }
+
+    should("wrap a single supertype onto its own line when it does not fit, even though the primary constructor did not wrap") {
+        val builder = DocBuilder(formatConfig(maxLineLength = 15))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        classHeader(builder, ctx, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        superTypeEntry(builder, ctx, "VeryLongSuperTypeName")
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo :\n    VeryLongSuperTypeName"
+    }
+
+    should("join a single supertype onto the constructor's closing line when the primary constructor is forced multiline") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 1))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        classHeader(builder, ctx, "Foo") { valueParameter(builder, ctx, "a", "Int") }
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        superTypeEntry(builder, ctx, "Bar")
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo(\n    a: Int,\n) : Bar"
+    }
+
+    should("force every supertype onto its own line when there are two or more and the primary constructor did not wrap") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        classHeader(builder, ctx, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        superTypeEntry(builder, ctx, "Bar")
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        superTypeEntry(builder, ctx, "Baz")
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo :\n    Bar,\n    Baz"
+    }
+
+    should("join only the first of two or more supertypes onto the constructor's closing line once it is forced multiline") {
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 1))
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        classHeader(builder, ctx, "Foo") { valueParameter(builder, ctx, "a", "Int") }
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        superTypeEntry(builder, ctx, "Bar")
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        superTypeEntry(builder, ctx, "Baz")
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo(\n    a: Int,\n) : Bar,\n    Baz"
+    }
+
+    should("leave an OBJECT_DECLARATION's own supertype list untouched, never applying the CLASS-only wrap policy") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.OBJECT_DECLARATION })
+        leaf(builder, ctx, WNodeType.KW_OBJECT, "object")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Config")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        superTypeEntry(builder, ctx, "Bar")
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        superTypeEntry(builder, ctx, "Baz")
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.OBJECT_DECLARATION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "object Config : Bar, Baz"
+    }
+
+    should("bail on a comment inside a class's supertype list, preserving it verbatim") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        classHeader(builder, ctx, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        superTypeEntry(builder, ctx, "Bar")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "// keep")
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo : Bar // keep"
+    }
+
+    fun bareAnnotationEntry(builder: DocBuilder, ctx: WContext, name: String) {
+        builder.enterNode(ctx.apply { type = WNodeType.ANNOTATION_ENTRY })
+        leaf(builder, ctx, WNodeType.AT, "@")
+        builder.enterNode(ctx.apply { type = WNodeType.CONSTRUCTOR_CALLEE })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, name)
+        builder.exitNode(ctx.apply { type = WNodeType.CONSTRUCTOR_CALLEE })
+        builder.exitNode(ctx.apply { type = WNodeType.ANNOTATION_ENTRY })
+    }
+
+    fun argumentedAnnotationEntry(builder: DocBuilder, ctx: WContext, name: String, arg: String) {
+        builder.enterNode(ctx.apply { type = WNodeType.ANNOTATION_ENTRY })
+        leaf(builder, ctx, WNodeType.AT, "@")
+        builder.enterNode(ctx.apply { type = WNodeType.CONSTRUCTOR_CALLEE })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, name)
+        builder.exitNode(ctx.apply { type = WNodeType.CONSTRUCTOR_CALLEE })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, arg)
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.ANNOTATION_ENTRY })
+    }
+
+    fun funWithModifierList(builder: DocBuilder, ctx: WContext, buildEntries: () -> Unit) {
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        builder.enterNode(ctx.apply { type = WNodeType.MODIFIER_LIST })
+        buildEntries()
+        builder.exitNode(ctx.apply { type = WNodeType.MODIFIER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "f")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+    }
+
+    should("leave a single argument-less annotation touching its declaration untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithModifierList(builder, ctx) { bareAnnotationEntry(builder, ctx, "Ann") }
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "@Ann fun f()"
+    }
+
+    should("force an argumented annotation onto its own line, pushing the declaration to the next line") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithModifierList(builder, ctx) { argumentedAnnotationEntry(builder, ctx, "Ann", "1") }
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "@Ann(1)\nfun f()"
+    }
+
+    should("force two annotations onto separate lines even when neither has arguments") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithModifierList(builder, ctx) {
+            bareAnnotationEntry(builder, ctx, "Ann1")
+            leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+            bareAnnotationEntry(builder, ctx, "Ann2")
+        }
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "@Ann1\n@Ann2\nfun f()"
+    }
+
+    should("leave an annotated value parameter's argumented annotation inline, never wrapping it") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        builder.enterNode(ctx.apply { type = WNodeType.MODIFIER_LIST })
+        argumentedAnnotationEntry(builder, ctx, "Ann", "1")
+        builder.exitNode(ctx.apply { type = WNodeType.MODIFIER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "a")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Int")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "(@Ann(1) a: Int)"
+    }
+
+    should("leave an annotated expression immediately before a lambda expression untouched") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.ANNOTATED_EXPRESSION })
+        argumentedAnnotationEntry(builder, ctx, "Ann", "1")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.LAMBDA_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.FUNCTION_LITERAL })
+        builder.exitNode(ctx.apply { type = WNodeType.LAMBDA_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.ANNOTATED_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "@Ann(1) { x }"
+    }
+
+    should("bail on an unrecognized annotation-array child inside a modifier list, preserving it verbatim") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        funWithModifierList(builder, ctx) {
+            builder.enterNode(ctx.apply { type = WNodeType.UNKNOWN })
+            leaf(builder, ctx, WNodeType.AT, "@")
+            leaf(builder, ctx, WNodeType.LBRACKET, "[")
+            leaf(builder, ctx, WNodeType.IDENTIFIER, "Ann1")
+            leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+            leaf(builder, ctx, WNodeType.IDENTIFIER, "Ann2")
+            leaf(builder, ctx, WNodeType.RBRACKET, "]")
+            builder.exitNode(ctx.apply { type = WNodeType.UNKNOWN })
+        }
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "@[Ann1 Ann2] fun f()"
     }
 })
 

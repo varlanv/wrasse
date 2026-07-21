@@ -10,7 +10,10 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 
 private val INDENTING_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN, WNodeType.FUNCTION_LITERAL)
 private val CHAIN_LINK_TYPES = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION)
-private val PARAMETER_LIST_COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT)
+private val COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT)
+private val SUPER_TYPE_ENTRY_TYPES = setOf(WNodeType.SUPER_TYPE_ENTRY, WNodeType.SUPER_TYPE_CALL_ENTRY)
+private val ANNOTATION_CONTAINER_TYPES = setOf(WNodeType.MODIFIER_LIST, WNodeType.ANNOTATED_EXPRESSION)
+private val ANNOTATION_EXEMPT_PARENT_TYPES = setOf(WNodeType.VALUE_PARAMETER, WNodeType.VALUE_ARGUMENT)
 
 private val KEYWORDS_WANTING_SPACE_AFTER =
     setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH, WNodeType.KW_WHERE)
@@ -111,11 +114,13 @@ class DocBuilder(
      * Dispatches a completed node's buffered children to the one decision that owns its layout:
      * chain flattening for a dot/safe-access link ([resolveChainFrame]), operator placement for a
      * binary expression ([resolveBinaryFrame]), argument wrapping for a call's argument list
-     * ([resolveArgumentListFrame]), parameter wrapping for a function's own parameter list
-     * ([resolveValueParameterListFrame]), the trailing-comma-only decision for a generic list
-     * ([resolveAngleListFrame]), a destructuring declaration ([resolveDestructuringFrame]), or a
-     * `when`-entry's own condition list ([resolveWhenEntryFrame]), or the brace/indent-scope
-     * handling every other node shares ([resolveBraceFrame]).
+     * ([resolveArgumentListFrame]), parameter wrapping for a function's or primary constructor's
+     * own parameter list ([resolveValueParameterListFrame]), the trailing-comma-only decision for
+     * a generic list ([resolveAngleListFrame]), a destructuring declaration
+     * ([resolveDestructuringFrame]), a `when`-entry's own condition list ([resolveWhenEntryFrame]),
+     * a class's own supertype list ([resolveSuperTypeListFrame]), an annotation container
+     * ([resolveAnnotationContainerFrame]), or the brace/indent-scope handling every other node
+     * shares ([resolveBraceFrame]).
      */
     private fun resolveFrame(frame: Frame, start: Int, end: Int, parentType: WNodeType?): Doc = when (frame.type) {
         WNodeType.DOT_QUALIFIED_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION ->
@@ -134,6 +139,10 @@ class DocBuilder(
 
         WNodeType.WHEN_ENTRY -> resolveWhenEntryFrame(frame, start, end)
 
+        WNodeType.SUPER_TYPE_LIST -> resolveSuperTypeListFrame(frame, start, end, parentType)
+
+        WNodeType.MODIFIER_LIST, WNodeType.ANNOTATED_EXPRESSION -> resolveAnnotationContainerFrame(frame, start, end, parentType)
+
         WNodeType.PREFIX_EXPRESSION, WNodeType.POSTFIX_EXPRESSION -> resolveUnaryFrame(frame, start, end)
 
         else -> resolveBraceFrame(frame, start, end)
@@ -146,20 +155,31 @@ class DocBuilder(
      * `FUNCTION_LITERAL`) and is a transparent pass-through instead.
      */
     private fun resolveBraceFrame(frame: Frame, start: Int, end: Int): Doc {
-        val children = if (frame.type == WNodeType.FUNCTION_LITERAL) normalizeLambdaBraces(frame.children) else frame.children
+        val rawChildren = if (frame.type == WNodeType.FUNCTION_LITERAL) normalizeLambdaBraces(frame.children) else frame.children
+        val children = adjustAnnotationTrailingGap(rawChildren)
         if (children.isEmpty()) return Doc.Concat(emptyList(), start, end)
 
+        val suppressSuperTypeListLeadGap = frame.ownsSuperTypeListLeadGap
         val lastIndex = children.size - 1
         val opensIndentScope = frame.type in INDENTING_TYPES && children[lastIndex].type == WNodeType.RBRACE
         if (!opensIndentScope) {
-            return Doc.Concat(normalizeChildren(children, frame.type, ancestorHasFun(frame.type)), start, end)
+            return Doc.Concat(
+                normalizeChildren(children, frame.type, ancestorHasFun(frame.type), suppressSuperTypeListLeadGap),
+                start,
+                end,
+            )
         }
 
         val dedentIndex = lastIndex - 1
         val hasDedent = dedentIndex >= 0 && children[dedentIndex] is ChildEntry.Ws
 
         val innerCount = if (hasDedent) dedentIndex else lastIndex
-        val innerParts = normalizeChildren(children.subList(0, innerCount), frame.type, ancestorHasFun(frame.type))
+        val innerParts = normalizeChildren(
+            children.subList(0, innerCount),
+            frame.type,
+            ancestorHasFun(frame.type),
+            suppressSuperTypeListLeadGap,
+        )
 
         val innerStart = innerParts.firstOrNull()?.start ?: start
         val innerEnd = innerParts.lastOrNull()?.end ?: start
@@ -281,11 +301,23 @@ class DocBuilder(
      * horizontal spacing here — its newline count is normalized separately by
      * [verticalGapNewlineCount]/[clampWs].
      */
-    private fun normalizeChildren(children: List<ChildEntry>, frameType: WNodeType, ancestorHasFun: Boolean = false): List<Doc> {
+    private fun normalizeChildren(
+        children: List<ChildEntry>,
+        frameType: WNodeType,
+        ancestorHasFun: Boolean = false,
+        suppressSuperTypeListLeadGap: Boolean = false,
+    ): List<Doc> {
         val out = ArrayList<Doc>(children.size + 2)
         for (i in children.indices) {
             val entry = children[i]
+            val nextIsSuperTypeList = suppressSuperTypeListLeadGap &&
+                children.getOrNull(i - 1)?.type == WNodeType.COLON &&
+                children.getOrNull(i + 1)?.type == WNodeType.SUPER_TYPE_LIST
             if (entry is ChildEntry.Ws) {
+                if (nextIsSuperTypeList) {
+                    out.add(Doc.Text("", entry.start, entry.start + entry.rawText.length))
+                    continue
+                }
                 val prevEntry = children.getOrNull(i - 1)
                 val nextEntry = children.getOrNull(i + 1)
                 val isFirstAfterLbrace = i == 1 && prevEntry?.type == WNodeType.LBRACE
@@ -297,6 +329,11 @@ class DocBuilder(
                 continue
             }
             if (isPlainWhitespace(entry)) {
+                if (nextIsSuperTypeList) {
+                    val ws = (entry as ChildEntry.Resolved).doc
+                    out.add(Doc.Text("", ws.start, ws.end))
+                    continue
+                }
                 val prevType = children.getOrNull(i - 1)?.type
                 val nextType = children.getOrNull(i + 1)?.type
                 val decision = if (prevType != null && nextType != null) spacingDecision(frameType, prevType, nextType) else null
@@ -307,7 +344,10 @@ class DocBuilder(
             out.add(resolveEntry(entry))
             val next = children.getOrNull(i + 1)
             if (next != null && !isPlainWhitespace(next) && next !is ChildEntry.Ws) {
-                if (spacingDecision(frameType, entry.type, next.type) == " ") {
+                val isSuperTypeListLead = suppressSuperTypeListLeadGap &&
+                    entry.type == WNodeType.COLON &&
+                    next.type == WNodeType.SUPER_TYPE_LIST
+                if (!isSuperTypeListLead && spacingDecision(frameType, entry.type, next.type) == " ") {
                     val pos = out.last().end
                     out.add(Doc.Text(" ", pos, pos))
                 }
@@ -583,23 +623,25 @@ class DocBuilder(
         (from until until).any { children[it].type != WNodeType.WHITE_SPACE }
 
     /**
-     * A [WNodeType.FUN]'s own parameter list wraps one parameter per line — a [Doc.Break] between
-     * `(`/first parameter, every comma, and the last parameter/`)`, mirroring
-     * [resolveArgumentListFrame]'s own break points — either unconditionally (`HARD`, when
-     * [FormatStyle.multilineSignatureThreshold] is met or a parameter's own text already spans
-     * multiple lines) or fit-dependently (`SOFT` inside a [Doc.Group], joining back onto one line
-     * whenever it fits).
+     * A [WNodeType.FUN]'s or a [WNodeType.PRIMARY_CONSTRUCTOR]'s own parameter list wraps one
+     * parameter per line — a [Doc.Break] between `(`/first parameter, every comma, and the last
+     * parameter/`)`, mirroring [resolveArgumentListFrame]'s own break points — either
+     * unconditionally (`HARD`, when [FormatStyle.multilineSignatureThreshold] is met or a
+     * parameter's own text already spans multiple lines) or fit-dependently (`SOFT` inside a
+     * [Doc.Group], joining back onto one line whenever it fits).
      *
-     * Scoped to a [WNodeType.FUN]'s own parameter list only ([parentType]): a primary/secondary
-     * constructor's, a `FUNCTION_TYPE`'s, or a lambda's parameter list (also
-     * `WNodeType.VALUE_PARAMETER_LIST`) falls through to [passthroughParameterList], the
+     * Scoped to a [WNodeType.FUN]'s or a [WNodeType.PRIMARY_CONSTRUCTOR]'s own parameter list only
+     * ([parentType]): a secondary constructor's, a `FUNCTION_TYPE`'s, or a lambda's parameter list
+     * (also `WNodeType.VALUE_PARAMETER_LIST`) falls through to [passthroughParameterList], the
      * pre-existing verbatim/spacing-only handling. A comment directly inside the parameter list
      * also falls through to that path, unwrapped; a comment elsewhere in the signature (return
      * type, modifier list) is not visible from this frame and is not detected.
      */
     private fun resolveValueParameterListFrame(frame: Frame, start: Int, end: Int, parentType: WNodeType?): Doc {
         val children = frame.children
-        if (parentType != WNodeType.FUN) return passthroughParameterList(children, start, end)
+        if (parentType != WNodeType.FUN && parentType != WNodeType.PRIMARY_CONSTRUCTOR) {
+            return passthroughParameterList(children, start, end)
+        }
 
         val lparIdx = children.indexOfFirst { it.type == WNodeType.LPAR }
         val rparIdx = children.indexOfLast { it.type == WNodeType.RPAR }
@@ -608,7 +650,7 @@ class DocBuilder(
         val paramIndices = (lparIdx + 1 until rparIdx).filter { children[it].type == WNodeType.VALUE_PARAMETER }
         if (paramIndices.isEmpty()) return passthroughParameterList(children, start, end)
 
-        val hasComment = (lparIdx + 1 until rparIdx).any { children[it].type in PARAMETER_LIST_COMMENT_TYPES }
+        val hasComment = (lparIdx + 1 until rparIdx).any { children[it].type in COMMENT_TYPES }
         if (hasComment) return passthroughParameterList(children, start, end)
 
         val forceMultiline = paramIndices.size >= style.multilineSignatureThreshold ||
@@ -676,6 +718,181 @@ class DocBuilder(
         parts.add(clampWs(adjusted[dedentIndex] as ChildEntry.Ws, newlineCount = 1))
         parts.add(resolveEntry(adjusted[lastIndex]))
         return Doc.Concat(parts, start, end)
+    }
+
+    /**
+     * A [WNodeType.CLASS]'s own supertype list. Scoped to `parentType == CLASS`
+     * ([WNodeType.OBJECT_DECLARATION]'s own supertype list falls through untouched, unwrapped,
+     * to [resolveBraceFrame]), and bails the same way on a comment anywhere in the list.
+     *
+     * One supertype: joins the same line as the constructor's own closing `)` unconditionally
+     * when the primary constructor already spans multiple lines ([ctorWrapped], peeked from the
+     * still-open [WNodeType.CLASS] frame via [spansMultipleLines] — a fit-undetermined constructor
+     * whose own `Group` hasn't yet decided broken-vs-flat reads as not-wrapped here, a narrow,
+     * documented approximation); otherwise wrapped in its own [Doc.Group] — `HARD` when the
+     * supertype's own text already spans multiple lines, `SOFT` (fit-dependent) otherwise, mirroring
+     * [resolveValueParameterListFrame]'s own break-kind choice.
+     *
+     * Two or more supertypes: always broken, one per line at one [Doc.Indent] level deeper than the
+     * class, comma-separated (reusing each source comma's own span) — never fit-dependent. The first
+     * supertype joins the constructor's closing line when [ctorWrapped], otherwise the colon ends
+     * that line and every supertype, including the first, starts its own line.
+     */
+    private fun resolveSuperTypeListFrame(frame: Frame, start: Int, end: Int, parentType: WNodeType?): Doc {
+        if (parentType != WNodeType.CLASS) return resolveBraceFrame(frame, start, end)
+        val children = frame.children
+        if (children.any { it.type in COMMENT_TYPES }) return resolveBraceFrame(frame, start, end)
+        val entryIndices = children.indices.filter { children[it].type in SUPER_TYPE_ENTRY_TYPES }
+        if (entryIndices.isEmpty()) return resolveBraceFrame(frame, start, end)
+
+        frames.lastOrNull()?.ownsSuperTypeListLeadGap = true
+
+        val ctorWrapped = frames.lastOrNull()
+            ?.children
+            ?.firstOrNull { it.type == WNodeType.PRIMARY_CONSTRUCTOR }
+            ?.let { it is ChildEntry.Resolved && spansMultipleLines(it.doc) } == true
+
+        val entryDocs = entryIndices.map { resolveEntry(children[it]) }
+
+        if (entryDocs.size == 1 && ctorWrapped) {
+            return Doc.Concat(listOf(Doc.Text(" ", start, start), entryDocs[0]), start, end)
+        }
+        if (entryDocs.size == 1) {
+            val anyMultilineEntry = spansMultipleLines((children[entryIndices[0]] as ChildEntry.Resolved).doc)
+            val breakKind = if (anyMultilineEntry) BreakKind.HARD else BreakKind.SOFT
+            val lead = Doc.Break(breakKind, flat = " ", start = start, end = start)
+            return Doc.Group(Doc.Indent(Doc.Concat(listOf(lead, entryDocs[0]), start, end)))
+        }
+
+        val commaIndices = entryIndices.zipWithNext().map { (a, b) ->
+            (a + 1 until b).first { children[it].type == WNodeType.COMMA }
+        }
+        val lead: Doc = if (ctorWrapped) {
+            Doc.Text(" ", start, start)
+        } else {
+            Doc.Break(BreakKind.HARD, literal = "\n", start = start, end = start)
+        }
+
+        val body = ArrayList<Doc>()
+        body.add(lead)
+        body.add(entryDocs[0])
+        for (i in 1 until entryDocs.size) {
+            val commaIdx = commaIndices[i - 1]
+            val commaDoc = resolveEntry(children[commaIdx])
+            body.add(commaDoc)
+            body.add(wsBreakAt(children, commaIdx + 1, commaDoc.end, flat = " ", kind = BreakKind.HARD))
+            body.add(entryDocs[i])
+        }
+        return Doc.Indent(Doc.Concat(body, start, end))
+    }
+
+    /**
+     * An annotation container ([WNodeType.MODIFIER_LIST], [WNodeType.ANNOTATED_EXPRESSION]). Bails
+     * to [resolveBraceFrame] (verbatim, spacing-only) when: its owning declaration is a
+     * [WNodeType.VALUE_PARAMETER] or [WNodeType.VALUE_ARGUMENT] ([parentType] — annotations there
+     * always stay inline, regardless of arguments); it has no [WNodeType.ANNOTATION_ENTRY] at all;
+     * one is followed directly by a [WNodeType.LAMBDA_EXPRESSION] (an annotated trailing-lambda
+     * argument never wraps); a comment sits inside it; or an unrecognized child is present (the
+     * `@[...]` array-annotation syntax has no [WNodeType] mapping and resolves to
+     * [WNodeType.UNKNOWN]).
+     *
+     * Otherwise: a single argument-less annotation is left untouched (either placement — same line
+     * or its own — is valid, so the source's own choice is preserved); an annotation with arguments
+     * ([containsParen], reliable since `(` cannot otherwise appear in an annotation entry's own
+     * text) or two or more annotations always wrap, one per line, at the declaration's own depth
+     * ([wrapAnnotationEntries]).
+     */
+    private fun resolveAnnotationContainerFrame(frame: Frame, start: Int, end: Int, parentType: WNodeType?): Doc {
+        if (parentType in ANNOTATION_EXEMPT_PARENT_TYPES) return resolveBraceFrame(frame, start, end)
+        val children = frame.children
+        if (children.any { it.type == WNodeType.UNKNOWN || it.type in COMMENT_TYPES }) return resolveBraceFrame(frame, start, end)
+        val entryIndices = children.indices.filter { children[it].type == WNodeType.ANNOTATION_ENTRY }
+        if (entryIndices.isEmpty()) return resolveBraceFrame(frame, start, end)
+        if (frame.type == WNodeType.ANNOTATED_EXPRESSION && isBeforeLambdaExpression(children, entryIndices.last())) {
+            return resolveBraceFrame(frame, start, end)
+        }
+
+        val hasArgAnnotation = entryIndices.any { containsParen((children[it] as ChildEntry.Resolved).doc) }
+        if (!hasArgAnnotation && entryIndices.size < 2) return resolveBraceFrame(frame, start, end)
+
+        return wrapAnnotationEntries(children, entryIndices, frame.type, start, end)
+    }
+
+    private fun isBeforeLambdaExpression(children: List<ChildEntry>, lastEntryIdx: Int): Boolean {
+        val next = (lastEntryIdx + 1 until children.size)
+            .map { children[it] }
+            .firstOrNull { !isPlainWhitespace(it) && it !is ChildEntry.Ws }
+        return next?.type == WNodeType.LAMBDA_EXPRESSION
+    }
+
+    private fun containsParen(doc: Doc): Boolean = when (doc) {
+        is Doc.Text -> doc.value.contains('(')
+        is Doc.Concat -> doc.parts.any { containsParen(it) }
+        is Doc.Indent -> containsParen(doc.body)
+        is Doc.Group -> containsParen(doc.body)
+        is Doc.Break -> false
+        is Doc.TrailingComma -> false
+    }
+
+    /**
+     * One annotation entry per line, at the container's own ambient depth (no [Doc.Indent] — the
+     * annotations sit at the same depth as the declaration they precede), ending with a forced
+     * break before whatever follows ([endsWithHardBreak] lets [adjustAnnotationTrailingGap] drop
+     * the now-redundant source gap after this container).
+     */
+    private fun wrapAnnotationEntries(children: List<ChildEntry>, entryIndices: List<Int>, frameType: WNodeType, start: Int, end: Int): Doc {
+        val firstEntry = entryIndices.first()
+        val lastEntry = entryIndices.last()
+        val parts = ArrayList<Doc>()
+        parts.addAll(normalizeChildren(children.subList(0, firstEntry), frameType))
+        for ((i, idx) in entryIndices.withIndex()) {
+            if (i > 0) {
+                val prevIdx = entryIndices[i - 1]
+                val prevEnd = (children[prevIdx] as ChildEntry.Resolved).doc.end
+                parts.add(wsBreakAt(children, prevIdx + 1, prevEnd, flat = " ", kind = BreakKind.HARD))
+            }
+            parts.add(resolveEntry(children[idx]))
+        }
+        val lastEnd = (children[lastEntry] as ChildEntry.Resolved).doc.end
+        parts.add(wsBreakAt(children, lastEntry + 1, lastEnd, flat = " ", kind = BreakKind.HARD))
+        val gap = children.getOrNull(lastEntry + 1)
+        val suffixStart = if (gap != null && (gap is ChildEntry.Ws || isPlainWhitespace(gap))) lastEntry + 2 else lastEntry + 1
+        parts.addAll(normalizeChildren(children.subList(suffixStart, children.size), frameType))
+        return Doc.Concat(parts, start, end)
+    }
+
+    private fun endsWithHardBreak(doc: Doc): Boolean = when (doc) {
+        is Doc.Break -> doc.kind == BreakKind.HARD
+        is Doc.Concat -> doc.parts.lastOrNull()?.let { endsWithHardBreak(it) } ?: false
+        is Doc.Indent -> endsWithHardBreak(doc.body)
+        is Doc.Group -> endsWithHardBreak(doc.body)
+        is Doc.Text -> false
+        is Doc.TrailingComma -> false
+    }
+
+    /**
+     * Drops the gap right after a resolved [ANNOTATION_CONTAINER_TYPES] entry whose own doc already
+     * ends with a forced break ([endsWithHardBreak], set by [wrapAnnotationEntries]) — that break
+     * already carries the declaration onto its own line, so the original source gap (real newline
+     * or plain space alike) would otherwise double it into a blank line.
+     */
+    private fun adjustAnnotationTrailingGap(children: List<ChildEntry>): List<ChildEntry> {
+        if (children.none { it is ChildEntry.Resolved && it.type in ANNOTATION_CONTAINER_TYPES && endsWithHardBreak(it.doc) }) {
+            return children
+        }
+        val out = ArrayList<ChildEntry>(children.size)
+        var i = 0
+        while (i < children.size) {
+            val entry = children[i]
+            out.add(entry)
+            if (entry is ChildEntry.Resolved && entry.type in ANNOTATION_CONTAINER_TYPES && endsWithHardBreak(entry.doc)) {
+                val gap = children.getOrNull(i + 1)
+                i += if (gap != null && (gap is ChildEntry.Ws || isPlainWhitespace(gap))) 2 else 1
+            } else {
+                i++
+            }
+        }
+        return out
     }
 
     /**
@@ -850,6 +1067,7 @@ class DocBuilder(
 
     private class Frame(val type: WNodeType) {
         val children = mutableListOf<ChildEntry>()
+        var ownsSuperTypeListLeadGap = false
     }
 
     private sealed interface ChildEntry {
