@@ -919,16 +919,18 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * (no interpolation) and whose shape already guarantees `trimIndent()` is value-preserving under
      * re-indentation: the first line is blank (content already starts on its own line), the last
      * line is blank (the closing quotes already sit on their own line), and at least one real,
-     * non-blank content line exists. Every entry equal to `"\n"` becomes a [Doc.Break] so [Layout]
-     * derives its following line's column from ambient depth; each real content line has its
-     * original common leading-whitespace prefix (the exact prefix length `trimIndent()` itself would
-     * strip) folded into the preceding break's elided tail, keeping only the content beyond that
-     * prefix as its own [Doc.Text] — never changing what `trimIndent()` computes, only where the
-     * shared prefix physically sits. An interior whitespace-only line makes the whole string
-     * ineligible: `trimIndent()` keeps such a line's residual spaces beyond the stripped prefix,
-     * so its content is significant and no re-indentation of it is value-preserving. Returns
-     * `null` for any other shape, including a single content line whose common indent is already
-     * zero.
+     * non-blank content line exists. Every maximal run of consecutive entries equal to `"\n"`
+     * becomes one [Doc.Break] carrying that many newlines in its own literal, so [Layout] emits
+     * ambient-depth indent exactly once per run — right before whatever follows it — rather than
+     * once per newline, which would otherwise plant indent characters on an interior blank line
+     * that must stay empty; each real content line has its original common leading-whitespace
+     * prefix (the exact prefix length `trimIndent()` itself would strip) folded into the preceding
+     * break's elided tail, keeping only the content beyond that prefix as its own [Doc.Text] —
+     * never changing what `trimIndent()` computes, only where the shared prefix physically sits.
+     * An interior whitespace-only line makes the whole string ineligible: `trimIndent()` keeps
+     * such a line's residual spaces beyond the stripped prefix, so its content is significant and
+     * no re-indentation of it is value-preserving. Returns `null` for any other shape, including a
+     * single content line whose common indent is already zero.
      */
     private fun buildReindentedRawString(children: List<ChildEntry>, start: Int, end: Int): Doc? {
         if (children.size < 3) return null
@@ -974,24 +976,22 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                 i++
                 continue
             }
-            val nextIdx = i + 1
+            var runEnd = i
+            while (runEnd + 1 <= bodyLastIdx && texts[runEnd + 1] == "\n") runEnd++
+            val literal = "\n".repeat(runEnd - i + 1)
+            val nextIdx = runEnd + 1
             when {
                 nextIdx > bodyLastIdx -> {
-                    val tailEnd = closingTailIdx?.let { entries[it].doc.end } ?: entryDoc.end
-                    out.add(Doc.Break(BreakKind.HARD, literal = "\n", start = entryDoc.start, end = tailEnd))
-                    i++
-                }
-
-                texts[nextIdx] != "\n" && texts[nextIdx].isNotBlank() -> {
-                    val nextDoc = entries[nextIdx].doc
-                    out.add(Doc.Break(BreakKind.HARD, literal = "\n", start = entryDoc.start, end = nextDoc.start + commonIndent))
-                    out.add(Doc.Text(texts[nextIdx].drop(commonIndent), nextDoc.start + commonIndent, nextDoc.end))
-                    i = nextIdx + 1
+                    val tailEnd = closingTailIdx?.let { entries[it].doc.end } ?: entries[runEnd].doc.end
+                    out.add(Doc.Break(BreakKind.HARD, literal = literal, start = entryDoc.start, end = tailEnd))
+                    i = nextIdx
                 }
 
                 else -> {
-                    out.add(Doc.Break(BreakKind.HARD, literal = "\n", start = entryDoc.start, end = entryDoc.end))
-                    i++
+                    val nextDoc = entries[nextIdx].doc
+                    out.add(Doc.Break(BreakKind.HARD, literal = literal, start = entryDoc.start, end = nextDoc.start + commonIndent))
+                    out.add(Doc.Text(texts[nextIdx].drop(commonIndent), nextDoc.start + commonIndent, nextDoc.end))
+                    i = nextIdx + 1
                 }
             }
         }

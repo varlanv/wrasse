@@ -5159,6 +5159,85 @@ verbatim. Failing-first per the dogfood hard rule:
 `format-raw-strings/whitespace-only-line-bail-clean.kt` (expect-clean, failed before the fix,
 passes after) plus a `DocBuilderSpec` untouched-rendering case.
 
+#### C.12 hardening, part 2: a genuinely blank interior line was itself made non-idempotent by the first hardening's own eligibility check (found reproducing an owner-flagged printer bug, 2026-07-21)
+
+The second D19 violation the format-on milestone's own mechanism has caught, surfaced by a `to`
+infix expression whose right operand is a `trimIndent()`-chained multi-line raw string with a
+genuinely blank interior line (`val x = "a" to` / `"""..."""` / `.trimIndent()`, the exact shape in
+`InternalFailureIsolationSpec`'s `crashingSource` family): fixing such a file once left it flagged
+"File is not wrasse-formatted" again on an immediate re-check, and a second fix pass converged
+(third pass clean) to a *different* rendering than the first pass produced — `fix(fix(x)) !=
+fix(x)`. Minimized and reproduced against the current tree with the actual harness (not by hand):
+`format-raw-strings/infix-operand-blank-line-error.kt` failed at exactly this assertion
+(`IdempotenceCycle`'s D2-must-equal-D1-minus-fixed check) before the fix below, on an otherwise
+plain two-line-plus-one-blank-line raw string — no interpolation, no touching-quotes, no other
+eligibility bail in play.
+
+**Root cause.** `buildReindentedRawString`'s render loop (pre-fix) emitted one `Doc.Break(HARD,
+literal = "\n")` *per source newline entry*, including a genuinely blank interior line's own
+newline as its own separate break, immediately adjacent (in the `Doc.Concat`) to the break ending
+the line before it. `Layout.renderBreak` appends `appendIndent` — real, visible space
+characters — after *every* `HARD` break unconditionally, with no look-ahead for "another break
+immediately follows." Two adjacent breaks therefore rendered as: newline, `indentDepth × 4` real
+spaces (meant to lead the *next* line), then immediately another newline — i.e. the blank line
+itself, not the line after it, inherited that indent run. `buildReindentedRawString` had thus
+manufactured exactly the shape its own sibling eligibility rule (this entry's part 1, above) exists
+to detect: an interior line that is not-quite-empty. Re-running the printer on that output (the
+fixture's own round 2) found a whitespace-only interior line where round 1's input had a truly
+blank one, correctly bailed per the existing rule, and left the string permanently
+preserved-verbatim from that point on — a different, and now-frozen, rendering than round 1's own
+reindented one. (This is a distinct mechanism from `resolveBinaryFrame`/`wrapRoot`'s own
+`hasOwnIndentScope` — that function was already working as designed, treating a bailed string's
+plain `Doc.Text` as carrying no indent scope of its own, per C.4/C.7's documented rationale; the
+bug is upstream of it, in what `buildReindentedRawString` itself rendered.)
+
+**Fix (`buildReindentedRawString`, `DocBuilder.kt`):** a maximal *run* of consecutive `"\n"`-only
+entries — not one entry at a time — becomes a single `Doc.Break` whose own literal repeats that
+many newlines, mirroring the run-newline-count pattern `clampWs` already uses elsewhere in this
+same file for an ordinary multi-blank-line gap. `appendIndent` then fires exactly once per run,
+right before whatever real content (or the closing quotes) follows it, never in the middle of a
+blank line. This collapses the render loop's three-way `when` to two cases (the closing-tail case
+and the real-content case); the interior-blank-to-interior-blank case that used to need its own
+branch no longer exists, since the run-scan already consumes it.
+
+**The invariant this generalizes to:** a printer mechanism that renders more than one forced break
+in direct sequence, with no content between them, must merge them into one break carrying the
+combined literal — never one break per source newline — because `Layout` synthesizes real,
+visible indent after *every* `HARD` break unconditionally, and a lone break with nothing following
+it inside the same run has no content to lead; it only manufactures whitespace on what must stay a
+blank line. More generally still: any mechanism whose own eligibility check inspects previously
+*rendered* text (here, "is this interior line whitespace-only") must never itself render text that
+would fail that same check when fed back in — a transform must survive being re-run on its own
+output.
+
+**Per-file multi-pass is a D19 violation wherever observed, full stop** — this is the second
+instance the format-on-wrasse milestone's own machinery has caught (the first is this entry's part
+1, above), and both were real, silent violations that shipped before the machinery that caught
+them existed. Neither is a special case; §5.1's fixed-point discipline and the D19 harness apply
+uniformly to every printer mechanism, present and future — a construct that takes two fix rounds to
+stabilize is a bug in that construct, not an acceptable cost of it.
+
+**Fixtures:** `format-raw-strings/infix-operand-blank-line-error` (`.kt`/`.fixed.kt`), confirmed
+failing-first against the pre-fix tree (fails inside `IdempotenceCycle.runIfFixEmitted`, not merely
+at the `.fixed.kt` comparison) and green after. `DocBuilderSpec` gained a hand-built-SAX-events case
+driving two consecutive genuinely-blank interior lines directly (a run of length two, not one)
+through `buildReindentedRawString`, confirming no indentation is planted on either blank line and
+also failing-first. Full sweep of every other `Doc.Break(HARD, ...)` call site in `DocBuilder.kt`
+found none of the others assemble more than one break per gap already (`clampWs`, the
+`forceMultilineBraceGaps`/`resolveAssignedValueFrame`/`resolveSuperTypeListFrame` single-insertion
+call sites) — `buildReindentedRawString`'s own per-entry loop was the only site with this class of
+defect.
+
+**wrasseLint dogfood check:** with the fix applied, `InternalFailureIsolationSpec.kt` (the file that
+surfaced this bug) required no further edit at all — its already-committed rendering (reached,
+historically, only via more than one manual fix-and-reformat round before this bug was diagnosed)
+is already a stable fixed point of the corrected printer: the blank interior lines in its own
+`crashingSource`/`crashing`/`clean`/`source` raw strings are already padded from that prior history,
+so they already bail the same way a freshly-manufactured-but-now-prevented pad would have, and the
+file re-lints clean. The fix changes what a *fresh* fix round produces for a genesis-clean raw
+string; it does not retroactively un-pad an already-scarred one, which stays exactly as
+conservative and untouched as every other bailed shape in this entry.
+
 #### Phase C test backfill — porting upstream ktlint/detekt rule-test suites onto the printer fixtures, 2026-07-21
 
 A dedicated pass over the local `ktlint`/`detekt` checkouts' own rule test suites (read-only,

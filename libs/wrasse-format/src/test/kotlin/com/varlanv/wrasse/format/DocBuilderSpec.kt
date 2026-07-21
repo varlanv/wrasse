@@ -2427,6 +2427,30 @@ class DocBuilderSpec :
                 render(builder, ctx) shouldBe "\"\"\"\n  line one\n      \n  line two\n  \"\"\"\n    .trimIndent()"
             }
 
+            should("reindent a trimIndent() raw string across a genuinely blank interior line without planting indentation on it") {
+                val builder = DocBuilder(formatConfig())
+                val ctx = WContext(filePath = "test.kt")
+                builder.enterNode(ctx.apply { type = WNodeType.FILE })
+                builder.enterNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+                builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+                leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"\"\"")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "  line one")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "  line two")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "\n")
+                leaf(builder, ctx, WNodeType.LITERAL_STRING_TEMPLATE_ENTRY, "  ")
+                leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"\"\"")
+                builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+                trimIndentCall(builder, ctx)
+                builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
+                builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+                render(builder, ctx) shouldBe "\"\"\"\n    line one\n\n\n    line two\n    \"\"\"\n    .trimIndent()"
+            }
+
             should("leave a standalone multiline raw string with no trimIndent() call untouched") {
                 val builder = DocBuilder(formatConfig())
                 val ctx = WContext(filePath = "test.kt")
