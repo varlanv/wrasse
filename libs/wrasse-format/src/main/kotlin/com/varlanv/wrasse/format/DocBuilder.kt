@@ -319,26 +319,53 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     /**
-     * A [WNodeType.PROPERTY]'s own initializer: when the value after its direct [WNodeType.EQ]
-     * child is already forced multi-line, moves it onto its own line, one [Doc.Indent] level
-     * deeper. A `FUN`'s own expression-body initializer is a different grammar production (`EQ`
-     * is a direct child of `FUN`, never `PROPERTY`) and is untouched by this frame.
+     * A [WNodeType.PROPERTY]'s own [WNodeType.PROPERTY_ACCESSOR] children (`get()`/`set()`), if
+     * any, always render one [Doc.Indent] level deeper than the property itself
+     * ([resolvePropertyAccessorsFrame]) — this takes priority over the initializer handling below,
+     * since an accessor can follow an initializer that resolves to `null` there. Otherwise: when
+     * the value after its direct [WNodeType.EQ] child is already forced multi-line, moves it onto
+     * its own line, one [Doc.Indent] level deeper. A `FUN`'s own expression-body initializer is a
+     * different grammar production (`EQ` is a direct child of `FUN`, never `PROPERTY`) and is
+     * untouched by this frame.
      */
     private fun resolvePropertyFrame(frame: Frame, start: Int, end: Int): Doc {
         val children = frame.children
+        val accessorIdx = children.indexOfFirst { it.type == WNodeType.PROPERTY_ACCESSOR }
+        if (accessorIdx >= 0) return resolvePropertyAccessorsFrame(children, start, end, accessorIdx)
         val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
         if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
         return resolveAssignedValueFrame(children, WNodeType.PROPERTY, start, end, eqIdx) ?: resolveBraceFrame(frame, start, end)
     }
 
     /**
+     * The gap right before [accessorIdx] (the property's first [WNodeType.PROPERTY_ACCESSOR]),
+     * and everything from there through the frame's own end, move one [Doc.Indent] level deeper
+     * than the property's own header — an accessor's own line is never at the property's ambient
+     * depth. A same-line accessor (no real newline in that gap) renders identically either way,
+     * since [Doc.Indent] only changes where a following `HARD` break lands.
+     */
+    private fun resolvePropertyAccessorsFrame(children: List<ChildEntry>, start: Int, end: Int, accessorIdx: Int): Doc {
+        val gapIdx = accessorIdx - 1
+        val bodyFrom = if (gapIdx >= 0 && (children[gapIdx] is ChildEntry.Ws || isPlainWhitespace(children[gapIdx]))) gapIdx else accessorIdx
+        val headParts = normalizeChildren(children.subList(0, bodyFrom), WNodeType.PROPERTY)
+        val tailParts = normalizeChildren(children.subList(bodyFrom, children.size), WNodeType.PROPERTY)
+        val tailStart = tailParts.firstOrNull()?.start ?: start
+        val tailEnd = tailParts.lastOrNull()?.end ?: end
+        val body = Doc.Indent(Doc.Concat(tailParts, tailStart, tailEnd))
+        return Doc.Concat(headParts + listOf(body), start, end)
+    }
+
+    /**
      * Shared by [resolvePropertyFrame], [resolveBinaryFrame]'s assignment-operator case, and
-     * [resolveWhenEntryFrame]'s own arrow: when the value found right after [anchorIdx] is one of
-     * [MULTILINE_WRAPPABLE_VALUE_TYPES] and is already forced multi-line ([spansMultipleLines]),
-     * moves it onto its own line, one [Doc.Indent] level deeper, reusing an existing gap's own
-     * break if the source already had one there. Returns `null` — meaning the caller falls through
-     * to its own unchanged default — when there is no value, the value is a comment, the value's
-     * own type is outside [MULTILINE_WRAPPABLE_VALUE_TYPES] (a raw multi-line string/KDoc token, a
+     * [resolveWhenEntryFrame]'s own arrow: moves the value found right after [anchorIdx] onto its
+     * own line, one [Doc.Indent] level deeper, reusing an existing gap's own break if the source
+     * already had one there — when that value is a comment (nested ahead of the real value, e.g.
+     * inside an initializer expression, always relocated regardless of its own multi-line-ness,
+     * since a real newline already separates it from [anchorIdx] whenever this matters), or when
+     * it is one of [MULTILINE_WRAPPABLE_VALUE_TYPES] and already forced multi-line
+     * ([spansMultipleLines]). Returns `null` — meaning the caller falls through to its own
+     * unchanged default — when there is no value, the value's own type is outside
+     * [MULTILINE_WRAPPABLE_VALUE_TYPES] and not a comment (a raw multi-line string/KDoc token, a
      * lambda or object-literal value whose own `{` always stays attached to the anchor, or a
      * dot-chain/call/binary value — [resolveChainFrame]/[resolveBinaryFrame]'s own `Doc.Group`
      * already decides those, including the deliberate "receiver stays, only `.method()` continues"
@@ -348,8 +375,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     private fun resolveAssignedValueFrame(children: List<ChildEntry>, frameType: WNodeType, start: Int, end: Int, anchorIdx: Int): Doc? {
         val valueIdx = (anchorIdx + 1 until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return null
         val valueEntry = children[valueIdx]
-        if (valueEntry.type !in MULTILINE_WRAPPABLE_VALUE_TYPES) return null
-        if (valueEntry !is ChildEntry.Resolved || !spansMultipleLines(valueEntry.doc)) return null
+        val isLeadingComment = valueEntry.type in COMMENT_TYPES
+        if (!isLeadingComment) {
+            if (valueEntry.type !in MULTILINE_WRAPPABLE_VALUE_TYPES) return null
+            if (valueEntry !is ChildEntry.Resolved || !spansMultipleLines(valueEntry.doc)) return null
+        }
 
         val headParts = normalizeChildren(children.subList(0, anchorIdx + 1), frameType)
         val gapEntry = children.getOrNull(anchorIdx + 1)
@@ -500,13 +530,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                     out.add(Doc.Text("", entry.start, entry.start + entry.rawText.length))
                     continue
                 }
-                val prevEntry = children.getOrNull(i - 1)
-                val nextEntry = children.getOrNull(i + 1)
-                val isFirstAfterLbrace = i == 1 && prevEntry?.type == WNodeType.LBRACE
+                val isFirstAfterLbrace = i == 1 && children.getOrNull(i - 1)?.type == WNodeType.LBRACE
                 val newlineCount = verticalGapNewlineCount(
                     frameType,
-                    prevEntry,
-                    nextEntry,
+                    children,
+                    i,
                     isFirstAfterLbrace,
                     ancestorHasFun,
                     actual = entry.rawText.count { it == '\n' },
@@ -553,28 +581,30 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * [resolveBraceFrame]'s own dedent call site, not here), zero blank lines immediately after a
      * [WNodeType.CLASS_BODY]'s own `{` or a [WNodeType.BLOCK]'s own `{` when some enclosing frame
      * is a [WNodeType.FUN] ([ancestorHasFun]), and zero blank lines between a class name and its
-     * primary constructor; exactly one blank line — gated on [entryHasContent] — between a
-     * non-empty package directive and a non-empty import list, and between that import list and
-     * whatever follows it; exactly one blank line — the other case that can add a newline, not
-     * just cap one — wherever [forcesDeclarationBlankLine] applies.
+     * primary constructor ([lastNonCommentEntry] skips over an intervening trailing comment to
+     * still find the identifier); exactly one blank line — gated on [entryHasContent] — between a
+     * non-empty package directive and a non-empty import list ([firstNonCommentEntry] likewise
+     * skips over a comment sitting directly after the package directive to still find that import
+     * list), and between that import list and whatever follows it; exactly one blank line — the
+     * other case that can add a newline, not just cap one — wherever [forcesDeclarationBlankLine]
+     * applies.
      */
     private fun verticalGapNewlineCount(
         frameType: WNodeType,
-        prevEntry: ChildEntry?,
-        nextEntry: ChildEntry?,
+        children: List<ChildEntry>,
+        index: Int,
         isFirstAfterLbrace: Boolean,
         ancestorHasFun: Boolean,
         actual: Int,
     ): Int {
+        val prevEntry = children.getOrNull(index - 1)
+        val nextEntry = children.getOrNull(index + 1)
         if (frameType == WNodeType.FILE) {
-            if (prevEntry?.type ==
-                WNodeType.PACKAGE_DIRECTIVE &&
-                nextEntry?.type ==
-                WNodeType.IMPORT_LIST &&
-                entryHasContent(prevEntry) &&
-                entryHasContent(nextEntry)
-            ) {
-                return 2
+            if (prevEntry?.type == WNodeType.PACKAGE_DIRECTIVE && entryHasContent(prevEntry)) {
+                val nextReal = firstNonCommentEntry(children, index + 1)
+                if (nextReal?.type == WNodeType.IMPORT_LIST && entryHasContent(nextReal)) {
+                    return 2
+                }
             }
             if (prevEntry?.type == WNodeType.IMPORT_LIST && nextEntry != null && entryHasContent(prevEntry)) {
                 return 2
@@ -583,14 +613,37 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (isFirstAfterLbrace && (frameType == WNodeType.CLASS_BODY || (frameType == WNodeType.BLOCK && ancestorHasFun))) {
             return 1
         }
-        if (frameType == WNodeType.CLASS && prevEntry?.type == WNodeType.IDENTIFIER && nextEntry?.type == WNodeType.PRIMARY_CONSTRUCTOR) {
-            return 1
+        if (frameType == WNodeType.CLASS && nextEntry?.type == WNodeType.PRIMARY_CONSTRUCTOR) {
+            val prevReal = lastNonCommentEntry(children, index - 1)
+            if (prevReal?.type == WNodeType.IDENTIFIER) return 1
         }
         if (forcesDeclarationBlankLine(frameType, prevEntry, nextEntry, isFirstAfterLbrace)) {
             return 2
         }
         return if (actual > 2) 2 else actual
     }
+
+    /**
+     * The first entry at or after [fromIdx] that is neither plain whitespace nor
+     * [COMMENT_TYPES] — walking forward past an intervening comment (and its own surrounding
+     * whitespace) to find the real next structural sibling.
+     */
+    private fun firstNonCommentEntry(children: List<ChildEntry>, fromIdx: Int): ChildEntry? =
+    (fromIdx until children.size)
+        .asSequence()
+        .map { children[it] }
+        .firstOrNull { it.type != WNodeType.WHITE_SPACE && it.type !in COMMENT_TYPES }
+
+    /**
+     * The first entry at or before [uptoIdx] that is neither plain whitespace nor
+     * [COMMENT_TYPES] — walking backward past an intervening comment (and its own surrounding
+     * whitespace) to find the real previous structural sibling.
+     */
+    private fun lastNonCommentEntry(children: List<ChildEntry>, uptoIdx: Int): ChildEntry? =
+    (uptoIdx downTo 0)
+        .asSequence()
+        .map { children[it] }
+        .firstOrNull { it.type != WNodeType.WHITE_SPACE && it.type !in COMMENT_TYPES }
 
     /**
      * Whether the gap right before [nextEntry] must carry at least one blank line, folding three
@@ -686,9 +739,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * before `where` ([KEYWORDS_WANTING_SPACE_AFTER]); a spread operator's `*` tight to its
      * argument; no space just inside `(`/`)`/`[`/`]`; none between a name and its parameter or
      * argument list, except a `FUNCTION_TYPE`'s or a `FUNCTION_LITERAL`'s own parameter list (the
-     * latter's gap from `{` is [normalizeLambdaHead]'s concern); no space just inside `<`/`>` when
-     * the enclosing frame is a [WNodeType.TYPE_PARAMETER_LIST]/[WNodeType.TYPE_ARGUMENT_LIST];
-     * `::` tight after always; `..`/`..<` tight both sides; no space before `?`.
+     * latter's gap from `{` is [normalizeLambdaHead]'s concern); none between a `PROPERTY_ACCESSOR`'s
+     * own `get`/`set` and its own parameter list either — some Kotlin compiler versions never wrap a
+     * `get`/`set`'s own parameter list in a dedicated `VALUE_PARAMETER_LIST` node at all when it has
+     * zero or one parameter (its `LPAR`/`RPAR` sit as bare `PROPERTY_ACCESSOR` children instead), so
+     * this is checked as its own, version-shape-independent rule rather than folded into the
+     * `VALUE_PARAMETER_LIST` one above; no space just inside `<`/`>` when the enclosing frame is a
+     * [WNodeType.TYPE_PARAMETER_LIST]/[WNodeType.TYPE_ARGUMENT_LIST]; `::` tight after always;
+     * `..`/`..<` tight both sides; no space before `?`.
      *
      * `null` means preserve whatever was there verbatim — every pair this table doesn't recognize.
      */
@@ -717,6 +775,13 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             WNodeType.FUNCTION_TYPE &&
             frameType !=
             WNodeType.FUNCTION_LITERAL
+        ) {
+            return ""
+        }
+        if (frameType == WNodeType.PROPERTY_ACCESSOR &&
+            (prevType == WNodeType.KW_GET || prevType == WNodeType.KW_SET) &&
+            nextType ==
+            WNodeType.LPAR
         ) {
             return ""
         }

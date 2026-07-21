@@ -879,6 +879,30 @@ class DocBuilderSpec :
                 render(builder, ctx) shouldBe "class Foo\nconstructor()"
             }
 
+            should("remove a blank line between a class name and its primary constructor across a trailing comment") {
+                val builder = DocBuilder(formatConfig())
+                val ctx = WContext(filePath = "test.kt")
+                builder.enterNode(ctx.apply { type = WNodeType.FILE })
+                builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+                leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.IDENTIFIER, "Foo")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.EOL_COMMENT, "// comment")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n\n")
+                builder.enterNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+                leaf(builder, ctx, WNodeType.KW_CONSTRUCTOR, "constructor")
+                builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+                leaf(builder, ctx, WNodeType.LPAR, "(")
+                leaf(builder, ctx, WNodeType.RPAR, ")")
+                builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+                builder.exitNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })
+                builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+                builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+                render(builder, ctx) shouldBe "class Foo // comment\nconstructor()"
+            }
+
             should("force exactly one blank line after the package directive and after a non-empty import list") {
                 val builder = DocBuilder(formatConfig())
                 val ctx = WContext(filePath = "test.kt")
@@ -905,6 +929,30 @@ class DocBuilderSpec :
                 builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
                 render(builder, ctx) shouldBe "package sample\n\nimport kotlin\n\nfun foo"
+            }
+
+            should("force exactly one blank line after the package directive across a comment sitting before the import list") {
+                val builder = DocBuilder(formatConfig())
+                val ctx = WContext(filePath = "test.kt")
+                builder.enterNode(ctx.apply { type = WNodeType.FILE })
+                builder.enterNode(ctx.apply { type = WNodeType.PACKAGE_DIRECTIVE })
+                leaf(builder, ctx, WNodeType.KW_PACKAGE, "package")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.IDENTIFIER, "sample")
+                builder.exitNode(ctx.apply { type = WNodeType.PACKAGE_DIRECTIVE })
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+                leaf(builder, ctx, WNodeType.EOL_COMMENT, "// comment")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+                builder.enterNode(ctx.apply { type = WNodeType.IMPORT_LIST })
+                builder.enterNode(ctx.apply { type = WNodeType.IMPORT_DIRECTIVE })
+                leaf(builder, ctx, WNodeType.KW_IMPORT, "import")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.IDENTIFIER, "kotlin")
+                builder.exitNode(ctx.apply { type = WNodeType.IMPORT_DIRECTIVE })
+                builder.exitNode(ctx.apply { type = WNodeType.IMPORT_LIST })
+                builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+                render(builder, ctx) shouldBe "package sample\n\n// comment\nimport kotlin"
             }
 
             should("never force a blank line around an empty import list") {
@@ -1753,6 +1801,30 @@ class DocBuilderSpec :
                 render(builder, ctx) shouldBe "val x = \"\"\"\nline\n\"\"\""
             }
 
+            should("move a property's initializer onto its own line when a comment precedes the value, regardless of the value's own type") {
+                val builder = DocBuilder(formatConfig())
+                val ctx = WContext(filePath = "test.kt")
+                builder.enterNode(ctx.apply { type = WNodeType.FILE })
+                builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+                leaf(builder, ctx, WNodeType.KW_VAL, "val")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.EQ, "=")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+                leaf(builder, ctx, WNodeType.EOL_COMMENT, "// comment")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+                builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+                leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"")
+                leaf(builder, ctx, WNodeType.REGULAR_STRING_PART, "foo")
+                leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"")
+                builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+                builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+                builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+                render(builder, ctx) shouldBe "val foo =\n    // comment\n    \"foo\""
+            }
+
             should("move a reassignment BINARY_EXPRESSION's already-forced-multiline IF value onto its own line") {
                 val builder = DocBuilder(formatConfig())
                 val ctx = WContext(filePath = "test.kt")
@@ -2105,7 +2177,7 @@ class DocBuilderSpec :
                 builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
                 builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-                render(builder, ctx) shouldBe "var value = 0\nget() = field\n\n@Ann\nset() = field"
+                render(builder, ctx) shouldBe "var value = 0\n    get() = field\n\n    @Ann\n    set() = field"
             }
 
             should("never force a blank line before an annotated property accessor that is itself the first one") {
@@ -2127,7 +2199,64 @@ class DocBuilderSpec :
                 builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
                 builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-                render(builder, ctx) shouldBe "var value = 0\n@Ann\nget() = field"
+                render(builder, ctx) shouldBe "var value = 0\n    @Ann\n    get() = field"
+            }
+
+            should("indent a property's own PROPERTY_ACCESSOR one level deeper than the property itself") {
+                val builder = DocBuilder(formatConfig())
+                val ctx = WContext(filePath = "test.kt")
+                builder.enterNode(ctx.apply { type = WNodeType.FILE })
+                builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+                leaf(builder, ctx, WNodeType.KW_VAL, "val")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+                propertyAccessor(builder, ctx, WNodeType.KW_GET, "get", annotated = false)
+                builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+                builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+                render(builder, ctx) shouldBe "val foo\n    get() = field"
+            }
+
+            should("leave a same-line PROPERTY_ACCESSOR untouched — indenting a gap with no newline is a no-op") {
+                val builder = DocBuilder(formatConfig())
+                val ctx = WContext(filePath = "test.kt")
+                builder.enterNode(ctx.apply { type = WNodeType.FILE })
+                builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+                leaf(builder, ctx, WNodeType.KW_VAL, "val")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                propertyAccessor(builder, ctx, WNodeType.KW_GET, "get", annotated = false)
+                builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+                builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+                render(builder, ctx) shouldBe "val foo get() = field"
+            }
+
+            should("strip the space before a PROPERTY_ACCESSOR's own parameter list even when its LPAR/RPAR are bare accessor children, not wrapped in VALUE_PARAMETER_LIST") {
+                val builder = DocBuilder(formatConfig())
+                val ctx = WContext(filePath = "test.kt")
+                builder.enterNode(ctx.apply { type = WNodeType.FILE })
+                builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+                leaf(builder, ctx, WNodeType.KW_VAL, "val")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.IDENTIFIER, "foo")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                builder.enterNode(ctx.apply { type = WNodeType.PROPERTY_ACCESSOR })
+                leaf(builder, ctx, WNodeType.KW_GET, "get")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.LPAR, "(")
+                leaf(builder, ctx, WNodeType.RPAR, ")")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.EQ, "=")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+                leaf(builder, ctx, WNodeType.IDENTIFIER, "field")
+                builder.exitNode(ctx.apply { type = WNodeType.PROPERTY_ACCESSOR })
+                builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+                builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+                render(builder, ctx) shouldBe "val foo get() = field"
             }
 
             should("collapse an existing multi-blank-line gap to exactly one blank line even where insertion also applies") {
