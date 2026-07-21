@@ -2,7 +2,9 @@
     "$schema": "./wrasse-schema.json",
     "format": { "enabled": true },
     "rules": {
+        "explicit-it-lambda-parameter": { "level": "error" },
         "modifier-order": { "level": "error" },
+        "unnecessary-backticks": { "level": "error" },
         "no-empty-class-body": { "level": "error" },
         "if-else-bracing": { "level": "error" },
         "import-ordering": { "level": "error" },
