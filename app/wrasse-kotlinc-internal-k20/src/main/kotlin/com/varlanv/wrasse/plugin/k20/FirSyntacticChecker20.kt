@@ -11,10 +11,7 @@ import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirFileChecker
 import org.jetbrains.kotlin.fir.declarations.FirFile
 
-class FirSyntacticChecker20(
-    private val plugin: WrassePlugin,
-) : FirFileChecker(MppCheckerKind.Common) {
-
+class FirSyntacticChecker20(private val plugin: WrassePlugin) : FirFileChecker(MppCheckerKind.Common) {
     override fun check(declaration: FirFile, context: CheckerContext, reporter: DiagnosticReporter) {
         val source = declaration.source as? KtLightSourceElement ?: return
         val sourceFilePath = declaration.sourceFile?.path ?: declaration.name
@@ -22,11 +19,12 @@ class FirSyntacticChecker20(
         for (violation in plugin.checkFile(source, declaration.name, sourceFilePath) { collectQualifiedUsages ->
             ResolvedUsageCollector.collect(declaration, collectQualifiedUsages)
         }) {
-            val diagnostic = when (violation.level) {
-                RuleLevel.ERROR -> WrasseErrors20.WRASSE_ERROR
-                RuleLevel.WARN -> WrasseErrors20.WRASSE_WARNING
-                RuleLevel.OFF -> continue
-            }
+            val diagnostic =
+                when (violation.level) {
+                    RuleLevel.ERROR -> WrasseErrors20.WRASSE_ERROR
+                    RuleLevel.WARN -> WrasseErrors20.WRASSE_WARNING
+                    RuleLevel.OFF -> continue
+                }
             val violationSource = KtLightSourceElement(
                 source.lighterASTNode,
                 violation.startOffset,

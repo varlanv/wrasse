@@ -18,7 +18,7 @@ fun CompilationResult.assertMatchesExpectations(fixture: Fixture) {
     withClue(
         "Expected ${fixture.expectations.size} diagnostic(s) but got ${wrasse.size}:\n" +
             "Expected:\n${formatExpectations(fixture.expectations)}\n" +
-            "Actual:\n${formatDiagnostics(wrasse)}"
+            "Actual:\n${formatDiagnostics(wrasse)}",
     ) {
         wrasse shouldHaveSize fixture.expectations.size
     }
@@ -42,11 +42,13 @@ private fun ExpectedSeverity.toCompilerSeverity(): CompilerMessageSeverity = whe
 }
 
 private fun formatDiagnostics(diagnostics: List<TestDiagnostic>): String =
-    diagnostics.joinToString("\n") { d ->
+diagnostics
+    .joinToString("\n") { d ->
         "  ${d.severity} ${d.location?.line}:${d.location?.column} ${d.message}"
-    }.ifEmpty { "  (none)" }
+    }
+    .ifEmpty { "  (none)" }
 
 private fun formatExpectations(expectations: List<ExpectedDiagnostic>): String =
-    expectations.joinToString("\n") { e ->
-        "  ${e.severity} ${e.line}:${e.column} ${e.ruleId} \"${e.message}\""
-    }
+expectations.joinToString("\n") { e ->
+    "  ${e.severity} ${e.line}:${e.column} ${e.ruleId} \"${e.message}\""
+}

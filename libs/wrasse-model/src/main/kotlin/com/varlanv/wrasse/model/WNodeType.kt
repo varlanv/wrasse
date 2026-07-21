@@ -1,13 +1,11 @@
 package com.varlanv.wrasse.model
 
-
 /**
  * Wrasse's own mapping of kotlinc's IElementType constants.
  * Rules reference these instead of importing kotlinc types.
  * When kotlinc renames/splits a token type, only the adapter mapping changes.
  */
 enum class WNodeType {
-
     // -- File structure --
     FILE,
     PACKAGE_DIRECTIVE,

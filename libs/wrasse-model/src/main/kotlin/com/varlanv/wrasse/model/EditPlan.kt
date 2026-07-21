@@ -21,7 +21,6 @@ import com.varlanv.wrasse.lang.WEdit
  * disjoint under that same ordering.
  */
 class EditPlan {
-
     /** One collected edit, attributed to the rule that reported it and its arrival order. */
     class Entry(val ruleId: String, val edit: WEdit, val sequence: Int)
 

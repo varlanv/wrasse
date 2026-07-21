@@ -9,7 +9,6 @@ import com.varlanv.wrasse.model.WCallableUsage
  * usage. Compiler-free, unit-testable without kotlinc.
  */
 object SimpleNameCollisionIndex {
-
     fun build(classifiers: Set<String>, callables: Set<WCallableUsage>): Map<String, Set<String>> {
         val fqnsBySimpleName = mutableMapOf<String, MutableSet<String>>()
         for (classifier in classifiers) {
@@ -18,8 +17,7 @@ object SimpleNameCollisionIndex {
         for (callable in callables) {
             val classFqName = callable.classFqName
             if (classFqName == null) {
-                fqnsBySimpleName.getOrPut(callable.name) { mutableSetOf() }
-                    .add("${callable.packageFqName}.${callable.name}")
+                fqnsBySimpleName.getOrPut(callable.name) { mutableSetOf() }.add("${callable.packageFqName}.${callable.name}")
             } else {
                 fqnsBySimpleName.getOrPut(classFqName.substringAfterLast('.')) { mutableSetOf() }.add(classFqName)
             }
@@ -28,5 +26,5 @@ object SimpleNameCollisionIndex {
     }
 
     fun collidesWithOtherFqn(fqn: String, simpleName: String, index: Map<String, Set<String>>): Boolean =
-        index[simpleName].orEmpty().any { it != fqn }
+    index[simpleName].orEmpty().any { it != fqn }
 }

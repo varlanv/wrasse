@@ -15,7 +15,6 @@ package com.varlanv.wrasse.lang
  * Replacement escaping: newline → `\n`, backslash → `\\`.
  */
 object WPatchWriter {
-
     fun writeHeader(out: Appendable) {
         out.append("# wrasse-fixes v1\n")
     }
@@ -32,7 +31,8 @@ object WPatchWriter {
         out.append("hash:").append(fileEdits.sourceHash).append('\n')
         val sorted = fileEdits.edits.sortedByDescending { it.startOffset }
         for (edit in sorted) {
-            out.append("edit:")
+            out
+                .append("edit:")
                 .append(edit.startOffset.toString())
                 .append(':')
                 .append(edit.endOffset.toString())
@@ -43,5 +43,5 @@ object WPatchWriter {
     }
 
     private fun escapeReplacement(s: String): String =
-        s.replace("\\", "\\\\").replace("\n", "\\n")
+    s.replace("\\", "\\\\").replace("\n", "\\n")
 }

@@ -81,15 +81,20 @@ class WhenEntryBracingRule : WUninitializedRule {
                 if (!WhenEntryBracingDecision.shouldBraceEntries(pending.anyEntryHasBlockBody, pending.anyEntryHasMultilineBody)) {
                     return
                 }
-                val baseIndentColumn = if (config.formatEnabled) {
-                    0
-                } else {
-                    BraceInsertion.physicalLineIndentColumn(ctx.sourceText, ctx.startOffset) + INDENT_WIDTH
-                }
+                val baseIndentColumn =
+                    if (config.formatEnabled) {
+                        0
+                    } else {
+                        BraceInsertion.physicalLineIndentColumn(ctx.sourceText, ctx.startOffset) + INDENT_WIDTH
+                    }
                 var siblingIdx = 0
                 for (candidate in pending.candidates) {
-                    while (siblingIdx < children.size &&
-                        !(children.type(siblingIdx) == WNodeType.WHEN_ENTRY && children.startOffset(siblingIdx) == candidate.entryStartOffset)
+                    while (siblingIdx <
+                        children.size &&
+                        !(children.type(siblingIdx) ==
+                            WNodeType.WHEN_ENTRY &&
+                            children.startOffset(siblingIdx) ==
+                            candidate.entryStartOffset)
                     ) {
                         siblingIdx++
                     }
@@ -120,15 +125,17 @@ class WhenEntryBracingRule : WUninitializedRule {
                     return
                 }
 
-                pending.candidates.add(
-                    PendingCandidate(
-                        entryStartOffset = ctx.startOffset,
-                        leadingGapStart = arrowEnd,
-                        contentStart = contentStart,
-                        contentEnd = contentEnd,
-                        hasAdjacentComment = hasCommentBetween(children, arrowIdx + 1, bodyIdx),
+                pending
+                    .candidates
+                    .add(
+                        PendingCandidate(
+                            entryStartOffset = ctx.startOffset,
+                            leadingGapStart = arrowEnd,
+                            contentStart = contentStart,
+                            contentEnd = contentEnd,
+                            hasAdjacentComment = hasCommentBetween(children, arrowIdx + 1, bodyIdx),
+                        ),
                     )
-                )
             }
 
             private fun report(
@@ -138,23 +145,20 @@ class WhenEntryBracingRule : WUninitializedRule {
                 hasTrailingComment: Boolean,
                 baseIndentColumn: Int,
             ) {
-                val verdict = WhenEntryBracingDecision.decideEntry(
-                    ctx.sourceText,
-                    WhenEntryBracingCandidate(
-                        leadingGapStart = candidate.leadingGapStart,
-                        contentStart = candidate.contentStart,
-                        contentEnd = candidate.contentEnd,
-                        hasAdjacentComment = candidate.hasAdjacentComment || hasTrailingComment,
-                    ),
-                    baseIndentColumn,
-                    INDENT_WIDTH,
-                    config.formatEnabled,
-                )
-                reporter.report(
-                    ruleId, MESSAGE,
-                    verdict.reportStart, verdict.reportEnd, this,
-                    edits = verdict.edits,
-                )
+                val verdict = WhenEntryBracingDecision
+                    .decideEntry(
+                        ctx.sourceText,
+                        WhenEntryBracingCandidate(
+                            leadingGapStart = candidate.leadingGapStart,
+                            contentStart = candidate.contentStart,
+                            contentEnd = candidate.contentEnd,
+                            hasAdjacentComment = candidate.hasAdjacentComment || hasTrailingComment,
+                        ),
+                        baseIndentColumn,
+                        INDENT_WIDTH,
+                        config.formatEnabled,
+                    )
+                reporter.report(ruleId, MESSAGE, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
             }
 
             private fun hasCommentImmediatelyAfter(ctx: WContext, children: ChildBuffer, entryIdx: Int): Boolean {
@@ -187,7 +191,7 @@ class WhenEntryBracingRule : WUninitializedRule {
             }
 
             private fun isEmptyBlock(sourceText: CharSequence, contentStart: Int, contentEnd: Int): Boolean =
-                sourceText.subSequence(contentStart + 1, contentEnd - 1).isBlank()
+            sourceText.subSequence(contentStart + 1, contentEnd - 1).isBlank()
         }
     }
 

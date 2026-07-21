@@ -31,7 +31,6 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  * overlapping [WEdit]s for the same list.
  */
 class ModifierEngine : WUninitializedRuleGroup {
-
     override val ids: Set<String> = setOf(MODIFIER_ORDER_ID, REDUNDANT_VISIBILITY_MODIFIER_ID)
 
     override val canAutofix: Boolean = true
@@ -72,17 +71,28 @@ class ModifierEngine : WUninitializedRuleGroup {
                     }
                 }
 
-                val visibilityFired = reportRedundantVisibility(ctx, reporter, visibilityRule, publicIndex, hasOverride, hasComment, keywords)
+                val visibilityFired = reportRedundantVisibility(
+                    ctx,
+                    reporter,
+                    visibilityRule,
+                    publicIndex,
+                    hasOverride,
+                    hasComment,
+                    keywords,
+                )
 
                 if (orderRule == null) return
                 val orderKeywords = if (visibilityFired) keywords.filterIndexed { i, _ -> i != publicIndex } else keywords
                 val verdict = ModifierOrderDecision.decide(orderKeywords, ctx.sourceText, hasComment) ?: return
-                reporter.report(
-                    MODIFIER_ORDER_ID,
-                    "Modifiers out of order, expected: ${verdict.expectedOrder}",
-                    verdict.reportStart, verdict.reportEnd, orderRule,
-                    edits = verdict.edits,
-                )
+                reporter
+                    .report(
+                        MODIFIER_ORDER_ID,
+                        "Modifiers out of order, expected: ${verdict.expectedOrder}",
+                        verdict.reportStart,
+                        verdict.reportEnd,
+                        orderRule,
+                        edits = verdict.edits,
+                    )
             }
 
             private fun reportRedundantVisibility(
@@ -100,23 +110,23 @@ class ModifierEngine : WUninitializedRuleGroup {
                     return false
                 }
                 val publicOccurrence = keywords[publicIndex]
-                val edit = RedundantVisibilityModifierDeletionSpan.compute(
-                    ctx.sourceText, publicOccurrence.startOffset, publicOccurrence.endOffset, hasComment,
-                )
-                reporter.report(
-                    REDUNDANT_VISIBILITY_MODIFIER_ID, "Redundant public visibility modifier",
-                    publicOccurrence.startOffset, publicOccurrence.endOffset, visibilityRule,
-                    edits = edit?.let { listOf(it) } ?: emptyList(),
-                )
+                val edit = RedundantVisibilityModifierDeletionSpan
+                    .compute(ctx.sourceText, publicOccurrence.startOffset, publicOccurrence.endOffset, hasComment)
+                reporter
+                    .report(
+                        REDUNDANT_VISIBILITY_MODIFIER_ID,
+                        "Redundant public visibility modifier",
+                        publicOccurrence.startOffset,
+                        publicOccurrence.endOffset,
+                        visibilityRule,
+                        edits = edit?.let { listOf(it) } ?: emptyList(),
+                    )
                 return true
             }
         }
     }
 
-    private class ReportFacade(
-        override val id: String,
-        override val config: WrasseRuleConfig,
-    ) : WFileRule {
+    private class ReportFacade(override val id: String, override val config: WrasseRuleConfig) : WFileRule {
         override fun visit(ctx: WContext, reporter: WReporter) {}
     }
 
@@ -126,24 +136,32 @@ class ModifierEngine : WUninitializedRuleGroup {
         private const val ENGINE_ID = "modifier-engine"
 
         private val ORDERED_MODIFIER_TYPES =
-            listOf(
-                WNodeType.KW_PUBLIC, WNodeType.KW_PROTECTED, WNodeType.KW_PRIVATE, WNodeType.KW_INTERNAL,
-                WNodeType.KW_EXPECT, WNodeType.KW_ACTUAL,
-                WNodeType.KW_FINAL, WNodeType.KW_OPEN, WNodeType.KW_ABSTRACT, WNodeType.KW_SEALED,
-                WNodeType.KW_CONST,
-                WNodeType.KW_EXTERNAL,
-                WNodeType.KW_OVERRIDE,
-                WNodeType.KW_LATEINIT,
-                WNodeType.KW_TAILREC,
-                WNodeType.KW_VARARG,
-                WNodeType.KW_SUSPEND,
-                WNodeType.KW_INNER,
-                WNodeType.KW_ENUM, WNodeType.KW_ANNOTATION,
-                WNodeType.KW_COMPANION,
-                WNodeType.KW_INLINE,
-                WNodeType.KW_INFIX,
-                WNodeType.KW_OPERATOR,
-                WNodeType.KW_DATA,
-            )
+        listOf(
+            WNodeType.KW_PUBLIC,
+            WNodeType.KW_PROTECTED,
+            WNodeType.KW_PRIVATE,
+            WNodeType.KW_INTERNAL,
+            WNodeType.KW_EXPECT,
+            WNodeType.KW_ACTUAL,
+            WNodeType.KW_FINAL,
+            WNodeType.KW_OPEN,
+            WNodeType.KW_ABSTRACT,
+            WNodeType.KW_SEALED,
+            WNodeType.KW_CONST,
+            WNodeType.KW_EXTERNAL,
+            WNodeType.KW_OVERRIDE,
+            WNodeType.KW_LATEINIT,
+            WNodeType.KW_TAILREC,
+            WNodeType.KW_VARARG,
+            WNodeType.KW_SUSPEND,
+            WNodeType.KW_INNER,
+            WNodeType.KW_ENUM,
+            WNodeType.KW_ANNOTATION,
+            WNodeType.KW_COMPANION,
+            WNodeType.KW_INLINE,
+            WNodeType.KW_INFIX,
+            WNodeType.KW_OPERATOR,
+            WNodeType.KW_DATA,
+        )
     }
 }

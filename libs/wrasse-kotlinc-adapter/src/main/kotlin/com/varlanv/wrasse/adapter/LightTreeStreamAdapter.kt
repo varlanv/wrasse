@@ -29,7 +29,6 @@ import org.jetbrains.kotlin.com.intellij.util.diff.FlyweightCapableTreeStructure
  * typically 20-30, well within JVM default stack limits.
  */
 object LightTreeStreamAdapter {
-
     private val newlineFreeByOrdinal: BooleanArray = BooleanArray(WNodeType.SIZE).also { arr ->
         for (type in arrayOf(
             WNodeType.IDENTIFIER,
@@ -157,12 +156,7 @@ object LightTreeStreamAdapter {
      *
      * Lifecycle: beforeFile → recursive walk → afterFile → WFileRules.
      */
-    fun walk(
-        source: KtLightSourceElement,
-        ctx: WContext,
-        dispatch: StreamDispatch,
-        reporter: WReporter,
-    ) {
+    fun walk(source: KtLightSourceElement, ctx: WContext, dispatch: StreamDispatch, reporter: WReporter) {
         val tree = source.treeStructure
         ctx.sourceText = tree.toString(source.lighterASTNode)
 
@@ -188,7 +182,7 @@ object LightTreeStreamAdapter {
             reporter = reporter,
             ref = ref,
             pool = pool,
-            activeNodeRules = activeNodeRules
+            activeNodeRules = activeNodeRules,
         )
 
         for (rule in dispatch.allRules) {
@@ -261,12 +255,7 @@ object LightTreeStreamAdapter {
             val depth = ctx.ancestors.size
             val nodeRules = if (dispatch.hasNodeRules) dispatch.nodeRulesForType(type) else emptyList()
             val enteredCount =
-                enterNodeRules(
-                    nodeRules = nodeRules,
-                    ctx = ctx,
-                    reporter = reporter,
-                    activeNodeRules = activeNodeRules,
-                )
+            enterNodeRules(nodeRules = nodeRules, ctx = ctx, reporter = reporter, activeNodeRules = activeNodeRules)
 
             ctx.ancestors.push(type = type, startOffset = astNode.startOffset, endOffset = astNode.endOffset)
             val count = tree.getChildren(astNode, ref)
@@ -292,19 +281,14 @@ object LightTreeStreamAdapter {
                         reporter = reporter,
                         ref = ref,
                         pool = pool,
-                        activeNodeRules = activeNodeRules
+                        activeNodeRules = activeNodeRules,
                     )
 
                     if (enteredCount > 0) {
                         val activeStart = activeNodeRules.size - enteredCount
                         for (j in activeStart until activeNodeRules.size) {
                             val entry = activeNodeRules[j]
-                            entry.buffer?.add(
-                                type = childType,
-                                start = child.startOffset,
-                                end = child.endOffset,
-                                text = childText
-                            )
+                            entry.buffer?.add(type = childType, start = child.startOffset, end = child.endOffset, text = childText)
                         }
                     }
                 }
@@ -319,12 +303,7 @@ object LightTreeStreamAdapter {
             ctx.leafText = null
             ctx.childIndex = ownChildIndex
 
-            exitNodeRules(
-                activeNodeRules = activeNodeRules,
-                enteredCount = enteredCount,
-                ctx = ctx,
-                reporter = reporter
-            )
+            exitNodeRules(activeNodeRules = activeNodeRules, enteredCount = enteredCount, ctx = ctx, reporter = reporter)
 
             if (dispatch.hasStreamRules) {
                 for (rule in dispatch.streamRules) {
@@ -345,12 +324,7 @@ object LightTreeStreamAdapter {
         }
     }
 
-    private fun enterNodeRules(
-        nodeRules: List<WNodeRule>,
-        ctx: WContext,
-        reporter: WReporter,
-        activeNodeRules: ArrayList<ActiveNodeEntry>,
-    ): Int {
+    private fun enterNodeRules(nodeRules: List<WNodeRule>, ctx: WContext, reporter: WReporter, activeNodeRules: ArrayList<ActiveNodeEntry>): Int {
         var enteredCount = 0
         for (rule in nodeRules) {
             val wantChildren = rule.enterNode(ctx = ctx, reporter = reporter)
@@ -363,12 +337,7 @@ object LightTreeStreamAdapter {
         return enteredCount
     }
 
-    private fun exitNodeRules(
-        activeNodeRules: ArrayList<ActiveNodeEntry>,
-        enteredCount: Int,
-        ctx: WContext,
-        reporter: WReporter,
-    ) {
+    private fun exitNodeRules(activeNodeRules: ArrayList<ActiveNodeEntry>, enteredCount: Int, ctx: WContext, reporter: WReporter) {
         if (enteredCount == 0) {
             return
         }
@@ -386,10 +355,7 @@ object LightTreeStreamAdapter {
         }
     }
 
-    private class ActiveNodeEntry(
-        val rule: WNodeRule,
-        val buffer: ChildBuffer?,
-    )
+    private class ActiveNodeEntry(val rule: WNodeRule, val buffer: ChildBuffer?)
 
     /**
      * Per-walk pool of children arrays, one reusable, geometrically-grown slot per tree

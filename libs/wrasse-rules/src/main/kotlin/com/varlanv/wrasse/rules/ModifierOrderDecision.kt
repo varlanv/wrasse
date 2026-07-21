@@ -7,11 +7,7 @@ import com.varlanv.wrasse.lang.WEdit
  * canonical order comparison. [canonicalIndex] is its position in wrasse's canonical order (lower
  * sorts first); ties never occur since every comparable keyword is distinct within one list.
  */
-class ModifierKeywordOccurrence(
-    val canonicalIndex: Int,
-    val startOffset: Int,
-    val endOffset: Int,
-)
+class ModifierKeywordOccurrence(val canonicalIndex: Int, val startOffset: Int, val endOffset: Int)
 
 /**
  * Verdict for one `MODIFIER_LIST`'s worth of comparable keywords: [expectedOrder] is the
@@ -20,12 +16,7 @@ class ModifierKeywordOccurrence(
  * must change, never touching anything else in the list (whitespace, annotations, `fun`/`value`,
  * a context-parameter list, or a comment).
  */
-class ModifierOrderVerdict(
-    val reportStart: Int,
-    val reportEnd: Int,
-    val expectedOrder: String,
-    val edits: List<WEdit>,
-)
+class ModifierOrderVerdict(val reportStart: Int, val reportEnd: Int, val expectedOrder: String, val edits: List<WEdit>)
 
 /**
  * Pure verdict logic for `modifier-order`, compiler-free and unit-testable without kotlinc.
@@ -45,12 +36,7 @@ class ModifierOrderVerdict(
  * established comment-bail precedent (`no-unit-return`, `no-empty-parens-before-trailing-lambda`).
  */
 object ModifierOrderDecision {
-
-    fun decide(
-        keywords: List<ModifierKeywordOccurrence>,
-        sourceText: CharSequence,
-        hasComment: Boolean,
-    ): ModifierOrderVerdict? {
+    fun decide(keywords: List<ModifierKeywordOccurrence>, sourceText: CharSequence, hasComment: Boolean): ModifierOrderVerdict? {
         if (keywords.size < 2) return null
 
         val sorted = keywords.sortedBy { it.canonicalIndex }
@@ -79,10 +65,7 @@ object ModifierOrderDecision {
         )
     }
 
-    private fun isAlreadyOrdered(
-        keywords: List<ModifierKeywordOccurrence>,
-        sorted: List<ModifierKeywordOccurrence>,
-    ): Boolean {
+    private fun isAlreadyOrdered(keywords: List<ModifierKeywordOccurrence>, sorted: List<ModifierKeywordOccurrence>): Boolean {
         for (i in keywords.indices) {
             if (keywords[i].canonicalIndex != sorted[i].canonicalIndex) return false
         }

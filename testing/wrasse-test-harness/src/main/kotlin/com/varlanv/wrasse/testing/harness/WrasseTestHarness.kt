@@ -21,7 +21,6 @@ class WrasseTestHarness(
     private val dumpResolvedUsage: Boolean = false,
     private val explicitApiMode: String? = null,
 ) {
-
     companion object {
         private val pluginClasspath: String by lazy {
             val marker = WrasseCompilerPluginRegistrar::class.java
@@ -49,10 +48,10 @@ class WrasseTestHarness(
     }
 
     fun compile(sources: List<TestSource>, workDir: Path): CompilationResult =
-        doCompile(workDir, sources)
+    doCompile(workDir, sources)
 
     fun sourcePath(workDir: Path, source: TestSource): Path =
-        workDir.resolve("src").resolve(source.path)
+    workDir.resolve("src").resolve(source.path)
 
     private fun doCompile(workDir: Path, sources: List<TestSource>): CompilationResult {
         val srcDir = Files.createDirectories(workDir.resolve("src"))
@@ -107,28 +106,18 @@ class WrasseTestHarness(
 
         val exitCode = compiler.exec(collector, Services.EMPTY, args)
 
-        return CompilationResult(
-            exitCode = exitCode,
-            diagnostics = collector.diagnostics,
-        )
+        return CompilationResult(exitCode = exitCode, diagnostics = collector.diagnostics)
     }
 }
 
 class TestSource(val path: String, val content: String)
 
-class CompilationResult(
-    val exitCode: ExitCode,
-    val diagnostics: List<TestDiagnostic>,
-) {
+class CompilationResult(val exitCode: ExitCode, val diagnostics: List<TestDiagnostic>) {
     val wrasseDiagnostics: List<TestDiagnostic>
-        get() = diagnostics.filter { it.message.startsWith("wrasse:") }
+    get() = diagnostics.filter { it.message.startsWith("wrasse:") }
 }
 
-class TestDiagnostic(
-    val severity: CompilerMessageSeverity,
-    val message: String,
-    val location: CompilerMessageSourceLocation?,
-)
+class TestDiagnostic(val severity: CompilerMessageSeverity, val message: String, val location: CompilerMessageSourceLocation?)
 
 private class DiagnosticCollector : MessageCollector {
     val diagnostics = mutableListOf<TestDiagnostic>()
@@ -138,13 +127,9 @@ private class DiagnosticCollector : MessageCollector {
     }
 
     override fun hasErrors(): Boolean =
-        diagnostics.any { it.severity.isError }
+    diagnostics.any { it.severity.isError }
 
-    override fun report(
-        severity: CompilerMessageSeverity,
-        message: String,
-        location: CompilerMessageSourceLocation?,
-    ) {
+    override fun report(severity: CompilerMessageSeverity, message: String, location: CompilerMessageSourceLocation?) {
         diagnostics.add(TestDiagnostic(severity, message, location))
     }
 }

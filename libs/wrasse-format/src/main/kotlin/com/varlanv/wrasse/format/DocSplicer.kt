@@ -26,7 +26,6 @@ import com.varlanv.wrasse.lang.WEdit
  * Returns `null` if any edit cannot be cleanly mapped this way.
  */
 object DocSplicer {
-
     fun splice(doc: Doc, edits: List<WEdit>): Doc? {
         val (wrapped, consumed) = applyIndentScopes(doc, edits) ?: return null
         var current = wrapped
@@ -68,7 +67,8 @@ object DocSplicer {
                         wrapIndent(current, open.startOffset, edit.startOffset, replacementDoc(edit))
                     } else {
                         wrapIndent(current, open.startOffset, edit.startOffset, after = null)
-                    } ?: return null
+                    }
+                    ?: return null
                 }
 
                 IndentScope.NONE -> {}
@@ -150,12 +150,12 @@ object DocSplicer {
         var emitted = false
 
         fun emitReplacementOnce(): Doc? =
-            if (!emitted) {
-                emitted = true
-                replacementDoc(edit)
-            } else {
-                null
-            }
+        if (!emitted) {
+            emitted = true
+            replacementDoc(edit)
+        } else {
+            null
+        }
 
         fun splitText(node: Doc.Text): Doc {
             val len = node.value.length
@@ -192,11 +192,12 @@ object DocSplicer {
 
         fun rec(node: Doc): Doc? {
             val isInsertion = edit.startOffset == edit.endOffset
-            val touches = if (isInsertion) {
-                node.start <= edit.startOffset && edit.startOffset < node.end
-            } else {
-                edit.startOffset < node.end && node.start < edit.endOffset
-            }
+            val touches =
+                if (isInsertion) {
+                    node.start <= edit.startOffset && edit.startOffset < node.end
+                } else {
+                    edit.startOffset < node.end && node.start < edit.endOffset
+                }
             if (!touches) return node
 
             val fullyCovered = !isInsertion && edit.startOffset <= node.start && node.end <= edit.endOffset

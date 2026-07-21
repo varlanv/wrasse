@@ -5,7 +5,6 @@ package com.varlanv.wrasse.lang
  * Parser returns ConfigValue (e.g. ConfigValue.Obj for an object root)
  */
 sealed interface ConfigValue {
-
     fun typeName(): String
 
     @JvmInline
@@ -72,7 +71,6 @@ sealed interface ConfigValue {
  * Navigates object nodes.
  */
 class SafeProperties(private val map: Map<String, ConfigValue>) {
-
     fun keys(): Set<String> = map.keys
 
     fun <V : ConfigValue> get(key: String, type: Class<V>): Property<V> {

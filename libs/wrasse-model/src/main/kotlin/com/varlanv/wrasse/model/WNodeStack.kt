@@ -35,13 +35,17 @@ class WNodeStack {
     }
 
     fun peekType(): WNodeType = WNodeType.VALUES[types[_size - 1]]
+
     fun peekStartOffset(): Int = startOffsets[_size - 1]
+
     fun peekEndOffset(): Int = endOffsets[_size - 1]
 
     fun contains(type: WNodeType): Boolean = counts[type.ordinal] > 0
 
     fun typeAt(i: Int): WNodeType = WNodeType.VALUES[types[i]]
+
     fun startOffsetAt(i: Int): Int = startOffsets[i]
+
     fun endOffsetAt(i: Int): Int = endOffsets[i]
 
     fun clear() {

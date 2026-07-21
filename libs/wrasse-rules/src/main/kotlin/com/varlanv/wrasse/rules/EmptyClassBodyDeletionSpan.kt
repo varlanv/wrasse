@@ -12,7 +12,6 @@ import com.varlanv.wrasse.lang.WEdit
  * `class Foo\n{\n}` collapses to `class Foo` rather than leaving a dangling blank line.
  */
 object EmptyClassBodyDeletionSpan {
-
     fun compute(sourceText: CharSequence, bodyStart: Int, bodyEnd: Int): WEdit {
         var start = bodyStart
         while (start > 0 && sourceText[start - 1].isWhitespace()) {

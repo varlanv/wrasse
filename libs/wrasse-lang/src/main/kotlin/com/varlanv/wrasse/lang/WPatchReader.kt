@@ -10,7 +10,6 @@ package com.varlanv.wrasse.lang
  * incidental formatting of the patch file itself, which [WPatchWriter] never indents anyway.
  */
 object WPatchReader {
-
     fun read(input: CharSequence): List<FileEdits> {
         val result = mutableListOf<FileEdits>()
         var currentPath: String? = null
@@ -40,12 +39,7 @@ object WPatchReader {
         return result
     }
 
-    private fun flushCurrent(
-        result: MutableList<FileEdits>,
-        path: String?,
-        hash: String?,
-        edits: MutableList<WEdit>,
-    ) {
+    private fun flushCurrent(result: MutableList<FileEdits>, path: String?, hash: String?, edits: MutableList<WEdit>) {
         if (path != null && hash != null && edits.isNotEmpty()) {
             result.add(FileEdits(path, hash, edits.toList()))
         }
@@ -71,9 +65,18 @@ object WPatchReader {
             val ch = s[i]
             if (ch == '\\' && i + 1 < s.length) {
                 when (s[i + 1]) {
-                    'n' -> { sb.append('\n'); i += 2 }
-                    '\\' -> { sb.append('\\'); i += 2 }
-                    else -> { sb.append(ch); i++ }
+                    'n' -> {
+                        sb.append('\n')
+                        i += 2
+                    }
+                    '\\' -> {
+                        sb.append('\\')
+                        i += 2
+                    }
+                    else -> {
+                        sb.append(ch)
+                        i++
+                    }
                 }
             } else {
                 sb.append(ch)

@@ -25,16 +25,16 @@ private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
 /** Every single-id rule wrasse ships. See [registeredRuleGroups] for fused multi-id engines. */
 internal fun registeredRules(): List<WUninitializedRule> =
-    listOf(
-        IfElseBracingRule(),
-        NoEmptyClassBodyRule(),
-        NoEmptyParensBeforeTrailingLambdaRule(),
-        NoSemicolonsRule(),
-        NoUnitReturnRule(),
-        TrailingNewlineRule(),
-        UnnecessaryInheritanceRule(),
-        WhenEntryBracingRule(),
-    )
+listOf(
+    IfElseBracingRule(),
+    NoEmptyClassBodyRule(),
+    NoEmptyParensBeforeTrailingLambdaRule(),
+    NoSemicolonsRule(),
+    NoUnitReturnRule(),
+    TrailingNewlineRule(),
+    UnnecessaryInheritanceRule(),
+    WhenEntryBracingRule(),
+)
 
 /**
  * Every fused multi-id engine wrasse ships: [ImportEngine], backing
@@ -56,12 +56,8 @@ fun wrasseMain(
     val groups = registeredRuleGroups()
     val allRuleIds = uninitializedRules.keys + groups.flatMap { it.ids }
     val config =
-        loadConfig(
-            sourceRoots = sourceRoots,
-            ruleIds = allRuleIds,
-            warnOnly = warnOnly,
-            explicitApiActive = explicitApiActive,
-        ).getOrElse { return Result.failure(it) }
+    loadConfig(sourceRoots = sourceRoots, ruleIds = allRuleIds, warnOnly = warnOnly, explicitApiActive = explicitApiActive)
+        .getOrElse { return Result.failure(it) }
     val activeRules = mutableListOf<Pair<WUninitializedRule, WrasseRuleConfig>>()
     for ((ruleId, ruleConfig) in config.rulesConfigs.idToConfig) {
         val uninitRule = uninitializedRules[ruleId] ?: continue
@@ -72,50 +68,41 @@ fun wrasseMain(
         val configs = group.ids.mapNotNull { ruleId -> config.rulesConfigs.idToConfig[ruleId]?.let { ruleId to it } }.toMap()
         if (configs.isNotEmpty()) activeGroups.push(group to configs)
     }
-    return Result.success(
-        WrassePlugin(
-            ruleSet = WRuleSet(activeRules, activeGroups),
-            fixOutputDir = fixOutputDir,
-            globalExclude = config.exclude,
-            configDir = config.configDir,
-            dumpResolvedUsage = dumpResolvedUsage,
-            formatConfig = config.format,
+    return Result
+        .success(
+            WrassePlugin(
+                ruleSet = WRuleSet(activeRules, activeGroups),
+                fixOutputDir = fixOutputDir,
+                globalExclude = config.exclude,
+                configDir = config.configDir,
+                dumpResolvedUsage = dumpResolvedUsage,
+                formatConfig = config.format,
+            ),
         )
-    )
 }
 
-
-private fun loadConfig(
-    sourceRoots: List<Path>,
-    ruleIds: Set<String>,
-    warnOnly: Boolean,
-    explicitApiActive: Boolean,
-): Result<WConfig> {
+private fun loadConfig(sourceRoots: List<Path>, ruleIds: Set<String>, warnOnly: Boolean, explicitApiActive: Boolean): Result<WConfig> {
     for (root in sourceRoots) {
         val startDir = if (root.toFile().isFile) root.parent ?: continue else root
-        val configPath = FileWalkUp.find(startDir) { it in configFileNames }
-            .getOrElse {
-                return Result.failure(
-                    Exception(
-                        "wrasse: error searching for config from $root: ${it.message}",
-                        it
-                    )
-                )
+        val configPath = FileWalkUp.find(startDir) { it in configFileNames }.getOrElse {
+                return Result.failure(Exception("wrasse: error searching for config from $root: ${it.message}", it))
             }
             ?: continue
         val configDir = configPath.parent
         val text = configPath.toFile().readText()
-        val configValue = ConfigValueJsonc.parse(input = text)
+        val configValue = ConfigValueJsonc
+            .parse(input = text)
             .getOrElse { return Result.failure(Exception("wrasse: failed to parse $configPath: ${it.message}", it)) }
         val resolveExtends = resolveExtendsFrom(configDir)
-        return WConfig.from(
-            configValue = configValue,
-            ruleIds = ruleIds,
-            warnOnly = warnOnly,
-            configDir = configDir,
-            resolveExtends = resolveExtends,
-            explicitApiActive = explicitApiActive,
-        )
+        return WConfig
+            .from(
+                configValue = configValue,
+                ruleIds = ruleIds,
+                warnOnly = warnOnly,
+                configDir = configDir,
+                resolveExtends = resolveExtends,
+                explicitApiActive = explicitApiActive,
+            )
             .getOrElse { return Result.failure(Exception("wrasse: invalid config in $configPath: ${it.message}", it)) }
             .let { Result.success(it) }
     }
@@ -128,10 +115,8 @@ private fun resolveExtendsFrom(baseDir: Path): (String) -> Result<ConfigValue> =
         Result.failure(Exception("wrasse: extended config not found: $resolved"))
     } else {
         val text = resolved.toFile().readText()
-        ConfigValueJsonc.parse(input = text)
-            .fold(
-                { Result.success(it) },
-                { Result.failure(Exception("wrasse: failed to parse $resolved: ${it.message}", it)) }
-            )
+        ConfigValueJsonc
+            .parse(input = text)
+            .fold({ Result.success(it) }, { Result.failure(Exception("wrasse: failed to parse $resolved: ${it.message}", it)) })
     }
 }

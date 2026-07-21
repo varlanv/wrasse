@@ -16,10 +16,9 @@ class WContext(
     /** Absolute path to the source file being walked. */
     val filePath: String,
 ) {
-
     /** Full source text of the file, set once by the adapter before the walk begins. */
     var sourceText: CharSequence = ""
-        @JvmSynthetic set
+    @JvmSynthetic set
 
     /** Per-file collector of attributed fix edits. Shares this context's per-file lifecycle. */
     val editPlan: EditPlan = EditPlan()
@@ -29,36 +28,42 @@ class WContext(
      * rule needs it or dump mode is on. Null means "not collected for this file".
      */
     var resolvedUsage: WResolvedUsage? = null
-        @JvmSynthetic set
+    @JvmSynthetic set
 
     /** Node type of the current event (leaf token or interior node enter/exit). */
     var type: WNodeType = WNodeType.FILE
-        @JvmSynthetic set
+    @JvmSynthetic set
+
     /** Byte offset of the first character of the current node in the source file. */
     var startOffset: Int = 0
-        @JvmSynthetic set
+    @JvmSynthetic set
+
     /** Byte offset past the last character of the current node in the source file. */
     var endOffset: Int = 0
-        @JvmSynthetic set
+    @JvmSynthetic set
+
     /** Token text for leaf nodes; null for interior node events. Backed by the compiler's buffer. */
     var leafText: CharSequence? = null
-        @JvmSynthetic set
+    @JvmSynthetic set
 
     /** Stack of ancestor node types from root (index 0) to immediate parent (index size-1). */
     val ancestors: WNodeStack = WNodeStack()
 
     /** Type of the most recently dispatched leaf token, or FILE at start-of-file. */
     var prevLeafType: WNodeType = WNodeType.FILE
-        @JvmSynthetic set
+    @JvmSynthetic set
+
     /** Start offset of the previous leaf, or -1 at start-of-file. */
     var prevLeafStart: Int = -1
-        @JvmSynthetic set
+    @JvmSynthetic set
+
     /** End offset of the previous leaf, or -1 at start-of-file. */
     var prevLeafEnd: Int = -1
-        @JvmSynthetic set
+    @JvmSynthetic set
+
     /** Text of the previous leaf, or null at start-of-file. */
     var prevLeafText: CharSequence? = null
-        @JvmSynthetic set
+    @JvmSynthetic set
 
     /**
      * Index of the current node among its parent's direct children (0-based).
@@ -70,7 +75,7 @@ class WContext(
      * its last child's.
      */
     var childIndex: Int = 0
-        @JvmSynthetic set
+    @JvmSynthetic set
 
     /**
      * Offset of the last newline character seen so far in the walk.
@@ -78,7 +83,7 @@ class WContext(
      * on every leaf whose text contains '\n'. Makes [column] an O(1) subtraction.
      */
     var lastNewlineOffset: Int = -1
-        @JvmSynthetic set
+    @JvmSynthetic set
 
     /** Zero-based column of the current node's start position on its line. */
     fun column(): Int = startOffset - lastNewlineOffset - 1
@@ -92,7 +97,4 @@ class WContext(
 
 /** True for WHITE_SPACE, EOL_COMMENT, BLOCK_COMMENT, and KDOC node types. */
 val WNodeType.isWhitespaceOrComment: Boolean
-    get() = this == WNodeType.WHITE_SPACE ||
-        this == WNodeType.EOL_COMMENT ||
-        this == WNodeType.BLOCK_COMMENT ||
-        this == WNodeType.KDOC
+get() = this == WNodeType.WHITE_SPACE || this == WNodeType.EOL_COMMENT || this == WNodeType.BLOCK_COMMENT || this == WNodeType.KDOC

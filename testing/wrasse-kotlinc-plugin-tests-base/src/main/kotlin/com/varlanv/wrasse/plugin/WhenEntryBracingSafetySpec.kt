@@ -20,14 +20,16 @@ import java.nio.file.Files
  * `when-if-bracing-combined` fixture directory); this spec adds an independent, explicit real-compile
  * assertion on top, mirroring [IfElseBracingSafetySpec].
  */
-open class WhenEntryBracingSafetySpec : BaseSpec({
+open class WhenEntryBracingSafetySpec :
+    BaseSpec(
+        {
 
-    val wrasseConfig = """{"rules":{"when-entry-bracing":{"level":"error"}}}"""
+            val wrasseConfig = """{"rules":{"when-entry-bracing":{"level":"error"}}}"""
 
-    should("brace every bare entry once some sibling is already braced and some entry has a multiline body") {
-        val source = TestSource(
-            "sample/Sample.kt",
-            """
+            should("brace every bare entry once some sibling is already braced and some entry has a multiline body") {
+                val source = TestSource(
+                    "sample/Sample.kt",
+                    """
             package sample
 
             fun classify(x: Int): String {
@@ -40,23 +42,24 @@ open class WhenEntryBracingSafetySpec : BaseSpec({
                     else -> "other"
                 }
             }
-            """.trimIndent(),
-        )
+            """
+                        .trimIndent(),
+                )
 
-        useTempDir { workDir ->
-            useTempDir { fixOutputDir ->
-                val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
-                val round1 = harness.compile(listOf(source), workDir)
-                round1.wrasseDiagnostics shouldHaveSize 2
+                useTempDir { workDir ->
+                    useTempDir { fixOutputDir ->
+                        val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
+                        val round1 = harness.compile(listOf(source), workDir)
+                        round1.wrasseDiagnostics shouldHaveSize 2
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-                if (Files.exists(patchFile)) {
-                    WPatchApplier.apply(fixOutputDir)
-                }
+                        val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                        if (Files.exists(patchFile)) {
+                            WPatchApplier.apply(fixOutputDir)
+                        }
 
-                val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-                patchedContent shouldBe
-                    """
+                        val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+                        patchedContent shouldBe
+                            """
                     package sample
 
                     fun classify(x: Int): String {
@@ -72,21 +75,22 @@ open class WhenEntryBracingSafetySpec : BaseSpec({
                             }
                         }
                     }
-                    """.trimIndent()
+                    """
+                                .trimIndent()
 
-                val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
-                IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
-                round2.wrasseDiagnostics shouldHaveSize 0
+                        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
+                        IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
+                        round2.wrasseDiagnostics shouldHaveSize 0
+                    }
+                }
             }
-        }
-    }
 
-    should("bail on a when-entry whose body is a bare if while if-else-bracing fixes it independently, and converge") {
-        val wrasseConfigCombined =
-            """{"rules":{"when-entry-bracing":{"level":"error"},"if-else-bracing":{"level":"error"}}}"""
-        val source = TestSource(
-            "sample/Sample.kt",
-            """
+            should("bail on a when-entry whose body is a bare if while if-else-bracing fixes it independently, and converge") {
+                val wrasseConfigCombined =
+                """{"rules":{"when-entry-bracing":{"level":"error"},"if-else-bracing":{"level":"error"}}}"""
+                val source = TestSource(
+                    "sample/Sample.kt",
+                    """
             package sample
 
             fun classify(x: Int, big: Boolean): String {
@@ -103,23 +107,24 @@ open class WhenEntryBracingSafetySpec : BaseSpec({
                     else -> "other"
                 }
             }
-            """.trimIndent(),
-        )
+            """
+                        .trimIndent(),
+                )
 
-        useTempDir { workDir ->
-            useTempDir { fixOutputDir ->
-                val harness = WrasseTestHarness(wrasseConfig = wrasseConfigCombined, fixOutputDir = fixOutputDir)
-                val round1 = harness.compile(listOf(source), workDir)
-                round1.wrasseDiagnostics shouldHaveSize 4
+                useTempDir { workDir ->
+                    useTempDir { fixOutputDir ->
+                        val harness = WrasseTestHarness(wrasseConfig = wrasseConfigCombined, fixOutputDir = fixOutputDir)
+                        val round1 = harness.compile(listOf(source), workDir)
+                        round1.wrasseDiagnostics shouldHaveSize 4
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-                if (Files.exists(patchFile)) {
-                    WPatchApplier.apply(fixOutputDir)
-                }
+                        val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                        if (Files.exists(patchFile)) {
+                            WPatchApplier.apply(fixOutputDir)
+                        }
 
-                val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-                patchedContent shouldBe
-                    """
+                        val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+                        patchedContent shouldBe
+                            """
                     package sample
 
                     fun classify(x: Int, big: Boolean): String {
@@ -139,12 +144,14 @@ open class WhenEntryBracingSafetySpec : BaseSpec({
                             }
                         }
                     }
-                    """.trimIndent()
+                    """
+                                .trimIndent()
 
-                val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
-                IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
-                round2.wrasseDiagnostics shouldHaveSize 1
+                        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
+                        IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
+                        round2.wrasseDiagnostics shouldHaveSize 1
+                    }
+                }
             }
-        }
-    }
-})
+        },
+    )

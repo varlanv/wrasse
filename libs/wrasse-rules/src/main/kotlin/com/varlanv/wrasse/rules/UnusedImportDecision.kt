@@ -6,13 +6,7 @@ import com.varlanv.wrasse.model.WCallableUsage
  * One explicit import directive assembled from the leaf stream: its fully-qualified
  * target, simple name, alias (if any), and the directive's own span for reporting.
  */
-class ImportRecord(
-    val fqn: String,
-    val simpleName: String,
-    val aliasName: String?,
-    val startOffset: Int,
-    val endOffset: Int,
-)
+class ImportRecord(val fqn: String, val simpleName: String, val aliasName: String?, val startOffset: Int, val endOffset: Int)
 
 /**
  * Pure verdict logic for `no-unused-imports`, compiler-free so it is unit-testable without
@@ -27,7 +21,6 @@ class ImportRecord(
  * references are invisible to FIR).
  */
 object UnusedImportDecision {
-
     fun isUnused(
         import: ImportRecord,
         classifiers: Set<String>,

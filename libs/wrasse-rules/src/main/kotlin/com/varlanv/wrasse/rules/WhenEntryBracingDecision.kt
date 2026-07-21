@@ -9,19 +9,10 @@ import com.varlanv.wrasse.lang.WEdit
  * [leadingGapStart] is the offset right after the entry's `ARROW`; [contentStart]/[contentEnd] is
  * the entry's own bare-expression span.
  */
-class WhenEntryBracingCandidate(
-    val leadingGapStart: Int,
-    val contentStart: Int,
-    val contentEnd: Int,
-    val hasAdjacentComment: Boolean,
-)
+class WhenEntryBracingCandidate(val leadingGapStart: Int, val contentStart: Int, val contentEnd: Int, val hasAdjacentComment: Boolean)
 
 /** [reportStart]/[reportEnd] locate the diagnostic; [edits] is empty for a report-only bail. */
-class WhenEntryBracingVerdict(
-    val reportStart: Int,
-    val reportEnd: Int,
-    val edits: List<WEdit>,
-)
+class WhenEntryBracingVerdict(val reportStart: Int, val reportEnd: Int, val edits: List<WEdit>)
 
 /**
  * Pure verdict logic for `when-entry-bracing`, compiler-free and unit-testable without kotlinc.
@@ -42,9 +33,8 @@ class WhenEntryBracingVerdict(
  * all, left to the printer) when it's `true`.
  */
 object WhenEntryBracingDecision {
-
     fun shouldBraceEntries(anyEntryHasBlockBody: Boolean, anyEntryHasMultilineBody: Boolean): Boolean =
-        anyEntryHasBlockBody && anyEntryHasMultilineBody
+    anyEntryHasBlockBody && anyEntryHasMultilineBody
 
     fun decideEntry(
         sourceText: CharSequence,
@@ -58,29 +48,28 @@ object WhenEntryBracingDecision {
             return WhenEntryBracingVerdict(candidate.contentStart, candidate.contentStart, emptyList())
         }
 
-        val edits = if (formatEnabled) {
-            BraceInsertion.wrapEditsMinimal(
-                leadingGapStart = candidate.leadingGapStart,
-                contentStart = candidate.contentStart,
-                contentEnd = candidate.contentEnd,
-                trailingGapEnd = candidate.contentEnd,
-                hasFollowingBranch = false,
-            )
-        } else {
-            BraceInsertion.wrapEdits(
-                leadingGapStart = candidate.leadingGapStart,
-                contentStart = candidate.contentStart,
-                contentEnd = candidate.contentEnd,
-                trailingGapEnd = candidate.contentEnd,
-                hasFollowingBranch = false,
-                baseIndentColumn = baseIndentColumn,
-                indentWidth = indentWidth,
-            )
-        }
-        return WhenEntryBracingVerdict(
-            reportStart = candidate.contentStart,
-            reportEnd = candidate.contentEnd,
-            edits = edits,
-        )
+        val edits =
+            if (formatEnabled) {
+                BraceInsertion
+                    .wrapEditsMinimal(
+                        leadingGapStart = candidate.leadingGapStart,
+                        contentStart = candidate.contentStart,
+                        contentEnd = candidate.contentEnd,
+                        trailingGapEnd = candidate.contentEnd,
+                        hasFollowingBranch = false,
+                    )
+            } else {
+                BraceInsertion
+                    .wrapEdits(
+                        leadingGapStart = candidate.leadingGapStart,
+                        contentStart = candidate.contentStart,
+                        contentEnd = candidate.contentEnd,
+                        trailingGapEnd = candidate.contentEnd,
+                        hasFollowingBranch = false,
+                        baseIndentColumn = baseIndentColumn,
+                        indentWidth = indentWidth,
+                    )
+            }
+        return WhenEntryBracingVerdict(reportStart = candidate.contentStart, reportEnd = candidate.contentEnd, edits = edits)
     }
 }

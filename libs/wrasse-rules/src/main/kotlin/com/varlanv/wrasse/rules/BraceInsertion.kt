@@ -15,14 +15,12 @@ import com.varlanv.wrasse.lang.WEdit
  * by [wrapEdits], the `formatEnabled == false` path.
  */
 object BraceInsertion {
-
     fun physicalLineIndentColumn(sourceText: CharSequence, offset: Int): Int {
         var lineStart = offset - 1
         while (lineStart >= 0 && sourceText[lineStart] != '\n') lineStart--
         lineStart++
         var column = 0
-        while (lineStart + column < sourceText.length &&
-            (sourceText[lineStart + column] == ' ' || sourceText[lineStart + column] == '\t')
+        while (lineStart + column < sourceText.length && (sourceText[lineStart + column] == ' ' || sourceText[lineStart + column] == '\t')
         ) {
             column++
         }
@@ -41,10 +39,7 @@ object BraceInsertion {
         val bodyIndent = " ".repeat(baseIndentColumn + indentWidth)
         val closeIndent = " ".repeat(baseIndentColumn)
         val trailingReplacement = if (hasFollowingBranch) "\n$closeIndent} " else "\n$closeIndent}"
-        return listOf(
-            WEdit(leadingGapStart, contentStart, " {\n$bodyIndent"),
-            WEdit(contentEnd, trailingGapEnd, trailingReplacement),
-        )
+        return listOf(WEdit(leadingGapStart, contentStart, " {\n$bodyIndent"), WEdit(contentEnd, trailingGapEnd, trailingReplacement))
     }
 
     /**
@@ -55,13 +50,7 @@ object BraceInsertion {
      * indent level and let `Layout` derive every line's actual column from tree depth, exactly as
      * it would for a `BLOCK` the parser had produced directly (§5.3).
      */
-    fun wrapEditsMinimal(
-        leadingGapStart: Int,
-        contentStart: Int,
-        contentEnd: Int,
-        trailingGapEnd: Int,
-        hasFollowingBranch: Boolean,
-    ): List<WEdit> {
+    fun wrapEditsMinimal(leadingGapStart: Int, contentStart: Int, contentEnd: Int, trailingGapEnd: Int, hasFollowingBranch: Boolean): List<WEdit> {
         val trailingReplacement = if (hasFollowingBranch) "\n} " else "\n}"
         return listOf(
             WEdit(leadingGapStart, contentStart, " {\n", indentScope = IndentScope.OPEN),

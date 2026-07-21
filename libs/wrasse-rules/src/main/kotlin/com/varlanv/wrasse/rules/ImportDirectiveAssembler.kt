@@ -7,13 +7,7 @@ import com.varlanv.wrasse.model.WNodeType
  * One `IMPORT_DIRECTIVE` reconstructed from the leaf stream: its dotted path segments, optional
  * alias, whether it ends in `.*`, and its own node span.
  */
-class RawImportDirective(
-    val pathParts: List<String>,
-    val aliasName: String?,
-    val isStar: Boolean,
-    val startOffset: Int,
-    val endOffset: Int,
-)
+class RawImportDirective(val pathParts: List<String>, val aliasName: String?, val isStar: Boolean, val startOffset: Int, val endOffset: Int)
 
 /**
  * Stateful per-file assembler that reconstructs one import directive's dotted path, optional
@@ -56,5 +50,5 @@ class ImportDirectiveAssembler {
     }
 
     fun exitImportDirective(endOffset: Int): RawImportDirective =
-        RawImportDirective(pathParts, aliasName, starSeen, directiveStart, endOffset)
+    RawImportDirective(pathParts, aliasName, starSeen, directiveStart, endOffset)
 }

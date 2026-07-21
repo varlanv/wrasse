@@ -10,7 +10,6 @@ package com.varlanv.wrasse.model
  * - [WFileRule] — called once after the walk with the full source text.
  */
 class StreamDispatch(rules: List<WRule>) {
-
     private val leafDispatch: Array<List<WLeafRule>>
     private val nodeDispatch: Array<List<WNodeRule>>
     val streamRules: List<WStreamRule>
@@ -61,5 +60,6 @@ class StreamDispatch(rules: List<WRule>) {
     }
 
     fun leafRulesForType(type: WNodeType): List<WLeafRule> = leafDispatch[type.ordinal]
+
     fun nodeRulesForType(type: WNodeType): List<WNodeRule> = nodeDispatch[type.ordinal]
 }

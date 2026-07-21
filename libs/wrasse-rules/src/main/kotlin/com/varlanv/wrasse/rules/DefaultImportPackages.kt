@@ -11,7 +11,6 @@ package com.varlanv.wrasse.rules
  * `kotlin.jvm.*` and `java.lang.*`.
  */
 object DefaultImportPackages {
-
     val ALL: Set<String> = setOf(
         "kotlin",
         "kotlin.annotation",

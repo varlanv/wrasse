@@ -42,10 +42,8 @@ class UnnecessaryInheritanceRule : WUninitializedRule {
                     if (type != WNodeType.SUPER_TYPE_CALL_ENTRY) continue
                     val targetName = redundantTargetName(children.textSpan(i, ctx.sourceText)) ?: continue
 
-                    reporter.report(
-                        ruleId, "Unnecessary inheritance of '$targetName'",
-                        children.startOffset(i), children.endOffset(i), this,
-                    )
+                    reporter
+                        .report(ruleId, "Unnecessary inheritance of '$targetName'", children.startOffset(i), children.endOffset(i), this)
                 }
             }
 

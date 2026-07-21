@@ -12,6 +12,7 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
 class NoSemicolonsRule : WUninitializedRule {
     override val id: String = "no-semicolons"
     override val canAutofix: Boolean = true
+
     override fun initRule(config: WrasseRuleConfig): WStreamRule {
         val ruleId = id
         return object : WStreamRule {
@@ -35,7 +36,7 @@ class NoSemicolonsRule : WUninitializedRule {
                 if (ctx.startOffset == ctx.endOffset && !ctx.ancestors.isEmpty) {
                     val parent = ctx.ancestors.peekType()
                     val isEmptyLoopBody =
-                        ctx.type == WNodeType.BODY && (parent == WNodeType.FOR || parent == WNodeType.WHILE)
+                    ctx.type == WNodeType.BODY && (parent == WNodeType.FOR || parent == WNodeType.WHILE)
                     val isEmptyThen = ctx.type == WNodeType.THEN && parent == WNodeType.IF
                     if (isEmptyLoopBody || isEmptyThen) {
                         pendingBareConstructBody = true
@@ -78,18 +79,24 @@ class NoSemicolonsRule : WUninitializedRule {
                 val parentType = if (ctx.ancestors.isEmpty) null else ctx.ancestors.peekType()
 
                 val isEnumTail = (parentType == WNodeType.CLASS_BODY || parentType == WNodeType.ENUM_ENTRY) &&
-                    classBodyOwnerEnumStack.lastOrNull() == true
-                val unnecessary = if (isEnumTail) {
-                    SemicolonNecessityScan.enumTailIsUnnecessary(ctx.sourceText, ctx.endOffset)
-                } else {
-                    SemicolonNecessityScan.genericIsUnnecessary(ctx.sourceText, ctx.endOffset)
-                }
+                    classBodyOwnerEnumStack.lastOrNull() ==
+                    true
+                val unnecessary =
+                    if (isEnumTail) {
+                        SemicolonNecessityScan.enumTailIsUnnecessary(ctx.sourceText, ctx.endOffset)
+                    } else {
+                        SemicolonNecessityScan.genericIsUnnecessary(ctx.sourceText, ctx.endOffset)
+                    }
                 if (unnecessary) {
-                    reporter.report(
-                        ruleId, "Unnecessary semicolon",
-                        ctx.startOffset, ctx.endOffset, this,
-                        edits = listOf(WEdit(ctx.startOffset, ctx.endOffset, ""))
-                    )
+                    reporter
+                        .report(
+                            ruleId,
+                            "Unnecessary semicolon",
+                            ctx.startOffset,
+                            ctx.endOffset,
+                            this,
+                            edits = listOf(WEdit(ctx.startOffset, ctx.endOffset, "")),
+                        )
                 }
             }
         }
@@ -102,7 +109,6 @@ class NoSemicolonsRule : WUninitializedRule {
  * significant character.
  */
 private object SemicolonNecessityScan {
-
     /**
      * A statement-terminating semicolon is unnecessary unless: another semicolon follows on
      * the same line (the current one is then redundant relative to that one, not required by

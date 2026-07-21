@@ -11,6 +11,7 @@ import com.varlanv.wrasse.model.WResolvedImport
  */
 sealed interface UnusedStarVerdict {
     data object OutOfScope : UnusedStarVerdict
+
     data class Unused(val edit: WEdit?) : UnusedStarVerdict
 }
 
@@ -32,7 +33,6 @@ sealed interface UnusedStarVerdict {
  * decided independently, each producing its own disjoint whole-line edit via [ImportRemovalSpan].
  */
 object UnusedStarDecision {
-
     fun decide(
         star: StarImportRecord,
         allStars: List<StarImportRecord>,
@@ -49,10 +49,13 @@ object UnusedStarDecision {
 
         val explicitFqns = explicitImports.filter { it.aliasName == null }.mapTo(mutableSetOf()) { it.fqn }
         val attributed = when (StarAttribution.classify(star.packageFqName, resolvedImports, callables)) {
-            StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return UnusedStarVerdict.OutOfScope
-            StarClassification.MEMBER -> StarAttribution.attributedMembers(star.packageFqName, classifiers, callables, writtenIdentifiers)
-            StarClassification.PACKAGE -> StarAttribution.attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
-        }.filterNot { it in explicitFqns }
+                StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return UnusedStarVerdict.OutOfScope
+                StarClassification.MEMBER -> StarAttribution
+                    .attributedMembers(star.packageFqName, classifiers, callables, writtenIdentifiers)
+                StarClassification.PACKAGE -> StarAttribution
+                    .attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
+            }
+            .filterNot { it in explicitFqns }
         if (attributed.isNotEmpty()) return UnusedStarVerdict.OutOfScope
 
         val coveredNames = explicitImports.mapTo(mutableSetOf()) { it.aliasName ?: it.simpleName }
@@ -60,12 +63,14 @@ object UnusedStarDecision {
             if (other === star) continue
             when (StarAttribution.classify(other.packageFqName, resolvedImports, callables)) {
                 StarClassification.MEMBER ->
-                    StarAttribution.attributedMembers(other.packageFqName, classifiers, callables, writtenIdentifiers)
-                        .mapTo(coveredNames) { it.substringAfterLast('.') }
+                StarAttribution
+                    .attributedMembers(other.packageFqName, classifiers, callables, writtenIdentifiers)
+                    .mapTo(coveredNames) { it.substringAfterLast('.') }
 
                 StarClassification.PACKAGE ->
-                    StarAttribution.attributedSymbols(other.packageFqName, classifiers, callables, writtenIdentifiers)
-                        .mapTo(coveredNames) { it.substringAfterLast('.') }
+                StarAttribution
+                    .attributedSymbols(other.packageFqName, classifiers, callables, writtenIdentifiers)
+                    .mapTo(coveredNames) { it.substringAfterLast('.') }
 
                 StarClassification.UNRESOLVED_OR_AMBIGUOUS -> {}
             }

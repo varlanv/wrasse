@@ -95,8 +95,7 @@ class SuppressionCollectorRule : WStreamRule {
         if (!entryActive) return
         if (ctx.type == WNodeType.STRING_TEMPLATE && trackingTemplate) {
             trackingTemplate = false
-            argIsPlainStringLiteral = templateChildTypes.isEmpty() ||
-                templateChildTypes == listOf(WNodeType.LITERAL_STRING_TEMPLATE_ENTRY)
+            argIsPlainStringLiteral = templateChildTypes.isEmpty() || templateChildTypes == listOf(WNodeType.LITERAL_STRING_TEMPLATE_ENTRY)
             return
         }
         if (ctx.type == WNodeType.VALUE_ARGUMENT) {
@@ -113,7 +112,8 @@ class SuppressionCollectorRule : WStreamRule {
 
     private fun finalizeEntry() {
         val isSuppress = calleeSegments.isNotEmpty() &&
-            calleeSegments.last() == "Suppress" &&
+            calleeSegments.last() ==
+            "Suppress" &&
             (calleeSegments.size == 1 || calleeSegments == listOf("kotlin", "Suppress"))
         if (!isSuppress) return
         val scope = entryScope
@@ -132,7 +132,7 @@ class SuppressionCollectorRule : WStreamRule {
         return when (ancestors.peekType()) {
             WNodeType.FILE_ANNOTATION_LIST -> AnnotationScope.File
             WNodeType.ANNOTATED_EXPRESSION ->
-                AnnotationScope.Region(ancestors.peekStartOffset(), ancestors.peekEndOffset())
+            AnnotationScope.Region(ancestors.peekStartOffset(), ancestors.peekEndOffset())
 
             WNodeType.MODIFIER_LIST -> {
                 if (ancestors.size < 2) {
@@ -149,7 +149,9 @@ class SuppressionCollectorRule : WStreamRule {
 
     private sealed interface AnnotationScope {
         data object None : AnnotationScope
+
         data object File : AnnotationScope
+
         class Region(val startOffset: Int, val endOffset: Int) : AnnotationScope
     }
 }

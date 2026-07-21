@@ -82,6 +82,7 @@ interface WNodeRule : WRule {
 
     /** Called for every descendant leaf inside an entered node. */
     fun onChildLeaf(ctx: WContext, reporter: WReporter) {}
+
     fun exitNode(ctx: WContext, reporter: WReporter) {}
 }
 
@@ -108,7 +109,9 @@ interface WBufferedNodeRule : WNodeRule {
  */
 interface WStreamRule : WRule {
     fun visitLeaf(ctx: WContext, reporter: WReporter)
+
     fun enterNode(ctx: WContext) {}
+
     fun exitNode(ctx: WContext) {}
 }
 

@@ -6,13 +6,14 @@ import io.kotest.engine.concurrency.TestExecutionMode
 import java.nio.file.Files
 import java.nio.file.Path
 
-abstract class BaseSpec(
-    body: ShouldSpec.() -> Unit,
-) : ShouldSpec({
-        isolationMode = IsolationMode.SingleInstance
-        testExecutionMode = TestExecutionMode.LimitedConcurrency(Runtime.getRuntime().availableProcessors())
-        body()
-    })
+abstract class BaseSpec(body: ShouldSpec.() -> Unit) :
+    ShouldSpec(
+        {
+            isolationMode = IsolationMode.SingleInstance
+            testExecutionMode = TestExecutionMode.LimitedConcurrency(Runtime.getRuntime().availableProcessors())
+            body()
+        },
+    )
 
 suspend fun useTempDir(block: suspend (Path) -> Unit) {
     val dir = Files.createTempDirectory("wrasse-test-")

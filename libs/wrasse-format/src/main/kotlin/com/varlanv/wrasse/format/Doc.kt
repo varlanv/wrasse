@@ -11,7 +11,6 @@ package com.varlanv.wrasse.format
  * [parts]. [start]/[end] default to `0` for hand-built `Doc` trees that address no real span.
  */
 sealed interface Doc {
-
     val start: Int
     val end: Int
 
@@ -34,7 +33,13 @@ sealed interface Doc {
      * [literal] (`Layout` regenerates it from the ambient [Indent] depth instead), so it is never
      * addressable content — [DocSplicer] must bail rather than cut inside that elided tail.
      */
-    class Break(val kind: BreakKind, val literal: String = "\n", val flat: String = " ", override val start: Int = 0, override val end: Int = 0) : Doc
+    class Break(
+        val kind: BreakKind,
+        val literal: String = "\n",
+        val flat: String = " ",
+        override val start: Int = 0,
+        override val end: Int = 0,
+    ) : Doc
 
     /** Increases the ambient indent depth by one [FormatStyle.indentWidth] for `HARD`/broken breaks inside [body]. */
     class Indent(val body: Doc) : Doc {

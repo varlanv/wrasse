@@ -1,5 +1,6 @@
 {
     "$schema": "./wrasse-schema.json",
+    "format": { "enabled": true },
     "rules": {
         "modifier-order": { "level": "error" },
         "no-empty-class-body": { "level": "error" },

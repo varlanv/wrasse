@@ -12,7 +12,6 @@ package com.varlanv.wrasse.rules
  * real rule id is exact).
  */
 class SuppressionIndex {
-
     private var fileWildcard = false
     private val fileRuleIds = mutableSetOf<String>()
     private val wildcardRegions = mutableListOf<Region>()
@@ -43,7 +42,7 @@ class SuppressionIndex {
 
     private class Region(val startOffset: Int, val endOffset: Int) {
         fun contains(otherStart: Int, otherEnd: Int): Boolean =
-            otherStart >= startOffset && otherEnd <= endOffset
+        otherStart >= startOffset && otherEnd <= endOffset
     }
 
     companion object {
@@ -51,6 +50,6 @@ class SuppressionIndex {
         private const val WILDCARD_WRASSE = "wrasse"
 
         fun isWildcard(value: String): Boolean =
-            value.equals(WILDCARD_ALL, ignoreCase = true) || value.equals(WILDCARD_WRASSE, ignoreCase = true)
+        value.equals(WILDCARD_ALL, ignoreCase = true) || value.equals(WILDCARD_WRASSE, ignoreCase = true)
     }
 }

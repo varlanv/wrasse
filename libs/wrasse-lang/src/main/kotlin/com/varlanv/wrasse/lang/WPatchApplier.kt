@@ -23,16 +23,13 @@ import kotlin.streams.asSequence
  * Deletes each patch file after all its edits are applied.
  */
 object WPatchApplier {
-
     private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
 
     fun apply(patchDir: Path): ApplyResult {
         if (!Files.exists(patchDir)) return ApplyResult(emptyList())
 
         val patchFiles = Files.walk(patchDir).use { walk ->
-            walk.asSequence()
-                .filter { Files.isRegularFile(it) && it.fileName.toString() == PATCH_FILE_NAME }
-                .toList()
+            walk.asSequence().filter { Files.isRegularFile(it) && it.fileName.toString() == PATCH_FILE_NAME }.toList()
         }
 
         val results = mutableListOf<FileApplyResult>()
@@ -56,11 +53,12 @@ object WPatchApplier {
         val content = Files.readString(filePath)
         val currentHash = sha256(content)
         if (currentHash != fileEdits.sourceHash) {
-            val reason = if (sha256(content.replace("\r\n", "\n")) == fileEdits.sourceHash) {
-                "source line endings differ from what the compiler analyzed (CRLF vs LF); re-run the build to refresh the patch"
-            } else {
-                "source changed since compilation"
-            }
+            val reason =
+                if (sha256(content.replace("\r\n", "\n")) == fileEdits.sourceHash) {
+                    "source line endings differ from what the compiler analyzed (CRLF vs LF); re-run the build to refresh the patch"
+                } else {
+                    "source changed since compilation"
+                }
             return FileApplyResult.Skipped(filePath, reason)
         }
 
@@ -69,10 +67,11 @@ object WPatchApplier {
             val current = sorted[i]
             val next = sorted[i + 1]
             if (next.endOffset > current.startOffset) {
-                return FileApplyResult.Failed(
-                    filePath,
-                    "overlapping edits at ${next.startOffset}..${next.endOffset} and ${current.startOffset}..${current.endOffset}"
-                )
+                return FileApplyResult
+                    .Failed(
+                        filePath,
+                        "overlapping edits at ${next.startOffset}..${next.endOffset} and ${current.startOffset}..${current.endOffset}",
+                    )
             }
         }
 
@@ -127,6 +126,8 @@ sealed class FileApplyResult {
     abstract val filePath: Path
 
     class Applied(override val filePath: Path, val editCount: Int) : FileApplyResult()
+
     class Skipped(override val filePath: Path, val reason: String) : FileApplyResult()
+
     class Failed(override val filePath: Path, val reason: String) : FileApplyResult()
 }

@@ -13,6 +13,5 @@ import com.varlanv.wrasse.lang.WEdit
  * is never touched, so `foo()  { it }` collapses to `foo  { it }` with the extra space preserved.
  */
 object NoEmptyParensBeforeTrailingLambdaDeletionSpan {
-
     fun compute(parensStart: Int, parensEnd: Int): WEdit = WEdit(parensStart, parensEnd, "")
 }

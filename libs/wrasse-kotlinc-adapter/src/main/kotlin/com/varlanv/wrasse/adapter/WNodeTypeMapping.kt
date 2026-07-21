@@ -7,7 +7,6 @@ import org.jetbrains.kotlin.kdoc.lexer.KDocTokens
 import org.jetbrains.kotlin.lexer.KtTokens
 
 object WNodeTypeMapping {
-
     private val map: Map<IElementType, WNodeType> = buildMap {
         // File structure
         put(KtNodeTypes.KT_FILE, WNodeType.FILE)

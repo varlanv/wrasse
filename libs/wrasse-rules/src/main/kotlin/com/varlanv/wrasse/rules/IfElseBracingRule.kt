@@ -79,11 +79,12 @@ class IfElseBracingRule : WUninitializedRule {
                 val (chainStart, chainEnd) = chainHeadSpan(ctx)
                 if (!IfElseBracingDecision.chainSpansMultipleLines(ctx.sourceText, chainStart, chainEnd)) return
 
-                val baseIndentColumn = if (config.formatEnabled) {
-                    0
-                } else {
-                    BraceInsertion.physicalLineIndentColumn(ctx.sourceText, chainStart)
-                }
+                val baseIndentColumn =
+                    if (config.formatEnabled) {
+                        0
+                    } else {
+                        BraceInsertion.physicalLineIndentColumn(ctx.sourceText, chainStart)
+                    }
                 val hasElse = elseKwIdx >= 0 && elseIdx >= 0
 
                 evaluateThen(
@@ -176,20 +177,10 @@ class IfElseBracingRule : WUninitializedRule {
                 )
             }
 
-            private fun report(
-                ctx: WContext,
-                reporter: WReporter,
-                baseIndentColumn: Int,
-                candidate: IfElseBracingCandidate,
-            ) {
-                val verdict = IfElseBracingDecision.decideBranch(
-                    ctx.sourceText, candidate, baseIndentColumn, INDENT_WIDTH, config.formatEnabled,
-                )
-                reporter.report(
-                    ruleId, MESSAGE,
-                    verdict.reportStart, verdict.reportEnd, this,
-                    edits = verdict.edits,
-                )
+            private fun report(ctx: WContext, reporter: WReporter, baseIndentColumn: Int, candidate: IfElseBracingCandidate) {
+                val verdict = IfElseBracingDecision
+                    .decideBranch(ctx.sourceText, candidate, baseIndentColumn, INDENT_WIDTH, config.formatEnabled)
+                reporter.report(ruleId, MESSAGE, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
             }
 
             private fun hasCommentBetween(children: ChildBuffer, from: Int, until: Int): Boolean {

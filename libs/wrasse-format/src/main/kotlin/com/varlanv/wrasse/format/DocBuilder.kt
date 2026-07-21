@@ -19,7 +19,7 @@ private val OWN_LINE_FORCE_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, 
 private val SEMICOLON_BREAK_SCOPE = setOf(WNodeType.BLOCK, WNodeType.WHEN)
 private val MULTILINE_WRAPPABLE_VALUE_TYPES = setOf(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
 private val BLANK_LINE_BEFORE_DECLARATION_TYPES =
-    setOf(WNodeType.CLASS, WNodeType.CLASS_INITIALIZER, WNodeType.FUN, WNodeType.OBJECT_DECLARATION, WNodeType.PROPERTY)
+setOf(WNodeType.CLASS, WNodeType.CLASS_INITIALIZER, WNodeType.FUN, WNodeType.OBJECT_DECLARATION, WNodeType.PROPERTY)
 private val DECLARATION_SPACING_TYPES = BLANK_LINE_BEFORE_DECLARATION_TYPES +
     setOf(WNodeType.TYPEALIAS, WNodeType.SECONDARY_CONSTRUCTOR, WNodeType.ENUM_ENTRY)
 private val DECLARATION_GAP_CONTAINER_TYPES = setOf(WNodeType.FILE, WNodeType.CLASS_BODY, WNodeType.BLOCK)
@@ -27,18 +27,18 @@ private val LEADING_COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK
 private val EOL_COMMENT_EXEMPT_PREFIXES = listOf("//noinspection", "//region", "//endregion", "//language=")
 
 private val KEYWORDS_WANTING_SPACE_AFTER =
-    setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH, WNodeType.KW_WHERE)
+setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH, WNodeType.KW_WHERE)
 private val CLOSERS_NOT_NEEDING_SPACE_AFTER_COMMA =
-    setOf(WNodeType.RPAR, WNodeType.RBRACKET, WNodeType.GT, WNodeType.RBRACE)
+setOf(WNodeType.RPAR, WNodeType.RBRACKET, WNodeType.GT, WNodeType.RBRACE)
 private val COLON_WANTS_SPACE_BOTH_SIDES =
-    setOf(
-        WNodeType.CLASS,
-        WNodeType.OBJECT_DECLARATION,
-        WNodeType.OBJECT_LITERAL,
-        WNodeType.SECONDARY_CONSTRUCTOR,
-        WNodeType.TYPE_PARAMETER,
-        WNodeType.TYPE_CONSTRAINT,
-    )
+setOf(
+    WNodeType.CLASS,
+    WNodeType.OBJECT_DECLARATION,
+    WNodeType.OBJECT_LITERAL,
+    WNodeType.SECONDARY_CONSTRUCTOR,
+    WNodeType.TYPE_PARAMETER,
+    WNodeType.TYPE_CONSTRAINT,
+)
 
 /**
  * The privileged stream consumer that turns the SAX walk into a [Doc] tree, one `when (ctx.type)`
@@ -56,10 +56,7 @@ private val COLON_WANTS_SPACE_BOTH_SIDES =
  * A node's direct children are buffered until [exitNode], since a node's own layout can only be
  * decided once its children are complete — see [resolveFrame] and its per-construct helpers.
  */
-class DocBuilder(
-    formatConfig: WFormatConfig,
-) : WStreamRule {
-
+class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     override val id: String = "format"
     override val config: WrasseRuleConfig = formatConfig.ruleConfig
 
@@ -69,13 +66,14 @@ class DocBuilder(
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
         val text = ctx.leafText?.toString() ?: ""
-        val entry = when {
-            ctx.type == WNodeType.WHITE_SPACE && text.contains('\n') -> ChildEntry.Ws(text, ctx.startOffset)
-            ctx.type == WNodeType.EOL_COMMENT ->
+        val entry =
+            when {
+                ctx.type == WNodeType.WHITE_SPACE && text.contains('\n') -> ChildEntry.Ws(text, ctx.startOffset)
+                ctx.type == WNodeType.EOL_COMMENT ->
                 ChildEntry.Resolved(ctx.type, Doc.Text(normalizeEolCommentText(text), ctx.startOffset, ctx.endOffset))
 
-            else -> ChildEntry.Resolved(ctx.type, Doc.Text(text, ctx.startOffset, ctx.endOffset))
-        }
+                else -> ChildEntry.Resolved(ctx.type, Doc.Text(text, ctx.startOffset, ctx.endOffset))
+            }
         frames.last().children.add(entry)
     }
 
@@ -103,9 +101,10 @@ class DocBuilder(
             rootDoc = doc
         } else {
             val hasLeadingComment = frame.children.firstOrNull()?.type in LEADING_COMMENT_TYPES
-            frames.last().children.add(
-                ChildEntry.Resolved(ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment, frame.reindentedRawString)
-            )
+            frames
+                .last()
+                .children
+                .add(ChildEntry.Resolved(ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment, frame.reindentedRawString))
         }
     }
 
@@ -128,14 +127,7 @@ class DocBuilder(
         }
         val rendered = Layout.render(spliced, style)
         if (rendered == original) return
-        reporter.report(
-            id,
-            "File is not wrasse-formatted",
-            0,
-            original.length,
-            this,
-            edits = listOf(WEdit(0, original.length, rendered)),
-        )
+        reporter.report(id, "File is not wrasse-formatted", 0, original.length, this, edits = listOf(WEdit(0, original.length, rendered)))
     }
 
     /**
@@ -152,10 +144,10 @@ class DocBuilder(
      */
     private fun resolveFrame(frame: Frame, start: Int, end: Int, parentType: WNodeType?): Doc = when (frame.type) {
         WNodeType.DOT_QUALIFIED_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION ->
-            resolveChainFrame(frame, start, end, isRoot = parentType !in CHAIN_LINK_TYPES)
+        resolveChainFrame(frame, start, end, isRoot = parentType !in CHAIN_LINK_TYPES)
 
         WNodeType.BINARY_EXPRESSION ->
-            resolveBinaryFrame(frame, start, end, isRoot = parentType != WNodeType.BINARY_EXPRESSION)
+        resolveBinaryFrame(frame, start, end, isRoot = parentType != WNodeType.BINARY_EXPRESSION)
 
         WNodeType.VALUE_ARGUMENT_LIST -> resolveArgumentListFrame(frame, start, end)
 
@@ -197,11 +189,7 @@ class DocBuilder(
         val lastIndex = children.size - 1
         val opensIndentScope = frame.type in INDENTING_TYPES && children[lastIndex].type == WNodeType.RBRACE
         if (!opensIndentScope) {
-            return Doc.Concat(
-                normalizeChildren(children, frame.type, ancestorHasFun(frame.type), suppressSuperTypeListLeadGap),
-                start,
-                end,
-            )
+            return Doc.Concat(normalizeChildren(children, frame.type, ancestorHasFun(frame.type), suppressSuperTypeListLeadGap), start, end)
         }
 
         val dedentIndex = lastIndex - 1
@@ -230,7 +218,7 @@ class DocBuilder(
      * not just the direct parent.
      */
     private fun ancestorHasFun(frameType: WNodeType): Boolean =
-        frameType == WNodeType.BLOCK && frames.any { it.type == WNodeType.FUN }
+    frameType == WNodeType.BLOCK && frames.any { it.type == WNodeType.FUN }
 
     /**
      * Converts a [WNodeType.SEMICOLON] that separates two statements on the same physical line
@@ -287,8 +275,7 @@ class DocBuilder(
         val lbraceIdx = children.indexOfFirst { it.type == WNodeType.LBRACE }
         if (lbraceIdx < 0 || lbraceIdx >= children.size - 1) return children
         val body = children.subList(lbraceIdx, children.size)
-        if (frameType == WNodeType.CLASS_BODY && body.any { it.type == WNodeType.ENUM_ENTRY } &&
-            body.none { isForcedMultilineChild(it) }
+        if (frameType == WNodeType.CLASS_BODY && body.any { it.type == WNodeType.ENUM_ENTRY } && body.none { isForcedMultilineChild(it) }
         ) {
             return children
         }
@@ -341,8 +328,7 @@ class DocBuilder(
         val children = frame.children
         val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
         if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
-        return resolveAssignedValueFrame(children, WNodeType.PROPERTY, start, end, eqIdx)
-            ?: resolveBraceFrame(frame, start, end)
+        return resolveAssignedValueFrame(children, WNodeType.PROPERTY, start, end, eqIdx) ?: resolveBraceFrame(frame, start, end)
     }
 
     /**
@@ -367,18 +353,19 @@ class DocBuilder(
 
         val headParts = normalizeChildren(children.subList(0, anchorIdx + 1), frameType)
         val gapEntry = children.getOrNull(anchorIdx + 1)
-        val breakDoc = when {
-            gapEntry is ChildEntry.Ws -> clampWs(gapEntry, newlineCount = 1)
-            gapEntry != null && isPlainWhitespace(gapEntry) -> {
-                val ws = (gapEntry as ChildEntry.Resolved).doc
-                Doc.Break(BreakKind.HARD, literal = "\n", start = ws.start, end = ws.end)
-            }
+        val breakDoc =
+            when {
+                gapEntry is ChildEntry.Ws -> clampWs(gapEntry, newlineCount = 1)
+                gapEntry != null && isPlainWhitespace(gapEntry) -> {
+                    val ws = (gapEntry as ChildEntry.Resolved).doc
+                    Doc.Break(BreakKind.HARD, literal = "\n", start = ws.start, end = ws.end)
+                }
 
-            else -> {
-                val anchorEnd = (children[anchorIdx] as ChildEntry.Resolved).doc.end
-                Doc.Break(BreakKind.HARD, literal = "\n", start = anchorEnd, end = anchorEnd)
+                else -> {
+                    val anchorEnd = (children[anchorIdx] as ChildEntry.Resolved).doc.end
+                    Doc.Break(BreakKind.HARD, literal = "\n", start = anchorEnd, end = anchorEnd)
+                }
             }
-        }
         val tailParts = normalizeChildren(children.subList(valueIdx, children.size), frameType)
         val tailEnd = tailParts.lastOrNull()?.end ?: end
         val body = Doc.Indent(Doc.Concat(listOf(breakDoc) + tailParts, breakDoc.start, tailEnd))
@@ -420,10 +407,13 @@ class DocBuilder(
      * resolved `Doc`'s actual content, never from its source span.
      */
     private fun isEffectivelyEmpty(entry: ChildEntry?): Boolean =
-        entry == null ||
-            entry.type == WNodeType.RBRACE ||
-            entry.type == WNodeType.LBRACE ||
-            (entry is ChildEntry.Resolved && isEmptyDoc(entry.doc))
+    entry ==
+        null ||
+        entry.type ==
+        WNodeType.RBRACE ||
+        entry.type ==
+        WNodeType.LBRACE ||
+        (entry is ChildEntry.Resolved && isEmptyDoc(entry.doc))
 
     private fun isEmptyDoc(doc: Doc): Boolean = when (doc) {
         is Doc.Text -> doc.value.isEmpty()
@@ -467,7 +457,9 @@ class DocBuilder(
         return when {
             gapIsWs -> {
                 val ws = (gap as ChildEntry.Resolved).doc
-                children.toMutableList().also { it[gapIndex] = ChildEntry.Resolved(WNodeType.WHITE_SPACE, Doc.Text(desired, ws.start, ws.end)) }
+                children
+                    .toMutableList()
+                    .also { it[gapIndex] = ChildEntry.Resolved(WNodeType.WHITE_SPACE, Doc.Text(desired, ws.start, ws.end)) }
             }
 
             desired == " " -> {
@@ -499,8 +491,10 @@ class DocBuilder(
         for (i in children.indices) {
             val entry = children[i]
             val nextIsSuperTypeList = suppressSuperTypeListLeadGap &&
-                children.getOrNull(i - 1)?.type == WNodeType.COLON &&
-                children.getOrNull(i + 1)?.type == WNodeType.SUPER_TYPE_LIST
+                children.getOrNull(i - 1)?.type ==
+                WNodeType.COLON &&
+                children.getOrNull(i + 1)?.type ==
+                WNodeType.SUPER_TYPE_LIST
             if (entry is ChildEntry.Ws) {
                 if (nextIsSuperTypeList) {
                     out.add(Doc.Text("", entry.start, entry.start + entry.rawText.length))
@@ -510,7 +504,11 @@ class DocBuilder(
                 val nextEntry = children.getOrNull(i + 1)
                 val isFirstAfterLbrace = i == 1 && prevEntry?.type == WNodeType.LBRACE
                 val newlineCount = verticalGapNewlineCount(
-                    frameType, prevEntry, nextEntry, isFirstAfterLbrace, ancestorHasFun,
+                    frameType,
+                    prevEntry,
+                    nextEntry,
+                    isFirstAfterLbrace,
+                    ancestorHasFun,
                     actual = entry.rawText.count { it == '\n' },
                 )
                 out.add(clampWs(entry, newlineCount))
@@ -533,8 +531,10 @@ class DocBuilder(
             val next = children.getOrNull(i + 1)
             if (next != null && !isPlainWhitespace(next) && next !is ChildEntry.Ws) {
                 val isSuperTypeListLead = suppressSuperTypeListLeadGap &&
-                    entry.type == WNodeType.COLON &&
-                    next.type == WNodeType.SUPER_TYPE_LIST
+                    entry.type ==
+                    WNodeType.COLON &&
+                    next.type ==
+                    WNodeType.SUPER_TYPE_LIST
                 val decision = if (isSuperTypeListLead) null else spacingDecision(frameType, entry.type, next.type)
                 val wantsSpace = decision == " " || (decision == null && next.type == WNodeType.EOL_COMMENT)
                 if (wantsSpace) {
@@ -567,8 +567,12 @@ class DocBuilder(
         actual: Int,
     ): Int {
         if (frameType == WNodeType.FILE) {
-            if (prevEntry?.type == WNodeType.PACKAGE_DIRECTIVE && nextEntry?.type == WNodeType.IMPORT_LIST &&
-                entryHasContent(prevEntry) && entryHasContent(nextEntry)
+            if (prevEntry?.type ==
+                WNodeType.PACKAGE_DIRECTIVE &&
+                nextEntry?.type ==
+                WNodeType.IMPORT_LIST &&
+                entryHasContent(prevEntry) &&
+                entryHasContent(nextEntry)
             ) {
                 return 2
             }
@@ -632,7 +636,10 @@ class DocBuilder(
         }
         if (frameType !in DECLARATION_GAP_CONTAINER_TYPES) return false
 
-        if (next.type in DECLARATION_SPACING_TYPES && prevType in DECLARATION_SPACING_TYPES &&
+        if (next.type in
+            DECLARATION_SPACING_TYPES &&
+            prevType in
+            DECLARATION_SPACING_TYPES &&
             (next.hasLeadingAnnotation || next.hasLeadingComment)
         ) {
             return true
@@ -658,16 +665,17 @@ class DocBuilder(
     private fun clampWs(entry: ChildEntry.Ws, newlineCount: Int): Doc.Break {
         val end = entry.start + entry.rawText.length
         val actual = entry.rawText.count { it == '\n' }
-        val literal = if (newlineCount == actual) {
-            entry.rawText.substring(0, entry.rawText.lastIndexOf('\n') + 1)
-        } else {
-            "\n".repeat(newlineCount)
-        }
+        val literal =
+            if (newlineCount == actual) {
+                entry.rawText.substring(0, entry.rawText.lastIndexOf('\n') + 1)
+            } else {
+                "\n".repeat(newlineCount)
+            }
         return Doc.Break(BreakKind.HARD, literal = literal, start = entry.start, end = end)
     }
 
     private fun isPlainWhitespace(entry: ChildEntry): Boolean =
-        entry is ChildEntry.Resolved && entry.type == WNodeType.WHITE_SPACE
+    entry is ChildEntry.Resolved && entry.type == WNodeType.WHITE_SPACE
 
     /**
      * The horizontal-spacing table for a gap between [prevType] and [nextType] inside [frameType]:
@@ -705,7 +713,10 @@ class DocBuilder(
         if (prevType == WNodeType.LPAR) return ""
         if (nextType == WNodeType.RPAR) return ""
         if ((nextType == WNodeType.VALUE_PARAMETER_LIST || nextType == WNodeType.VALUE_ARGUMENT_LIST) &&
-            frameType != WNodeType.FUNCTION_TYPE && frameType != WNodeType.FUNCTION_LITERAL
+            frameType !=
+            WNodeType.FUNCTION_TYPE &&
+            frameType !=
+            WNodeType.FUNCTION_LITERAL
         ) {
             return ""
         }
@@ -864,8 +875,7 @@ class DocBuilder(
         if (flatText(openEntry.doc) != "\"\"\"") return null
 
         val interior = children.subList(1, children.size - 1)
-        if (interior.isEmpty() ||
-            interior.any { it !is ChildEntry.Resolved || it.type != WNodeType.LITERAL_STRING_TEMPLATE_ENTRY }
+        if (interior.isEmpty() || interior.any { it !is ChildEntry.Resolved || it.type != WNodeType.LITERAL_STRING_TEMPLATE_ENTRY }
         ) {
             return null
         }
@@ -876,11 +886,12 @@ class DocBuilder(
 
         val lastIdx = texts.lastIndex
         val last = texts[lastIdx]
-        val closingTailIdx = when {
-            last == "\n" -> null
-            last.isNotEmpty() && last.isBlank() && lastIdx > 0 && texts[lastIdx - 1] == "\n" -> lastIdx
-            else -> return null
-        }
+        val closingTailIdx =
+            when {
+                last == "\n" -> null
+                last.isNotEmpty() && last.isBlank() && lastIdx > 0 && texts[lastIdx - 1] == "\n" -> lastIdx
+                else -> return null
+            }
         val bodyLastIdx = closingTailIdx?.minus(1) ?: lastIdx
 
         if ((0..bodyLastIdx).any { texts[it] != "\n" && texts[it].isBlank() }) return null
@@ -981,9 +992,9 @@ class DocBuilder(
      * followed by nothing but whitespace before `closeIdx` — or `null` if there is none.
      */
     private fun trailingCommaIndex(children: List<ChildEntry>, fromIdx: Int, closeIdx: Int): Int? =
-        (fromIdx until closeIdx).lastOrNull {
-            children[it].type == WNodeType.COMMA && !hasNonWsBetween(children, it + 1, closeIdx)
-        }
+    (fromIdx until closeIdx).lastOrNull {
+        children[it].type == WNodeType.COMMA && !hasNonWsBetween(children, it + 1, closeIdx)
+    }
 
     /**
      * Appends [Doc.TrailingComma] right after [interior]'s last element when
@@ -1001,7 +1012,7 @@ class DocBuilder(
     }
 
     private fun hasNonWsBetween(children: List<ChildEntry>, from: Int, until: Int): Boolean =
-        (from until until).any { children[it].type != WNodeType.WHITE_SPACE }
+    (from until until).any { children[it].type != WNodeType.WHITE_SPACE }
 
     /**
      * A [WNodeType.FUN]'s or a [WNodeType.PRIMARY_CONSTRUCTOR]'s own parameter list wraps one
@@ -1087,8 +1098,7 @@ class DocBuilder(
 
         val lastIndex = adjusted.size - 1
         val dedentIndex = lastIndex - 1
-        val opensIndentScope = adjusted[lastIndex].type == WNodeType.RPAR &&
-            dedentIndex >= 0 && adjusted[dedentIndex] is ChildEntry.Ws
+        val opensIndentScope = adjusted[lastIndex].type == WNodeType.RPAR && dedentIndex >= 0 && adjusted[dedentIndex] is ChildEntry.Ws
         if (!opensIndentScope) {
             return Doc.Concat(normalizeChildren(adjusted, WNodeType.VALUE_PARAMETER_LIST), start, end)
         }
@@ -1129,10 +1139,12 @@ class DocBuilder(
 
         frames.lastOrNull()?.ownsSuperTypeListLeadGap = true
 
-        val ctorWrapped = frames.lastOrNull()
-            ?.children
-            ?.firstOrNull { it.type == WNodeType.PRIMARY_CONSTRUCTOR }
-            ?.let { it is ChildEntry.Resolved && spansMultipleLines(it.doc) } == true
+        val ctorWrapped = frames
+                .lastOrNull()
+                ?.children
+                ?.firstOrNull { it.type == WNodeType.PRIMARY_CONSTRUCTOR }
+                ?.let { it is ChildEntry.Resolved && spansMultipleLines(it.doc) } ==
+            true
 
         val entryDocs = entryIndices.map { resolveEntry(children[it]) }
 
@@ -1149,11 +1161,12 @@ class DocBuilder(
         val commaIndices = entryIndices.zipWithNext().map { (a, b) ->
             (a + 1 until b).first { children[it].type == WNodeType.COMMA }
         }
-        val lead: Doc = if (ctorWrapped) {
-            Doc.Text(" ", start, start)
-        } else {
-            Doc.Break(BreakKind.HARD, literal = "\n", start = start, end = start)
-        }
+        val lead: Doc =
+            if (ctorWrapped) {
+                Doc.Text(" ", start, start)
+            } else {
+                Doc.Break(BreakKind.HARD, literal = "\n", start = start, end = start)
+            }
 
         val body = ArrayList<Doc>()
         body.add(lead)
@@ -1324,7 +1337,9 @@ class DocBuilder(
         val children = frame.children
         val arrowIdx = children.indexOfFirst { it.type == WNodeType.ARROW }
         val hasSubject = frames.lastOrNull()?.children?.any { it.type == WNodeType.LPAR } == true
-        val bail = arrowIdx < 0 || !hasSubject ||
+        val bail = arrowIdx <
+            0 ||
+            !hasSubject ||
             (0 until arrowIdx).any { children[it].type == WNodeType.KW_ELSE || children[it].type == WNodeType.UNKNOWN }
         val adjusted = if (bail) children else applyTrailingComma(children, 0, arrowIdx)
 
@@ -1336,7 +1351,7 @@ class DocBuilder(
     }
 
     private fun rebuildFrame(frame: Frame, children: List<ChildEntry>): Frame =
-        Frame(frame.type).also { it.children.addAll(children) }
+    Frame(frame.type).also { it.children.addAll(children) }
 
     /**
      * The static trailing-comma decision for a list [resolveBraceFrame] renders verbatim (never
@@ -1372,15 +1387,16 @@ class DocBuilder(
 
     private fun insertTrailingComma(children: List<ChildEntry>, closeIdx: Int): List<ChildEntry> {
         val lastContentIdx = (0 until closeIdx).lastOrNull {
-            children[it].type != WNodeType.COMMA && !isPlainWhitespace(children[it]) && children[it] !is ChildEntry.Ws
-        } ?: return children
+                children[it].type != WNodeType.COMMA && !isPlainWhitespace(children[it]) && children[it] !is ChildEntry.Ws
+            }
+            ?: return children
         val anchor = (children[lastContentIdx] as ChildEntry.Resolved).doc.end
         val comma = ChildEntry.Resolved(WNodeType.COMMA, Doc.Text(",", anchor, anchor))
         return children.toMutableList().also { it.add(lastContentIdx + 1, comma) }
     }
 
     private fun removeTrailingComma(children: List<ChildEntry>, existingIdx: Int): List<ChildEntry> =
-        children.toMutableList().also { it.removeAt(existingIdx) }
+    children.toMutableList().also { it.removeAt(existingIdx) }
 
     private fun spansMultipleLines(doc: Doc): Boolean = when (doc) {
         is Doc.Text -> doc.value.contains('\n')
@@ -1482,6 +1498,7 @@ class DocBuilder(
             val hasLeadingComment: Boolean = false,
             val reindentedRawString: Doc? = null,
         ) : ChildEntry
+
         class Ws(val rawText: String, val start: Int) : ChildEntry {
             override val type: WNodeType = WNodeType.WHITE_SPACE
         }

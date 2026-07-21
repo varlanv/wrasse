@@ -32,10 +32,9 @@ import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 
 object ResolvedUsageCollector {
-
     @OptIn(DirectDeclarationsAccess::class)
     fun collect(file: FirFile, collectQualifiedUsages: Boolean = false): WResolvedUsage =
-        runCatching {
+    runCatching {
             val visitor = UsageVisitor(collectQualifiedUsages)
             for (annotation in file.annotations) {
                 annotation.accept(visitor)
@@ -50,7 +49,8 @@ object ResolvedUsageCollector {
                 resolvedImports = collectResolvedImports(file),
                 qualifiedUsages = visitor.qualifiedUsages,
             )
-        }.getOrElse {
+        }
+        .getOrElse {
             WResolvedUsage(
                 classifiers = emptySet(),
                 callables = emptySet(),
@@ -61,19 +61,19 @@ object ResolvedUsageCollector {
         }
 
     private fun collectResolvedImports(file: FirFile): List<WResolvedImport> =
-        file.imports.mapNotNull { import ->
-            val fqn = import.importedFqName?.takeUnless { it.isRoot }?.asString() ?: return@mapNotNull null
-            if (import is FirResolvedImport) {
-                WResolvedImport(
-                    fqn = fqn,
-                    isStarImport = import.isAllUnder,
-                    resolvedParentClassFqName = import.resolvedParentClassId?.asFqNameString(),
-                    resolved = true,
-                )
-            } else {
-                WResolvedImport(fqn = fqn, isStarImport = import.isAllUnder, resolvedParentClassFqName = null, resolved = false)
-            }
+    file.imports.mapNotNull { import ->
+        val fqn = import.importedFqName?.takeUnless { it.isRoot }?.asString() ?: return@mapNotNull null
+        if (import is FirResolvedImport) {
+            WResolvedImport(
+                fqn = fqn,
+                isStarImport = import.isAllUnder,
+                resolvedParentClassFqName = import.resolvedParentClassId?.asFqNameString(),
+                resolved = true,
+            )
+        } else {
+            WResolvedImport(fqn = fqn, isStarImport = import.isAllUnder, resolvedParentClassFqName = null, resolved = false)
         }
+    }
 
     private class UsageVisitor(private val collectQualifiedUsages: Boolean) : FirVisitorVoid() {
         val classifiers = mutableSetOf<String>()

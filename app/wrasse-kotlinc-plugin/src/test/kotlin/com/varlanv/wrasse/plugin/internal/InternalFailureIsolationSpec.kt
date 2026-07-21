@@ -51,32 +51,35 @@ private const val INTERNAL_ERROR_MESSAGE_PREFIX = "wrasse: wrasse internal error
  * compile error still surfaces normally (`COMPILATION_ERROR`, never `INTERNAL_ERROR`) on a file
  * that also has the crash.
  */
-class InternalFailureIsolationSpec : BaseSpec({
-    testExecutionMode = TestExecutionMode.Sequential
+class InternalFailureIsolationSpec :
+    BaseSpec(
+        {
+            testExecutionMode = TestExecutionMode.Sequential
 
-    should(
-        "warn once with the exception type and message, skip this file's own wrasse diagnostics, " +
-            "and still let kotlinc report its own compile error for the same file"
-    ) {
-        val crashingSource = "sample/Sample.kt" to
-            """
-            package sample
+            should(
+                "warn once with the exception type and message, skip this file's own wrasse diagnostics, " +
+                    "and still let kotlinc report its own compile error for the same file",
+            ) {
+                val crashingSource = "sample/Sample.kt" to
+                    """
+                    package sample
+                    
+                    private val wrasseCrashTestMarker = 0
+                    
+                    fun sample(): Int = 1
+                    """
+                        .trimIndent()
 
-            private val wrasseCrashTestMarker = 0
+                val crashResult = compileWithThrowingRule(listOf(crashingSource))
 
-            fun sample(): Int = 1
-            """.trimIndent()
+                crashResult.wrasseDiagnostics shouldHaveSize 1
+                crashResult.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.WARNING
+                crashResult.wrasseDiagnostics[0].message shouldBe
+                    "$INTERNAL_ERROR_MESSAGE_PREFIX(IllegalStateException: $THROWING_TEST_RULE_CRASH_MESSAGE); " +
+                    "wrasse results for this file were skipped"
 
-        val crashResult = compileWithThrowingRule(listOf(crashingSource))
-
-        crashResult.wrasseDiagnostics shouldHaveSize 1
-        crashResult.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.WARNING
-        crashResult.wrasseDiagnostics[0].message shouldBe
-            "$INTERNAL_ERROR_MESSAGE_PREFIX(IllegalStateException: $THROWING_TEST_RULE_CRASH_MESSAGE); " +
-                "wrasse results for this file were skipped"
-
-        val crashPlusTypeErrorSource = "sample/Sample.kt" to
-            """
+                val crashPlusTypeErrorSource = "sample/Sample.kt" to
+                    """
             package sample
 
             private val wrasseCrashTestMarker = 0
@@ -85,74 +88,80 @@ class InternalFailureIsolationSpec : BaseSpec({
                 val bad: Int = "oops"
                 return bad
             }
-            """.trimIndent()
-
-        val crashPlusTypeErrorResult = compileWithThrowingRule(listOf(crashPlusTypeErrorSource))
-
-        crashPlusTypeErrorResult.exitCode shouldBe ExitCode.COMPILATION_ERROR
-        crashPlusTypeErrorResult.diagnostics.any {
-            it.severity == CompilerMessageSeverity.ERROR && !it.message.startsWith("wrasse:")
-        } shouldBe true
-    }
-
-    should("not suppress a second file's normal wrasse diagnostics when the first file's rule throws") {
-        val crashing = "sample/Crash.kt" to
             """
-            package sample
+                        .trimIndent()
 
-            val wrasseCrashTestMarker = 0
-            """.trimIndent()
-        val clean = "sample/Clean.kt" to
-            """
-            package sample
+                val crashPlusTypeErrorResult = compileWithThrowingRule(listOf(crashPlusTypeErrorSource))
 
-            fun sampleB(): Int {
-                val x = 1;
-                return x
+                crashPlusTypeErrorResult.exitCode shouldBe ExitCode.COMPILATION_ERROR
+                crashPlusTypeErrorResult.diagnostics.any {
+                        it.severity == CompilerMessageSeverity.ERROR && !it.message.startsWith("wrasse:")
+                    } shouldBe
+                    true
             }
-            """.trimIndent()
 
-        val result = compileWithThrowingRule(listOf(crashing, clean), withEditingRule = true)
-
-        result.wrasseDiagnostics shouldHaveSize 2
-        val crashDiagnostic = result.wrasseDiagnostics.single { it.location?.path?.endsWith("Crash.kt") == true }
-        crashDiagnostic.severity shouldBe CompilerMessageSeverity.WARNING
-        crashDiagnostic.message shouldBe
-            "$INTERNAL_ERROR_MESSAGE_PREFIX(IllegalStateException: $THROWING_TEST_RULE_CRASH_MESSAGE); " +
-                "wrasse results for this file were skipped"
-        val cleanDiagnostic = result.wrasseDiagnostics.single { it.location?.path?.endsWith("Clean.kt") == true }
-        cleanDiagnostic.severity shouldBe CompilerMessageSeverity.WARNING
-        cleanDiagnostic.message shouldBe "wrasse: no-semicolons: Unnecessary semicolon"
-    }
-
-    should("discard already-collected edits from another rule when a later rule throws mid-walk") {
-        val fixOutputDir = Files.createTempDirectory("wrasse-throwing-rule-patch-")
-        try {
-            val source = "sample/Sample.kt" to
-                """
-                package sample
-
-                fun sample(): Int {
-                    val x = 1;
+            should("not suppress a second file's normal wrasse diagnostics when the first file's rule throws") {
+                val crashing = "sample/Crash.kt" to
+                    """
+                    package sample
+                    
                     val wrasseCrashTestMarker = 0
-                    return x
-                }
-                """.trimIndent()
+                    """
+                        .trimIndent()
+                val clean = "sample/Clean.kt" to
+                    """
+                    package sample
+                    
+                    fun sampleB(): Int {
+                        val x = 1;
+                        return x
+                    }
+                    """
+                        .trimIndent()
 
-            val result = compileWithThrowingRule(listOf(source), fixOutputDir = fixOutputDir, withEditingRule = true)
+                val result = compileWithThrowingRule(listOf(crashing, clean), withEditingRule = true)
 
-            result.wrasseDiagnostics shouldHaveSize 1
-            result.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.WARNING
-
-            val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-            if (Files.exists(patchFile)) {
-                WPatchReader.read(Files.readString(patchFile)).shouldBeEmpty()
+                result.wrasseDiagnostics shouldHaveSize 2
+                val crashDiagnostic = result.wrasseDiagnostics.single { it.location?.path?.endsWith("Crash.kt") == true }
+                crashDiagnostic.severity shouldBe CompilerMessageSeverity.WARNING
+                crashDiagnostic.message shouldBe
+                    "$INTERNAL_ERROR_MESSAGE_PREFIX(IllegalStateException: $THROWING_TEST_RULE_CRASH_MESSAGE); " +
+                    "wrasse results for this file were skipped"
+                val cleanDiagnostic = result.wrasseDiagnostics.single { it.location?.path?.endsWith("Clean.kt") == true }
+                cleanDiagnostic.severity shouldBe CompilerMessageSeverity.WARNING
+                cleanDiagnostic.message shouldBe "wrasse: no-semicolons: Unnecessary semicolon"
             }
-        } finally {
-            fixOutputDir.toFile().deleteRecursively()
-        }
-    }
-})
+
+            should("discard already-collected edits from another rule when a later rule throws mid-walk") {
+                val fixOutputDir = Files.createTempDirectory("wrasse-throwing-rule-patch-")
+                try {
+                    val source = "sample/Sample.kt" to
+                        """
+                        package sample
+                        
+                        fun sample(): Int {
+                            val x = 1;
+                            val wrasseCrashTestMarker = 0
+                            return x
+                        }
+                        """
+                            .trimIndent()
+
+                    val result = compileWithThrowingRule(listOf(source), fixOutputDir = fixOutputDir, withEditingRule = true)
+
+                    result.wrasseDiagnostics shouldHaveSize 1
+                    result.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.WARNING
+
+                    val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                    if (Files.exists(patchFile)) {
+                        WPatchReader.read(Files.readString(patchFile)).shouldBeEmpty()
+                    }
+                } finally {
+                    fixOutputDir.toFile().deleteRecursively()
+                }
+            }
+        },
+    )
 
 private class ThrowingRuleDiagnostic(
     val severity: CompilerMessageSeverity,
@@ -160,12 +169,9 @@ private class ThrowingRuleDiagnostic(
     val location: CompilerMessageSourceLocation?,
 )
 
-private class ThrowingRuleCompileResult(
-    val exitCode: ExitCode,
-    val diagnostics: List<ThrowingRuleDiagnostic>,
-) {
+private class ThrowingRuleCompileResult(val exitCode: ExitCode, val diagnostics: List<ThrowingRuleDiagnostic>) {
     val wrasseDiagnostics: List<ThrowingRuleDiagnostic>
-        get() = diagnostics.filter { it.message.startsWith("wrasse:") }
+    get() = diagnostics.filter { it.message.startsWith("wrasse:") }
 }
 
 private class ThrowingRuleDiagnosticCollector : MessageCollector {
@@ -182,11 +188,7 @@ private class ThrowingRuleDiagnosticCollector : MessageCollector {
     }
 }
 
-private fun compileWithThrowingRule(
-    sources: List<Pair<String, String>>,
-    fixOutputDir: Path? = null,
-    withEditingRule: Boolean = false,
-): ThrowingRuleCompileResult {
+private fun compileWithThrowingRule(sources: List<Pair<String, String>>, fixOutputDir: Path? = null, withEditingRule: Boolean = false): ThrowingRuleCompileResult {
     val workDir = Files.createTempDirectory("wrasse-throwing-rule-")
     try {
         val srcDir = Files.createDirectories(workDir.resolve("src"))
@@ -203,8 +205,10 @@ private fun compileWithThrowingRule(
         }
 
         val registrarClassDir =
-            File(ThrowingRuleTestRegistrar::class.java.protectionDomain.codeSource.location.toURI())
-        val servicesFile = ThrowingRuleTestRegistrar::class.java.classLoader
+        File(ThrowingRuleTestRegistrar::class.java.protectionDomain.codeSource.location.toURI())
+        val servicesFile = ThrowingRuleTestRegistrar::class
+            .java
+            .classLoader
             .getResources("META-INF/services/org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar")
             .toList()
             .map { url -> File(url.toURI()) }

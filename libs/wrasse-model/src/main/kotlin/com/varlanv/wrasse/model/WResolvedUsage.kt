@@ -42,10 +42,7 @@ class WCallableUsage(
     val isStatic: Boolean = false,
 ) {
     override fun equals(other: Any?): Boolean =
-        other is WCallableUsage &&
-            packageFqName == other.packageFqName &&
-            classFqName == other.classFqName &&
-            name == other.name
+    other is WCallableUsage && packageFqName == other.packageFqName && classFqName == other.classFqName && name == other.name
 
     override fun hashCode(): Int {
         var result = packageFqName.hashCode()

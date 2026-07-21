@@ -63,11 +63,7 @@ class NoEmptyParensBeforeTrailingLambdaRule : WUninitializedRule {
                         listOf(NoEmptyParensBeforeTrailingLambdaDeletionSpan.compute(parensStart, parensEnd))
                     }
 
-                reporter.report(
-                    ruleId, "Unnecessary empty parentheses before trailing lambda",
-                    parensStart, parensEnd, this,
-                    edits = edits
-                )
+                reporter.report(ruleId, "Unnecessary empty parentheses before trailing lambda", parensStart, parensEnd, this, edits = edits)
             }
 
             private fun isEmptyParens(children: ChildBuffer, i: Int, sourceText: CharSequence): Boolean {

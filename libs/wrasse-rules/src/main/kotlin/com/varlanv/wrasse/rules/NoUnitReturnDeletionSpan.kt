@@ -14,6 +14,5 @@ import com.varlanv.wrasse.lang.WEdit
  * `fun foo()\n{\n}` with no extra whitespace introduced or removed on either side.
  */
 object NoUnitReturnDeletionSpan {
-
     fun compute(colonStart: Int, typeReferenceEnd: Int): WEdit = WEdit(colonStart, typeReferenceEnd, "")
 }

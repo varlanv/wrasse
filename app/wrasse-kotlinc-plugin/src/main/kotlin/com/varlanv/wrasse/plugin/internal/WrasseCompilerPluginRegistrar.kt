@@ -50,9 +50,7 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
     }
 
     private fun ExtensionStorage.delegateToRegistrar(className: String, configuration: CompilerConfiguration) {
-        val registrar = Class.forName(className)
-            .getDeclaredConstructor()
-            .newInstance() as CompilerPluginRegistrar
+        val registrar = Class.forName(className).getDeclaredConstructor().newInstance() as CompilerPluginRegistrar
         with(registrar) { this@delegateToRegistrar.registerExtensions(configuration) }
     }
 

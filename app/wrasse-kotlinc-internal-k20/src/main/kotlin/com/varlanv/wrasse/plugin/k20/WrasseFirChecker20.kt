@@ -6,11 +6,7 @@ import org.jetbrains.kotlin.fir.analysis.checkers.declaration.DeclarationChecker
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.ExpressionCheckers
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 
-class WrasseFirChecker20(
-    session: FirSession,
-    plugin: WrassePlugin,
-) : FirAdditionalCheckersExtension(session) {
-
+class WrasseFirChecker20(session: FirSession, plugin: WrassePlugin) : FirAdditionalCheckersExtension(session) {
     override val declarationCheckers = object : DeclarationCheckers() {
         override val fileCheckers = setOf(FirSyntacticChecker20(plugin))
     }

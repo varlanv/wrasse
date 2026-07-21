@@ -122,25 +122,25 @@ class ConfigValueJsonc private constructor(private val input: String) {
         if (elements.isEmpty()) return ConfigValue.StrArr(emptyList())
         return when {
             elements.all { it is ConfigValue.Str } ->
-                ConfigValue.StrArr(elements.map { (it as ConfigValue.Str).value })
+            ConfigValue.StrArr(elements.map { (it as ConfigValue.Str).value })
 
             elements.all { it is ConfigValue.Num } ->
-                ConfigValue.NumArr(elements.map { (it as ConfigValue.Num).value })
+            ConfigValue.NumArr(elements.map { (it as ConfigValue.Num).value })
 
             elements.all { it is ConfigValue.Obj } ->
-                ConfigValue.ObjArr(elements.map { (it as ConfigValue.Obj).value })
+            ConfigValue.ObjArr(elements.map { (it as ConfigValue.Obj).value })
 
             elements.all { it is ConfigValue.Bool } ->
-                ConfigValue.BoolArr(elements.map { (it as ConfigValue.Bool).value })
+            ConfigValue.BoolArr(elements.map { (it as ConfigValue.Bool).value })
 
             elements.all { it is ConfigValue.Dbl } ->
-                ConfigValue.DblArr(elements.map { (it as ConfigValue.Dbl).value })
+            ConfigValue.DblArr(elements.map { (it as ConfigValue.Dbl).value })
 
             elements.all { it is ConfigValue.Null } ->
-                ConfigValue.NullArr(elements.map { it as ConfigValue.Null })
+            ConfigValue.NullArr(elements.map { it as ConfigValue.Null })
 
             else ->
-                error("Mixed array element types")
+            error("Mixed array element types")
         }
     }
 
@@ -185,8 +185,7 @@ class ConfigValueJsonc private constructor(private val input: String) {
                         'u' -> {
                             if (pos + 4 >= input.length) error("Incomplete unicode escape")
                             val hex = input.substring(pos + 1, pos + 5)
-                            val code = hex.toIntOrNull(16)
-                                ?: error("Invalid unicode escape: \\u$hex")
+                            val code = hex.toIntOrNull(16) ?: error("Invalid unicode escape: \\u$hex")
                             sb.append(code.toChar())
                             pos += 4
                         }

@@ -57,7 +57,6 @@ class UnnecessaryFqnReport(val dropStart: Int, val dropEnd: Int, val newImportFq
  *    [ImportEngine] emits the addition once per target.
  */
 object QualifiedUsageDecision {
-
     fun decideAll(
         qualifiedUsages: List<WQualifiedUsage>,
         sourceText: CharSequence,
@@ -79,18 +78,17 @@ object QualifiedUsageDecision {
             val isSamePackage = packageFqName == filePackageFqName
             val alreadyImported = explicitImports.any { it.aliasName == null && it.fqn == candidateImportFqn }
             val needsNoNewImport = isSamePackage || packageFqName in DefaultImportPackages.ALL
-            val ownSpans = usages.map { it.usage.startOffset until it.usage.endOffset } +
-                literalOccurrences(candidateImportFqn, sourceText)
+            val ownSpans = usages.map { it.usage.startOffset until it.usage.endOffset } + literalOccurrences(candidateImportFqn, sourceText)
             if (!isSafeToDrop(
-                    candidateImportFqn = candidateImportFqn,
-                    alreadyImported = alreadyImported,
-                    topLevelSimpleName = topLevelSimpleName,
-                    needsNoNewImport = needsNoNewImport,
-                    explicitImports = explicitImports,
-                    collisionIndex = collisionIndex,
-                    identifierOccurrences = identifierOccurrences,
-                    ownSpans = ownSpans,
-                )
+                candidateImportFqn = candidateImportFqn,
+                alreadyImported = alreadyImported,
+                topLevelSimpleName = topLevelSimpleName,
+                needsNoNewImport = needsNoNewImport,
+                explicitImports = explicitImports,
+                collisionIndex = collisionIndex,
+                identifierOccurrences = identifierOccurrences,
+                ownSpans = ownSpans,
+            )
             ) {
                 continue
             }
@@ -98,13 +96,14 @@ object QualifiedUsageDecision {
             val newImportFqn = if (alreadyImported || needsNoNewImport) null else candidateImportFqn
             val sortedUsages = usages.sortedBy { it.usage.startOffset }
             for ((index, p) in sortedUsages.withIndex()) {
-                reports.add(
-                    UnnecessaryFqnReport(
-                        dropStart = p.usage.startOffset,
-                        dropEnd = p.usage.startOffset + p.dropLength,
-                        newImportFqn = if (index == 0) newImportFqn else null,
+                reports
+                    .add(
+                        UnnecessaryFqnReport(
+                            dropStart = p.usage.startOffset,
+                            dropEnd = p.usage.startOffset + p.dropLength,
+                            newImportFqn = if (index == 0) newImportFqn else null,
+                        ),
                     )
-                )
             }
         }
         return reports.sortedWith(compareBy({ it.dropStart }, { it.dropEnd }))
@@ -125,13 +124,14 @@ object QualifiedUsageDecision {
         if (usage.startOffset < 0 || usage.endOffset > sourceText.length || usage.endOffset < usage.startOffset) return null
 
         val written = sourceText.subSequence(usage.startOffset, usage.endOffset).toString()
-        val matches = when (usage.kind) {
-            WQualifiedUsageKind.QUALIFIER -> written == usage.targetFqName
-            WQualifiedUsageKind.TYPE_REF -> {
-                written.startsWith(usage.targetFqName) &&
-                    (written.length == usage.targetFqName.length || written[usage.targetFqName.length].let { it == '<' || it == '?' })
+        val matches =
+            when (usage.kind) {
+                WQualifiedUsageKind.QUALIFIER -> written == usage.targetFqName
+                WQualifiedUsageKind.TYPE_REF -> {
+                    written.startsWith(usage.targetFqName) &&
+                        (written.length == usage.targetFqName.length || written[usage.targetFqName.length].let { it == '<' || it == '?' })
+                }
             }
-        }
         if (!matches) return null
 
         val relativeClassName = usage.targetFqName.removePrefix(prefix)
@@ -163,7 +163,8 @@ object QualifiedUsageDecision {
 
         if (SimpleNameCollisionIndex.collidesWithOtherFqn(candidateImportFqn, topLevelSimpleName, collisionIndex)) return false
 
-        val explicitImportCollision = explicitImports.any { (it.aliasName ?: it.simpleName) == topLevelSimpleName && it.fqn != candidateImportFqn }
+        val explicitImportCollision = explicitImports
+            .any { (it.aliasName ?: it.simpleName) == topLevelSimpleName && it.fqn != candidateImportFqn }
         if (explicitImportCollision) return false
 
         if (needsNoNewImport) return true

@@ -8,11 +8,7 @@ import com.varlanv.wrasse.model.WResolvedImport
  * One `import P.*` directive assembled from the leaf stream: the star's package/class FQN `P`
  * and the directive's own span for reporting and for the replacement edit.
  */
-class StarImportRecord(
-    val packageFqName: String,
-    val startOffset: Int,
-    val endOffset: Int,
-)
+class StarImportRecord(val packageFqName: String, val startOffset: Int, val endOffset: Int)
 
 /**
  * Pure verdict logic for the `no-wildcard-imports` expansion fix, compiler-free and unit-testable
@@ -62,7 +58,6 @@ class StarImportRecord(
  * symbol.
  */
 object WildcardExpansionDecision {
-
     fun decide(
         star: StarImportRecord,
         allStars: List<StarImportRecord>,
@@ -80,14 +75,15 @@ object WildcardExpansionDecision {
         if (star.packageFqName == filePackageFqName) return null
         if (!ImportLineSpan.isAloneOnLine(sourceText, star.startOffset, star.endOffset)) return null
 
-        val attributed = when (StarAttribution.classify(star.packageFqName, resolvedImports, callables)) {
-            StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return null
-            StarClassification.MEMBER ->
+        val attributed =
+            when (StarAttribution.classify(star.packageFqName, resolvedImports, callables)) {
+                StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return null
+                StarClassification.MEMBER ->
                 StarAttribution.attributedMembers(star.packageFqName, classifiers, callables, writtenIdentifiers)
 
-            StarClassification.PACKAGE ->
+                StarClassification.PACKAGE ->
                 StarAttribution.attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
-        }
+            }
 
         val explicitFqns = explicitImports.filter { it.aliasName == null }.mapTo(mutableSetOf()) { it.fqn }
         val filtered = attributed.filterNot { it in explicitFqns }.toSortedSet()
@@ -101,12 +97,14 @@ object WildcardExpansionDecision {
             if (other === star) continue
             when (StarAttribution.classify(other.packageFqName, resolvedImports, callables)) {
                 StarClassification.MEMBER ->
-                    StarAttribution.attributedMembers(other.packageFqName, classifiers, callables, writtenIdentifiers)
-                        .mapTo(coveredNames) { it.substringAfterLast('.') }
+                StarAttribution
+                    .attributedMembers(other.packageFqName, classifiers, callables, writtenIdentifiers)
+                    .mapTo(coveredNames) { it.substringAfterLast('.') }
 
                 StarClassification.PACKAGE ->
-                    StarAttribution.attributedSymbols(other.packageFqName, classifiers, callables, writtenIdentifiers)
-                        .mapTo(coveredNames) { it.substringAfterLast('.') }
+                StarAttribution
+                    .attributedSymbols(other.packageFqName, classifiers, callables, writtenIdentifiers)
+                    .mapTo(coveredNames) { it.substringAfterLast('.') }
 
                 StarClassification.UNRESOLVED_OR_AMBIGUOUS -> {}
             }
@@ -117,11 +115,7 @@ object WildcardExpansionDecision {
         return WEdit(star.startOffset, star.endOffset, replacement)
     }
 
-    private fun hasSimpleNameCollision(
-        attributed: Set<String>,
-        classifiers: Set<String>,
-        callables: Set<WCallableUsage>,
-    ): Boolean {
+    private fun hasSimpleNameCollision(attributed: Set<String>, classifiers: Set<String>, callables: Set<WCallableUsage>): Boolean {
         val index = SimpleNameCollisionIndex.build(classifiers, callables)
         return attributed.any { symbol ->
             SimpleNameCollisionIndex.collidesWithOtherFqn(symbol, symbol.substringAfterLast('.'), index)

@@ -48,8 +48,7 @@ class NoUnitReturnRule : WUninitializedRule {
                 if (bodyIndex < 0 || children.type(bodyIndex) != WNodeType.BLOCK) return
 
                 val hasComment =
-                    hasComment(children, colonIndex + 1, typeReferenceIndex) ||
-                        hasComment(children, typeReferenceIndex + 1, bodyIndex)
+                hasComment(children, colonIndex + 1, typeReferenceIndex) || hasComment(children, typeReferenceIndex + 1, bodyIndex)
 
                 val colonStart = children.startOffset(colonIndex)
                 val typeReferenceEnd = children.endOffset(typeReferenceIndex)
@@ -60,11 +59,7 @@ class NoUnitReturnRule : WUninitializedRule {
                         listOf(NoUnitReturnDeletionSpan.compute(colonStart, typeReferenceEnd))
                     }
 
-                reporter.report(
-                    ruleId, "Redundant Unit return type",
-                    colonStart, typeReferenceEnd, this,
-                    edits = edits
-                )
+                reporter.report(ruleId, "Redundant Unit return type", colonStart, typeReferenceEnd, this, edits = edits)
             }
 
             private fun nextSignificant(children: ChildBuffer, from: Int): Int {

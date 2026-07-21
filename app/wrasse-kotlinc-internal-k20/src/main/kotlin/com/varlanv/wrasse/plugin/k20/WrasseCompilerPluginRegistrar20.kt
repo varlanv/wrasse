@@ -31,12 +31,13 @@ class WrasseCompilerPluginRegistrar20 : CompilerPluginRegistrar() {
         val explicitApiActive = configuration.languageVersionSettings.getFlag(AnalysisFlags.explicitApiMode) != ExplicitApiMode.DISABLED
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
         val plugin = wrasseMain(
-            sourceRoots,
-            warnOnly = warnOnly,
-            fixOutputDir = fixOutputDir,
-            dumpResolvedUsage = dumpResolvedUsage,
-            explicitApiActive = explicitApiActive,
-        ).getOrThrow()
+                sourceRoots,
+                warnOnly = warnOnly,
+                fixOutputDir = fixOutputDir,
+                dumpResolvedUsage = dumpResolvedUsage,
+                explicitApiActive = explicitApiActive,
+            )
+            .getOrThrow()
 
         FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar20(plugin))
     }

@@ -18,14 +18,16 @@ import java.nio.file.Files
  * assertion on top for exactly these two shapes, mirroring [EmptyClassBodySafetySpec] /
  * [NoUnitReturnSafetySpec].
  */
-open class IfElseBracingSafetySpec : BaseSpec({
+open class IfElseBracingSafetySpec :
+    BaseSpec(
+        {
 
-    val wrasseConfig = """{"rules":{"if-else-bracing":{"level":"error"}}}"""
+            val wrasseConfig = """{"rules":{"if-else-bracing":{"level":"error"}}}"""
 
-    should("brace every branch of an unbraced multi-line else-if chain without ever wrapping the else-if itself") {
-        val source = TestSource(
-            "sample/Sample.kt",
-            """
+            should("brace every branch of an unbraced multi-line else-if chain without ever wrapping the else-if itself") {
+                val source = TestSource(
+                    "sample/Sample.kt",
+                    """
             package sample
 
             fun classify(positive: Boolean, negative: Boolean): String {
@@ -36,23 +38,24 @@ open class IfElseBracingSafetySpec : BaseSpec({
                 else
                     return "zero"
             }
-            """.trimIndent(),
-        )
+            """
+                        .trimIndent(),
+                )
 
-        useTempDir { workDir ->
-            useTempDir { fixOutputDir ->
-                val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
-                val round1 = harness.compile(listOf(source), workDir)
-                round1.wrasseDiagnostics shouldHaveSize 3
+                useTempDir { workDir ->
+                    useTempDir { fixOutputDir ->
+                        val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
+                        val round1 = harness.compile(listOf(source), workDir)
+                        round1.wrasseDiagnostics shouldHaveSize 3
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-                if (Files.exists(patchFile)) {
-                    WPatchApplier.apply(fixOutputDir)
-                }
+                        val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                        if (Files.exists(patchFile)) {
+                            WPatchApplier.apply(fixOutputDir)
+                        }
 
-                val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-                patchedContent shouldBe
-                    """
+                        val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+                        patchedContent shouldBe
+                            """
                     package sample
 
                     fun classify(positive: Boolean, negative: Boolean): String {
@@ -64,21 +67,22 @@ open class IfElseBracingSafetySpec : BaseSpec({
                             return "zero"
                         }
                     }
-                    """.trimIndent()
-                patchedContent.contains("else { if") shouldBe false
-                patchedContent.contains("else {if") shouldBe false
+                    """
+                                .trimIndent()
+                        patchedContent.contains("else { if") shouldBe false
+                        patchedContent.contains("else {if") shouldBe false
 
-                val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
-                IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
-                round2.wrasseDiagnostics shouldHaveSize 0
+                        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
+                        IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
+                        round2.wrasseDiagnostics shouldHaveSize 0
+                    }
+                }
             }
-        }
-    }
 
-    should("keep the else bound to the inner if of a dangling-else nested shape after bracing") {
-        val source = TestSource(
-            "sample/Sample.kt",
-            """
+            should("keep the else bound to the inner if of a dangling-else nested shape after bracing") {
+                val source = TestSource(
+                    "sample/Sample.kt",
+                    """
             package sample
 
             fun classify(outer: Boolean, inner: Boolean): String {
@@ -89,23 +93,24 @@ open class IfElseBracingSafetySpec : BaseSpec({
                         return "outer-only"
                 return "neither"
             }
-            """.trimIndent(),
-        )
+            """
+                        .trimIndent(),
+                )
 
-        useTempDir { workDir ->
-            useTempDir { fixOutputDir ->
-                val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
-                val round1 = harness.compile(listOf(source), workDir)
-                round1.wrasseDiagnostics shouldHaveSize 3
+                useTempDir { workDir ->
+                    useTempDir { fixOutputDir ->
+                        val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
+                        val round1 = harness.compile(listOf(source), workDir)
+                        round1.wrasseDiagnostics shouldHaveSize 3
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-                if (Files.exists(patchFile)) {
-                    WPatchApplier.apply(fixOutputDir)
-                }
+                        val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                        if (Files.exists(patchFile)) {
+                            WPatchApplier.apply(fixOutputDir)
+                        }
 
-                val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-                patchedContent shouldBe
-                    """
+                        val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+                        patchedContent shouldBe
+                            """
                     package sample
 
                     fun classify(outer: Boolean, inner: Boolean): String {
@@ -117,12 +122,14 @@ open class IfElseBracingSafetySpec : BaseSpec({
                             }
                         return "neither"
                     }
-                    """.trimIndent()
+                    """
+                                .trimIndent()
 
-                val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
-                IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
-                round2.wrasseDiagnostics shouldHaveSize 1
+                        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
+                        IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
+                        round2.wrasseDiagnostics shouldHaveSize 1
+                    }
+                }
             }
-        }
-    }
-})
+        },
+    )

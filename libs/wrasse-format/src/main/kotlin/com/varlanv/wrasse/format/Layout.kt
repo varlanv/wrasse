@@ -9,7 +9,6 @@ import com.varlanv.wrasse.model.FormatStyle
  * groups decide independently once their enclosing group's mode is known. Never re-derives tokens.
  */
 object Layout {
-
     private enum class Mode {
         FLAT,
         BROKEN,
@@ -22,25 +21,26 @@ object Layout {
     }
 
     private fun renderNode(sb: StringBuilder, doc: Doc, indentDepth: Int, column: Int, mode: Mode, style: FormatStyle): Int =
-        when (doc) {
-            is Doc.Text -> {
-                sb.append(doc.value)
-                advanceColumn(column, doc.value)
+    when (doc) {
+        is Doc.Text -> {
+            sb.append(doc.value)
+            advanceColumn(column, doc.value)
+        }
+
+        is Doc.Concat -> {
+            var col = column
+            for (part in doc.parts) {
+                col = renderNode(sb, part, indentDepth, col, mode, style)
             }
+            col
+        }
 
-            is Doc.Concat -> {
-                var col = column
-                for (part in doc.parts) {
-                    col = renderNode(sb, part, indentDepth, col, mode, style)
-                }
-                col
-            }
+        is Doc.Indent -> renderNode(sb, doc.body, indentDepth + 1, column, mode, style)
 
-            is Doc.Indent -> renderNode(sb, doc.body, indentDepth + 1, column, mode, style)
+        is Doc.Break -> renderBreak(sb, doc, indentDepth, column, mode, style)
 
-            is Doc.Break -> renderBreak(sb, doc, indentDepth, column, mode, style)
-
-            is Doc.TrailingComma -> when (mode) {
+        is Doc.TrailingComma ->
+            when (mode) {
                 Mode.FLAT -> column
                 Mode.BROKEN -> {
                     sb.append(',')
@@ -48,21 +48,22 @@ object Layout {
                 }
             }
 
-            is Doc.Group -> {
-                val flatWidth = flatWidth(doc.body)
-                val chosenMode = if (flatWidth != null && column + flatWidth <= style.maxLineLength) Mode.FLAT else Mode.BROKEN
-                renderNode(sb, doc.body, indentDepth, column, chosenMode, style)
-            }
+        is Doc.Group -> {
+            val flatWidth = flatWidth(doc.body)
+            val chosenMode = if (flatWidth != null && column + flatWidth <= style.maxLineLength) Mode.FLAT else Mode.BROKEN
+            renderNode(sb, doc.body, indentDepth, column, chosenMode, style)
         }
+    }
 
     private fun renderBreak(sb: StringBuilder, doc: Doc.Break, indentDepth: Int, column: Int, mode: Mode, style: FormatStyle): Int =
-        when (doc.kind) {
-            BreakKind.HARD -> {
-                sb.append(doc.literal)
-                appendIndent(sb, indentDepth, style)
-            }
+    when (doc.kind) {
+        BreakKind.HARD -> {
+            sb.append(doc.literal)
+            appendIndent(sb, indentDepth, style)
+        }
 
-            BreakKind.SOFT -> when (mode) {
+        BreakKind.SOFT ->
+            when (mode) {
                 Mode.FLAT -> {
                     sb.append(doc.flat)
                     column + doc.flat.length
@@ -73,7 +74,7 @@ object Layout {
                     appendIndent(sb, indentDepth, style)
                 }
             }
-        }
+    }
 
     private fun appendIndent(sb: StringBuilder, indentDepth: Int, style: FormatStyle): Int {
         val width = indentDepth * style.indentWidth

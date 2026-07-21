@@ -9,15 +9,7 @@ import com.varlanv.wrasse.lang.WEdit
  * A non-empty [edits] list means the violation is autocorrectable.
  */
 interface WReporter {
-
     val reports: List<ViolationReport>
 
-    fun report(
-        ruleId: String,
-        message: String,
-        startOffset: Int,
-        endOffset: Int,
-        rule: WRule,
-        edits: List<WEdit> = emptyList(),
-    )
+    fun report(ruleId: String, message: String, startOffset: Int, endOffset: Int, rule: WRule, edits: List<WEdit> = emptyList())
 }

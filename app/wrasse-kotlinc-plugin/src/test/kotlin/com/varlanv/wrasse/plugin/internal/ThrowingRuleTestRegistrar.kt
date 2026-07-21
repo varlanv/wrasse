@@ -39,17 +39,17 @@ class ThrowingTestRule : WUninitializedRule {
     override val id: String = "throwing-test-rule"
 
     override fun initRule(config: WrasseRuleConfig): WLeafRule =
-        object : WLeafRule {
-            override val id: String = "throwing-test-rule"
-            override val config: WrasseRuleConfig = config
-            override val targetTypes: Set<WNodeType> = setOf(WNodeType.IDENTIFIER)
+    object : WLeafRule {
+        override val id: String = "throwing-test-rule"
+        override val config: WrasseRuleConfig = config
+        override val targetTypes: Set<WNodeType> = setOf(WNodeType.IDENTIFIER)
 
-            override fun visitLeaf(ctx: WContext, reporter: WReporter) {
-                if (ctx.leafText?.toString() == THROWING_TEST_RULE_CRASH_MARKER) {
-                    throw IllegalStateException(THROWING_TEST_RULE_CRASH_MESSAGE)
-                }
+        override fun visitLeaf(ctx: WContext, reporter: WReporter) {
+            if (ctx.leafText?.toString() == THROWING_TEST_RULE_CRASH_MARKER) {
+                throw IllegalStateException(THROWING_TEST_RULE_CRASH_MESSAGE)
             }
         }
+    }
 }
 
 /**
@@ -76,10 +76,7 @@ class ThrowingRuleTestRegistrar : CompilerPluginRegistrar() {
         }
         activeRules.add(ThrowingTestRule() to warnConfig())
 
-        val plugin = WrassePlugin(
-            ruleSet = WRuleSet(activeRules),
-            fixOutputDir = fixOutputDir,
-        )
+        val plugin = WrassePlugin(ruleSet = WRuleSet(activeRules), fixOutputDir = fixOutputDir)
         K22Registrar.register(this, plugin)
     }
 
@@ -95,7 +92,7 @@ class ThrowingRuleTestRegistrar : CompilerPluginRegistrar() {
      * behavior.
      */
     private fun warnConfig(): WrasseRuleConfig =
-        WrasseRuleConfig(level = RuleLevel.WARN, exclude = emptyList(), effectiveLevel = RuleLevel.WARN)
+    WrasseRuleConfig(level = RuleLevel.WARN, exclude = emptyList(), effectiveLevel = RuleLevel.WARN)
 }
 
 /** Routes [ThrowingRuleTestRegistrar]'s own plugin options into this compile's [CompilerConfiguration]. */

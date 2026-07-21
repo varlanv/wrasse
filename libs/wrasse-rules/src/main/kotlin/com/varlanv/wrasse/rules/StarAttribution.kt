@@ -22,11 +22,10 @@ enum class StarClassification {
  * [WildcardExpansionDecision] for the full attribution rules this object implements.
  */
 object StarAttribution {
-
     private val KDOC_REFERENCE_PATTERN = Regex("\\[([\\p{L}_][\\p{L}\\p{N}_.]*)]")
 
     fun isMemberStar(packageFqName: String, callables: Set<WCallableUsage>): Boolean =
-        callables.any { it.classFqName == packageFqName }
+    callables.any { it.classFqName == packageFqName }
 
     /**
      * Authoritative classification for a star whose own package/class FQN is [starFqName],
@@ -37,11 +36,7 @@ object StarAttribution {
      * [StarClassification.UNRESOLVED_OR_AMBIGUOUS]; the reverse is not a contradiction — a
      * member-star with zero used members is still [StarClassification.MEMBER].
      */
-    fun classify(
-        starFqName: String,
-        resolvedImports: List<WResolvedImport>,
-        callables: Set<WCallableUsage>,
-    ): StarClassification {
+    fun classify(starFqName: String, resolvedImports: List<WResolvedImport>, callables: Set<WCallableUsage>): StarClassification {
         val matches = resolvedImports.filter { it.isStarImport && it.fqn == starFqName }
         if (matches.isEmpty() || matches.any { !it.resolved }) return StarClassification.UNRESOLVED_OR_AMBIGUOUS
         val parents = matches.mapTo(mutableSetOf()) { it.resolvedParentClassFqName }
@@ -68,12 +63,7 @@ object StarAttribution {
      * import-on-demand from a classifier only ever exposes statics/enum entries/nested classifiers,
      * so any such usage is resolved through something other than this star.
      */
-    fun attributedMembers(
-        classFqName: String,
-        classifiers: Set<String>,
-        callables: Set<WCallableUsage>,
-        writtenIdentifiers: Set<String>,
-    ): Set<String> {
+    fun attributedMembers(classFqName: String, classifiers: Set<String>, callables: Set<WCallableUsage>, writtenIdentifiers: Set<String>): Set<String> {
         val prefix = "$classFqName."
         val legal = mutableSetOf<String>()
         for (classifier in classifiers) {
@@ -92,12 +82,7 @@ object StarAttribution {
         return legal
     }
 
-    fun attributedSymbols(
-        packageFqName: String,
-        classifiers: Set<String>,
-        callables: Set<WCallableUsage>,
-        writtenIdentifiers: Set<String>,
-    ): Set<String> {
+    fun attributedSymbols(packageFqName: String, classifiers: Set<String>, callables: Set<WCallableUsage>, writtenIdentifiers: Set<String>): Set<String> {
         val prefix = "$packageFqName."
         val result = mutableSetOf<String>()
         for (classifier in classifiers) {
@@ -124,11 +109,7 @@ object StarAttribution {
         return result
     }
 
-    fun kdocReferencesUncovered(
-        kdocSpans: List<IntRange>,
-        sourceText: CharSequence,
-        coveredSimpleNames: Set<String>,
-    ): Boolean {
+    fun kdocReferencesUncovered(kdocSpans: List<IntRange>, sourceText: CharSequence, coveredSimpleNames: Set<String>): Boolean {
         for (span in kdocSpans) {
             val text = sourceText.subSequence(span.first, span.last + 1)
             for (match in KDOC_REFERENCE_PATTERN.findAll(text)) {
@@ -140,8 +121,8 @@ object StarAttribution {
     }
 
     private fun isWritten(symbol: String, writtenIdentifiers: Set<String>): Boolean =
-        symbol.substringAfterLast('.') in writtenIdentifiers
+    symbol.substringAfterLast('.') in writtenIdentifiers
 
     private fun topLevelSymbol(packageFqName: String, prefix: String, fqn: String): String =
-        "$packageFqName.${fqn.removePrefix(prefix).substringBefore('.')}"
+    "$packageFqName.${fqn.removePrefix(prefix).substringBefore('.')}"
 }

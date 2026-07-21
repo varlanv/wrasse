@@ -7,7 +7,6 @@ package com.varlanv.wrasse.rules
  * Compiler-free, unit-testable without kotlinc.
  */
 object ImportLineSpan {
-
     fun isAloneOnLine(sourceText: CharSequence, startOffset: Int, endOffset: Int): Boolean {
         val lineStart = lineStartBefore(sourceText, startOffset)
         val lineEnd = lineEndAfter(sourceText, endOffset)

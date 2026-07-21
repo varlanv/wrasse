@@ -6,9 +6,7 @@ import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
 
 @OptIn(ExperimentalCompilerApi::class)
-class WrasseFirExtensionRegistrar22(
-    private val plugin: WrassePlugin,
-) : FirExtensionRegistrar() {
+class WrasseFirExtensionRegistrar22(private val plugin: WrassePlugin) : FirExtensionRegistrar() {
     override fun ExtensionRegistrarContext.configurePlugin() {
         +{ session: FirSession -> WrasseFirChecker22(session, plugin) }
         registerDiagnosticContainers(WrasseErrors22Container)

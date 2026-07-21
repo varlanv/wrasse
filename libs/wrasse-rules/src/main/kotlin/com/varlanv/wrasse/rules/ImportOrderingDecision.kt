@@ -12,11 +12,7 @@ import com.varlanv.wrasse.lang.WEdit
  * `import.toString().replace("`", "")` comparator — a backtick-quoted identifier sorts by its
  * plain letters, not by the backtick's own ASCII value, which sorts before every letter).
  */
-class ImportOrderingRecord(
-    val startOffset: Int,
-    val endOffset: Int,
-    val text: String,
-) {
+class ImportOrderingRecord(val startOffset: Int, val endOffset: Int, val text: String) {
     val sortKey: String = ImportOrderingDecision.sortKeyOf(text)
 }
 
@@ -26,7 +22,6 @@ class ImportOrderingRecord(
  * no grouping, no config knob.
  */
 object ImportOrderingDecision {
-
     fun sortKeyOf(directiveText: String): String = directiveText.removePrefix("import").trimStart().replace("`", "")
 
     /** The first record (in document order) whose position disagrees with ascending [ImportOrderingRecord.sortKey] order, or `null` if already sorted. */
@@ -40,7 +35,7 @@ object ImportOrderingDecision {
     }
 
     fun sortedReplacement(records: List<ImportOrderingRecord>): String =
-        records.sortedBy { it.sortKey }.joinToString("\n") { it.text }
+    records.sortedBy { it.sortKey }.joinToString("\n") { it.text }
 
     /**
      * True iff `[listStart, listEnd)` is exactly a sequence of import directives (`directiveSpans`,
@@ -50,13 +45,7 @@ object ImportOrderingDecision {
      * line — means reordering could sever a comment from the directive it documents or otherwise
      * change something other than order, so the caller must not attempt a fix.
      */
-    fun isCleanList(
-        sourceText: CharSequence,
-        listStart: Int,
-        listEnd: Int,
-        directiveSpans: List<Pair<Int, Int>>,
-        hasCommentInList: Boolean,
-    ): Boolean {
+    fun isCleanList(sourceText: CharSequence, listStart: Int, listEnd: Int, directiveSpans: List<Pair<Int, Int>>, hasCommentInList: Boolean): Boolean {
         if (hasCommentInList) return false
         if (directiveSpans.isEmpty()) return false
         if (directiveSpans.first().first != listStart) return false

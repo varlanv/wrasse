@@ -28,7 +28,6 @@ class ImportInsertionGroup(val edit: WEdit, val fqns: List<String>)
  * not-strictly-alphabetical position for that one import.
  */
 object ImportInsertionDecision {
-
     fun standaloneEdits(
         sourceText: CharSequence,
         listStart: Int,
@@ -40,18 +39,18 @@ object ImportInsertionDecision {
 
         val bySeam = LinkedHashMap<Int, MutableList<String>>()
         for (fqn in newImportFqns) {
-            val insertionIndex = directiveRecords.indexOfFirst { it.sortKey > fqn }
-                .let { if (it < 0) directiveRecords.size else it }
+            val insertionIndex = directiveRecords.indexOfFirst { it.sortKey > fqn }.let { if (it < 0) directiveRecords.size else it }
             val seam = seamOffsetFor(sourceText, listStart, listEnd, directiveRecords, insertionIndex)
             bySeam.getOrPut(seam) { mutableListOf() }.add(fqn)
         }
         return bySeam.map { (offset, fqns) ->
             val sorted = fqns.sorted()
-            val text = if (offset == listEnd) {
-                "\n" + sorted.joinToString("\n") { "import $it" }
-            } else {
-                sorted.joinToString("") { "import $it\n" }
-            }
+            val text =
+                if (offset == listEnd) {
+                    "\n" + sorted.joinToString("\n") { "import $it" }
+                } else {
+                    sorted.joinToString("") { "import $it\n" }
+                }
             ImportInsertionGroup(WEdit(offset, offset, text), sorted)
         }
     }

@@ -39,7 +39,6 @@ class WrassePlugin(
     private val dumpResolvedUsage: Boolean = false,
     private val formatConfig: WFormatConfig? = null,
 ) {
-
     private val patchFileLock = Any()
     private var patchEntries: List<FileEdits>? = null
 
@@ -77,7 +76,7 @@ class WrassePlugin(
                 startOffset = 0,
                 endOffset = 0,
                 level = RuleLevel.WARN,
-            )
+            ),
         )
     }
 
@@ -93,10 +92,7 @@ class WrassePlugin(
             docBuilder = DocBuilder(formatConfig)
             alwaysOn.add(docBuilder)
         }
-        val dispatch = ruleSet.dispatchForFile(
-            isExcluded = { config -> matchesAny(config.exclude, filePath) },
-            alwaysOn = alwaysOn,
-        )
+        val dispatch = ruleSet.dispatchForFile(isExcluded = { config -> matchesAny(config.exclude, filePath) }, alwaysOn = alwaysOn)
 
         val ctx = WContext(filePath = filePath.toString())
         val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
@@ -106,59 +102,42 @@ class WrassePlugin(
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
 
-            override fun report(
-                ruleId: String,
-                message: String,
-                startOffset: Int,
-                endOffset: Int,
-                rule: WRule,
-                edits: List<WEdit>,
-            ) {
+            override fun report(ruleId: String, message: String, startOffset: Int, endOffset: Int, rule: WRule, edits: List<WEdit>) {
                 if (suppressionCollector.index.isSuppressed(ruleId, startOffset, endOffset)) return
                 val declinedAutofix = edits.isEmpty() && ruleId in ruleSet.autofixCapableIds
                 val fullMessage = if (declinedAutofix) "$message$NO_AUTOFIX_MARKER" else message
-                reports.add(
-                    ViolationReport(
-                        message = "${rule.id}: $fullMessage",
-                        startOffset = startOffset,
-                        endOffset = endOffset,
-                        level = rule.config.effectiveLevel,
+                reports
+                    .add(
+                        ViolationReport(
+                            message = "${rule.id}: $fullMessage",
+                            startOffset = startOffset,
+                            endOffset = endOffset,
+                            level = rule.config.effectiveLevel,
+                        ),
                     )
-                )
                 for (edit in edits) {
                     requireWithinOpenAncestor(ctx, ruleId, edit)
                     ctx.editPlan.add(ruleId, edit)
                 }
             }
         }
-        LightTreeStreamAdapter.walk(
-            source = source,
-            ctx = ctx,
-            dispatch = dispatch,
-            reporter = reporter,
-        )
+        LightTreeStreamAdapter.walk(source = source, ctx = ctx, dispatch = dispatch, reporter = reporter)
         docBuilder?.finish(ctx, reporter)
 
         val finalEdits = ctx.editPlan.finalEdits()
         if (fixOutputDir != null) {
-            val newEntry = if (finalEdits.isNotEmpty()) {
-                FileEdits(filePath.toString(), computeSourceHash(ctx.sourceText), finalEdits)
-            } else {
-                null
-            }
+            val newEntry =
+                if (finalEdits.isNotEmpty()) {
+                    FileEdits(filePath.toString(), computeSourceHash(ctx.sourceText), finalEdits)
+                } else {
+                    null
+                }
             mergeAndWritePatchFile(fixOutputDir, filePath.toString(), newEntry)
         }
 
         val usage = ctx.resolvedUsage
         if (dumpResolvedUsage && usage != null) {
-            reporter.reports.add(
-                ViolationReport(
-                    message = dumpMessage(usage),
-                    startOffset = 0,
-                    endOffset = 0,
-                    level = RuleLevel.ERROR,
-                )
-            )
+            reporter.reports.add(ViolationReport(message = dumpMessage(usage), startOffset = 0, endOffset = 0, level = RuleLevel.ERROR))
         }
 
         return reporter.reports
@@ -168,15 +147,17 @@ class WrassePlugin(
         val classifiers = usage.classifiers.sorted().joinToString(prefix = "[", postfix = "]")
         val callables = usage.callables.map(::dumpCallable).sorted().joinToString(prefix = "[", postfix = "]")
         val imports = usage.resolvedImports.map(::dumpImport).sorted().joinToString(prefix = "[", postfix = "]")
-        val qualified = usage.qualifiedUsages
+        val qualified = usage
+            .qualifiedUsages
             .sortedWith(compareBy({ it.startOffset }, { it.endOffset }))
             .map(::dumpQualifiedUsage)
             .joinToString(prefix = "[", postfix = "]")
-        return "resolved-usage: classifiers=$classifiers callables=$callables imports=$imports qualified=$qualified errors=${usage.hasResolutionErrors}"
+        return "resolved-usage: classifiers=$classifiers callables=$callables imports=$imports qualified=$qualified errors=${usage
+            .hasResolutionErrors}"
     }
 
     private fun dumpQualifiedUsage(usage: WQualifiedUsage): String =
-        "${usage.startOffset}..${usage.endOffset}:${usage.kind}:${usage.targetFqName}"
+    "${usage.startOffset}..${usage.endOffset}:${usage.kind}:${usage.targetFqName}"
 
     private fun dumpCallable(usage: WCallableUsage): String {
         val owner = usage.classFqName ?: usage.packageFqName
@@ -185,11 +166,12 @@ class WrassePlugin(
 
     private fun dumpImport(import: WResolvedImport): String {
         val suffix = if (import.isStarImport) ".*" else ""
-        val status = when {
-            !import.resolved -> "?unresolved"
-            import.resolvedParentClassFqName != null -> "(parent=${import.resolvedParentClassFqName})"
-            else -> ""
-        }
+        val status =
+            when {
+                !import.resolved -> "?unresolved"
+                import.resolvedParentClassFqName != null -> "(parent=${import.resolvedParentClassFqName})"
+                else -> ""
+            }
         return "${import.fqn}$suffix$status"
     }
 
@@ -209,8 +191,7 @@ class WrassePlugin(
     }
 
     private fun resolveFilePath(sourceFilePath: String, fileName: String): Path =
-        runCatching { Path.of(sourceFilePath).toAbsolutePath().normalize() }
-            .getOrElse { Path.of(fileName) }
+    runCatching { Path.of(sourceFilePath).toAbsolutePath().normalize() }.getOrElse { Path.of(fileName) }
 
     private fun matchesAny(matchers: List<PathMatcher>, filePath: Path): Boolean {
         if (matchers.isEmpty()) return false
@@ -226,11 +207,12 @@ class WrassePlugin(
     private fun mergeAndWritePatchFile(dir: Path, filePath: String, newEntry: FileEdits?) {
         synchronized(patchFileLock) {
             val current = patchEntries ?: readExistingPatchEntries(dir)
-            val merged = if (newEntry != null) {
-                WPatchMerge.upsert(current, newEntry)
-            } else {
-                WPatchMerge.remove(current, filePath)
-            }
+            val merged =
+                if (newEntry != null) {
+                    WPatchMerge.upsert(current, newEntry)
+                } else {
+                    WPatchMerge.remove(current, filePath)
+                }
             patchEntries = merged
             writePatchFileAtomically(dir, merged)
         }

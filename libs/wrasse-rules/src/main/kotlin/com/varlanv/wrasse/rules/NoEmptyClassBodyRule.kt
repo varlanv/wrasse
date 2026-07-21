@@ -57,11 +57,15 @@ class NoEmptyClassBodyRule : WUninitializedRule {
                 if (isAnonymousObjectBody(ctx)) return
                 if (!isEmptyBody(children)) return
 
-                reporter.report(
-                    ruleId, "Empty class body",
-                    ctx.startOffset, ctx.endOffset, this,
-                    edits = listOf(EmptyClassBodyDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset))
-                )
+                reporter
+                    .report(
+                        ruleId,
+                        "Empty class body",
+                        ctx.startOffset,
+                        ctx.endOffset,
+                        this,
+                        edits = listOf(EmptyClassBodyDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset)),
+                    )
             }
 
             private fun isEmptyBody(children: ChildBuffer): Boolean {
@@ -75,14 +79,15 @@ class NoEmptyClassBodyRule : WUninitializedRule {
             }
 
             private fun isCompanionObjectBody(ctx: WContext): Boolean =
-                ctx.ancestors.peekType() == WNodeType.OBJECT_DECLARATION &&
-                    companionStack.isNotEmpty() && companionStack.last()
+            ctx.ancestors.peekType() == WNodeType.OBJECT_DECLARATION && companionStack.isNotEmpty() && companionStack.last()
 
             private fun isAnonymousObjectBody(ctx: WContext): Boolean {
                 val ancestors = ctx.ancestors
                 if (ancestors.size < 2) return false
-                return ancestors.peekType() == WNodeType.OBJECT_DECLARATION &&
-                    ancestors.typeAt(ancestors.size - 2) == WNodeType.OBJECT_LITERAL
+                return ancestors.peekType() ==
+                    WNodeType.OBJECT_DECLARATION &&
+                    ancestors.typeAt(ancestors.size - 2) ==
+                    WNodeType.OBJECT_LITERAL
             }
         }
     }

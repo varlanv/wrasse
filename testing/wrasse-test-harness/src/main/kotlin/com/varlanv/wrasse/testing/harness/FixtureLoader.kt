@@ -23,7 +23,6 @@ class Fixture(
 )
 
 object FixtureLoader {
-
     private const val AUX_DIR_NAME = "aux"
     private const val FIXED_SUFFIX = ".fixed.kt"
 
@@ -39,32 +38,34 @@ object FixtureLoader {
         for (ruleDir in Files.list(fixturesDir).use { it.filter { p -> p.isDirectory() }.toList() }) {
             val ruleId = ruleDir.name
             val overrideFile = ruleDir.resolve("wrasse.json")
-            val mergedConfig = if (overrideFile.isRegularFile()) {
-                deepMerge(JSONObject(baseConfig.toString()), JSONObject(overrideFile.readText())).toString()
-            } else {
-                baseConfig.toString()
-            }
+            val mergedConfig =
+                if (overrideFile.isRegularFile()) {
+                    deepMerge(JSONObject(baseConfig.toString()), JSONObject(overrideFile.readText())).toString()
+                } else {
+                    baseConfig.toString()
+                }
 
             val extraConfigs = mutableMapOf<String, String>()
             for (jsonFile in Files.list(ruleDir).use {
-                it.filter { p ->
-                    p.isRegularFile() && (p.name.endsWith(".json") || p.name.endsWith(".jsonc")) && p.name != "wrasse.json"
-                }.toList()
+                it
+                    .filter { p ->
+                        p.isRegularFile() && (p.name.endsWith(".json") || p.name.endsWith(".jsonc")) && p.name != "wrasse.json"
+                    }
+                    .toList()
             }) {
                 extraConfigs[jsonFile.name] = jsonFile.readText()
             }
 
             val companionsByFixtureId = mutableMapOf<String, String>()
-            for (companionFile in Files.list(ruleDir)
-                .use { it.filter { p -> p.isRegularFile() && p.name.endsWith(FIXED_SUFFIX) }.toList() }) {
+            for (companionFile in Files.list(ruleDir).use { it.filter { p -> p.isRegularFile() && p.name.endsWith(FIXED_SUFFIX) }.toList() }) {
                 companionsByFixtureId[companionFile.name.removeSuffix(FIXED_SUFFIX)] = companionFile.readText()
             }
 
             val fixtureIdsInDir = mutableSetOf<String>()
-            for (fixtureFile in Files.list(ruleDir)
-                .use { it.filter {
-                    p -> p.isRegularFile() && p.name.endsWith(".kt") && !p.name.endsWith(FIXED_SUFFIX) &&
-                        p.parent.name != AUX_DIR_NAME }.toList() }) {
+            for (fixtureFile in Files.list(ruleDir).use { it
+                    .filter {
+                        p -> p.isRegularFile() && p.name.endsWith(".kt") && !p.name.endsWith(FIXED_SUFFIX) && p.parent.name != AUX_DIR_NAME }
+                    .toList() }) {
                 val fixtureId = fixtureFile.nameWithoutExtension
                 fixtureIdsInDir.add(fixtureId)
                 val parsed = FixtureParser.parse(fixtureFile.readText())
@@ -75,26 +76,26 @@ object FixtureLoader {
                     }
                     TestSource("sample/$relativePath", auxFile.readText())
                 }
-                fixtures.add(
-                    Fixture(
-                        ruleId = ruleId,
-                        fixtureId = fixtureId,
-                        config = mergedConfig,
-                        source = parsed.strippedSource,
-                        expectations = parsed.expectations,
-                        expectClean = parsed.expectClean,
-                        warnOnly = parsed.warnOnly,
-                        extraConfigFiles = extraConfigs,
-                        auxSources = auxSources,
-                        fixedSource = companionsByFixtureId[fixtureId],
+                fixtures
+                    .add(
+                        Fixture(
+                            ruleId = ruleId,
+                            fixtureId = fixtureId,
+                            config = mergedConfig,
+                            source = parsed.strippedSource,
+                            expectations = parsed.expectations,
+                            expectClean = parsed.expectClean,
+                            warnOnly = parsed.warnOnly,
+                            extraConfigFiles = extraConfigs,
+                            auxSources = auxSources,
+                            fixedSource = companionsByFixtureId[fixtureId],
+                        ),
                     )
-                )
             }
 
             for (companionFixtureId in companionsByFixtureId.keys) {
                 require(companionFixtureId in fixtureIdsInDir) {
-                    "Companion file '$companionFixtureId$FIXED_SUFFIX' in $ruleDir has no matching fixture " +
-                        "'$companionFixtureId.kt'"
+                    "Companion file '$companionFixtureId$FIXED_SUFFIX' in $ruleDir has no matching fixture " + "'$companionFixtureId.kt'"
                 }
             }
         }

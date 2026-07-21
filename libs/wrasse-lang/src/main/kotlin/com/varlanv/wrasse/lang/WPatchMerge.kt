@@ -10,7 +10,6 @@ package com.varlanv.wrasse.lang
  * appended if it is new.
  */
 object WPatchMerge {
-
     fun upsert(existing: List<FileEdits>, entry: FileEdits): List<FileEdits> {
         var replaced = false
         val result = existing.map {
@@ -25,5 +24,5 @@ object WPatchMerge {
     }
 
     fun remove(existing: List<FileEdits>, filePath: String): List<FileEdits> =
-        existing.filterNot { it.filePath == filePath }
+    existing.filterNot { it.filePath == filePath }
 }

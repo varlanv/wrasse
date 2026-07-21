@@ -20,14 +20,16 @@ import com.varlanv.wrasse.lang.WEdit
  * so the comment itself is never swallowed either way.
  */
 object RedundantVisibilityModifierDeletionSpan {
-
     fun compute(sourceText: CharSequence, publicStart: Int, publicEnd: Int, hasCommentInList: Boolean): WEdit? {
         var end = publicEnd
         while (end < sourceText.length && sourceText[end].isWhitespace()) {
             end++
         }
-        val trailingComment = end + 1 < sourceText.length &&
-            sourceText[end] == '/' &&
+        val trailingComment = end +
+            1 <
+            sourceText.length &&
+            sourceText[end] ==
+            '/' &&
             (sourceText[end + 1] == '/' || sourceText[end + 1] == '*')
 
         if (hasCommentInList || trailingComment) return null
