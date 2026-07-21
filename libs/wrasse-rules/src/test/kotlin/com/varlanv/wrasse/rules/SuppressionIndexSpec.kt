@@ -61,16 +61,16 @@ class SuppressionIndexSpec :
                 val index = SuppressionIndex()
                 index.markFile("no-semicolons")
 
-                index.isSuppressed("no-semicolons", 1000, 1005) shouldBe true
-                index.isSuppressed("no-wildcard-imports", 1000, 1005) shouldBe false
+                index.isSuppressed("no-semicolons", 1_000, 1_005) shouldBe true
+                index.isSuppressed("no-wildcard-imports", 1_000, 1_005) shouldBe false
             }
 
             should("suppress every rule id anywhere in the file when marked with a file-scoped wildcard") {
                 val index = SuppressionIndex()
                 index.markFile("all")
 
-                index.isSuppressed("no-semicolons", 1000, 1005) shouldBe true
-                index.isSuppressed("no-wildcard-imports", 1000, 1005) shouldBe true
+                index.isSuppressed("no-semicolons", 1_000, 1_005) shouldBe true
+                index.isSuppressed("no-wildcard-imports", 1_000, 1_005) shouldBe true
             }
 
             should("not suppress an unrelated rule id when only a specific rule id is region-suppressed") {

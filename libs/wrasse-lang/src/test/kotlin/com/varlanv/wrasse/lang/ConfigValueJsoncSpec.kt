@@ -105,7 +105,7 @@ class ConfigValueJsoncSpec :
                 }
 
                 should("parse a large integer") {
-                    ConfigValueJsonc.parse("9999999999").getOrThrow() shouldBe ConfigValue.Num(9999999999L)
+                    ConfigValueJsonc.parse("9999999999").getOrThrow() shouldBe ConfigValue.Num(9_999_999_999L)
                 }
 
                 should("parse a decimal number as Dbl") {
