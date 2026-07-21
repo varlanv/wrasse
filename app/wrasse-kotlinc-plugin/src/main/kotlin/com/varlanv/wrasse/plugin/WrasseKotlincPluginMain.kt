@@ -9,15 +9,22 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.rules.BackingPropertyNamingRule
+import com.varlanv.wrasse.rules.ClassMetricsEngine
 import com.varlanv.wrasse.rules.ClassNamingRule
+import com.varlanv.wrasse.rules.ComplexConditionRule
+import com.varlanv.wrasse.rules.DestructuringTooManyEntriesRule
 import com.varlanv.wrasse.rules.EmptyDefaultConstructorRule
 import com.varlanv.wrasse.rules.EnumEntryNamingRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
 import com.varlanv.wrasse.rules.FileNamingRule
+import com.varlanv.wrasse.rules.FileSizeRule
+import com.varlanv.wrasse.rules.FunctionMetricsEngine
+import com.varlanv.wrasse.rules.FunctionNameLengthEngine
 import com.varlanv.wrasse.rules.FunctionNamingRule
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
 import com.varlanv.wrasse.rules.LongNumericalValuesRule
+import com.varlanv.wrasse.rules.LongParameterListRule
 import com.varlanv.wrasse.rules.ModifierEngine
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
@@ -42,13 +49,17 @@ internal fun registeredRules(): List<WUninitializedRule> =
 listOf(
     BackingPropertyNamingRule(),
     ClassNamingRule(),
+    ComplexConditionRule(),
+    DestructuringTooManyEntriesRule(),
     EmptyDefaultConstructorRule(),
     EnumEntryNamingRule(),
     ExplicitItLambdaParameterRule(),
+    FileSizeRule(),
     FileNamingRule(),
     FunctionNamingRule(),
     IfElseBracingRule(),
     LongNumericalValuesRule(),
+    LongParameterListRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
     NoSemicolonsRule(),
@@ -67,11 +78,15 @@ listOf(
 /**
  * Every fused multi-id engine wrasse ships: [ImportEngine], backing
  * `no-unused-imports`/`no-wildcard-imports`/`import-ordering`/`no-unnecessary-fqn` behind one
- * decision-maker, and [ModifierEngine], backing `modifier-order`/`redundant-visibility-modifier`.
- * Composition is internal to each engine, so unlike [registeredRules] this list carries no
- * registration-order constraint.
+ * decision-maker; [ModifierEngine], backing `modifier-order`/`redundant-visibility-modifier`;
+ * [FunctionNameLengthEngine], backing `function-name-max-length`/`function-name-min-length`;
+ * [FunctionMetricsEngine], backing `return-count`/`throws-count`/`nested-block-depth`/
+ * `cyclomatic-complexity`/`long-method`; and [ClassMetricsEngine], backing
+ * `too-many-functions`/`large-class`. Composition is internal to each engine, so unlike
+ * [registeredRules] this list carries no registration-order constraint.
  */
-internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> = listOf(ImportEngine(), ModifierEngine())
+internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> =
+listOf(ImportEngine(), ModifierEngine(), FunctionNameLengthEngine(), FunctionMetricsEngine(), ClassMetricsEngine())
 
 fun wrasseMain(
     sourceRoots: List<Path>,

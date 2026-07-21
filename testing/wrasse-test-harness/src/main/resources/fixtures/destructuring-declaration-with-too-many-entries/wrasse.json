@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "destructuring-declaration-with-too-many-entries": { "level": "error" }
+    }
+}

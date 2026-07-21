@@ -3521,6 +3521,191 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   Still unbuilt, tracked as the engine's own remaining growth sites: own-package/default-redundant
   star removal, and closing the KDoc same-package-sibling coverage gap via a session-backed
   package→declarations query.
+- **B.4 — lint-only rules (bucket L), second installment, the COMPLEXITY/METRIC family — shipped
+  2026-07-21.** Report, never fix — `canAutofix` is false everywhere in this family; a metric
+  threshold breach is a design smell, not a mechanical rewrite. All thresholds are hardcoded (no
+  per-rule config knob exists or will exist, D-config-stance): every one below is the sole
+  upstream catalog's own default where only one catalog carries the rule at all (true for every
+  id in this batch — none of ktlint/detekt/diktat disagree on a shared metric rule the way the
+  naming batch's catalogs did), so "most permissive on disagreement" never had to be invoked here;
+  it would be if a future batch ports a rule two catalogs both define with different defaults.
+  Dedupe map (13 catalog rows, all from detekt except `file-size` from diktat, → 13 wrasse ids —
+  no collapsing needed; unlike the naming batch, no two catalogs define the same metric rule):
+
+  | wrasse id | dedupes | threshold | provenance |
+  |---|---|---|---|
+  | `long-parameter-list` | detekt `LongParameterList` | function >5 params, constructor >6 params | detekt default (`allowedFunctionParameters=5`, `allowedConstructorParameters=6`), sole catalog |
+  | `long-method` | detekt `LongMethod` | >60 distinct code lines | detekt default (`allowedLines=60`), sole catalog |
+  | `large-class` | detekt `LargeClass` | >600 distinct code lines | detekt default (`allowedLines=600`), sole catalog |
+  | `too-many-functions` | detekt `TooManyFunctions` | >11 functions (file, class, interface, object, enum — one uniform number) | detekt default (`allowedFunctionsPer{File,Class,Interface,Object,Enum}=11`, already uniform across all five scopes), sole catalog |
+  | `nested-block-depth` | detekt `NestedBlockDepth` | depth >4 | detekt default (`allowedDepth=4`), sole catalog |
+  | `cyclomatic-complexity` | detekt `CyclomaticComplexMethod` | McCabe complexity >14 | detekt default (`allowedComplexity=14`), sole catalog |
+  | `return-count` | detekt `ReturnCount` | >2 `return` statements | detekt default (`max=2`), sole catalog |
+  | `throws-count` | detekt `ThrowsCount` | >2 `throw` statements | detekt default (`max=2`), sole catalog |
+  | `destructuring-declaration-with-too-many-entries` | detekt `DestructuringDeclarationWithTooManyEntries` | >3 entries | detekt default (`maxDestructuringEntries=3`), sole catalog |
+  | `complex-condition` | detekt `ComplexCondition` | ≥3 `&&`/`\|\|` operators in one condition | detekt default (`allowedConditions=3`), sole catalog |
+  | `function-name-max-length` | detekt `FunctionNameMaxLength` | name >30 chars | detekt default (`maximumFunctionNameLength=30`), sole catalog |
+  | `function-name-min-length` | detekt `FunctionNameMinLength` | name <3 chars | detekt default (`minimumFunctionNameLength=3`), sole catalog |
+  | `file-size` | diktat `FileSize` | >2000 total lines | diktat default (`maxSize=2000`), sole catalog |
+
+  **The uniform nesting policy (stated once, applies to every id above):** a nested declaration —
+  a local function inside a function, a nested/inner class inside a class, an anonymous object's
+  own member — gets its own independent frame/accumulator and is checked entirely on its own
+  terms; nothing it contains ever merges upward into the enclosing declaration's own count, not
+  even a flat +1 for "a nested thing existed here." This is a deliberate simplification, and for
+  `cyclomatic-complexity` a deliberate **deviation** from detekt's own default (`ignoreLocalFunctions
+  = false`, under which a nested function's *entire* internal complexity folds into the enclosing
+  function's total by default — an inconsistency in detekt's own complexity family, since
+  `LongMethod`/`LargeClass` already subtract nested extents from the parent while
+  `CyclomaticComplexMethod` does not by default). Adopting one coherent rule — nested declarations
+  are always independent, never additive — across every metric in this batch trades a small amount
+  of upstream fidelity for internal consistency and strictly fewer reports (the permissive-leaning
+  bias this whole batch follows), and is what "verify, upstream usually says no" resolved to for
+  every rule here after checking each one's actual source (§ the rule notes below).
+
+  Per-rule implementation notes, nesting/exemption decisions, and where a rule's own semantics
+  needed a documented simplification:
+
+  - **Counting rides the streaming walk two ways.** Five ids share one `WStreamRule` fused engine,
+    `FunctionMetricsEngine` (`return-count`, `throws-count`, `nested-block-depth`,
+    `cyclomatic-complexity`, `long-method`): a single stack of `FunctionMetricsFrame`s, pushed on
+    `FUN` enter and popped on exit, accumulates all five metrics for that function in the same
+    pass — cheaper than five separate walks each re-deriving the same function-nesting boundary,
+    the same "one decision-maker" reasoning `ImportEngine`/`ModifierEngine` already established.
+    Two more (`too-many-functions`, `large-class`) share a second engine, `ClassMetricsEngine`,
+    with the identical frame-stack shape keyed to `CLASS`/`OBJECT_DECLARATION` instead of `FUN`.
+    `WStreamRule` was picked over `WNodeRule`/`WBufferedNodeRule` deliberately: the adapter fires
+    `onChildLeaf` once per *active* matching entry in `activeNodeRules`, so a `WNodeRule` targeting
+    a self-nestable type (e.g. `FUN` inside `FUN`) gets its `onChildLeaf` invoked multiple times
+    for one real leaf once nesting is two or more deep — the same rule instance is on the active
+    list twice. `WStreamRule.visitLeaf`/`enterNode`/`exitNode` are called exactly once per node
+    unconditionally (outside that mechanism entirely), so a hand-rolled frame stack keyed off them
+    never double-counts regardless of nesting depth — the only kind that is both correct and cheap
+    here. The remaining ids (`long-parameter-list`, `destructuring-declaration-with-too-many-entries`,
+    `complex-condition`, and the `function-name-max-length`/`function-name-min-length` pair fused
+    into `FunctionNameLengthEngine`) don't need frame-stack nesting tracking at all — each is a
+    single `WBufferedNodeRule`/`WNodeRule` reading one node's own direct children or source span —
+    so they stay standalone rather than joining a fused engine.
+  - **`long-method`/`large-class`** count *distinct* source-code lines, matching detekt's own
+    `linesOfCode()` definition exactly (a line with only whitespace or a comment/KDoc on it never
+    counts) rather than a naive line-span subtraction — implemented as "current line number,
+    updated on every leaf's own newline count; record it against the active frame only when a
+    non-whitespace/non-comment leaf lands on a new line," an O(1)-per-leaf technique needing no
+    line-number table. Counted over the whole declaration (signature/modifiers included), not just
+    the body/class-body — simpler than detekt's own split (which tracks body-only lines for
+    non-nested functions but whole-function lines for nested ones, solely to compensate for its
+    own nested-subtraction bookkeeping) and made unnecessary by this batch's uniform
+    never-merge-upward policy.
+  - **`cyclomatic-complexity`** sums: the function's own baseline (+1), each `if` (unless it is an
+    unbraced `else if` continuation — detected as "this `IF`'s own immediate parent is `ELSE`,"
+    exactly mirroring detekt's `KtContainerNodeForControlStructureBody` check but purely
+    syntactically), each loop (`for`/`while`/`do-while`), each `when` entry (including `else`),
+    each `catch` clause, each `continue`/`break`, and each `&&`/`\|\|`/`?:` operator token. Unlike
+    detekt's own default, a scope-function call with a trailing lambda (`run`/`let`/`apply`/
+    `with`/`also`/`use`/`forEach`) is never treated as an extra decision point — detecting "is this
+    `CALL_EXPRESSION`'s callee one of these names and does it have a lambda argument" needs its own
+    small side-tracking machinery for a syntactic, name-only heuristic (detekt's own version is
+    equally unresolved, just already built); omitting it only *lowers* the computed complexity
+    (fewer reports), so it's dropped rather than built for marginal value. `nested-block-depth`
+    drops the same scope-function extension for the identical reason, and both rules were verified
+    against detekt's actual source (not assumed) before making this call.
+  - **`return-count`/`throws-count`** count `RETURN`/`THROW` nodes whose nearest enclosing `FUN` is
+    the frame being checked; a lambda literal is transparent (pushes no frame of its own), so a
+    `return`/`throw` inside a lambda passed to another call counts toward the *enclosing* function
+    — broader than detekt's own default, which excludes only a *labeled* lambda return
+    (`return@foo`) via `excludeReturnFromLambda=true`. Telling a non-local (inlined, unlabeled)
+    lambda return from a genuinely local one needs inlining knowledge this syntax-only pass does
+    not have; treating every lambda uniformly as transparent is the simpler, single coherent rule.
+    `return-count` keeps detekt's own `excludedFunctions=["equals"]` default verbatim (a function
+    literally named `equals`, override or not, never triggers) since it costs nothing extra to
+    check a function's own name.
+  - **`long-parameter-list`** exempts an override (its parameter list is fixed by the supertype, not
+    a local decision — the same reasoning `function-naming`'s override exemption already
+    established) and a data class's primary/secondary constructor (matching detekt's own
+    `ignoreDataClasses=true` default: a data class's parameters are its whole public shape by
+    design). Reports at the `VALUE_PARAMETER_LIST`'s own span (the parens), matching detekt's own
+    `Entity.from(parameterList, function)` — not the declaration's name, since detekt itself
+    doesn't point there for this one rule.
+  - **`complex-condition`** mirrors detekt's own algorithm exactly, including its crudeness: a
+    plain, non-overlapping substring count of `&&`/`\|\|` over the condition's own raw source
+    text (not an AST walk over `BINARY_EXPRESSION`/operator tokens) — detekt's own implementation
+    is text-based too (`frequency(text, "&&")`), so matching it exactly rather than "improving" it
+    with token-level counting keeps wrasse's report volume identical to upstream's own known
+    behavior on this rule.
+  - **`destructuring-declaration-with-too-many-entries`** is a direct `DESTRUCTURING_DECLARATION`
+    child count (`DESTRUCTURING_DECLARATION_ENTRY` children) — destructuring declarations never
+    nest inside one another, so no frame stack is needed at all.
+  - **`function-name-max-length`/`function-name-min-length`** exempt an override (name fixed by the
+    supertype) and an `operator` function (name fixed by the language — `plus`, `get`, `invoke`,
+    ...) either way, matching detekt's own exemptions on both rules. In practice the operator
+    exemption can never be organically exercised for `-max-length` (every Kotlin operator function
+    name is short) and barely for `-min-length` (the shortest, `get`/`set`/`inc`/`dec`/`not`, are
+    already 3 characters, at the minimum threshold) — kept for parity with detekt's own rule shape
+    regardless, since it costs nothing to check.
+  - **`too-many-functions`** counts only *directly*-declared member functions per
+    class/interface/object/enum (never a nested class/object's own functions) plus a separate
+    file-level top-level-function count, matching detekt's own scope exactly — detekt itself never
+    looks past direct children either, so no subtraction was ever needed upstream or here. detekt's
+    own default config additionally excludes `**/test/**` source-set paths for this rule (a signal
+    that test classes are a common, expected source of noise for it) — wrasse has no source-set
+    concept in the rule layer to replicate that automatically, but the existing per-rule `exclude`
+    glob every wrasse rule already supports (§7) is the same escape hatch a user would reach for
+    with any other rule; no new mechanism was built for this one specifically.
+
+  **Deliberately skipped, with reasons** (the "8 defensible rules over 13 arbitrary ones" bias):
+
+  - **`throws-count`/`return-count`'s upstream siblings that are genuinely off-by-default or
+    narrow-scope, not merely uncommon:** detekt's `CognitiveComplexMethod` (inactive by default
+    upstream, `ActiveByDefault` absent; a second, more subjective complexity metric that heavily
+    overlaps `cyclomatic-complexity`'s coverage — shipping both invites two thresholds disagreeing
+    about the same function), `MethodOverloading` (inactive by default; a same-name-overload-count
+    smell that overlaps `too-many-functions`' coverage), `NestedScopeFunctions` (inactive by
+    default; a narrower variant of `nested-block-depth` scoped only to scope-function lambdas,
+    which this batch already declined to special-case), `ComplexInterface` (inactive by default;
+    overlaps `too-many-functions`' interface scope), `NamedArguments` (inactive by default; a style
+    suggestion about positional-vs-named call sites, not a size/nesting/count design smell — out
+    of this batch's actual scope, not merely skipped for noise reasons).
+  - **`string-literal-duplication`** (detekt `StringLiteralDuplication`) — inactive by default
+    upstream, and its own default config carries four separate tunable knobs
+    (`allowedDuplications`, `ignoreAnnotation`, `allowedWithLengthLessThan`, `ignoreStringsRegex`)
+    just to keep it usable at all — the clearest case in this batch of "a rule whose usefulness
+    depends entirely on being tunable"; hardcoding any one combination makes it either a no-op
+    (permissive knobs) or noise (strict ones), so it's skipped outright per the task's own
+    stated skip criterion, not merely deprioritized.
+  - **diktat `lambda-length`** — a `long-method`-shaped rule but scoped only to lambda literals
+    that use the implicit `it` parameter (diktat's own `doesLambdaContainIt` gate), at a default of
+    only 10 lines. That narrow scope plus an aggressive threshold generalizes poorly across common
+    Kotlin idioms (DSL builders, `apply`/`also` blocks, Gradle build scripts, test setup blocks) —
+    another rule whose real-world value is inseparable from per-project tuning, so it's skipped
+    rather than hardcoded at a value guaranteed to be wrong for large swaths of idiomatic code.
+  - **`labeled-expression`/diktat `custom-label`/the task's own tentative "label-count"** — neither
+    upstream rule is actually count-shaped: `LabeledExpression` (inactive by default) flags *any*
+    custom label at all (an allowlist of exempted label names is its only config axis, not a
+    threshold), and diktat's `custom-label` is the same presence check, not a count. There is no
+    natural number to hardcode here without inventing a threshold neither catalog itself uses —
+    skipped as not actually belonging to this batch's threshold-shaped scope, rather than shipped
+    with a made-up cutoff.
+  - **detekt naming-length siblings `variable-max-length`/`variable-min-length`** — same length-metric
+    shape as the two function-name-length ids shipped here, but scoped to local
+    variables/properties, the same "different scope-resolution shape than member/top-level
+    declarations" reason B.1 already gave for deferring `variable-naming`'s casing check; held for
+    that same follow-up batch rather than split across two unrelated installments.
+  - **Rules needing FIR resolution or cross-file knowledge:** none of this batch's candidates
+    actually need either — every one above is syntax-only, including `complex-condition`'s
+    scope-function detection (name-based, exactly as detekt's own unresolved heuristic is) and
+    `long-parameter-list`'s override/data-class checks (both syntactically visible: an `override`
+    modifier keyword, a `data` modifier keyword). No candidate was dropped for this reason in this
+    batch; noted here only because the task asked the question explicitly.
+
+  Fixture coverage: 69 fixtures across the 13 rule directories (at-threshold-clean,
+  over-threshold-error, a nesting/independence case demonstrating a nested declaration's own
+  separate frame, `@Suppress` happy/negative pairs, per rule; `too-many-functions` additionally
+  covers its interface/file scopes, `nested-block-depth` additionally covers the unbraced-`else
+  if`-is-not-extra-depth case). Unit specs: `FunctionMetricsFrameSpec`/`ClassMetricsFrameSpec`
+  exercise the two pure, kotlinc-free counting/nesting accumulators directly (push/pop sequences,
+  repeated-line dedup) — the highest-value tests in this batch, since the counters are where
+  off-by-one bugs hide — plus one Decision spec per rule family covering the exact threshold
+  boundary and message text.
 
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.

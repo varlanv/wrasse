@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "function-name-max-length": { "level": "error" }
+    }
+}

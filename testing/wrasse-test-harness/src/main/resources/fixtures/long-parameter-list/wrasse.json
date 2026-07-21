@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "long-parameter-list": { "level": "error" }
+    }
+}

@@ -56,6 +56,58 @@
             "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",
             "additionalProperties": false,
             "properties": {
+                "complex-condition": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a condition combining 3 or more && / || operators"
+                },
+                "cyclomatic-complexity": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a function whose cyclomatic complexity exceeds 14"
+                },
+                "destructuring-declaration-with-too-many-entries": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a destructuring declaration with more than 3 entries"
+                },
+                "file-size": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a file longer than 2000 lines"
+                },
+                "function-name-max-length": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a function name longer than 30 characters"
+                },
+                "function-name-min-length": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a function name shorter than 3 characters"
+                },
+                "large-class": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a class longer than 600 code lines"
+                },
+                "long-method": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a function longer than 60 code lines"
+                },
+                "long-parameter-list": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow more than 5 function parameters (6 for constructors)"
+                },
+                "nested-block-depth": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow nesting deeper than 4 levels within a function"
+                },
+                "return-count": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a function with more than 2 return statements"
+                },
+                "throws-count": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a function with more than 2 throw statements"
+                },
+                "too-many-functions": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow more than 11 functions in a file, class, interface, object, or enum"
+                },
                 "backing-property-naming": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require a leading-underscore backing property to be lowerCamelCase with a public correlated member"
