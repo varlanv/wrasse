@@ -640,10 +640,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * whitespace) to find the real previous structural sibling.
      */
     private fun lastNonCommentEntry(children: List<ChildEntry>, uptoIdx: Int): ChildEntry? =
-    (uptoIdx downTo 0)
-        .asSequence()
-        .map { children[it] }
-        .firstOrNull { it.type != WNodeType.WHITE_SPACE && it.type !in COMMENT_TYPES }
+    (uptoIdx downTo 0).asSequence().map { children[it] }.firstOrNull { it.type != WNodeType.WHITE_SPACE && it.type !in COMMENT_TYPES }
 
     /**
      * Whether the gap right before [nextEntry] must carry at least one blank line, folding three
@@ -778,7 +775,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         ) {
             return ""
         }
-        if (frameType == WNodeType.PROPERTY_ACCESSOR &&
+        if (frameType ==
+            WNodeType.PROPERTY_ACCESSOR &&
             (prevType == WNodeType.KW_GET || prevType == WNodeType.KW_SET) &&
             nextType ==
             WNodeType.LPAR

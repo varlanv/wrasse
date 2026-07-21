@@ -171,7 +171,7 @@ private class ThrowingRuleDiagnostic(
 
 private class ThrowingRuleCompileResult(val exitCode: ExitCode, val diagnostics: List<ThrowingRuleDiagnostic>) {
     val wrasseDiagnostics: List<ThrowingRuleDiagnostic>
-    get() = diagnostics.filter { it.message.startsWith("wrasse:") }
+        get() = diagnostics.filter { it.message.startsWith("wrasse:") }
 }
 
 private class ThrowingRuleDiagnosticCollector : MessageCollector {

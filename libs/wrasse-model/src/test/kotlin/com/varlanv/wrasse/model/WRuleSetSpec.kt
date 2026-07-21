@@ -15,7 +15,7 @@ private class CountingFileRule(override val id: String, override val config: Wra
 
 private class RecordingRule(override val id: String) : WUninitializedRule {
     var initCount = 0
-    private set
+        private set
 
     override fun initRule(config: WrasseRuleConfig): WRule {
         initCount++

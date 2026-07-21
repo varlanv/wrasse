@@ -2234,7 +2234,9 @@ class DocBuilderSpec :
                 render(builder, ctx) shouldBe "val foo get() = field"
             }
 
-            should("strip the space before a PROPERTY_ACCESSOR's own parameter list even when its LPAR/RPAR are bare accessor children, not wrapped in VALUE_PARAMETER_LIST") {
+            should(
+                "strip the space before a PROPERTY_ACCESSOR's own parameter list even when its LPAR/RPAR are bare accessor children, not wrapped in VALUE_PARAMETER_LIST",
+            ) {
                 val builder = DocBuilder(formatConfig())
                 val ctx = WContext(filePath = "test.kt")
                 builder.enterNode(ctx.apply { type = WNodeType.FILE })

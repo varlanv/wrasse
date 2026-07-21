@@ -114,7 +114,7 @@ class TestSource(val path: String, val content: String)
 
 class CompilationResult(val exitCode: ExitCode, val diagnostics: List<TestDiagnostic>) {
     val wrasseDiagnostics: List<TestDiagnostic>
-    get() = diagnostics.filter { it.message.startsWith("wrasse:") }
+        get() = diagnostics.filter { it.message.startsWith("wrasse:") }
 }
 
 class TestDiagnostic(val severity: CompilerMessageSeverity, val message: String, val location: CompilerMessageSourceLocation?)
