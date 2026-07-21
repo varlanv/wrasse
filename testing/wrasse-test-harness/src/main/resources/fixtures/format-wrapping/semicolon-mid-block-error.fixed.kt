@@ -1,6 +1,7 @@
 package sample
 
 fun one() {}
+
 fun two() {}
 
 fun example() {

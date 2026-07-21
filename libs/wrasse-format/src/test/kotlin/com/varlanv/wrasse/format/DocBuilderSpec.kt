@@ -1803,6 +1803,343 @@ class DocBuilderSpec : BaseSpec({
 
         render(builder, ctx) shouldBe "when (x) {\n    one ->\n        if (cond) {\n            a\n        }\n}"
     }
+
+    fun bareClass(builder: DocBuilder, ctx: WContext, name: String) {
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+        leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, name)
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+    }
+
+    fun bareFun(builder: DocBuilder, ctx: WContext, name: String) {
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, name)
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+    }
+
+    fun simpleProperty(builder: DocBuilder, ctx: WContext, name: String, value: String) {
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAL, "val")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, name)
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.INTEGER_CONSTANT })
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, value)
+        builder.exitNode(ctx.apply { type = WNodeType.INTEGER_CONSTANT })
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+    }
+
+    should("force a blank line between two top-level classes with none in the source") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        bareClass(builder, ctx, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        bareClass(builder, ctx, "Bar")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo\n\nclass Bar"
+    }
+
+    should("leave the first member of a class body untouched, never forcing a blank line right after '{'") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+        leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        bareFun(builder, ctx, "bar")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo {\n    fun bar() {}\n}"
+    }
+
+    should("leave the first statement of any block untouched, not only a function's own body") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.IF })
+        leaf(builder, ctx, WNodeType.KW_IF, "if")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "cond")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        bareClass(builder, ctx, "Local")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.IF })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "if (cond) {\n    class Local\n}"
+    }
+
+    should("never force a blank line between two consecutive properties in a class body") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+        leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        simpleProperty(builder, ctx, "a", "1")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        simpleProperty(builder, ctx, "b", "2")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo {\n    val a = 1\n    val b = 2\n}"
+    }
+
+    should("never force a blank line before a local property following an ordinary statement") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "demo")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "bar")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        simpleProperty(builder, ctx, "local", "1")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun demo() {\n    bar\n    val local = 1\n}"
+    }
+
+    should("force a blank line before a local FUN following a local property, unlike the property-only local exemption") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "outer")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        simpleProperty(builder, ctx, "x", "1")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        bareFun(builder, ctx, "helper")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun outer() {\n    val x = 1\n\n    fun helper() {}\n}"
+    }
+
+    should("attach a leading EOL comment run to the following declaration, forcing the blank line before the whole run") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        bareClass(builder, ctx, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "// one")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "// two")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Bar")
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo\n\n// one\n// two\nclass Bar"
+    }
+
+    should("attach a leading KDoc to the following declaration, forcing the blank line before it") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        bareFun(builder, ctx, "foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        builder.enterNode(ctx.apply { type = WNodeType.FUN })
+        leaf(builder, ctx, WNodeType.KDOC, "/** doc */")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.KW_FUN, "fun")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "bar")
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.FUN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "fun foo() {}\n\n/** doc */\nfun bar()"
+    }
+
+    should("force a blank line before an annotated property even though consecutive properties are otherwise exempt") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS })
+        leaf(builder, ctx, WNodeType.KW_CLASS, "class")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        simpleProperty(builder, ctx, "a", "1")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        builder.enterNode(ctx.apply { type = WNodeType.MODIFIER_LIST })
+        bareAnnotationEntry(builder, ctx, "JvmField")
+        builder.exitNode(ctx.apply { type = WNodeType.MODIFIER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        leaf(builder, ctx, WNodeType.KW_VAL, "val")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "b")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.INTEGER_CONSTANT })
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, "2")
+        builder.exitNode(ctx.apply { type = WNodeType.INTEGER_CONSTANT })
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo {\n    val a = 1\n\n    @JvmField\n    val b = 2\n}"
+    }
+
+    fun propertyAccessor(builder: DocBuilder, ctx: WContext, keyword: WNodeType, keywordText: String, annotated: Boolean) {
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY_ACCESSOR })
+        if (annotated) {
+            builder.enterNode(ctx.apply { type = WNodeType.MODIFIER_LIST })
+            bareAnnotationEntry(builder, ctx, "Ann")
+            builder.exitNode(ctx.apply { type = WNodeType.MODIFIER_LIST })
+            leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        }
+        leaf(builder, ctx, keyword, keywordText)
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_PARAMETER_LIST })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "field")
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY_ACCESSOR })
+    }
+
+    should("force a blank line before an annotated property accessor following another accessor") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAR, "var")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "value")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.INTEGER_CONSTANT })
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, "0")
+        builder.exitNode(ctx.apply { type = WNodeType.INTEGER_CONSTANT })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        propertyAccessor(builder, ctx, WNodeType.KW_GET, "get", annotated = false)
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        propertyAccessor(builder, ctx, WNodeType.KW_SET, "set", annotated = true)
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "var value = 0\nget() = field\n\n@Ann\nset() = field"
+    }
+
+    should("never force a blank line before an annotated property accessor that is itself the first one") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAR, "var")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "value")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.INTEGER_CONSTANT })
+        leaf(builder, ctx, WNodeType.INTEGER_LITERAL, "0")
+        builder.exitNode(ctx.apply { type = WNodeType.INTEGER_CONSTANT })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        propertyAccessor(builder, ctx, WNodeType.KW_GET, "get", annotated = true)
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "var value = 0\n@Ann\nget() = field"
+    }
+
+    should("collapse an existing multi-blank-line gap to exactly one blank line even where insertion also applies") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        bareClass(builder, ctx, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n\n\n\n")
+        bareClass(builder, ctx, "Bar")
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo\n\nclass Bar"
+    }
 })
 
 private val noopReporter = object : WReporter {

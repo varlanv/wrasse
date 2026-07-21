@@ -1,6 +1,7 @@
 package sample
 
 fun one() {}
+
 fun accept(a: Any?) {}
 
 enum class Color { RED, GREEN, BLUE }

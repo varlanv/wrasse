@@ -3748,12 +3748,13 @@ chain also collapsing flat) rather than merely asserting it by reasoning.
 - **`blank-line-between-when-conditions`'s *add* direction** (insert a blank line between every
   `WHEN_ENTRY` when any one of them has a multiline condition) is not ported. Its own ktlint default
   gates this behind `ij_kotlin_line_break_after_multiline_when_entry`, an `.editorconfig` property
-  wrasse has no equivalent surface for (D12); more importantly, it is structurally the same shape as
-  `blank-line-before-declaration` — an ADD-a-blank-line rule gated on a cross-sibling fact — which
-  this slice's brief explicitly excludes as a family. The *removal* half needs no special code: it
+  wrasse has no equivalent surface for (D12). The *removal* half needs no special code: it
   falls out of the generic "at most one blank line" default already applied inside a `WHEN` frame
   (`format-blank-lines/when-entries-blank-lines-error` locks this — two blank lines between
   `WHEN_ENTRY`s collapse to one, the same as anywhere else, never to zero).
+- **`blank-line-before-declaration`, `spacing-between-declarations-with-annotations`, and
+  `spacing-between-declarations-with-comments`** (the ADD-a-blank-line-before-a-declaration family)
+  — see Phase C.11 below, which implements this family and its own preserved-not-guessed list.
 - **Blank lines at the true start of a file.** The brief's brief assumed `no-consecutive-blank-lines`
   also strips leading blank lines; reading the rule source shows the opposite: it explicitly skips
   any whitespace whose `prevSibling` is `null` (`node.isWhiteSpace && node.prevSibling != null`),
@@ -4481,6 +4482,154 @@ re-verified by the full ladder; none needed a `.fixed.kt` update.
 **Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
 `testPatchHarness`, `wrasseLint -Prepublish` all green. `ktlint` checkout used for ground truth
 confirmed byte-clean (`git status`) throughout — read-only; `detekt` was not needed for this slice.
+
+#### Phase C.11 — Blank-line (vertical whitespace) INSERTION around declarations, with comment attachment — **done 2026-07-21**
+
+The ADD direction C.6 deliberately deferred: `blank-line-before-declaration`,
+`spacing-between-declarations-with-annotations`, `spacing-between-declarations-with-comments`.
+`blank-line-between-when-conditions`'s own add direction stays out of scope, per C.6's note above.
+
+**Ground truth used:** the local `ktlint` checkout's own rule sources and test suites for all three
+rules (`ktlint-ruleset-standard`), plus `KtTokenSets.DECLARATION_TYPES` from the local `kotlin`
+compiler checkout (`compiler/psi/psi-api/.../KtTokenSets.java`) to resolve the wider type set the
+two comment/annotation rules use versus the base rule's own narrower list. Both checkouts confirmed
+byte-clean (`git status`) throughout — read-only.
+
+**The attachment definition (the heart of this slice), confirmed by a real compiler dump, not
+assumed:** a comment (EOL, block, or KDoc) or a KDoc/comment *run* directly preceding a declaration,
+with no blank line breaking the run, is nested by kotlinc's own LightTree as the declaration's own
+first child — not a preceding sibling of the enclosing container. This holds for every declaration
+kind (`CLASS`, `FUN`, `PROPERTY`, `OBJECT_DECLARATION`, `CLASS_INITIALIZER`) in every container
+(`FILE`, `CLASS_BODY`, `BLOCK`), including a *run* of several consecutive same-adjacency comment/KDoc
+lines (all of them nest, not just the closest one) — with one confirmed exception: a `PROPERTY`
+directly inside a `BLOCK` (a local variable) does not nest an immediately preceding comment as its
+own child at all; the comment surfaces as `BLOCK`'s own sibling entry instead (see the
+preserved-not-guessed entry below). A blank line anywhere inside a comment run breaks it: only the
+contiguous group directly touching the declaration attaches; anything before that blank line remains
+a genuine, untouched sibling of the container. Annotations attach the same way, via `MODIFIER_LIST`
+nesting inside the declaration (never via `ANNOTATED_EXPRESSION`, which the annotations rule's own
+`isAnnotated()` — `findChildByType(MODIFIER_LIST)` only — does not recognize either).
+
+**Consequence for the mechanism: zero new comment-attachment code.** Because the comment/KDoc run is
+already nested inside the following declaration's own resolved `Doc` by the time the *enclosing*
+container processes the gap before it, inserting a blank line at that gap automatically lands before
+the comment — the same gap decision that would apply to a bare, comment-free declaration. The two
+per-declaration facts this slice's policy needs — "has a leading annotation," "has a leading
+comment" — are computed once, structurally, and threaded onto the resolved `ChildEntry` the same way
+C.9's `Frame.ownsSuperTypeListLeadGap` threads state across a parent/child boundary:
+
+- **`Frame.hasLeadingAnnotation`** (new field) is set on the still-open *enclosing* frame from
+  `resolveAnnotationContainerFrame`, the moment a `WNodeType.MODIFIER_LIST` is found to contain at
+  least one `WNodeType.ANNOTATION_ENTRY` — regardless of that container's own bail/wrap decision,
+  since "is annotated" and "how the annotation renders" are independent facts.
+- **`hasLeadingComment`** needs no parent/child handshake at all: at `exitNode`, before a completed
+  frame's `Doc` is packed into its own `ChildEntry.Resolved`, its *own* first buffered child is
+  checked directly (`EOL_COMMENT`/`BLOCK_COMMENT`/`KDOC`) — the buffered-children context the SAX
+  walk already provides for free at exit time.
+- Both facts ride two new `ChildEntry.Resolved` fields (`hasLeadingAnnotation`, `hasLeadingComment`,
+  both defaulting `false` so every other construction site is unaffected), read back only by the new
+  policy function below.
+
+**Mechanism — one more branch on C.6's existing choke point, no second policy path.**
+`verticalGapNewlineCount` gained one more `if`, `forcesDeclarationBlankLine(frameType, prevEntry,
+nextEntry, isFirstAfterLbrace)`, returning `2` (the ADD case, same as the package/import rule) when
+it applies; C.6's existing checks (package/import spacing, first-after-`{`, class/primary-constructor)
+run first, unaffected, so this never contests a gap they already own. Its own children-buffer
+lookback is a single-parent comparison (`prevEntry`/`nextEntry`, already C.6's own parameters) since
+the attachment nesting above means no wider scan is ever needed.
+
+**The policy table:**
+
+| Gap | Newline count forced | Rule |
+|---|---|---|
+| `CLASS`/`CLASS_INITIALIZER`/`FUN`/`OBJECT_DECLARATION`/`PROPERTY` preceded by another `CLASS`/`OBJECT_DECLARATION`/`FUN`/`PROPERTY`/`TYPEALIAS`/`SECONDARY_CONSTRUCTOR`/`CLASS_INITIALIZER`/`ENUM_ENTRY`, in `FILE`/`CLASS_BODY`/`BLOCK` | `2` (unless an exemption below applies) | `blank-line-before-declaration` |
+| First member right after `CLASS_BODY`'s or any `BLOCK`'s own `{` | unchanged (no force) | `blank-line-before-declaration`'s own carve-out |
+| A `PROPERTY` directly inside a `BLOCK` (a local variable) | unchanged (no force), regardless of what precedes | `blank-line-before-declaration`'s local-property carve-out |
+| Two consecutive `PROPERTY`s, either container | unchanged (no force) | `blank-line-before-declaration`'s consecutive-property carve-out |
+| A `PROPERTY_ACCESSOR`, always | unchanged (no force) — see preserved-not-guessed below | n/a |
+| Any of `CLASS`/`OBJECT_DECLARATION`/`FUN`/`PROPERTY`/`TYPEALIAS`/`SECONDARY_CONSTRUCTOR`/`CLASS_INITIALIZER`/`ENUM_ENTRY` carrying its own leading annotation or leading comment, preceded by another member of that same wider set, in `FILE`/`CLASS_BODY`/`BLOCK` — **none of the carve-outs above apply** | `2` | `spacing-between-declarations-with-annotations` / `spacing-between-declarations-with-comments` |
+| A `PROPERTY_ACCESSOR` carrying its own leading annotation, preceded by another `PROPERTY_ACCESSOR` (inside `PROPERTY`'s own frame) | `2` | `spacing-between-declarations-with-annotations` |
+
+**Cap-vs-add precedence.** `forcesDeclarationBlankLine` returns exactly `2`, never more — the same
+value the package/import ADD case already used — so an existing gap with three or more newlines
+still collapses to one blank line, it never grows to two; C.6's caps and this slice's adds share one
+result value, never compose into something larger. The class-body first-member carve-out is checked
+*before* this branch is reached at all (via the existing `isFirstAfterLbrace` early return), so
+insertion can never win against it.
+
+**Preserved-not-guessed, listed:**
+- **A comment/KDoc immediately preceding a local (`BLOCK`-scoped) `PROPERTY`** does not force a blank
+  line, confirmed structurally rather than assumed: a compiler dump of `val a = 1 // comment before b
+  \n val b = 2` inside a function body shows the comment as `BLOCK`'s own sibling entry, never nested
+  inside `PROPERTY(b)`'s own frame — unlike every other declaration kind, and unlike a `CLASS_BODY`-
+  or `FILE`-level `PROPERTY`, both of which do nest a directly-adjacent comment normally (confirmed by
+  the same dump). Since ktlint's own `spacing-between-declarations-with-comments` keys off exactly the
+  same structural nesting (`comment.parent.takeIf { it.isDeclaration }`), this shape is not merely
+  unimplemented in wrasse — it is unreachable by construction for either tool, on the same parser.
+- **`PROPERTY_ACCESSOR` is unconditionally exempt from `blank-line-before-declaration`.** ktlint's own
+  rule folds accessor handling into its `isConsecutiveProperty()` check, whose `prevCodeSibling`
+  fallback (`it.parent!!.propertyRelated()`) is true for *any* `PROPERTY_ACCESSOR`, since its
+  `prevCodeSibling` always shares the same enclosing `PROPERTY` parent — so no accessor is ever forced
+  by the base rule regardless of what precedes it. Only `spacing-between-declarations-with-annotations`
+  still reaches a `PROPERTY_ACCESSOR` (via its own, wider `isDeclarationOrPropertyAccessor` check).
+- **`DESTRUCTURING_DECLARATION`** is in ktlint's real `KtTokenSets.DECLARATION_TYPES` (so
+  `spacing-between-declarations-with-annotations`/`-with-comments` do technically reach it), but an
+  annotated or comment-preceded destructuring declaration is rare enough, and structurally distinct
+  enough from every other member of that set, that it was left out of `DECLARATION_SPACING_TYPES` —
+  narrower than upstream, never broader.
+- The annotation use-site-target/`ktlint_official`-only carve-outs C.9 already declined for the same
+  reasons apply identically here; not re-litigated.
+
+**Existing-fixture audit and changes — the full blast radius, confirmed by running the ladder, not
+estimated.** Every `format-*`/`bracing-format-on` fixture directory was grepped for adjacent
+declaration-shaped lines before implementing, then the full harness run against the real mechanism
+confirmed the exact same 8 files as the manual audit — no surprises in either direction:
+- `format-wrapping/already-clean.kt` — its own `fun one() {}`/`fun accept(a: Any?) {}` preamble had no
+  blank line between them; since this fixture's premise is "already canonical," the source itself
+  gained the blank line (its own point — block-content wrapping — is unaffected).
+- `format-wrapping/block-content-own-line-error.fixed.kt`,
+  `comment-adjacent-semicolon-bail-error.fixed.kt`, `semicolon-mid-block-error.fixed.kt`,
+  `kitchen-sink-error.fixed.kt` — all four share the same `fun one() {}`/`fun two() {}` preamble
+  (unrelated to each fixture's own concern); only the `.fixed.kt` gained the blank line, since the
+  `.kt` source's own missing blank line is now itself something this compile fixes, same as the
+  concern each fixture already exercises.
+- `format-with-fixes/grand-slam-error.fixed.kt`, `no-semicolons-and-reindent-error.fixed.kt` — a
+  class's own `val x = 1` directly followed by `fun show()`, no blank line; `.fixed.kt` gained one
+  (`PROPERTY` → `FUN`, not the consecutive-property or local-property carve-out).
+  `no-unused-imports-and-reindent-error` and the two remaining `format-with-fixes` fixtures needed no
+  change — audited, no adjacent-declaration shape present.
+- `format-spacing/colon-supertype-and-generic-bound-spacing-error.fixed.kt` — `open class Animal`
+  directly followed by `class Dog : Animal()`, no blank line; `.fixed.kt` gained one.
+- No other `format-*`/`bracing-format-on` fixture directory (`format-annotations`, `format-blank-lines`,
+  `format-class-signatures`, `format-indentation`, `format-signatures`, `format-line-breaks`,
+  `format-trailing-commas`) needed any change — every apparent adjacency in those directories is
+  either a class/function body's own first statement (exempt), two consecutive properties (exempt), a
+  parameter-list line (not a declaration boundary at all), or already correctly blank-lined.
+
+**Fixtures:** new `testing/wrasse-test-harness/.../fixtures/format-declaration-blank-lines/` directory
+(own `wrasse.json`, default style), 14 fixtures: `top-level-classes-error`,
+`top-level-functions-error` (the base rule at `FILE` scope), `class-body-members-error`
+(`PROPERTY`→`FUN`→`FUN`→`CLASS_INITIALIZER`, all forced), `first-member-clean` (a class body's own
+first member and a block's own first local declaration, both untouched), `consecutive-properties-clean`
+(top-level, class-body, and local-after-statement, all untouched), `local-fun-after-local-declaration-
+error` (the local-property-only-carve-out asymmetry), `eol-comment-run-attachment-error` (a two-line
+comment run, blank line lands before both lines), `block-comment-attachment-error`,
+`kdoc-attachment-error`, `comment-blank-line-already-present-clean` (no double insertion when a blank
+line already precedes the attached comment), `annotated-consecutive-property-forces-blank-line-error`
+and `comment-forces-consecutive-property-blank-line-error` (both defeating the base rule's own
+consecutive-property carve-out), a kitchen sink, and an already-clean canonical file. `libs/wrasse-
+format/DocBuilderSpec` gained 12 new unit tests: the base rule at `FILE` scope; the class-body- and
+any-block's-own first-member carve-outs (the latter built on an `IF`'s own `BLOCK`, with no `FUN`
+ancestor at all, to prove the exemption's unconditional scope); the consecutive-property and
+local-property-after-a-statement carve-outs; the local-property/local-`FUN` asymmetry; the EOL-comment-
+run and KDoc attachment cases; the annotation carve-out-defeat case; both `PROPERTY_ACCESSOR` cases
+(annotated second accessor forces, annotated first accessor does not); and the cap-vs-add precedence
+case (an existing four-newline gap before a forced declaration still collapses to exactly one blank
+line).
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green. `ktlint`/`kotlin` checkouts used for ground
+truth confirmed byte-clean (`git status`) throughout — read-only.
 
 ### Phase D — Hardening & release
 

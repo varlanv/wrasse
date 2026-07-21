@@ -18,6 +18,12 @@ private val ASSIGNMENT_OPERATOR_TEXTS = setOf("=", "+=", "-=", "*=", "/=", "%=")
 private val OWN_LINE_FORCE_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN)
 private val SEMICOLON_BREAK_SCOPE = setOf(WNodeType.BLOCK, WNodeType.WHEN)
 private val MULTILINE_WRAPPABLE_VALUE_TYPES = setOf(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
+private val BLANK_LINE_BEFORE_DECLARATION_TYPES =
+    setOf(WNodeType.CLASS, WNodeType.CLASS_INITIALIZER, WNodeType.FUN, WNodeType.OBJECT_DECLARATION, WNodeType.PROPERTY)
+private val DECLARATION_SPACING_TYPES = BLANK_LINE_BEFORE_DECLARATION_TYPES +
+    setOf(WNodeType.TYPEALIAS, WNodeType.SECONDARY_CONSTRUCTOR, WNodeType.ENUM_ENTRY)
+private val DECLARATION_GAP_CONTAINER_TYPES = setOf(WNodeType.FILE, WNodeType.CLASS_BODY, WNodeType.BLOCK)
+private val LEADING_COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT, WNodeType.KDOC)
 
 private val KEYWORDS_WANTING_SPACE_AFTER =
     setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH, WNodeType.KW_WHERE)
@@ -81,7 +87,8 @@ class DocBuilder(
         if (frames.isEmpty()) {
             rootDoc = doc
         } else {
-            frames.last().children.add(ChildEntry.Resolved(ctx.type, doc))
+            val hasLeadingComment = frame.children.firstOrNull()?.type in LEADING_COMMENT_TYPES
+            frames.last().children.add(ChildEntry.Resolved(ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment))
         }
     }
 
@@ -524,9 +531,10 @@ class DocBuilder(
      * [resolveBraceFrame]'s own dedent call site, not here), zero blank lines immediately after a
      * [WNodeType.CLASS_BODY]'s own `{` or a [WNodeType.BLOCK]'s own `{` when some enclosing frame
      * is a [WNodeType.FUN] ([ancestorHasFun]), and zero blank lines between a class name and its
-     * primary constructor; exactly one blank line — the only case that can add a newline, not just
-     * cap one, gated on [entryHasContent] — between a non-empty package directive and a non-empty
-     * import list, and between that import list and whatever follows it.
+     * primary constructor; exactly one blank line — gated on [entryHasContent] — between a
+     * non-empty package directive and a non-empty import list, and between that import list and
+     * whatever follows it; exactly one blank line — the other case that can add a newline, not
+     * just cap one — wherever [forcesDeclarationBlankLine] applies.
      */
     private fun verticalGapNewlineCount(
         frameType: WNodeType,
@@ -552,7 +560,66 @@ class DocBuilder(
         if (frameType == WNodeType.CLASS && prevEntry?.type == WNodeType.IDENTIFIER && nextEntry?.type == WNodeType.PRIMARY_CONSTRUCTOR) {
             return 1
         }
+        if (forcesDeclarationBlankLine(frameType, prevEntry, nextEntry, isFirstAfterLbrace)) {
+            return 2
+        }
         return if (actual > 2) 2 else actual
+    }
+
+    /**
+     * Whether the gap right before [nextEntry] must carry at least one blank line, folding three
+     * concerns into the one gap decision every [ChildEntry.Ws] already goes through: a
+     * [WNodeType.CLASS]/[WNodeType.CLASS_INITIALIZER]/[WNodeType.FUN]/[WNodeType.OBJECT_DECLARATION]/
+     * [WNodeType.PROPERTY] preceded by another declaration ([BLANK_LINE_BEFORE_DECLARATION_TYPES]);
+     * any [DECLARATION_SPACING_TYPES] member carrying its own leading annotation or leading comment
+     * ([ChildEntry.Resolved.hasLeadingAnnotation]/[ChildEntry.Resolved.hasLeadingComment]) — a wider
+     * type set, with none of the base rule's own carve-outs below — when it follows another
+     * [DECLARATION_SPACING_TYPES] member; and, inside a [WNodeType.PROPERTY]'s own frame, a leading-
+     * annotated [WNodeType.PROPERTY_ACCESSOR] that follows another accessor.
+     *
+     * The first two only ever apply inside [DECLARATION_GAP_CONTAINER_TYPES] — a container without a
+     * preceding sibling declaration (the very first member, or the very first file declaration) never
+     * matches, since [prevEntry] then carries no declaration type at all. The base rule additionally
+     * exempts: the first member right after a class body's or any block's own `{` ([isFirstAfterLbrace],
+     * unconditional here — unlike [ancestorHasFun]'s narrower scope above, this exemption holds for
+     * every block, not only a function's own); a [WNodeType.PROPERTY] directly inside a
+     * [WNodeType.BLOCK] (a local variable, never forced); and two consecutive
+     * [WNodeType.PROPERTY]s (in either container). Neither exemption applies to the annotation/comment
+     * branch, matching how those are structurally separate, wider-scoped decisions.
+     *
+     * The comment/annotation branch relies on [ChildEntry.Resolved.hasLeadingComment]/
+     * [hasLeadingAnnotation], which are true only when the comment/annotation is nested as the
+     * declaration's own first child — the shape every declaration kind gets from a real compile
+     * when no blank line separates it from what precedes, with one confirmed exception: a
+     * [WNodeType.PROPERTY] directly inside a [WNodeType.BLOCK] (a local variable) does not nest an
+     * immediately preceding comment as its own child at all; the comment surfaces as [WNodeType.BLOCK]'s
+     * own sibling entry instead, so this branch cannot see it there and no blank line is forced —
+     * unreachable by construction, not an oversight.
+     */
+    private fun forcesDeclarationBlankLine(
+        frameType: WNodeType,
+        prevEntry: ChildEntry?,
+        nextEntry: ChildEntry?,
+        isFirstAfterLbrace: Boolean,
+    ): Boolean {
+        val next = nextEntry as? ChildEntry.Resolved ?: return false
+        val prevType = (prevEntry as? ChildEntry.Resolved)?.type
+
+        if (frameType == WNodeType.PROPERTY) {
+            return next.type == WNodeType.PROPERTY_ACCESSOR && next.hasLeadingAnnotation && prevType == WNodeType.PROPERTY_ACCESSOR
+        }
+        if (frameType !in DECLARATION_GAP_CONTAINER_TYPES) return false
+
+        if (next.type in DECLARATION_SPACING_TYPES && prevType in DECLARATION_SPACING_TYPES &&
+            (next.hasLeadingAnnotation || next.hasLeadingComment)
+        ) {
+            return true
+        }
+
+        if (next.type !in BLANK_LINE_BEFORE_DECLARATION_TYPES) return false
+        if (isFirstAfterLbrace) return false
+        if (next.type == WNodeType.PROPERTY && (frameType == WNodeType.BLOCK || prevType == WNodeType.PROPERTY)) return false
+        return prevType in DECLARATION_SPACING_TYPES
     }
 
     private fun entryHasContent(entry: ChildEntry?): Boolean = entry is ChildEntry.Resolved && !isEmptyDoc(entry.doc)
@@ -971,6 +1038,11 @@ class DocBuilder(
      * ([containsParen], reliable since `(` cannot otherwise appear in an annotation entry's own
      * text) or two or more annotations always wrap, one per line, at the declaration's own depth
      * ([wrapAnnotationEntries]).
+     *
+     * A [WNodeType.MODIFIER_LIST] carrying at least one [WNodeType.ANNOTATION_ENTRY] marks its still-
+     * open enclosing frame's [Frame.hasLeadingAnnotation], regardless of the bail/wrap decision above
+     * — [forcesDeclarationBlankLine] reads this once the enclosing declaration is itself resolved
+     * into a [ChildEntry.Resolved].
      */
     private fun resolveAnnotationContainerFrame(frame: Frame, start: Int, end: Int, parentType: WNodeType?): Doc {
         if (parentType in ANNOTATION_EXEMPT_PARENT_TYPES) return resolveBraceFrame(frame, start, end)
@@ -978,6 +1050,9 @@ class DocBuilder(
         if (children.any { it.type == WNodeType.UNKNOWN || it.type in COMMENT_TYPES }) return resolveBraceFrame(frame, start, end)
         val entryIndices = children.indices.filter { children[it].type == WNodeType.ANNOTATION_ENTRY }
         if (entryIndices.isEmpty()) return resolveBraceFrame(frame, start, end)
+        if (frame.type == WNodeType.MODIFIER_LIST) {
+            frames.lastOrNull()?.hasLeadingAnnotation = true
+        }
         if (frame.type == WNodeType.ANNOTATED_EXPRESSION && isBeforeLambdaExpression(children, entryIndices.last())) {
             return resolveBraceFrame(frame, start, end)
         }
@@ -1248,12 +1323,18 @@ class DocBuilder(
     private class Frame(val type: WNodeType) {
         val children = mutableListOf<ChildEntry>()
         var ownsSuperTypeListLeadGap = false
+        var hasLeadingAnnotation = false
     }
 
     private sealed interface ChildEntry {
         val type: WNodeType
 
-        class Resolved(override val type: WNodeType, val doc: Doc) : ChildEntry
+        class Resolved(
+            override val type: WNodeType,
+            val doc: Doc,
+            val hasLeadingAnnotation: Boolean = false,
+            val hasLeadingComment: Boolean = false,
+        ) : ChildEntry
         class Ws(val rawText: String, val start: Int) : ChildEntry {
             override val type: WNodeType = WNodeType.WHITE_SPACE
         }
