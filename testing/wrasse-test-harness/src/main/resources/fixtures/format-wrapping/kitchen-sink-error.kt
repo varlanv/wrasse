@@ -1,0 +1,37 @@
+package sample
+
+fun one() {}
+fun two() {}
+
+enum class Color { RED, GREEN, BLUE }
+
+fun blockCase() {
+    if (true) { one()
+        two() }
+}
+
+fun semicolonCase() {
+    if (true) { one(); two() }
+}
+
+fun propertyCase(cond: Boolean): Int {
+    val x = if (cond) {
+        1
+    } else {
+        2
+    }
+    return x
+}
+
+fun whenEntryCase(x: Int, cond: Boolean): Int {
+    return when (x) {
+        1 -> if (cond) {
+            10
+        } else {
+            20
+        }
+        else -> 0
+    }
+}
+
+// expect-error 1:1 format "File is not wrasse-formatted"

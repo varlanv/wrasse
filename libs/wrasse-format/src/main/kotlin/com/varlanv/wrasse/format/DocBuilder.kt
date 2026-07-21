@@ -14,6 +14,10 @@ private val COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT
 private val SUPER_TYPE_ENTRY_TYPES = setOf(WNodeType.SUPER_TYPE_ENTRY, WNodeType.SUPER_TYPE_CALL_ENTRY)
 private val ANNOTATION_CONTAINER_TYPES = setOf(WNodeType.MODIFIER_LIST, WNodeType.ANNOTATED_EXPRESSION)
 private val ANNOTATION_EXEMPT_PARENT_TYPES = setOf(WNodeType.VALUE_PARAMETER, WNodeType.VALUE_ARGUMENT)
+private val ASSIGNMENT_OPERATOR_TEXTS = setOf("=", "+=", "-=", "*=", "/=", "%=")
+private val OWN_LINE_FORCE_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN)
+private val SEMICOLON_BREAK_SCOPE = setOf(WNodeType.BLOCK, WNodeType.WHEN)
+private val MULTILINE_WRAPPABLE_VALUE_TYPES = setOf(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
 
 private val KEYWORDS_WANTING_SPACE_AFTER =
     setOf(WNodeType.KW_IF, WNodeType.KW_WHEN, WNodeType.KW_FOR, WNodeType.KW_WHILE, WNodeType.KW_CATCH, WNodeType.KW_WHERE)
@@ -143,6 +147,8 @@ class DocBuilder(
 
         WNodeType.MODIFIER_LIST, WNodeType.ANNOTATED_EXPRESSION -> resolveAnnotationContainerFrame(frame, start, end, parentType)
 
+        WNodeType.PROPERTY -> resolvePropertyFrame(frame, start, end)
+
         WNodeType.PREFIX_EXPRESSION, WNodeType.POSTFIX_EXPRESSION -> resolveUnaryFrame(frame, start, end)
 
         else -> resolveBraceFrame(frame, start, end)
@@ -156,7 +162,9 @@ class DocBuilder(
      */
     private fun resolveBraceFrame(frame: Frame, start: Int, end: Int): Doc {
         val rawChildren = if (frame.type == WNodeType.FUNCTION_LITERAL) normalizeLambdaBraces(frame.children) else frame.children
-        val children = adjustAnnotationTrailingGap(rawChildren)
+        val annotationAdjusted = adjustAnnotationTrailingGap(rawChildren)
+        val semicolonAdjusted = convertStatementSeparatorSemicolons(annotationAdjusted, frame.type)
+        val children = forceMultilineBraceGaps(semicolonAdjusted, frame.type)
         if (children.isEmpty()) return Doc.Concat(emptyList(), start, end)
 
         val suppressSuperTypeListLeadGap = frame.ownsSuperTypeListLeadGap
@@ -197,6 +205,159 @@ class DocBuilder(
      */
     private fun ancestorHasFun(frameType: WNodeType): Boolean =
         frameType == WNodeType.BLOCK && frames.any { it.type == WNodeType.FUN }
+
+    /**
+     * Converts a [WNodeType.SEMICOLON] that separates two statements on the same physical line
+     * (or precedes the frame's own closing `}` on the same line) into a `HARD` break, dropping the
+     * semicolon character itself — a provably-redundant statement separator once the line break
+     * takes over that role (§5.3). Scoped to [SEMICOLON_BREAK_SCOPE] only, which structurally
+     * excludes a [WNodeType.CLASS_BODY]'s own enum-entries-list terminator (never a direct
+     * [WNodeType.BLOCK]/[WNodeType.WHEN] child) — that semicolon stays [NoSemicolonsRule]'s alone.
+     * Bails (leaves the semicolon untouched) when a real newline already separates it from the next
+     * code token, when nothing follows it at all, or when a comment sits directly after it.
+     */
+    private fun convertStatementSeparatorSemicolons(children: List<ChildEntry>, frameType: WNodeType): List<ChildEntry> {
+        if (frameType !in SEMICOLON_BREAK_SCOPE) return children
+        if (children.none { it.type == WNodeType.SEMICOLON }) return children
+
+        val out = ArrayList<ChildEntry>(children.size)
+        var i = 0
+        while (i < children.size) {
+            val entry = children[i]
+            if (entry.type != WNodeType.SEMICOLON) {
+                out.add(entry)
+                i++
+                continue
+            }
+            val gapIdx = i + 1
+            val gapEntry = children.getOrNull(gapIdx)
+            val nextReal = (gapIdx until children.size).map { children[it] }.firstOrNull { it.type != WNodeType.WHITE_SPACE }
+            if (gapEntry is ChildEntry.Ws || nextReal == null || nextReal.type in COMMENT_TYPES) {
+                out.add(entry)
+                i++
+                continue
+            }
+            val semicolonDoc = (entry as ChildEntry.Resolved).doc
+            out.add(ChildEntry.Ws("\n", semicolonDoc.start))
+            i = if (gapEntry != null && isPlainWhitespace(gapEntry)) gapIdx + 1 else gapIdx
+        }
+        return out
+    }
+
+    /**
+     * A [OWN_LINE_FORCE_TYPES] frame whose braced body (between its own `{` and `}` — for
+     * [WNodeType.WHEN] that excludes the `when (subject)` header preceding `{`) already spans
+     * multiple lines (any child, post-semicolon-conversion, is itself forced multi-line) gets a
+     * `HARD` break right after that `{` and right before its own closing `}` when one isn't
+     * already there — no code shares `{`'s line, and `}` never shares a line with the content
+     * before it. A no-op for: a frame without its own `{`/`}` pair (a lambda's transparent
+     * [WNodeType.BLOCK]); an entirely single-line body (this mechanism never decides fit, only
+     * reacts to content that is already going to be multi-line); an enum [WNodeType.CLASS_BODY]
+     * that is, as a whole, still single-line (`enum class Foo { A, B }` stays exactly as written).
+     */
+    private fun forceMultilineBraceGaps(children: List<ChildEntry>, frameType: WNodeType): List<ChildEntry> {
+        if (frameType !in OWN_LINE_FORCE_TYPES) return children
+        if (children.isEmpty() || children.last().type != WNodeType.RBRACE) return children
+        val lbraceIdx = children.indexOfFirst { it.type == WNodeType.LBRACE }
+        if (lbraceIdx < 0 || lbraceIdx >= children.size - 1) return children
+        val body = children.subList(lbraceIdx, children.size)
+        if (frameType == WNodeType.CLASS_BODY && body.any { it.type == WNodeType.ENUM_ENTRY } &&
+            body.none { isForcedMultilineChild(it) }
+        ) {
+            return children
+        }
+        if (body.none { isForcedMultilineChild(it) }) return children
+
+        val withHeadBreak = insertBreakAfter(children, anchorIdx = lbraceIdx)
+        return insertBreakBefore(withHeadBreak, anchorIdx = withHeadBreak.size - 1)
+    }
+
+    private fun isForcedMultilineChild(entry: ChildEntry): Boolean = when (entry) {
+        is ChildEntry.Ws -> entry.rawText.contains('\n')
+        is ChildEntry.Resolved -> spansMultipleLines(entry.doc)
+    }
+
+    private fun insertBreakAfter(children: List<ChildEntry>, anchorIdx: Int): List<ChildEntry> {
+        val nextIdx = anchorIdx + 1
+        val next = children.getOrNull(nextIdx) ?: return children
+        if (next is ChildEntry.Ws) return children
+        val result = children.toMutableList()
+        if (isPlainWhitespace(next)) {
+            result[nextIdx] = ChildEntry.Ws("\n", (next as ChildEntry.Resolved).doc.start)
+        } else {
+            val anchorEnd = (children[anchorIdx] as ChildEntry.Resolved).doc.end
+            result.add(nextIdx, ChildEntry.Ws("\n", anchorEnd))
+        }
+        return result
+    }
+
+    private fun insertBreakBefore(children: List<ChildEntry>, anchorIdx: Int): List<ChildEntry> {
+        val prevIdx = anchorIdx - 1
+        val prev = children.getOrNull(prevIdx) ?: return children
+        if (prev is ChildEntry.Ws) return children
+        val result = children.toMutableList()
+        if (isPlainWhitespace(prev)) {
+            result[prevIdx] = ChildEntry.Ws("\n", (prev as ChildEntry.Resolved).doc.start)
+        } else {
+            val prevEnd = (prev as ChildEntry.Resolved).doc.end
+            result.add(anchorIdx, ChildEntry.Ws("\n", prevEnd))
+        }
+        return result
+    }
+
+    /**
+     * A [WNodeType.PROPERTY]'s own initializer: when the value after its direct [WNodeType.EQ]
+     * child is already forced multi-line, moves it onto its own line, one [Doc.Indent] level
+     * deeper. A `FUN`'s own expression-body initializer is a different grammar production (`EQ`
+     * is a direct child of `FUN`, never `PROPERTY`) and is untouched by this frame.
+     */
+    private fun resolvePropertyFrame(frame: Frame, start: Int, end: Int): Doc {
+        val children = frame.children
+        val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
+        if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
+        return resolveAssignedValueFrame(children, WNodeType.PROPERTY, start, end, eqIdx)
+            ?: resolveBraceFrame(frame, start, end)
+    }
+
+    /**
+     * Shared by [resolvePropertyFrame], [resolveBinaryFrame]'s assignment-operator case, and
+     * [resolveWhenEntryFrame]'s own arrow: when the value found right after [anchorIdx] is one of
+     * [MULTILINE_WRAPPABLE_VALUE_TYPES] and is already forced multi-line ([spansMultipleLines]),
+     * moves it onto its own line, one [Doc.Indent] level deeper, reusing an existing gap's own
+     * break if the source already had one there. Returns `null` — meaning the caller falls through
+     * to its own unchanged default — when there is no value, the value is a comment, the value's
+     * own type is outside [MULTILINE_WRAPPABLE_VALUE_TYPES] (a raw multi-line string/KDoc token, a
+     * lambda or object-literal value whose own `{` always stays attached to the anchor, or a
+     * dot-chain/call/binary value — [resolveChainFrame]/[resolveBinaryFrame]'s own `Doc.Group`
+     * already decides those, including the deliberate "receiver stays, only `.method()` continues"
+     * placement a broader type match here would fight), or the value does not (yet) need to be
+     * forced multi-line (a fit-pending chain/binary expression, still `Doc.Group`-decided).
+     */
+    private fun resolveAssignedValueFrame(children: List<ChildEntry>, frameType: WNodeType, start: Int, end: Int, anchorIdx: Int): Doc? {
+        val valueIdx = (anchorIdx + 1 until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return null
+        val valueEntry = children[valueIdx]
+        if (valueEntry.type !in MULTILINE_WRAPPABLE_VALUE_TYPES) return null
+        if (valueEntry !is ChildEntry.Resolved || !spansMultipleLines(valueEntry.doc)) return null
+
+        val headParts = normalizeChildren(children.subList(0, anchorIdx + 1), frameType)
+        val gapEntry = children.getOrNull(anchorIdx + 1)
+        val breakDoc = when {
+            gapEntry is ChildEntry.Ws -> clampWs(gapEntry, newlineCount = 1)
+            gapEntry != null && isPlainWhitespace(gapEntry) -> {
+                val ws = (gapEntry as ChildEntry.Resolved).doc
+                Doc.Break(BreakKind.HARD, literal = "\n", start = ws.start, end = ws.end)
+            }
+
+            else -> {
+                val anchorEnd = (children[anchorIdx] as ChildEntry.Resolved).doc.end
+                Doc.Break(BreakKind.HARD, literal = "\n", start = anchorEnd, end = anchorEnd)
+            }
+        }
+        val tailParts = normalizeChildren(children.subList(valueIdx, children.size), frameType)
+        val tailEnd = tailParts.lastOrNull()?.end ?: end
+        val body = Doc.Indent(Doc.Concat(listOf(breakDoc) + tailParts, breakDoc.start, tailEnd))
+        return Doc.Concat(headParts + listOf(body), start, end)
+    }
 
     /**
      * A [WNodeType.PREFIX_EXPRESSION]/[WNodeType.POSTFIX_EXPRESSION] (`-x`, `!x`, `x++`, `x!!`) is
@@ -501,6 +662,11 @@ class DocBuilder(
      * the operator for every operator but `?:`, which breaks before it, alongside `.`/`?.`. The
      * flat-form gap is one space for every operator except the range operator (`..`), which is
      * tight both sides, unconditionally.
+     *
+     * An assignment operator ([ASSIGNMENT_OPERATOR_TEXTS], e.g. `x = <expr>`, `x += <expr>`) is
+     * never chained (never a [WNodeType.BINARY_EXPRESSION] operand of another one), so it is
+     * always effectively root; when its value is already forced multi-line,
+     * [resolveAssignedValueFrame] takes over instead of the generic chain/binary machinery below.
      */
     private fun resolveBinaryFrame(frame: Frame, start: Int, end: Int, isRoot: Boolean): Doc {
         val children = frame.children
@@ -508,6 +674,9 @@ class DocBuilder(
         if (opIdx < 0) return Doc.Concat(children.map { resolveEntry(it) }, start, end)
 
         val opText = flatText((children[opIdx] as ChildEntry.Resolved).doc)
+        if (opText in ASSIGNMENT_OPERATOR_TEXTS) {
+            resolveAssignedValueFrame(children, WNodeType.BINARY_EXPRESSION, start, end, opIdx)?.let { return it }
+        }
         val isElvis = opText == "?:"
         val flat = if (opText == "..") "" else " "
         val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = isElvis, flat = flat)
@@ -925,6 +1094,11 @@ class DocBuilder(
      * structurally-unrecognized child ([WNodeType.UNKNOWN] — a guard clause has no [WNodeType] of
      * its own, so this is the only way to detect one). In all three cases the entry is left
      * untouched.
+     *
+     * Independent of that bail (it concerns only the condition list): when the entry's own body —
+     * whatever follows the arrow — is already forced multi-line and is not itself a
+     * [WNodeType.BLOCK] (owned by [forceMultilineBraceGaps] instead), [resolveAssignedValueFrame]
+     * moves it onto its own line.
      */
     private fun resolveWhenEntryFrame(frame: Frame, start: Int, end: Int): Doc {
         val children = frame.children
@@ -933,6 +1107,11 @@ class DocBuilder(
         val bail = arrowIdx < 0 || !hasSubject ||
             (0 until arrowIdx).any { children[it].type == WNodeType.KW_ELSE || children[it].type == WNodeType.UNKNOWN }
         val adjusted = if (bail) children else applyTrailingComma(children, 0, arrowIdx)
+
+        val adjustedArrowIdx = adjusted.indexOfFirst { it.type == WNodeType.ARROW }
+        if (adjustedArrowIdx >= 0) {
+            resolveAssignedValueFrame(adjusted, WNodeType.WHEN_ENTRY, start, end, adjustedArrowIdx)?.let { return it }
+        }
         return resolveBraceFrame(rebuildFrame(frame, adjusted), start, end)
     }
 

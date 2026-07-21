@@ -4364,6 +4364,124 @@ seven fixture directories are removed — those directories now exercise the tru
 fixtures test the threshold mechanism itself. Amends D21's locked value, not its locked surface
 (the parameter stays; only the default and its optionality changed).
 
+#### Phase C.10 — Statement/expression wrapping cluster — **done 2026-07-21**
+
+Ground-truthed against the local `ktlint` checkout's `wrapping`, `statement-wrapping`,
+`if-else-wrapping`, and `multiline-expression-wrapping` rules (source + tests, read-only, confirmed
+byte-clean via `git status` throughout, never the internet). `condition-wrapping` does not exist as
+a distinct rule in the checked-out version — see the covered-bucket entry below for what that name
+was actually probing. `mixed-condition-operators` (autoformat-scope.md: `L`) is untouched, per the
+brief.
+
+**Three-bucket map** (this slice's most important artifact):
+
+| Concern (upstream rule) | Bucket | Disposition |
+|---|---|---|
+| Chain/binary operator break position, argument-list wrapping (`wrapping`'s `LPAR`/`VALUE_ARGUMENT_LIST`/`VALUE_PARAMETER_LIST` paths) | (a) covered | Phase C.4/C.7/C.8's own `Doc.Group`/`SOFT`-break machinery, unchanged |
+| `if`/`while` condition wrapping (`wrapping`'s bare-`LPAR` `rearrangeBlock`, the "IDEA quirk" `RPAR`/`{` stay attached) | (a) covered | Phase C.4's `resolveBinaryFrame` already produces exactly this shape (verified by a real fixture, `condition-multi-operator-already-covered-error`) — the reason `condition-wrapping` reads as ambiguous is that it names no real rule; this is what the brief's mention actually resolves to |
+| A multi-line value argument starts on its own line (`multiline-expression-wrapping`'s `isValueArgument()`) | (a) covered | `resolveArgumentListFrame`'s existing `Doc.Group` is already forced broken by `Layout.flatWidth`'s null-propagation whenever the argument itself contains a `HARD` break, which already opens right after `(` — verified by `value-argument-multiline-already-covered-clean` |
+| Class-signature/supertype-list/annotation wrapping | (a) covered | Phase C.9, unrelated to this cluster |
+| `if`/`else` branch content starts on its own line, once braced (`if-else-wrapping`'s `THEN`/`ELSE`-interior newline, and its brace-adjacent `else`/`{` exemption) | (a) covered | composes for free from bracing (`if-else-bracing`, a prior rule) plus this slice's new block-own-line mechanism (below) — `THEN`/`ELSE` are plain wrappers around a `BLOCK`, which is exactly what that mechanism now owns |
+| Block/class-body/`when` content shares its own `{`'s or `}`'s line (`wrapping`'s `BLOCK` newline-insertion, `statement-wrapping`'s `visitBlock`) | (b) implemented | `forceMultilineBraceGaps` (new) |
+| Multiple statements on one physical line via a real (non-redundant) separator semicolon (`statement-wrapping`'s `visitSemiColon`) | (b) implemented | `convertStatementSeparatorSemicolons` (new) |
+| A `PROPERTY`/reassignment/`when`-entry value that is itself an `if`/`when`/`try` block starts on its own line (`multiline-expression-wrapping`'s `isValueInAnAssignment()`/`isAfterArrow()`) | (b) implemented | `resolveAssignedValueFrame` (new) |
+| Fit-driven forcing of a currently-single-line block/list into multi-line (`wrapping`'s `maxLineLength`-triggered `BLOCK`/type-argument-list paths) | (c) preserved | needs a `Doc.Group`-wrapped block body — a materially bigger mechanism (would also need per-statement break points inside a body that today only ever has hard-coded verbatim breaks); not attempted |
+| A lambda's own first statement starts on its own line when multi-line (`multiline-expression-wrapping`'s `isLambdaExpression()`) | (c) preserved | the anchor lives in the *enclosing* `FUNCTION_LITERAL` frame's own head-gap decision (`normalizeLambdaHead`), not the nested `BLOCK`'s; composing this correctly without risking a regression to the existing lambda-brace-spacing mechanism was judged not worth attempting this slice |
+| Type-argument/type-parameter list per-entry newline enforcement on an already-multi-line list (`wrapping`'s `rearrangeTypeArgumentList`) | (c) preserved | these lists are deliberately "never reflowed" as of Phase C.8 (their own comma decision is static, build-time); adding a reflow mechanism here would reopen that already-shipped, tested decision |
+| A bare (non-list) parenthesized expression spanning multiple lines (`wrapping`'s bare-`LPAR`/`LBRACKET` `rearrangeBlock`, non-condition case) | (c) preserved | rare construct, no dedicated `WNodeType` handling today; verbatim |
+| A raw multi-line string literal's closing `"""` gets its own line before `.trimIndent()` (`wrapping`'s `rearrangeClosingQuote`) | (c) preserved | narrow, rare construct; not attempted |
+| Single-line if-statement "should be kept simple" judgment (`if-else-wrapping`'s `visitBranchSingleLineIf`) | (c) preserved | upstream itself reports this as non-autocorrectable (`emit(..., false)`); no printer-layout equivalent exists for a "don't write it this way" judgment, only for whitespace/line-break decisions |
+| Forcing a fully single-line nested `else if` chain multi-line regardless of length (`if-else-wrapping`'s `nestedIf` override of `multilineIf`) | (c) preserved | `if-else-bracing`'s own chain-spans-multiple-lines gate is an already-recorded, deliberate, narrower-than-ktlint decision (matching detekt's default too); reopening it here would contradict that prior, owner-adjacent choice |
+
+**Mechanism 1 — `convertStatementSeparatorSemicolons`.** Scoped to `WNodeType.BLOCK`/`WNodeType.WHEN`
+only (`CLASS_BODY` is deliberately excluded: the only semicolon a class body's own children can
+contain is the enum-entries-list terminator, already fully owned by `no-semicolons`'
+`enumTailIsUnnecessary`, so scoping away from `CLASS_BODY` sidesteps that case by construction,
+never by special-casing it). A `SEMICOLON` child not already followed by a real newline, with real
+content (or the frame's own closing `}`) still to come before the next newline, is replaced —
+reusing its own one-character span — by a synthetic `ChildEntry.Ws("\n", ...)`: the semicolon
+character is dropped and a break takes its place in one step, satisfying the printer's own
+born-clean discipline (a break inserted there without also dropping the semicolon would leave a
+provably-redundant separator semicolon behind — exactly what a second `no-semicolons` pass would
+then flag, breaking the idempotence invariant; the printer's own contract explicitly permits
+removing that kind of semicolon, so this is not a new exception, just its first real trigger). Bails
+(leaves the semicolon untouched) when a comment sits directly after it — the same "bail identically"
+discipline as every other comment-adjacent decision in this file — or when nothing follows it at
+all.
+
+**Mechanism 2 — `forceMultilineBraceGaps`.** Scoped to `WNodeType.BLOCK`/`CLASS_BODY`/`WHEN`
+(`FUNCTION_LITERAL` excluded — its own `{`/arrow head gap is `normalizeLambdaHead`'s concern, and
+composing a second, independent break-insertion decision there risked fighting that existing
+mechanism for a case this slice did not need to solve). Finds the frame's own `{` by index rather
+than assuming it is the first child — `WHEN`'s own frame carries the `when (subject)` header before
+its brace, unlike `BLOCK`/`CLASS_BODY` (found failing-first: an initial version assumed index `0`
+and a `when (x) { ... }` construct with an already-embedded newline between entries rendered
+completely untouched, caught by the fixture ladder, not reasoned out in advance). When the braced
+body (from that `{` onward) already contains a forced multi-line child — post
+`convertStatementSeparatorSemicolons`, so a fully single-line block with two semicolon-separated
+statements also qualifies — a break is inserted right after `{` and right before `}` wherever one
+is not already there, reusing an existing plain-space gap's span when present or a zero-width point
+otherwise. No-ops for: a frame without its own `{`/`}` pair at all (a lambda's transparent `BLOCK`
+has neither); an entirely single-line body (this mechanism never decides fit); an enum `CLASS_BODY`
+that is, as a whole, still single-line (`enum class Foo { A, B }` stays exactly as written).
+
+**Mechanism 3 — `resolveAssignedValueFrame`, shared by three call sites.** A new `WNodeType.PROPERTY`
+dispatch branch (`resolvePropertyFrame`, anchored on `PROPERTY`'s own direct `EQ` child — a
+declaration's own initializer never nests inside a `BINARY_EXPRESSION`, a different grammar
+production entirely from reassignment); `resolveBinaryFrame`'s existing dispatch, extended to detect
+an assignment-class operator (`=`, `+=`, `-=`, `*=`, `/=`, `%=` — plain assignment is a
+`BINARY_EXPRESSION` too, never chained/nested, so it is always effectively root) and route around
+the generic chain/binary `wrapRoot` machinery for that one case; `resolveWhenEntryFrame`, extended to
+also inspect its own arrow's body independent of the (unrelated) trailing-comma bail. In all three,
+when the value found right after the anchor is one of `MULTILINE_WRAPPABLE_VALUE_TYPES` (`IF`,
+`WHEN`, `TRY` — deliberately an inclusion list, not an exclusion list; found failing-first against
+`format-indentation/kdoc-and-multiline-string-preserved` and two sibling fixtures, whose raw
+multi-line string/KDoc property initializers got wrongly relocated by an earlier, broader
+`spansMultipleLines`-only version of this check) and is already forced multi-line, it moves onto its
+own line, one `Doc.Indent` level deeper, reusing an existing gap's own break when the source already
+had one. Declines (returns `null`, caller falls through to its prior, unchanged behavior) for: no
+value; a comment; a value type outside the inclusion list (a raw multi-line string/KDoc token, a
+`BLOCK` — owned by `forceMultilineBraceGaps` instead — a `LAMBDA_EXPRESSION`/`OBJECT_LITERAL`, whose
+own `{` always stays attached to the anchor, exactly like ordinary Kotlin style, found failing-first
+too: an initial version moved an entire lambda literal down onto its own line away from `=` merely
+because its interior happened to already contain hard breaks — a dot-chain/call/binary value, since
+`resolveChainFrame`/`resolveBinaryFrame`'s own `Doc.Group` already owns that placement, including
+the deliberate "receiver stays, only `.method()` continues" choice from Phase C.4 that a broader type
+match here would have fought); or a value that is not (yet) forced multi-line (a fit-pending
+chain/binary expression, still `Doc.Group`-decided — excluded automatically, since `spansMultipleLines`
+only detects an already-committed `HARD` break, never a pending fit decision, the same distinction
+`resolveSuperTypeListFrame`'s own `ctorWrapped` peek already relies on).
+
+**Idempotence, checked directly, not just asserted:** every new-mechanism fixture's already-formatted
+output was fed back through the harness and confirmed to produce zero further diagnostics (a
+temporary, since-removed scratch spec; the committed D19 idempotence cycle exercises the same
+property for every fixture going forward).
+
+**Fixtures:** new `testing/wrasse-test-harness/.../fixtures/format-wrapping/` directory (own
+`wrasse.json`, `maxLineLength: 50`), 17 fixtures: `block-content-own-line-error`,
+`class-body-content-own-line-error`, `when-content-own-line-error` (proves the `WHEN`-header index
+fix), `enum-class-body-single-line-untouched-clean`, `semicolon-mid-block-error`,
+`semicolon-before-rbrace-error`, `comment-adjacent-semicolon-bail-error`,
+`property-declaration-multiline-value-error`, `reassignment-multiline-value-error`,
+`compound-assignment-multiline-value-error`, `when-entry-arrow-multiline-value-error`,
+`value-argument-multiline-already-covered-clean` and `condition-multi-operator-already-covered-error`
+(both proving bucket (a) with a real, running fixture rather than an assertion), `fun-expression-body-
+untouched-clean` and `lambda-literal-value-untouched-clean` (both proving the two Phase C.7/this-slice
+exclusions), a kitchen sink, and an already-clean canonical file. All `-error` fixtures exercise the
+existing, unchanged D19 idempotence cycle. `libs/wrasse-format/DocBuilderSpec` gained 14 unit tests,
+hand-built against `DocBuilder` directly (no compiler): the semicolon conversion (mid-block, trailing-
+before-`}`, comment bail), the brace-gap forcing (multi-line-no-semicolon case, single-line-untouched
+case, enum-single-line exemption, non-enum class body, and the `WHEN`-header-skip case specifically),
+and the assigned-value wrap (`PROPERTY`, single-line-untouched, the type-exclusion case using a raw
+multi-line string, reassignment `BINARY_EXPRESSION`, and `WHEN_ENTRY`'s own arrow).
+
+**Existing-fixture changes:** none. Every pre-existing `format-*`/`bracing-format-on` fixture was
+re-verified by the full ladder; none needed a `.fixed.kt` update.
+
+**Ladder run for this slice:** `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+`testPatchHarness`, `wrasseLint -Prepublish` all green. `ktlint` checkout used for ground truth
+confirmed byte-clean (`git status`) throughout — read-only; `detekt` was not needed for this slice.
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.

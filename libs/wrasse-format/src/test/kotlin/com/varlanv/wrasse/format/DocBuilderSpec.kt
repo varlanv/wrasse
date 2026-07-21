@@ -1488,6 +1488,321 @@ class DocBuilderSpec : BaseSpec({
 
         render(builder, ctx) shouldBe "@[Ann1 Ann2] fun f()"
     }
+
+    fun minimalMultilineIf(builder: DocBuilder, ctx: WContext, bodyIdentifier: String = "a") {
+        builder.enterNode(ctx.apply { type = WNodeType.IF })
+        leaf(builder, ctx, WNodeType.KW_IF, "if")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "cond")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n  ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, bodyIdentifier)
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.IF })
+    }
+
+    fun minimalSingleLineIf(builder: DocBuilder, ctx: WContext) {
+        builder.enterNode(ctx.apply { type = WNodeType.IF })
+        leaf(builder, ctx, WNodeType.KW_IF, "if")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "cond")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.IF })
+    }
+
+    should("convert a statement-separator semicolon between two same-line statements to a break, dropping it") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "one")
+        leaf(builder, ctx, WNodeType.SEMICOLON, ";")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "two")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{\n    one\n    two\n}"
+    }
+
+    should("convert a trailing statement-separator semicolon right before a block's own closing brace") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "one")
+        leaf(builder, ctx, WNodeType.SEMICOLON, ";")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{\n    one\n}"
+    }
+
+    should("never convert a semicolon directly followed by a comment") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "one")
+        leaf(builder, ctx, WNodeType.SEMICOLON, ";")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EOL_COMMENT, "// keep")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{\n    one; // keep\n}"
+    }
+
+    should("force a break after '{' and before '}' for a block already spanning multiple lines, with no semicolon involved") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "one")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "two")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{\n    one\n    two\n}"
+    }
+
+    should("leave an entirely single-line block untouched — this mechanism never decides fit") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "one")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{ one }"
+    }
+
+    should("leave a single-line enum class body untouched — ktlint's own exemption") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.ENUM_ENTRY })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "RED")
+        builder.exitNode(ctx.apply { type = WNodeType.ENUM_ENTRY })
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.ENUM_ENTRY })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "BLUE")
+        builder.exitNode(ctx.apply { type = WNodeType.ENUM_ENTRY })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{ RED, BLUE }"
+    }
+
+    should("force own-line braces for a non-enum class body already spanning multiple lines") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "a")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "b")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS_BODY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "{\n    a\n    b\n}"
+    }
+
+    should("force own-line braces for a WHEN construct, skipping past its own subject header") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN })
+        leaf(builder, ctx, WNodeType.KW_WHEN, "when")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "one")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.ARROW, "->")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "ten")
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        leaf(builder, ctx, WNodeType.KW_ELSE, "else")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.ARROW, "->")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "zero")
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "when (x) {\n    one -> ten\n    else -> zero\n}"
+    }
+
+    should("move a property's already-forced-multiline IF value onto its own line, one indent level deeper") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAL, "val")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        minimalMultilineIf(builder, ctx)
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "val x =\n    if (cond) {\n        a\n    }"
+    }
+
+    should("leave a property's single-line IF value untouched — not (yet) forced multi-line") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAL, "val")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        minimalSingleLineIf(builder, ctx)
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "val x = if (cond) {}"
+    }
+
+    should("never move a property's multiline raw string/lambda/object-literal value — outside MULTILINE_WRAPPABLE_VALUE_TYPES") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.PROPERTY })
+        leaf(builder, ctx, WNodeType.KW_VAL, "val")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        leaf(builder, ctx, WNodeType.OPEN_QUOTE, "\"\"\"")
+        leaf(builder, ctx, WNodeType.REGULAR_STRING_PART, "\nline\n")
+        leaf(builder, ctx, WNodeType.CLOSING_QUOTE, "\"\"\"")
+        builder.exitNode(ctx.apply { type = WNodeType.STRING_TEMPLATE })
+        builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "val x = \"\"\"\nline\n\"\"\""
+    }
+
+    should("move a reassignment BINARY_EXPRESSION's already-forced-multiline IF value onto its own line") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.BINARY_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.OPERATION_REFERENCE })
+        leaf(builder, ctx, WNodeType.EQ, "=")
+        builder.exitNode(ctx.apply { type = WNodeType.OPERATION_REFERENCE })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        minimalMultilineIf(builder, ctx)
+        builder.exitNode(ctx.apply { type = WNodeType.BINARY_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "x =\n    if (cond) {\n        a\n    }"
+    }
+
+    should("move a when-entry arrow's already-forced-multiline IF body onto its own line") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN })
+        leaf(builder, ctx, WNodeType.KW_WHEN, "when")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "one")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.ARROW, "->")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        minimalMultilineIf(builder, ctx)
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "when (x) {\n    one ->\n        if (cond) {\n            a\n        }\n}"
+    }
 })
 
 private val noopReporter = object : WReporter {
