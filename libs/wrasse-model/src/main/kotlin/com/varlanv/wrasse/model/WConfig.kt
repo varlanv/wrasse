@@ -182,7 +182,7 @@ class WConfig(
                     maxLineLength = raw?.maxLineLength ?: 140,
                     trailingCommas = raw?.trailingCommas ?: true,
                     importLayout = raw?.importLayout ?: ImportLayout.ASCII,
-                    multilineSignatureThreshold = raw?.multilineSignatureThreshold ?: 1,
+                    multilineSignatureThreshold = raw?.multilineSignatureThreshold,
                 ),
                 ruleConfig = WrasseRuleConfig(
                     level = level,

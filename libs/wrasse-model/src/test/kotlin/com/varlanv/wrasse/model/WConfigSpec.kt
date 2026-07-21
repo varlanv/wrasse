@@ -69,7 +69,7 @@ class WConfigSpec : BaseSpec({
         config.format.style.maxLineLength shouldBe 140
         config.format.style.trailingCommas shouldBe true
         config.format.style.importLayout shouldBe ImportLayout.ASCII
-        config.format.style.multilineSignatureThreshold shouldBe 1
+        config.format.style.multilineSignatureThreshold shouldBe null
         config.format.ruleConfig.level shouldBe RuleLevel.OFF
         config.format.ruleConfig.effectiveLevel shouldBe RuleLevel.OFF
     }

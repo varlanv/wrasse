@@ -4350,6 +4350,20 @@ plus this slice's 14 (`format-class-signatures`) plus 11 (`format-annotations`) 
 `ktlint` checkout used for ground truth confirmed byte-clean (`git status`) throughout — read-only;
 `detekt` was not needed for this slice.
 
+#### `multilineSignatureThreshold` default: fit-only (owner decision, 2026-07-21)
+
+C.7 shipped the threshold mechanism with the D21-era default of `1`, which forces every
+parameterized function (and, after C.9, every parameterized class) one-parameter-per-line
+regardless of fit — confirmed on real code to force-wrap idiomatic one-liners repo-wide. Owner
+decided (2026-07-21, options presented: fit-only / ktlint-official's `2` / keep `1`): **fit-only**.
+`FormatStyle.multilineSignatureThreshold` is now `Int?` defaulting to `null` (absent in
+`wrasse.json` = no count-based forcing; signatures wrap only when exceeding `maxLineLength`, or
+when a parameter's own text already spans lines). The `999999` workaround overrides C.7 planted in
+seven fixture directories are removed — those directories now exercise the true default; the
+`format-signatures` and `format-class-signatures` directories keep explicit `3` because their
+fixtures test the threshold mechanism itself. Amends D21's locked value, not its locked surface
+(the parameter stays; only the default and its optionality changed).
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.

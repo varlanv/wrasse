@@ -23,7 +23,7 @@ class DocBuilderSpec : BaseSpec({
 
     fun formatConfig(
         maxLineLength: Int = 140,
-        multilineSignatureThreshold: Int = 1,
+        multilineSignatureThreshold: Int? = null,
         trailingCommas: Boolean = true,
     ) = WFormatConfig(
         enabled = true,
@@ -1129,7 +1129,7 @@ class DocBuilderSpec : BaseSpec({
     }
 
     should("add a dynamic trailing comma to a PRIMARY_CONSTRUCTOR's own parameter list forced multiline by threshold") {
-        val builder = DocBuilder(formatConfig())
+        val builder = DocBuilder(formatConfig(multilineSignatureThreshold = 1))
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
         builder.enterNode(ctx.apply { type = WNodeType.PRIMARY_CONSTRUCTOR })

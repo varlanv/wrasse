@@ -626,8 +626,8 @@ class DocBuilder(
      * A [WNodeType.FUN]'s or a [WNodeType.PRIMARY_CONSTRUCTOR]'s own parameter list wraps one
      * parameter per line — a [Doc.Break] between `(`/first parameter, every comma, and the last
      * parameter/`)`, mirroring [resolveArgumentListFrame]'s own break points — either
-     * unconditionally (`HARD`, when [FormatStyle.multilineSignatureThreshold] is met or a
-     * parameter's own text already spans multiple lines) or fit-dependently (`SOFT` inside a
+     * unconditionally (`HARD`, when a non-null [FormatStyle.multilineSignatureThreshold] is met
+     * or a parameter's own text already spans multiple lines) or fit-dependently (`SOFT` inside a
      * [Doc.Group], joining back onto one line whenever it fits).
      *
      * Scoped to a [WNodeType.FUN]'s or a [WNodeType.PRIMARY_CONSTRUCTOR]'s own parameter list only
@@ -653,7 +653,8 @@ class DocBuilder(
         val hasComment = (lparIdx + 1 until rparIdx).any { children[it].type in COMMENT_TYPES }
         if (hasComment) return passthroughParameterList(children, start, end)
 
-        val forceMultiline = paramIndices.size >= style.multilineSignatureThreshold ||
+        val threshold = style.multilineSignatureThreshold
+        val forceMultiline = (threshold != null && paramIndices.size >= threshold) ||
             paramIndices.any { spansMultipleLines((children[it] as ChildEntry.Resolved).doc) }
         val breakKind = if (forceMultiline) BreakKind.HARD else BreakKind.SOFT
 

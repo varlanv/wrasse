@@ -47,7 +47,7 @@
                 },
                 "multilineSignatureThreshold": {
                     "type": "integer",
-                    "description": "Parameter count at or above which a signature is forced multiline. Default 1."
+                    "description": "Parameter count at or above which a function or primary-constructor signature is forced one-parameter-per-line. Absent: signatures wrap only when exceeding maxLineLength."
                 }
             }
         },

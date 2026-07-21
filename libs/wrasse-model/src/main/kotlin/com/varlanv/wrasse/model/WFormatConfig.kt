@@ -14,15 +14,17 @@ class WFormatConfig(
 )
 
 /**
- * Style parameters for the opinionated printer (D21). Only [indentWidth] is consumed by the
- * Phase C.1 foundation slice; the remaining fields are the locked surface for later Phase C work.
+ * Style parameters for the opinionated printer — the whole configurable surface.
+ * [multilineSignatureThreshold] is the parameter count at or above which a function or
+ * primary-constructor signature is forced one-parameter-per-line; `null` means signatures wrap
+ * only when they exceed [maxLineLength].
  */
 class FormatStyle(
     val indentWidth: Int = 4,
     val maxLineLength: Int = 140,
     val trailingCommas: Boolean = true,
     val importLayout: ImportLayout = ImportLayout.ASCII,
-    val multilineSignatureThreshold: Int = 1,
+    val multilineSignatureThreshold: Int? = null,
 )
 
 enum class ImportLayout {
