@@ -36,7 +36,7 @@ class BackingPropertyNamingRule : WUninitializedRule {
                 when (ctx.type) {
                     WNodeType.PROPERTY -> recordMember(ctx, children, isProperty = true)
                     WNodeType.FUN -> recordMember(ctx, children, isProperty = false)
-                    WNodeType.CLASS_BODY -> finalizeClassBody(ctx, reporter)
+                    WNodeType.CLASS_BODY -> finalizeClassBody(reporter)
                     else -> {}
                 }
             }
@@ -75,7 +75,7 @@ class BackingPropertyNamingRule : WUninitializedRule {
                     )
             }
 
-            private fun finalizeClassBody(ctx: WContext, reporter: WReporter) {
+            private fun finalizeClassBody(reporter: WReporter) {
                 val members = classBodyStack.removeAt(classBodyStack.size - 1)
                 for (member in members) {
                     if (!member.isProperty || !member.name.startsWith("_") || member.name == "_") continue

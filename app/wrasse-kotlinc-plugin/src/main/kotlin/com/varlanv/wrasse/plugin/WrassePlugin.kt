@@ -186,6 +186,7 @@ class WrassePlugin(
     }
 
     /** Hook for the `FirFunctionCallChecker`; currently always returns null (no rule wired to it yet). */
+    @Suppress("unused-parameter")
     fun checkCall(packageName: String, callableName: String): String? {
         return null
     }

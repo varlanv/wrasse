@@ -44,7 +44,7 @@ class ExplicitItLambdaParameterRule : WUninitializedRule {
             override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
                 when (ctx.type) {
                     WNodeType.VALUE_PARAMETER -> recordParam(ctx, children)
-                    WNodeType.FUNCTION_LITERAL -> finalizeLiteral(ctx, children, reporter)
+                    WNodeType.FUNCTION_LITERAL -> finalizeLiteral(children, reporter)
                     else -> {}
                 }
             }
@@ -62,7 +62,7 @@ class ExplicitItLambdaParameterRule : WUninitializedRule {
                 pending.itParamHasType = children.hasChildOfType(WNodeType.COLON)
             }
 
-            private fun finalizeLiteral(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeLiteral(children: ChildBuffer, reporter: WReporter) {
                 val pending = pendingLiterals.removeAt(pendingLiterals.size - 1)
                 if (pending.paramCount != 1 || !pending.itParamSeen) return
 
