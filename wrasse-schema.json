@@ -56,9 +56,17 @@
             "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",
             "additionalProperties": false,
             "properties": {
+                "explicit-it-lambda-parameter": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow explicitly declaring a lambda's own single 'it' parameter"
+                },
                 "if-else-bracing": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require braces around a bare if/else branch belonging to a multi-line if-statement"
+                },
+                "unnecessary-backticks": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow backtick-quoted identifiers whose escaping is unnecessary"
                 },
                 "modifier-order": {
                     "$ref": "#/$defs/ruleConfig",

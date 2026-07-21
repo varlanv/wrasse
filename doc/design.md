@@ -2333,7 +2333,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~129, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~14, bucket T) — chain started 2026-07-20 (7/14).** Braces family,
+- **B.2 — targeted fixes (~14, bucket T) — chain started 2026-07-20 (9/14).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -3049,6 +3049,105 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   the leading and trailing side, and between the colon and a sole entry — confirming a comment never
   blocks detection), and three clean shapes proving the naive-text-match boundary: `kotlin.Any()`,
   `Any ()` (whitespace inside the call), and a plain interface supertype.
+
+  `unnecessary-backticks` shipped eighth, porting detekt's own `UnnecessaryBackticks` — ktlint ships
+  no equivalent, confirmed by a full grep of its real checkout, so this is a single-upstream port.
+  Detekt's rule ships no autocorrect mechanism at all (no `Correctable`/similar mixin), unlike
+  `no-unit-return`/`if-else-bracing` where an upstream fixer exists to ground an output shape
+  against; wrasse's autofix here is an independent addition, licensed only by autoformat-scope.md's
+  own T-bucket classification ("removing useless backticks is safe mechanical"), not by an upstream
+  precedent to match byte-for-byte. Necessity mirrors detekt's own `hasUnnecessaryBackticks` check
+  exactly: the backtick-quoted text is redundant only when its unquoted form is (a) a syntactically
+  valid plain identifier — first character a Unicode letter or `_`, every following character a
+  letter, digit, or `_` — confirmed against the compiler's own lexer grammar (`Kotlin.flex`'s
+  `IDENTIFIER` rule) and its `isIdentifier()`/`HARD_KEYWORDS` extension, read directly from a
+  decompiled `kotlin-compiler-embeddable` sources jar; (b) not one of the 28 *hard* keywords
+  (`KtTokens.KEYWORDS`) — `typealias` and `typeof` are hard keywords alongside the more familiar
+  `fun`/`val`/`class`/... set, confirmed by a real `K2JVMCompiler` invocation that `val typealias =
+  5`/`val typeof = 9` fail to parse unquoted while `val public = 1`/`val data = 1`/`val get = 1`
+  (all *soft*/modifier keywords, `KtTokens.SOFT_KEYWORDS`, contextual rather than reserved) compile
+  cleanly — so a backtick-quoted soft keyword used as a plain name is reported and fixed the same as
+  any other identifier, never exempted; and (c) not made up entirely of `_` characters (Kotlin's own
+  placeholder-name convention: `` `_` ``/`` `__` `` compile as real declared names only when
+  backtick-quoted, and stay backtick-quoted). No test-method-name carve-out is needed as a special
+  case: a name containing a space (`` `Foo Bar` ``) already fails the plain-identifier check on its
+  own, so ktlint-style backtick-quoted test method names are naturally exempt as a structural
+  consequence of the identifier check, never a dedicated rule branch.
+
+  Matched by a `WLeafRule` on `IDENTIFIER` — every occurrence (declaration, call site, callable
+  reference, import) is checked independently, since each is its own `IDENTIFIER` token; the fix is
+  a single edit replacing the whole backtick-quoted span with the bare unquoted text
+  (`UnnecessaryBacktickDecision`, unit-tested standalone). Reported but never autofixed (bail, same
+  posture as every other T-bucket rule's own comment/adjacency caution) when the identifier sits
+  inside a string template's short-form entry (`` "$`name`" ``): the entry's own text is directly
+  adjacent, character-for-character, to whatever literal text follows it in the same string once the
+  backticks are gone, with no delimiter of its own — unlike a long-form entry (`` "${`name`}" ``),
+  whose explicit closing brace makes removal always safe. Wrasse's own bail is intentionally coarser
+  than detekt's own `canPlaceAfterSimpleNameEntry` check (which only bails when the following
+  character would actually extend the identifier): the coarser rule is strictly safe and avoids
+  building lookahead machinery this rule has no other need for. Fixtures (16 error/clean, 9 with a
+  `.fixed.kt` companion): class/function/property/import declarations and their call-site/callable-
+  reference usages, a hard-keyword clean set (`typealias`/`typeof`/`when`/`is`/`fun`), a
+  soft/modifier-keyword error case (`` `public` ``, autofixed), an all-underscore clean set, a
+  name-with-spaces clean set, a leading-digit clean case, a Unicode-letter error case, both
+  string-template shapes (long-form fixed, short-form bail), and `@Suppress` happy/negative cases.
+
+  `explicit-it-lambda-parameter` shipped ninth, porting detekt's own `ExplicitItLambdaParameter` —
+  again ktlint ships no equivalent and detekt's own rule ships no autocorrect at all, so as with
+  `unnecessary-backticks` the autofix here is wrasse's own addition under the T-bucket
+  classification, not an upstream byte-for-byte target. Detekt flags a lambda whose own
+  `valueParameters` list has size exactly 1 and whose sole parameter's name is the identifier `it`,
+  regardless of whether that parameter carries an explicit type (two different messages, same
+  finding); a lambda where `it` is one of *several* named parameters is a different upstream id
+  (`ExplicitItLambdaMultipleParameters`, bucket L per autoformat-scope.md — a fix would require
+  inventing a new parameter name, never mechanical) and stays entirely out of this rule's scope.
+  Autofix scope is narrower than detection scope, split on a real semantic hazard rather than a
+  syntactic one: an **untyped** `it ->` is always safe to delete outright — whether the parameter is
+  named explicitly or left implicit, it still binds the exact same single slot, so removing the
+  declaration changes neither what `it` means inside this lambda nor whether some nested lambda's
+  own implicit `it` shadows it (shadowing depends only on the name `it` itself, identical either
+  way) — reasoned directly from Kotlin's own implicit-`it` binding rule, not from probing an upstream
+  fixer, since none exists. A **typed** `it: Type ->` is never autofixed, only reported: an explicit
+  parameter type can be safe to drop only when the lambda's own use site target-types it well enough
+  for the compiler to re-infer the identical type from an implicit `it` alone — a call-site fact no
+  syntactic, resolution-free check can establish, so wrasse bails uniformly rather than risk emitting
+  a type-inference-breaking edit (the same "bail when uncertain" doctrine as `no-unit-return`'s
+  comment-adjacency bail, applied to a genuinely different hazard).
+
+  Mechanically, a `WBufferedNodeRule` targets both `FUNCTION_LITERAL` and `VALUE_PARAMETER`: a small
+  per-`FUNCTION_LITERAL` stack frame (the `WhenEntryBracingRule`/`WHEN`-`WHEN_ENTRY` idiom, reused at
+  a smaller scale) accumulates the enclosing lambda's own parameter count and whichever parameter is
+  named `it`, populated as each `VALUE_PARAMETER` exits (gated on its own immediate parent being
+  `VALUE_PARAMETER_LIST` and that list's own parent being the current `FUNCTION_LITERAL`, so a nested
+  local function's own unrelated parameter list is never mistaken for the lambda's); the verdict
+  fires only at the `FUNCTION_LITERAL`'s own exit, once the final parameter count is known, using
+  that same node's direct children to locate `{`/`->` for the edit. The deletion span deliberately
+  starts at the opening `{`'s own end, not at the parameter's own start: it swallows the whitespace
+  between `{` and the parameter along with the parameter and arrow themselves, while leaving every
+  character from the arrow's end onward — including a multiline lambda's own leading newline and
+  indentation before its body — completely untouched, so a fix never needs re-indenting
+  (`ExplicitItLambdaParameterDecision`, unit-tested standalone with a real string-splice check).
+  Reported but never autofixed (uniform comment-bail precedent) when a comment sits anywhere between
+  `{` and `->`.
+
+  A nested pair of lambdas each explicitly naming their own parameter `it` (`list.map { it ->
+  it.map { it -> it.plus(1) } }`, the classic shadowing-hazard shape) is fixed independently and
+  safely at each level: neither fix changes which lambda's implicit `it` a nested body resolves to,
+  since both lambdas already spell their bound name `it` before and after the fix — proven by the
+  dedicated `nested-lambdas-both-explicit-error` fixture (both diagnostics fire, both fix, the
+  post-fix source stays semantically identical to the original). Fixtures (11 error/clean, 4 with a
+  `.fixed.kt` companion): an untyped single-line case, an untyped multiline case (proving the
+  arrow-to-body gap survives untouched), a typed bail, two comment-bail shapes (before and after the
+  parameter), three clean shapes (fully implicit, a differently-named parameter, a two-parameter
+  lambda where one happens to be `it`), the nested-lambda safety case, and `@Suppress`
+  happy/negative cases.
+
+  Both new ids composed with `format` are proven in
+  `format-with-fixes/unnecessary-backticks-and-format-error` and
+  `format-with-fixes/explicit-it-lambda-parameter-and-format-error`: each fixture's own edit is the
+  *only* divergence from the file's otherwise-canonical layout, so the printer's whole-file render
+  and the targeted edit compose without any reindentation — the same low-risk shape
+  `if-else-bracing-and-format-error` already established for the brace-insertion family.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal
