@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "explicit-it-lambda-parameter": { "level": "error" }
+    }
+}

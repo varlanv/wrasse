@@ -14,20 +14,23 @@ class RuleRegistrationOrderSpec :
         {
 
             should(
-                "register explicit-it-lambda-parameter, if-else-bracing, no-empty-class-body, " +
-                    "no-empty-parens-before-trailing-lambda, no-semicolons, no-unit-return, trailing-newline, " +
-                    "unnecessary-backticks, unnecessary-inheritance, and when-entry-bracing as single-id rules",
+                "register empty-default-constructor, explicit-it-lambda-parameter, if-else-bracing, " +
+                    "no-empty-class-body, no-empty-parens-before-trailing-lambda, no-semicolons, no-unit-return, " +
+                    "redundant-constructor-keyword, trailing-newline, unnecessary-backticks, unnecessary-inheritance, " +
+                    "and when-entry-bracing as single-id rules",
             ) {
                 val ids = registeredRules().map { it.id }
 
                 ids shouldBe
                     listOf(
+                        "empty-default-constructor",
                         "explicit-it-lambda-parameter",
                         "if-else-bracing",
                         "no-empty-class-body",
                         "no-empty-parens-before-trailing-lambda",
                         "no-semicolons",
                         "no-unit-return",
+                        "redundant-constructor-keyword",
                         "trailing-newline",
                         "unnecessary-backticks",
                         "unnecessary-inheritance",

@@ -2333,7 +2333,7 @@ Remaining:
 Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 
 - **B.1 — lint-only rules (~129, bucket L).** Report, never fix. Mechanical volume; no new infra.
-- **B.2 — targeted fixes (~14, bucket T) — chain started 2026-07-20 (9/14).** Braces family,
+- **B.2 — targeted fixes (~14, bucket T) — chain started 2026-07-20 (11/14).** Braces family,
   `modifier-order`, redundant-syntax deletions. Each gated by the idempotence harness; born-clean
   discipline. `no-empty-class-body` shipped first: `WBufferedNodeRule` on `CLASS_BODY` (and
   `OBJECT_DECLARATION`, tracked via a stack to detect a `companion` modifier), deletes a
@@ -3148,6 +3148,115 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
   *only* divergence from the file's otherwise-canonical layout, so the printer's whole-file render
   and the targeted edit compose without any reindentation — the same low-risk shape
   `if-else-bracing-and-format-error` already established for the brace-insertion family.
+
+  `empty-default-constructor` and `redundant-constructor-keyword` shipped tenth and eleventh,
+  porting detekt's own `EmptyDefaultConstructor` and `RedundantConstructorKeyword` — ktlint ships no
+  equivalent to either, confirmed by a full grep of its real checkout (no `EmptyDefaultConstructor`,
+  no `RedundantConstructor`-anything, no primary-constructor-syntax concept anywhere), so both are
+  single-upstream ports. Neither upstream rule ships an autocorrect mechanism, so as with
+  `unnecessary-backticks`/`explicit-it-lambda-parameter` both autofixes here are wrasse's own
+  addition under the T-bucket classification, not a byte-for-byte upstream target.
+
+  `empty-default-constructor` mirrors detekt's own `hasSuitableSignature`/`isNotCalled`/
+  `isExpectedOrActualClass` checks exactly: a primary constructor is only ever a candidate when its
+  own value-parameter list is empty, it carries no annotation, and its visibility is either absent
+  or explicitly `public` (`private`/`protected`/`internal` bail entirely, matching detekt's own
+  `hasPublicVisibility`); the containing class carrying `expect`/`actual` bails entirely
+  (`isExpectedOrActualClass`); and a sibling secondary constructor delegating to it via a
+  zero-argument `this()` bails entirely too (`isNotCalled`) — removing the empty parameter list
+  would delete the only constructor that delegation call could still resolve to, since Kotlin's own
+  implicit-delegation rule only ever targets the primary constructor when one is written down.
+  Detection is mechanically a `WBufferedNodeRule` targeting `CLASS`, `PRIMARY_CONSTRUCTOR`,
+  `MODIFIER_LIST` (dual-gated on its own immediate parent — `CLASS` for the `expect`/`actual` scan,
+  `PRIMARY_CONSTRUCTOR` for the annotation/visibility scan, the same parent-type-gating idiom
+  `redundant-visibility-modifier` already established), `VALUE_PARAMETER_LIST` (gated to a
+  `PRIMARY_CONSTRUCTOR` parent, giving both the empty-parameter check and the `(`/`)` deletion span),
+  and `CONSTRUCTOR_DELEGATION_CALL`; a small per-class and per-constructor stack (mirroring
+  `ExplicitItLambdaParameterRule`'s own pending-frame idiom) correlates facts gathered at different
+  nesting depths, finalizing the verdict only once the whole class — including every secondary
+  constructor nested in its body — has closed. The zero-argument `this()` check itself needs no
+  dedicated node type for the delegation reference or its argument list: `onChildLeaf` already
+  forwards every descendant leaf regardless of depth, so a `KW_THIS` leaf found outside any
+  `VALUE_ARGUMENT_LIST` ancestor identifies the reference itself, and any non-paren, non-whitespace,
+  non-comment leaf found inside one means the call carries a real argument — both read directly off
+  `WContext.hasAncestor`, no extra buffering required.
+
+  Autofix scope is deliberately narrower than detection scope, on a different axis than either prior
+  T-bucket rule's own bail: the edit is *only* ever "delete the `(`...`)` span" — never anything
+  before it. When the constructor spells its own `constructor` keyword (`class Foo constructor()`),
+  deleting just the parameter list would leave that keyword dangling with nothing left to attach to,
+  a syntax error; rather than also deleting the keyword (which would risk an edit-overlap crash with
+  `redundant-constructor-keyword` firing independently on the exact same span whenever both ids are
+  enabled together — the same crash shape §14/D24 already recorded for
+  `modifier-order`/`redundant-visibility-modifier`, avoided here by construction rather than papered
+  over after the fact), this rule bails the fix and reports only, leaving the keyword's own removal
+  entirely to `redundant-constructor-keyword`; the two ids' own edits are always adjacent, never
+  overlapping, with no coordination between them required. A comment sitting inside the otherwise-
+  empty parameter list (`class Foo(/* c */)`) bails the fix the same way, the uniform comment-
+  adjacency posture every other T-bucket rule already takes. The `expect`/`actual` exemption has no
+  end-to-end fixture: an `expect class Foo()` needs a real multiplatform target to compile at all,
+  and the fixture harness's per-fixture directives have no multiplatform knob (only a handful of
+  dedicated non-fixture specs drive `WrasseTestHarness`'s own `multiPlatformCommonSources`) — the
+  same "considered, ground-truthed, excluded as uncompilable in a single fixture file" category as
+  `unnecessary-inheritance`'s interface/enum-class note; `EmptyDefaultConstructorDecisionSpec`
+  exercises the `isExpectOrActual` branch directly instead. Fixtures (12, 2 with a `.fixed.kt`
+  companion): a bare empty constructor with and without a following class body, one with a
+  supertype-constructor call directly after it (proving the deletion span never touches what
+  follows), an explicit-`public`-plus-keyword bail and a bare-keyword bail (both report-only), a
+  comment-inside-parens bail, an annotation clean shape, a non-empty-parameter clean shape, a
+  combined private/internal/protected clean shape, a called-via-zero-arg-`this()` clean shape, and
+  `@Suppress` happy/negative cases.
+
+  `redundant-constructor-keyword` mirrors detekt's own `hasConstructorKeyword() && hasNoModifier()`
+  check, where `hasNoModifier()` is `modifierList == null && !hasPreviousComment()`: the keyword is
+  redundant only when the constructor's own `MODIFIER_LIST` child doesn't exist at all — no
+  annotation and no visibility modifier of its own, checked by existence alone
+  (`ChildBuffer.hasChildOfType`), never by inspecting what such a list would contain, since detekt's
+  own `modifierList` is null precisely when nothing was ever written there — and no comment sits
+  anywhere in the class header's own trivia between its name (or type parameter list) and the
+  keyword. Unlike every other T-bucket rule's own "report but decline the fix" bail, this comment
+  check is a **full bail — no report at all**, matching detekt's own detection-level bail exactly
+  (`hasNoModifier()` returns `false`, so the whole condition is `false`, not merely the correctable
+  half of it); there is no upstream fixer to narrow away from here; the discovery is upstream's own.
+  Mechanically a `WBufferedNodeRule` targets `CLASS` and `PRIMARY_CONSTRUCTOR` only — no dedicated
+  `MODIFIER_LIST` target is needed, since existence of the constructor's own list is already visible
+  on `PRIMARY_CONSTRUCTOR`'s own direct `ChildBuffer` — with a small pending-keyword stack keyed to
+  the enclosing class: the comment sits as a *sibling* of `PRIMARY_CONSTRUCTOR` inside `CLASS`'s own
+  children, not inside the constructor itself, so the backward scan for both the comment check and
+  the deletion span's own start walks `CLASS`'s own buffer from the `PRIMARY_CONSTRUCTOR` entry
+  backward over `WHITE_SPACE`/comment children until a real token is found. The deletion itself
+  collapses that entire run of leading trivia — including any newline crossed along the way, the
+  same `class Foo\n{\n}` → `class Foo` precedent `EmptyClassBodyDeletionSpan` already established —
+  through the keyword's own end, leaving whatever follows (`(`, always directly adjacent) untouched.
+  An annotation on a value *parameter* rather than the constructor itself (`class AnnotatedParam
+  constructor(@Ann x: Double)`) does not suppress the report: that annotation's own `MODIFIER_LIST`
+  is two levels below `PRIMARY_CONSTRUCTOR` (inside `VALUE_PARAMETER_LIST` → `VALUE_PARAMETER`), never
+  a direct child of it, so `hasChildOfType` correctly never sees it — matching detekt's own
+  `modifierList` (the constructor's own, not any parameter's) — proven by a dedicated fixture rather
+  than assumed. Fixtures (11, 4 with a `.fixed.kt` companion): a same-line keyword, a keyword pushed
+  to its own line by a newline with no comment (collapsing across the line break), the annotated-
+  parameter-still-reported case, a constructor's-own-annotation clean shape, a private-visibility
+  clean shape, a no-keyword-at-all clean shape, a comment-before-the-keyword full-bail clean shape,
+  an annotation-class shape (proving `CLASS` covers every class-like kind uniformly, no
+  `data`/`annotation`/`sealed` branching needed), and `@Suppress` happy/negative cases. A `data class`
+  shape was deliberately not fixture-tested end-to-end, despite being detekt's own primary test
+  case: ground-truthed via a throwaway reproduction entirely outside wrasse (a bare
+  `WrasseTestHarness` double-compile into the same `workDir`, no wrasse rule involved at all,
+  reverted after — `git status` verified byte-clean) to a real Kotlin 2.1.21-only backend crash
+  (`Fir2IrDeclarationStorage.findContainingIrClassSymbol` throwing `IllegalStateException: IR class
+  for Serializable not found`) whenever a `data class` is recompiled into the same destination
+  directory across two structurally-differing sources — the exact shape the idempotence harness's
+  own round-2 recompile always performs, and reproduced identically whether or not the keyword or
+  wrasse itself is involved. Not a rule-logic defect (the annotation-class fixture already proves
+  `CLASS`-node uniformity across every declared kind), so the fixture set simply avoids `data class`
+  as the declared kind rather than route around a kotlinc-version-specific backend bug in-task;
+  `testPatchHarness` confirms every other 2.1.x patch (`2.1.0`/`2.1.10`/`2.1.20`) is unaffected, so
+  this is narrower than a blanket 2.1.x regression.
+
+  Both new ids composed with `format` are proven in
+  `format-with-fixes/empty-default-constructor-and-format-error` and
+  `format-with-fixes/redundant-constructor-keyword-and-format-error`, the same low-risk composition
+  shape as every prior T-bucket id.
 - **B.3 — ImportEngine (bucket S) — fusion complete 2026-07-19.** `no-unused-imports`,
   `no-wildcard-imports`, and `import-ordering` shipped independently first (all three ahead of any
   engine — resolution-facade spike, `no-unused-imports`' unused-import detection and removal

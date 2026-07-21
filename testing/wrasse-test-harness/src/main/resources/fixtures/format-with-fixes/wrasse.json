@@ -6,6 +6,8 @@
         "no-wildcard-imports": { "level": "error" },
         "if-else-bracing": { "level": "error" },
         "unnecessary-backticks": { "level": "error" },
-        "explicit-it-lambda-parameter": { "level": "error" }
+        "explicit-it-lambda-parameter": { "level": "error" },
+        "empty-default-constructor": { "level": "error" },
+        "redundant-constructor-keyword": { "level": "error" }
     }
 }

@@ -8,6 +8,7 @@ import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.rules.EmptyDefaultConstructorRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
@@ -16,6 +17,7 @@ import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
+import com.varlanv.wrasse.rules.RedundantConstructorKeywordRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import com.varlanv.wrasse.rules.UnnecessaryBacktickRule
 import com.varlanv.wrasse.rules.UnnecessaryInheritanceRule
@@ -28,12 +30,14 @@ private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 /** Every single-id rule wrasse ships. See [registeredRuleGroups] for fused multi-id engines. */
 internal fun registeredRules(): List<WUninitializedRule> =
 listOf(
+    EmptyDefaultConstructorRule(),
     ExplicitItLambdaParameterRule(),
     IfElseBracingRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
     NoSemicolonsRule(),
     NoUnitReturnRule(),
+    RedundantConstructorKeywordRule(),
     TrailingNewlineRule(),
     UnnecessaryBacktickRule(),
     UnnecessaryInheritanceRule(),

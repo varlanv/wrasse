@@ -56,6 +56,10 @@
             "description": "Rule configurations. Absent rules default to off (or inherit from base via extends).",
             "additionalProperties": false,
             "properties": {
+                "empty-default-constructor": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty primary constructor with no annotations or modifiers"
+                },
                 "explicit-it-lambda-parameter": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow explicitly declaring a lambda's own single 'it' parameter"
@@ -63,6 +67,10 @@
                 "if-else-bracing": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require braces around a bare if/else branch belonging to a multi-line if-statement"
+                },
+                "redundant-constructor-keyword": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a redundant 'constructor' keyword on an unmodified primary constructor"
                 },
                 "unnecessary-backticks": {
                     "$ref": "#/$defs/ruleConfig",

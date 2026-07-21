@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "empty-default-constructor": { "level": "error" }
+    }
+}

@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "redundant-constructor-keyword": { "level": "error" }
+    }
+}
