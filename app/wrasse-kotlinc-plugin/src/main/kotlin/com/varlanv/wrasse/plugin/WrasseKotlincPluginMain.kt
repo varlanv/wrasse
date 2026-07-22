@@ -10,8 +10,10 @@ import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.rules.AlsoCouldBeApplyRule
 import com.varlanv.wrasse.rules.BackingPropertyNamingRule
+import com.varlanv.wrasse.rules.BooleanExpressionsRule
 import com.varlanv.wrasse.rules.ClassMetricsEngine
 import com.varlanv.wrasse.rules.ClassNamingRule
+import com.varlanv.wrasse.rules.CollapseIfRule
 import com.varlanv.wrasse.rules.CommentOverPrivateDeclarationRule
 import com.varlanv.wrasse.rules.CommentPositionEngine
 import com.varlanv.wrasse.rules.ComplexConditionRule
@@ -31,14 +33,17 @@ import com.varlanv.wrasse.rules.EqualsNullCallRule
 import com.varlanv.wrasse.rules.ExceptionRaisedInUnexpectedLocationRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaMultipleParametersRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
+import com.varlanv.wrasse.rules.ExtensionFunctionsSameNameRule
 import com.varlanv.wrasse.rules.FileNamingRule
 import com.varlanv.wrasse.rules.FileSizeRule
 import com.varlanv.wrasse.rules.ForbiddenCommentRule
+import com.varlanv.wrasse.rules.FunctionExpressionBodyRule
 import com.varlanv.wrasse.rules.FunctionMetricsEngine
 import com.varlanv.wrasse.rules.FunctionNameLengthEngine
 import com.varlanv.wrasse.rules.FunctionNamingRule
 import com.varlanv.wrasse.rules.FunctionOnlyReturningConstantRule
 import com.varlanv.wrasse.rules.FunctionParameterNamingRule
+import com.varlanv.wrasse.rules.GetterSetterFieldsRule
 import com.varlanv.wrasse.rules.GlobalCoroutineUsageRule
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
@@ -73,8 +78,10 @@ import com.varlanv.wrasse.rules.RedundantConstructorKeywordRule
 import com.varlanv.wrasse.rules.RedundantToStringInTemplateRule
 import com.varlanv.wrasse.rules.RethrowCaughtExceptionRule
 import com.varlanv.wrasse.rules.SafeCastRule
+import com.varlanv.wrasse.rules.StringConcatenationRule
 import com.varlanv.wrasse.rules.StringShouldBeRawStringRule
 import com.varlanv.wrasse.rules.SwallowedExceptionRule
+import com.varlanv.wrasse.rules.SyncInAsyncRule
 import com.varlanv.wrasse.rules.ThrowingExceptionInMainRule
 import com.varlanv.wrasse.rules.TooGenericExceptionCaughtRule
 import com.varlanv.wrasse.rules.TooGenericExceptionThrownRule
@@ -88,8 +95,10 @@ import com.varlanv.wrasse.rules.UnnecessaryPartOfBinaryExpressionRule
 import com.varlanv.wrasse.rules.UnusedParameterRule
 import com.varlanv.wrasse.rules.UnusedPrivateClassRule
 import com.varlanv.wrasse.rules.UseLetRule
+import com.varlanv.wrasse.rules.UselessPostfixExpressionRule
 import com.varlanv.wrasse.rules.VariableNameMaxLengthRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
+import com.varlanv.wrasse.rules.WhenMustHaveElseRule
 import java.nio.file.Path
 import org.jetbrains.kotlin.backend.common.push
 
@@ -100,7 +109,9 @@ internal fun registeredRules(): List<WUninitializedRule> =
 listOf(
     AlsoCouldBeApplyRule(),
     BackingPropertyNamingRule(),
+    BooleanExpressionsRule(),
     ClassNamingRule(),
+    CollapseIfRule(),
     CommentOverPrivateDeclarationRule(),
     ComplexConditionRule(),
     ConstructorParameterNamingRule(),
@@ -118,12 +129,15 @@ listOf(
     ExceptionRaisedInUnexpectedLocationRule(),
     ExplicitItLambdaMultipleParametersRule(),
     ExplicitItLambdaParameterRule(),
+    ExtensionFunctionsSameNameRule(),
     FileSizeRule(),
     FileNamingRule(),
     ForbiddenCommentRule(),
+    FunctionExpressionBodyRule(),
     FunctionNamingRule(),
     FunctionOnlyReturningConstantRule(),
     FunctionParameterNamingRule(),
+    GetterSetterFieldsRule(),
     GlobalCoroutineUsageRule(),
     IfElseBracingRule(),
     InstanceOfCheckForExceptionRule(),
@@ -155,8 +169,10 @@ listOf(
     RedundantToStringInTemplateRule(),
     RethrowCaughtExceptionRule(),
     SafeCastRule(),
+    StringConcatenationRule(),
     StringShouldBeRawStringRule(),
     SwallowedExceptionRule(),
+    SyncInAsyncRule(),
     ThrowingExceptionInMainRule(),
     TooGenericExceptionCaughtRule(),
     TooGenericExceptionThrownRule(),
@@ -170,8 +186,10 @@ listOf(
     UnusedParameterRule(),
     UnusedPrivateClassRule(),
     UseLetRule(),
+    UselessPostfixExpressionRule(),
     VariableNameMaxLengthRule(),
     WhenEntryBracingRule(),
+    WhenMustHaveElseRule(),
 )
 
 /**

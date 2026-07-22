@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "sync-in-async": { "level": "error" }
+    }
+}

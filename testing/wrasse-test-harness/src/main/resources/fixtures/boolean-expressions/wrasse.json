@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "boolean-expressions": { "level": "error" }
+    }
+}

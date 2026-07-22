@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "extension-functions-same-name": { "level": "error" }
+    }
+}

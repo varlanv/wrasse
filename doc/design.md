@@ -4478,6 +4478,215 @@ single wrasse id.
   **Updated remaining-portable-L count: 10** (see the remaining-L inventory note above for the
   full list and the recount that produced this number).
 
+- **B.10 — lint-only rules (bucket L), eighth installment, closing B.9's held-10 list — shipped
+  2026-07-22.** Nine new ids: `function-expression-body`, `useless-postfix-expression`,
+  `collapse-if`, `extension-functions-same-name`, `getter-setter-fields`, `sync-in-async`,
+  `when-must-have-else`, `string-concatenation`, `boolean-expressions`. Report, never fix —
+  `canAutofix` is false everywhere in this batch. Every one of B.9's held-10 was re-read against
+  the three ground-truth checkouts' own *current* source this session (not the B.9 prose): two
+  renamed since the catalog rows were first written (diktat's `getter-setter-fields` NAME_ID is now
+  `PropertyAccessorFields.NAME_ID`/`getter-setter-fields`, unchanged; its own class file is
+  `PropertyAccessorFields.kt`, not `CustomGetterSetterRule.kt` — B.9's "verification incomplete"
+  note is resolved, the two are genuinely distinct rules, confirmed by reading both current
+  sources; diktat's `when-must-have-else` candidate is now shipped internally under
+  `WhenMustHaveElseRule.kt`'s own `NAME_ID = "no-else-in-when"` — same concept, this project keeps
+  its own tracking name for continuity across three batches' worth of held-list prose, not
+  upstream's current literal id).
+
+  **Triage table** (✓ = shipped this batch; every "skip"/"held" reason was checked against that
+  rule's actual current source, not carried over from B.9's prose unread):
+
+  | candidate | catalog | concern | syntax-only feasible? | outcome |
+  |---|---|---|---|---|
+  | `function-expression-body` | ktlint | prefer expression body over a block containing only one `return`/`throw` | yes — pure structural child-count check (`FunctionExpressionBodyRule`), the exact same shape this project's own `containingOnly`-style rules already use; B.9's "judgment-flavored, not attempted" framing was about time budget, not a feasibility gap — re-read this session, no analysis-API dependency anywhere in the upstream rule | ✓ shipped |
+  | `no-name-shadowing` | detekt | a name reintroduced in a nested scope | **no** — `NoNameShadowing` implements `RequiresAnalysisApi`; its own explicit-name-shadowing checks (property/destructuring/parameter vs. an enclosing function/lambda/primary-constructor parameter) are genuinely syntax-only, but its most consequential case — a lambda's own implicit `it` shadowing an outer lambda's own implicit `it` — calls `hasImplicitParameter()`/`hasImplicitParameterReference()`, both of which `analyze(this) { functionLiteral.symbol.valueParameters... }`: real type inference is required to know whether a given lambda literal actually binds an implicit `it` at all (that depends on the target functional type's arity at the call site, not on anything in the lambda's own syntax) | **permanently skipped** (resolution-dependent) |
+  | `useless-postfix-expression` | detekt | postfix `++`/`--` whose value is provably discarded | yes — `UselessPostfixExpression` has no `RequiresAnalysisApi`, no `analyze()` call anywhere; B.9's "held on complexity grounds" was accurate for the rule's own `return i++` detection path (gated by a local/class-property-name heuristic that needs whole-function property-name collection independent of source order — see below) but not for its assignment/comparison self-reference path, which is plain PSI-sibling text comparison | ✓ shipped, narrowed (see below) |
+  | `collapse-if` | diktat | nested `if` with no `else` at either level, mergeable | yes — `CollapseIfStatementsRule` is pure structural AST matching (allowed-surrounding-node-types check, comment-tolerant), no resolution anywhere | ✓ shipped |
+  | `extension-functions-same-name` | diktat | two unrelated extension functions with an identical signature on related classes | yes — `ExtensionFunctionsSameNameRule` matches by parameter *names* (never types) and by textual supertype-list membership within one file, explicitly resolution-free by its own design (its own code comment: "Fixme: should find all related classes in project, not only in file" — a scope limitation this project inherits for free, since it also sees one file at a time) | ✓ shipped |
+  | `getter-setter-fields` | diktat | accessor recursing on its own property's name instead of `field` | yes — `PropertyAccessorFields` is pure PSI structural/text matching (first same-named reference, "am I inside a `DOT_QUALIFIED_EXPRESSION`" check, a local-shadow position check via `isGoingAfter`); the rule's own KDoc even flags its shadow-check as a `// fixme should use shadow-check when it will be done` — an *upstream-acknowledged* heuristic, not a resolution dependency | ✓ shipped, narrowed (see below) |
+  | `sync-in-async` | diktat | `runBlocking` reached from inside `async`/`launch`/a `suspend` function | yes — `AsyncAndSyncRule` is a pure textual match on the callee name of the nearest ancestor call (`"async"`/`"launch"`) or a `suspend` modifier on the nearest ancestor function — no resolution of which coroutine builder those names actually refer to | ✓ shipped |
+  | `when-must-have-else` | diktat | statement-`when` without `else`, unless the subject is enum/sealed-shaped | yes — `WhenMustHaveElseRule`'s (upstream `NAME_ID = "no-else-in-when"`) own "is this enum-only" check is itself a syntactic shape heuristic (dot-qualified/bare-reference conditions), never a real check of whether the subject's declared type is actually an enum or sealed class — genuinely resolution-free by upstream's own design, not merely under-verified | ✓ shipped, narrowed (see below) |
+  | `string-concatenation` | diktat | `+`-chained string building starting from a literal | yes — `StringConcatenationRule`'s own detection is "is the chain's leftmost operand textually a string-template literal (or a `.toString()`-suffixed call)", a lexical fact needing no resolution: a quoted string literal's type is `String` by grammar alone | ✓ shipped |
+  | `boolean-expressions` | diktat | boolean-algebra simplification | yes, but **out of proportion** — `BooleanExpressionsRule` embeds the third-party `jbool_expressions` library to run De Morgan's laws, the distributive law, and arbitrary-depth chain flattening; every one of its own atoms is compared by raw text (`textWithoutComments()`), so the *whole* rule is genuinely resolution-free, but re-implementing (or vendoring) a general propositional-logic simplifier is a different order of engineering than any of the ~140 rules this project has shipped to date, and two of its own component laws already ship independently under other ids (see the dedupe note below) | ✓ **shipped narrowed** — only the two laws not already covered by another id (literal absorption, direct complement) |
+
+  **Dedupe/overlap map** (concepts `boolean-expressions` would otherwise re-detect under a second
+  id, so deliberately excluded from its own narrowed scope):
+
+  | law | already shipped as | provenance |
+  |---|---|---|
+  | idempotent duplicate operand (`a && a`) | `unnecessary-part-of-binary-expression` (B.8) | detekt `UnnecessaryPartOfBinaryExpression`, independent of diktat's `boolean-expressions` |
+  | double negation (`!!a`) | `double-negative` (B.7) | detekt `DoubleNegativeExpression`, independent of diktat's `boolean-expressions` |
+
+  Neither of the two ids above derives from diktat's `BooleanExpressionsRule` — both are
+  independently-sourced detekt rules that happen to cover two of the same propositional laws jbool
+  also implements — so this is a *conceptual* overlap, not a provenance one; recorded here so the
+  two laws don't silently reappear as "gaps" in a future batch's own re-audit of diktat's rule.
+
+  Per-rule semantics, narrowing, and provenance:
+
+  - **`function-expression-body`** — a function's own `BLOCK` body (only ever inspected when its
+    immediate parent is `FUN`) whose only content, ignoring `{`/`}`/whitespace, is a single
+    `RETURN` or `THROW` is reported at the block's own span; a `RETURN` case is additionally
+    dropped when the block contains more than one `return` keyword anywhere inside it (a nested
+    `return` — e.g. inside an `if`/`else` value — would change meaning if hoisted to `=`), counted
+    via `onChildLeaf` over the whole block regardless of nesting depth, matching upstream's own
+    `leavesInClosedRange` scan. Any comment anywhere in the block disqualifies it (upstream's own
+    `containingOnly` filter never drops comments either).
+  - **`useless-postfix-expression`** — a `++`/`--` postfix expression that is either the direct
+    right operand of *any* binary expression (not only `=` — matching upstream's own lack of an
+    operator filter) whose left operand has the identical raw text, or a direct child of that right
+    operand (`i = 1 + i++`), is reported at the postfix's own span. Every `BINARY_EXPRESSION`
+    records its own direct postfix children at its own exit, keyed by offset, so an enclosing
+    binary expression whose right operand is itself a binary expression can look up that operand's
+    own direct children — one level below `expression.right`, never recursed deeper, matching
+    upstream's own `getChildrenOfType` (direct children only). **Deliberately narrower than
+    upstream**: only the assignment/comparison self-reference slice is ported; upstream's separate
+    `return i++` detection is gated by `shouldBeReported()`, a heuristic that needs the *complete*
+    set of local-variable names declared anywhere in the enclosing named function's own subtree,
+    independent of whether that declaration comes before or after the `return` in source order —
+    a genuine forward/backward reference a single SAX pass cannot resolve without deferring to
+    end-of-function, and even then only for the specific enclosing-function scope upstream's own
+    `getNonStrictParentOfType<KtNamedFunction>()` selects (a captured outer local var referenced
+    from inside a *lambda* nested in that function would need bubbling the fact through multiple
+    frames). Held out as a documented gap rather than an under-verified approximation of that one
+    path — the covered slice (both real-world `i = i++`/`i = 1 + i++` shapes) ships in full.
+  - **`collapse-if`** — an `if` whose own `then` branch's only content — braced or not, a leading
+    or trailing comment tolerated either side — is another nested `if` is reported at the nested
+    `if`'s own span, when neither the outer nor the inner carries an `else`. A stack of open `IF`
+    frames, each with a "my own nested candidate" slot, is filled either directly (an unbraced
+    nested `if` sets its own enclosing frame's slot at its own exit) or via a `BLOCK` whose
+    immediate parent is `THEN` (which, at its own exit, confirms it holds nothing but one nested
+    `if` plus whitespace/comments, then sets the *enclosing* frame's slot — its own frame having
+    already been popped, since the nested `if` inside it exits first). Every `IF`'s own `else`
+    presence is recorded at its own exit keyed by offset, for a `BLOCK`'s lookup of its nested
+    `if`'s own fact; the enclosing `if`'s *own* `else` presence is read live off its still-open
+    frame, never through that same map (its own `else`, if any, is only walked after its `then`
+    branch closes, so the map would still read "no else" at the point a nested candidate is being
+    recorded). A three-level chain (`if(a){if(b){if(c){}}}}`, none with `else`) reports at `b`'s and
+    `c`'s own positions, never `a`'s — matching upstream's own chain-walk exactly, confirmed by a
+    dedicated fixture proving the frame stack survives a rise-then-fall in nesting depth without
+    cross-contamination.
+  - **`extension-functions-same-name`** — collected once per file: every non-interface class's own
+    directly-named supertypes (a class's own name captured from its first direct `IDENTIFIER`
+    child; a supertype's own simple name read as the leading identifier characters of its
+    `SUPER_TYPE_CALL_ENTRY`'s own span text — matching upstream's own "first identifier leaf,
+    unqualified" extraction, including its quirk of taking a *qualified* supertype's own first
+    segment rather than its simple name); every top-level extension function's own receiver class,
+    name, parameter *names* (read from its `VALUE_PARAMETER_LIST`'s own `VALUE_PARAMETER` children,
+    stashed by that list's own offset for the enclosing `FUN` to collect), and return-type text.
+    Decided once in `afterFile`: two candidates sharing a signature (name + parameter names, never
+    types, + return-type text) are both reported when their own receiver classes are found related.
+    An interface's own supertype list is never a source of a related-class pair (matching upstream's
+    own `filterNot { isInterface() }`, applied to the child, never the supertype).
+  - **`getter-setter-fields`** — a `get()`/`set()` accessor body that references its own property's
+    bare name anywhere inside it is reported at the accessor's own span, unless: that reference is
+    itself a call's own callee (`name()`, a same-named function call, not a self-reference); a
+    local variable of the same name was declared earlier in the accessor's own direct block (a
+    genuine shadow); or the property is an extension property (which never has a backing `field` to
+    redirect to in the first place — so the "use `field` instead" fix could never apply). The
+    property's own name and whether it is an extension property are both read off its first direct
+    `IDENTIFIER` child, using the same fragile "is the immediately-preceding leaf a bare `DOT`, no
+    intervening whitespace" adjacency check upstream's own AST-sibling walk relies on (both fail to
+    recognize `Foo. bar` — a spaced dot — as an extension property; a faithful reproduction of
+    upstream's own quirk, not a narrowing). **Deliberately narrower than upstream**: only the
+    *first* bare (non-dot-qualified) same-named reference is ever a candidate; upstream additionally
+    allows a `this.name`-qualified reference to count as the same self-reference, which needs
+    tracking a dot-qualified expression's own receiver shape one level below where the candidate
+    identifier itself is found — dropped rather than approximated.
+  - **`sync-in-async`** — a `runBlocking { }` trailing-lambda call (its own callee read directly off
+    the `REFERENCE_EXPRESSION` at `CALL_EXPRESSION` child-index 0) is reported at the callee's own
+    span when any open ancestor `CALL_EXPRESSION` frame's own callee is `async`/`launch`, or any
+    open ancestor `FUN` frame carries a `suspend` modifier — a pure existence check across two
+    independent frame stacks (order between them never matters, only "is any frame in either stack
+    true"), so the two never need merging into one ordered structure.
+  - **`when-must-have-else`** — a statement-position `when` missing `else`, whose own entries are
+    not entirely enum-entry-shaped, is reported at its own span. "Statement position" excludes: a
+    `when` with a `RETURN` ancestor anywhere above it; one whose immediate parent is `WHEN_ENTRY`
+    (an unbraced branch of another `when`); one whose immediate parent is `PROPERTY`, `FUN`
+    (an expression-body function), or *any* `BINARY_EXPRESSION` (broader than upstream, which only
+    exempts a bare `=` sibling specifically — telling that one operator apart from any other would
+    need the operand's own operator text, a safer direction to over-exempt on a shape rare enough
+    not to matter in practice); and a `when` that is a lambda's own last statement (needs its
+    enclosing `BLOCK`'s own last child, only known once that block closes — every candidate's
+    final verdict is deferred to `afterFile` for this reason alone). "Enum-entry-shaped" checks
+    each entry for an `is`-pattern condition (disqualifies unconditionally) and, for each plain
+    expression condition, whether it is a bare or dot-qualified reference; a `when` nested inside a
+    `WHEN_CONDITION_IN_RANGE` (`in RED..BLUE`) is deliberately never inspected for this heuristic —
+    always treated as enum-like — a documented, safe-direction narrowing (never a new false
+    positive, only a possible missed one on a non-enum `in` condition, a rare shape).
+  - **`string-concatenation`** — a `+` binary-expression step whose own left operand is textually a
+    string (a string-template literal, or a `.toString()`-suffixed call paired with a
+    string-template right operand) is reported once, at the earliest such step found anywhere in a
+    single-line, top-level `+` chain — matching upstream's own "first descendant found" selection
+    for the common case (a straightforward left-associative literal-starting chain has only one
+    genuine match; upstream's own check on each *outer* step's own left operand fails once that
+    left operand is itself a compound expression rather than a bare literal). A parenthesized
+    sub-expression is an opaque boundary — never itself flattened through — the same treatment this
+    project's own `unnecessary-part-of-binary-expression`/`mixed-condition-operators` already give
+    parens, so a `+`-chain finding buried inside an explicit paren is a documented, consistent miss.
+  - **`boolean-expressions`** — narrowed to the two propositional laws not already covered by
+    `unnecessary-part-of-binary-expression`/`double-negative` (see the dedupe map above): a bare
+    `true`/`false` literal operand of a `&&`/`||` inside an `if`/`while`/`do-while`'s own `CONDITION`
+    (matching upstream's own scope exactly), or a direct complement pair (`a && !a`, `a || !a`,
+    comparing an operand's raw text against a sibling `PREFIX_EXPRESSION`'s own recorded `!`-negated
+    base text). Only the condition's own two *direct* operands are ever checked — no chain
+    flattening — so a complement or literal buried three or more operators deep in one larger
+    chain (`a && b && !a`) is a documented miss, the same conservative simplification this batch's
+    other binary-chain rules already accept.
+
+  Fixture coverage: 79 fixtures across the 9 rule directories (error/clean/every-exemption,
+  `@Suppress` happy/negative pairs per rule); `collapse-if` additionally covers a three-level
+  nested chain (rise-then-fall proof for its own `IfFrame` stack); `when-must-have-else` covers
+  every one of its five statement-position exemptions plus the lambda-last-statement deferred
+  path independently. Unit specs: one Decision spec per rule (`FunctionExpressionBodyDecisionSpec`,
+  `UselessPostfixExpressionDecisionSpec`, `CollapseIfDecisionSpec`,
+  `ExtensionFunctionsSameNameDecisionSpec`, `GetterSetterFieldsDecisionSpec`,
+  `SyncInAsyncDecisionSpec`, `WhenMustHaveElseDecisionSpec`, `StringConcatenationDecisionSpec`,
+  `BooleanExpressionsDecisionSpec`).
+
+  **Own-codebase measurement** (isolated `rsync` copy, never this repo's own `wrasse.json`;
+  `allWarningsAsErrors` disabled in the copy's convention plugin; `publishToMavenLocal` run in the
+  copy before `compileKotlin compileTestKotlin -PwrasseCheck --continue`, so the mavenLocal plugin
+  jar under test was freshly built from the code this batch actually ships): of the nine new ids,
+  six fire **zero** times anywhere in this repo's own `main`+`test` sources — `boolean-expressions`,
+  `collapse-if`, `extension-functions-same-name`, `getter-setter-fields`, `sync-in-async`,
+  `useless-postfix-expression`. `function-expression-body` fires twice (`WrassePlugin.kt`'s own
+  `checkFile`-adjacent hook and `WrasseCompilerPluginRegistrar.kt`, both genuine single-`return`
+  block bodies). `when-must-have-else` fires five times, every one a `when` over a sealed hierarchy
+  (`WRule`, a config `Property`, `AnnotationScope`, `FileApplyResult`) using `is`-pattern branches
+  with no `else` — genuine true positives by this rule's own literal, resolution-free definition
+  (kotlinc may itself treat these as exhaustive via sealed-hierarchy coverage, but that is exactly
+  the resolution fact this syntax-only port cannot and does not attempt to check, matching upstream
+  fidelity). `string-concatenation` fires eight times, every one a literal-starting `+` chain
+  (`"\n" + sorted.joinToString(...)`-shaped) — genuine true positives. **Enablement
+  recommendation** (not applied to this repo's own `wrasse.json`, per the task's own instruction):
+  all six zero-firing ids are zero-risk to enable at `error` immediately.
+  `function-expression-body`/`string-concatenation` are correctly scoped and low-volume (2 and 8
+  hits) — enabling either means either accepting those few sites as-is (both are genuine, harmless
+  style nits) or converting them to expression bodies / templates first; either is a small, one-time
+  cleanup, not a blocker. `when-must-have-else` is correctly scoped but its 5 hits are all
+  sealed-`when` idioms this codebase uses deliberately and repeatedly (matching a sealed hierarchy
+  exhaustively via `is`-branches, no `else`, by design) — enabling it repo-wide as configured today
+  would mean either adding an `else -> error(...)` to five genuinely-exhaustive `when`s (a style
+  regression, not a bug fix) or an `exclude`/`@Suppress` per site; recommend holding this one id at
+  `off` (or `warn`) in this repo's own config specifically, not because the port is wrong, but
+  because this codebase's own idiom is the documented, deliberate exception the rule's own enum/
+  sealed exemption doesn't (and, being resolution-free, structurally cannot) recognize.
+
+  **Definitive final accounting.** Every candidate carried forward from B.7 through B.9's own
+  held-lists has now been re-verified against current upstream source at least once. Of B.9's
+  held-10: nine ship this batch; one (`no-name-shadowing`) is **permanently skipped** — its own
+  most consequential case is irreducibly resolution-dependent (`RequiresAnalysisApi`,
+  `analyze() { functionLiteral.symbol.valueParameters }` to know whether a given lambda literal
+  actually binds an implicit `it`), and its remaining syntax-only slice (explicit declaration
+  shadowing a named parameter) was deliberately not carved out as a separate, narrower id this
+  batch, since doing so would mean shipping a materially different rule than what "no-name-
+  shadowing" means to a user reading either catalog — a scope decision left for a future session
+  rather than decided unilaterally here. **Zero portable (syntax-only) L-bucket rules remain
+  un-ported.** The complete permanently-skipped-for-resolution list, across every batch to date, is
+  exactly one id: `no-name-shadowing` (detekt). This is the project's "all portable L rules ported"
+  milestone.
+
 **Exit:** a representative real project lints under wrasse with parity-equivalent findings to its
 ktlint + detekt setup (minus parked outbound rules) at measurably lower wall-clock.
 

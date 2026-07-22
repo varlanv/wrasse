@@ -483,6 +483,42 @@
                 "debug-print": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow a bare print/println or console.* debug call"
+                },
+                "function-expression-body": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Prefer an expression body over a block body containing only a single return or throw"
+                },
+                "useless-postfix-expression": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a ++/-- postfix expression whose result is immediately discarded via self-assignment or comparison"
+                },
+                "collapse-if": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a nested if with no else at either level that could be collapsed into its own enclosing condition"
+                },
+                "extension-functions-same-name": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow two extension functions with the same signature on related receiver classes"
+                },
+                "getter-setter-fields": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a property accessor referencing its own property's name instead of 'field'"
+                },
+                "sync-in-async": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow runBlocking() reached from inside async/launch or a suspend function"
+                },
+                "when-must-have-else": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a statement-position when without an else branch, unless its entries are all enum-entry-shaped"
+                },
+                "string-concatenation": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow building a string via '+' starting from a string literal; prefer a string template"
+                },
+                "boolean-expressions": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a directly-simplifiable boolean condition (a bare true/false operand, or a direct complement pair)"
                 }
             }
         }

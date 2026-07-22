@@ -15,14 +15,17 @@ class RuleRegistrationOrderSpec :
         {
 
             should(
-                "register also-could-be-apply, backing-property-naming, class-naming, comment-over-private-declaration, " +
+                "register also-could-be-apply, backing-property-naming, boolean-expressions, class-naming, collapse-if, " +
+                    "comment-over-private-declaration, " +
                     "complex-condition, constructor-parameter-naming, custom-label, debug-print, " +
                     "destructuring-declaration-with-too-many-entries, " +
                     "double-negative, empty-catch-block, empty-default-constructor, empty-function-block, empty-kotlin-file, " +
                     "empty-when-block, enum-entry-naming, equals-null-call, " +
                     "exception-raised-in-unexpected-location, explicit-it-lambda-multiple-parameters, " +
-                    "explicit-it-lambda-parameter, file-size, filename, forbidden-comment, function-naming, " +
-                    "function-only-returning-constant, function-parameter-naming, global-coroutine-usage, if-else-bracing, " +
+                    "explicit-it-lambda-parameter, extension-functions-same-name, file-size, filename, forbidden-comment, " +
+                    "function-expression-body, function-naming, " +
+                    "function-only-returning-constant, function-parameter-naming, getter-setter-fields, " +
+                    "global-coroutine-usage, if-else-bracing, " +
                     "instance-of-check-for-exception, invalid-range, kdoc-deprecated-tag, kdoc-references-non-public-property, " +
                     "lambda-parameter-naming, lambda-return, " +
                     "long-numerical-values, long-parameter-list, loop-with-too-many-jump-statements, magic-number, " +
@@ -33,12 +36,14 @@ class RuleRegistrationOrderSpec :
                     "print-stack-trace, " +
                     "property-naming, range-conventional, redundant-constructor-keyword, redundant-to-string-in-template, " +
                     "rethrow-caught-exception, " +
-                    "safe-cast, string-should-be-raw-string, swallowed-exception, throwing-exception-in-main, " +
+                    "safe-cast, string-concatenation, string-should-be-raw-string, swallowed-exception, sync-in-async, " +
+                    "throwing-exception-in-main, " +
                     "too-generic-exception-caught, " +
                     "too-generic-exception-thrown, trailing-newline, trim-multiline-raw-string, trivial-accessors, " +
                     "unconditional-jump-statement-in-loop, unnecessary-backticks, unnecessary-inheritance, " +
                     "unnecessary-part-of-binary-expression, unused-parameter, " +
-                    "unused-private-class, use-let, variable-name-max-length, and when-entry-bracing as single-id rules",
+                    "unused-private-class, use-let, useless-postfix-expression, variable-name-max-length, when-entry-bracing, " +
+                    "and when-must-have-else as single-id rules",
             ) {
                 val ids = registeredRules().map { it.id }
 
@@ -46,7 +51,9 @@ class RuleRegistrationOrderSpec :
                     listOf(
                         "also-could-be-apply",
                         "backing-property-naming",
+                        "boolean-expressions",
                         "class-naming",
+                        "collapse-if",
                         "comment-over-private-declaration",
                         "complex-condition",
                         "constructor-parameter-naming",
@@ -64,12 +71,15 @@ class RuleRegistrationOrderSpec :
                         "exception-raised-in-unexpected-location",
                         "explicit-it-lambda-multiple-parameters",
                         "explicit-it-lambda-parameter",
+                        "extension-functions-same-name",
                         "file-size",
                         "filename",
                         "forbidden-comment",
+                        "function-expression-body",
                         "function-naming",
                         "function-only-returning-constant",
                         "function-parameter-naming",
+                        "getter-setter-fields",
                         "global-coroutine-usage",
                         "if-else-bracing",
                         "instance-of-check-for-exception",
@@ -101,8 +111,10 @@ class RuleRegistrationOrderSpec :
                         "redundant-to-string-in-template",
                         "rethrow-caught-exception",
                         "safe-cast",
+                        "string-concatenation",
                         "string-should-be-raw-string",
                         "swallowed-exception",
+                        "sync-in-async",
                         "throwing-exception-in-main",
                         "too-generic-exception-caught",
                         "too-generic-exception-thrown",
@@ -116,8 +128,10 @@ class RuleRegistrationOrderSpec :
                         "unused-parameter",
                         "unused-private-class",
                         "use-let",
+                        "useless-postfix-expression",
                         "variable-name-max-length",
                         "when-entry-bracing",
+                        "when-must-have-else",
                     )
             }
 

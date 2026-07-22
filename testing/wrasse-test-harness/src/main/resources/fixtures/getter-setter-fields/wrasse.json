@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "getter-setter-fields": { "level": "error" }
+    }
+}
