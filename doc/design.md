@@ -3914,6 +3914,186 @@ single wrasse id.
   defect — every rule was green on old fixtures and every new fixture directory green in isolation;
   only the cumulative compile count tipped it over.
 
+- **B.7 — lint-only rules (bucket L), fifth installment, the CONTROL-FLOW/EMPTY-BLOCK/POTENTIAL-BUG
+  remainder plus the deferred VARIABLE-naming family — shipped 2026-07-22.** Eighteen new ids.
+  Report, never fix — `canAutofix` is false everywhere in this batch. Triage table (every
+  candidate checked against its actual current upstream source, not the possibly-stale
+  `autoformat-scope.md` snapshot alone — several of this batch's real rules
+  (`DoubleNegativeExpression`/`DoubleNegativeLambda`, `LoopWithTooManyJumpStatements`,
+  `ConstructorParameterNaming`, `VariableNaming`, `VariableMinLength`/`VariableMaxLength`) postdate
+  that catalog's own snapshot and only surfaced by reading ground-truth detekt/diktat directly):
+
+  | candidate | syntax-only feasible? | outcome |
+  |---|---|---|
+  | `empty-if-block`/`empty-else-block` | yes — upstream's own check is pure PSI (`KtBlockExpression` with zero children) | shipped, fused (`EmptyBlockEngine`) |
+  | `empty-for-block`/`empty-while-block`/`empty-do-while-block` | yes, same shape | shipped, fused |
+  | `empty-finally-block`/`empty-try-block`/`empty-init-block`/`empty-secondary-constructor` | yes, same shape | shipped, fused |
+  | `empty-function-block` | yes — modifier/interface-membership check is pure PSI | shipped, standalone (needs `FUN`'s own children, not reachable cheaply from a fused `BLOCK` walk) |
+  | `empty-when-block` | yes — entry-count check is pure PSI | shipped, standalone |
+  | `empty-kotlin-file` | yes — whole-file text-minus-package-directive check is pure PSI | shipped, standalone |
+  | `unconditional-jump-statement-in-loop` | yes, narrowed — upstream's own check is pure PSI, but its multi-statement backward-scan "already conditional" exemption is dropped | shipped, narrowed to the single-statement-body case |
+  | `loop-with-too-many-jump-statements` | yes — upstream's own check is pure PSI, a deep (non-nested-loop-crossing) descendant count | shipped |
+  | `custom-label` | yes — upstream's (diktat) own check is name-based/ancestor-counting, no resolution; corrects B.5's own skip rationale (B.5 characterized it as "a presence check, not a count, no natural threshold to hardcode" — re-reading diktat's actual `CustomLabel.kt` shows a fixed, non-configurable `nestedCount == 1` check, not a user-tunable threshold at all) | shipped |
+  | `double-negative` | yes, narrowed — detekt's own `DoubleNegativeExpression` declares nothing analysis-requiring for its prefix-`!`-chain branch, but does for its `.not()`/`not()` qualified-call branch (must resolve to know it is really `Boolean.not()`); `DoubleNegativeLambda`'s own negation-detection (token-type discrimination plus identifier camelCase-splitting across an arbitrary-depth lambda subtree) is real but meaningfully more complex for a narrow stylistic nit | shipped, narrowed to the prefix-`!`-chain form only; `DoubleNegativeLambda`'s own shape not folded in, left for a future batch |
+  | `redundant-else-in-when` | **no** — "is this `when`'s own `else` actually reachable" needs knowing whether the subject type's own hierarchy is already exhaustive (sealed/enum resolution) | **skipped** |
+  | `redundant-return`/`redundant-jump` | not present as a distinct rule in any of ktlint/detekt/diktat today | **skipped** |
+  | `redundant-boolean-literal` (`== true`/`== false`) | not present as a distinct rule in any of the three catalogs today (detekt's own `NullableBooleanCheck` recommends the *opposite* direction, `?: false` → `== true`) | **skipped** |
+  | `simplifiable-boolean-expression` | not present as a distinct rule in any of the three catalogs today | **skipped** |
+  | `for-loop-over-range-index-instead-of-collection` | not present upstream as such; the closest sibling (detekt `ForEachOnRange`) is a different concept (boxing cost of `IntRange.forEach`) and itself needs the receiver's resolved type | **skipped** |
+  | `nested-loop` (metric) | no such metric rule in any of the three catalogs today | **skipped** |
+  | `variable-naming` | **already shipped** — `property-naming` (B.1) targets every `PROPERTY` node with no ancestor restriction beyond its own top-level-`val`/object-member-`val` exemptions, so it already enforces lowerCamelCase on a **local variable** inside a function body today; empirically verified (a temporary fixture asserting a local `val LocalBad = 1` inside a function reports `property-naming`, confirmed green, then removed). B.1's own deferral note assumed a disjoint scope that does not actually exist in the shipped code | **no new id — dedupe, not a skip** |
+  | `constructor-parameter-naming` | yes — upstream's own check is pure PSI (name pattern + `override`) | shipped |
+  | `variable-name-min-length` | present upstream, but detekt's own default (`minimumVariableNameLength = 1`) makes the check a permanent no-op (`length < 1` never holds for a real identifier) — hardcoding it ships a rule that can never fire; no cross-catalog signal exists for a different, meaningful default | **skipped** — no meaningful hardcoded default |
+  | `variable-name-max-length` | yes — upstream's own default (`maximumVariableNameLength = 64`) is meaningful | shipped |
+
+  Dedupe map (16 catalog rows across detekt/diktat → 18 wrasse ids; `empty-if-block` through
+  `empty-secondary-constructor` are 9 ids fused into `EmptyBlockEngine`, no other collapsing
+  needed — this batch's candidates never overlapped the way the naming batch's did):
+
+  | wrasse id | dedupes |
+  |---|---|
+  | `empty-if-block` | detekt `EmptyIfBlock` |
+  | `empty-else-block` | detekt `EmptyElseBlock` |
+  | `empty-for-block` | detekt `EmptyForBlock` |
+  | `empty-while-block` | detekt `EmptyWhileBlock` |
+  | `empty-do-while-block` | detekt `EmptyDoWhileBlock` |
+  | `empty-finally-block` | detekt `EmptyFinallyBlock` |
+  | `empty-try-block` | detekt `EmptyTryBlock` |
+  | `empty-init-block` | detekt `EmptyInitBlock` |
+  | `empty-secondary-constructor` | detekt `EmptySecondaryConstructor` |
+  | `empty-function-block` | detekt `EmptyFunctionBlock` |
+  | `empty-when-block` | detekt `EmptyWhenBlock` |
+  | `empty-kotlin-file` | detekt `EmptyKotlinFile` |
+  | `unconditional-jump-statement-in-loop` | detekt `UnconditionalJumpStatementInLoop` |
+  | `loop-with-too-many-jump-statements` | detekt `LoopWithTooManyJumpStatements` |
+  | `custom-label` | diktat `CustomLabel` |
+  | `double-negative` | detekt `DoubleNegativeExpression` (prefix-`!`-chain branch only) |
+  | `constructor-parameter-naming` | detekt `ConstructorParameterNaming` |
+  | `variable-name-max-length` | detekt `VariableMaxLength` |
+
+  Per-rule semantics, narrowing, and provenance notes:
+
+  - **The empty-block family** shares one convention, already established by `empty-catch-block`
+    (B.6) and `no-empty-class-body` (B.2): a `BLOCK`'s own direct children must be nothing but its
+    braces and whitespace (`EmptyBlockCheck`, extracted from `EmptyCatchBlockRule` in this batch and
+    reused everywhere below); any comment or KDoc inside makes it non-empty. **`EmptyBlockEngine`**
+    fuses nine ids into one `BLOCK`-targeted buffered walk, routed purely by the block's own
+    immediate parent (`THEN`/`ELSE` for `empty-if-block`/`empty-else-block`; a loop's `BODY`,
+    disambiguated one level further by which of `FOR`/`WHILE`/`DO_WHILE` owns it, for the three
+    loop ids; `FINALLY`/`TRY`/`CLASS_INITIALIZER`/`SECONDARY_CONSTRUCTOR` directly) — one decision-
+    maker instead of nine independent rules each re-deriving the identical emptiness check. A
+    `BLOCK` whose parent is `FUN` is deliberately excluded from the engine's routing:
+    `empty-function-block` needs the function's own `open`/interface-membership context, cheaper to
+    read directly off `FUN`'s own children than to re-derive from a nested `BLOCK`'s ancestors, so
+    it stays a standalone rule reading `BLOCK`'s span text directly (`EmptyBlockCheck.isEmptySpan`)
+    rather than joining the engine.
+  - **`empty-when-block`** deliberately applies the project's own "comment/KDoc inside exempts"
+    convention to itself even though detekt's own `EmptyWhenBlock` does not (it only checks
+    `entries.isEmpty()`, with no comment carve-out) — narrower, never a new false positive relative
+    to upstream, and consistent with every sibling rule in this family.
+  - **`empty-function-block`** exempts an `open` function (a subclass may still rely on the no-op
+    default) and any function declared directly inside an interface (the common "optional callback
+    with a no-op default" idiom) — both matching detekt's own `EmptyFunctionBlock` defaults
+    (`isOpen()`, and its own `isDefaultFunction()` interface check, folded together here since this
+    batch's model has no config surface for `ignoreOverridden` and detekt's own default already
+    treats every interface member with a body as exempt regardless of `override`).
+  - **`empty-kotlin-file`** strips only the file's own `PACKAGE_DIRECTIVE` span before checking
+    blankness, matching detekt's own algorithm exactly (`file.text` minus the package-directive
+    range). A real consequence, not a bug: any `@file:` annotation (including
+    `@file:Suppress("empty-kotlin-file")`) is itself non-blank content, so a file carrying one is
+    never considered empty in the first place, by either detekt's algorithm or this one — the
+    fixtures document this rather than working around it.
+  - **`unconditional-jump-statement-in-loop`** — **narrowed**: reports a loop (braced or bare body)
+    whose entire body is exactly one statement that is itself a bare `break`, or a bare `return`
+    whose own value is not an `<expr> ?: break`/`<expr> ?: continue` elvis fallback (that idiom
+    always exits the loop one way or another regardless, a defensive pattern detekt's own rule
+    also leaves alone). A bare `continue` is never flagged — deliberately narrower than upstream:
+    a lone unconditional `continue` does not exit the loop the way `break`/`return` do, so including
+    it would contradict this rule's own stated rationale ("the loop is only executed once").
+    Upstream's own multi-statement case — flagging *any* top-level jump statement in a longer body,
+    exempting one that is itself preceded by a sibling already containing a jump anywhere in its own
+    subtree — needs a backward-scan heuristic this single-pass model does not attempt; every report
+    this narrower version emits, upstream would also emit.
+  - **`loop-with-too-many-jump-statements`** counts `break`/`continue` at any nesting depth of
+    `if`/`when`/blocks inside a loop's own body, but never descends into a nested loop's own body
+    (it gets its own independent count instead — the same never-merge-upward policy `B.4`'s metric
+    family already established), matching detekt's own visitor exactly (`return` is not counted,
+    matching detekt). Implemented as a standalone `WStreamRule` with a hand-rolled `LoopJumpFrame`
+    stack (not `WNodeRule`'s `onChildLeaf`, which double-fires for a self-nestable target — the same
+    reasoning `FunctionMetricsEngine` already documented). Threshold hardcoded at detekt's sole
+    default (`maxJumpCount = 1`, i.e. more than one jump reports).
+  - **`custom-label`** reports a `return@x`/`break@x`/`continue@x` naming a label other than
+    `@loop` (the project-convention name for a manually-labeled loop) or a name matching its own
+    enclosing call — Kotlin gives every trailing-lambda call an implicit label equal to its own
+    name, so writing that name back out is never "custom" regardless of which function it is —
+    when exactly one enclosing loop or matching-named call surrounds it, meaning the name was never
+    needed to disambiguate. **Generalized beyond upstream's own narrower `@forEach`/
+    `@forEachIndexed`-only allowance** after the own-codebase measurement below found a false
+    positive on `return@runCatching` in `libs/wrasse-lang/FileWalkUp.kt`: diktat's own hardcoded
+    three-name allowlist happens to cover the two most common higher-order functions but does not
+    generalize to the actual language rule, so this batch checks "does the label's own name match
+    any enclosing `CALL_EXPRESSION`'s own callee name" instead of a fixed list — a strict superset
+    of diktat's own three names, never a new false positive relative to it. The `forEach`/
+    `forEachIndexed`-shaped-call check (for the separate nesting-count, not the exemption) is
+    still name-based, matching diktat's own unresolved heuristic. Ancestor counting rides
+    `WContext.ancestors` directly (no hand-rolled stack needed): ordinary upward iteration over the
+    label reference's own ancestor chain, counting `FOR`/`WHILE`/`DO_WHILE` and forEach-shaped
+    `CALL_EXPRESSION` nodes for the count, and any name-matching `CALL_EXPRESSION` for the
+    exemption.
+  - **`double-negative`** — **narrowed**: reports a chain of two or more consecutive `!` prefix
+    operators (optional whitespace between them), read directly off the outermost
+    `PREFIX_EXPRESSION`'s own span text. Verified against kotlinc's actual parser source
+    (`KotlinExpressionParsing.parsePrefixExpression`, which calls
+    `myBuilder.disableJoiningComplexTokens()` specifically so `!!x` lexes as two separate `EXCL`
+    tokens — i.e. two nested `PREFIX_EXPRESSION`s — rather than one `EXCLEXCL` token, confirmed
+    against detekt's own `DoubleNegativeExpressionSpec` test corpus, e.g. `!!b`/`!!!b`) — so a plain
+    consecutive-`!`-character scan from the outermost prefix's own start offset is exact, not
+    approximate. The `.not()`/`not()` qualified-call forms detekt's own rule also recognizes are
+    dropped: distinguishing a genuine `Boolean.not()` from a user's own identically-named function
+    needs resolution, which is exactly why detekt's own current rule declares
+    `RequiresAnalysisApi` for itself.
+  - **`variable-naming`** needed no new code: `property-naming`'s existing `WNodeType.PROPERTY`
+    target has no ancestor restriction beyond its own top-level/object-member-`val` exemptions, so
+    it already reaches a local variable inside a function body — confirmed by temporarily adding a
+    local-variable fixture to `property-naming`'s own suite, observing it pass, then removing it
+    (never landed as a permanent fixture; the behavior itself already has full permanent coverage
+    via `property-naming`'s own member/local/top-level fixture set). B.1's own stated deferral
+    reason (a "different scope-resolution shape than member/top-level declarations") does not hold
+    against the shipped code; this batch's own contribution is documenting the correction, not new
+    behavior.
+  - **`constructor-parameter-naming`** requires lowerCamelCase for a primary or secondary
+    constructor's own value parameters (not a plain function's), exempt on `override` and on a
+    backtick-wrapped keyword (the latter an addition over detekt's own rule, matching every other
+    naming id in this project's own convention — strictly narrower, never a new false positive).
+    detekt's own `excludeClassPattern` config knob has no wrasse equivalent (default value never
+    excludes anything anyway, so this is a no-behavior-change omission, not a narrowing). A regular
+    function's own parameter naming remains out of this batch's scope (`function-parameter-naming`/
+    `lambda-parameter-naming`, still deferred, not requested here).
+  - **`variable-name-max-length`** reports a property/variable name over 64 characters (detekt's
+    sole default), exempt only on `override` (matching detekt's own `VariableMaxLength` exactly —
+    no `isSingleUnderscore` carve-out the way `VariableNaming`/`VariableMinLength` have, since a
+    length check has no reason to special-case a one-character name). Targets the identical
+    `PROPERTY` population `property-naming` already visits — a different axis (length, not casing),
+    the same coexistence already established between `function-naming` and
+    `function-name-max-length`/`function-name-min-length` (B.4).
+
+  Fixture coverage: 113 fixtures across the 18 new rule directories (error/threshold cases,
+  every documented exemption, `@Suppress` happy/negative pairs per rule, plus a nested-loop-
+  independence case per counting rule demonstrating the never-merge-upward policy). One documented
+  exception to the usual `@Suppress` happy/negative pair: `empty-kotlin-file` has no wrong-id
+  negative fixture, because *any* file annotation (right id or wrong) already disqualifies the file
+  from being considered empty by the algorithm itself, before suppression is even consulted — there
+  is no constructible "annotation present, still reported" case. Another: `variable-name-max-length`
+  has no override-exemption fixture — an overriding declaration's name is, by Kotlin's own rules,
+  identical in length to the declaration it overrides, so a self-contained fixture proving "long
+  override name, no report" is not constructible without pulling in an external (Java/bytecode)
+  supertype outside this module's own lint scope; the override check itself is still implemented and
+  covered indirectly by the equivalent exemption already fixture-tested for
+  `constructor-parameter-naming`. Unit specs: one Decision spec per rule (`EmptyBlockCheckSpec`,
+  `UnconditionalJumpDecisionSpec`, `LoopWithTooManyJumpStatementsDecisionSpec`,
+  `CustomLabelDecisionSpec`, `DoubleNegativeDecisionSpec`, `ConstructorParameterNamingDecisionSpec`,
+  `VariableNameMaxLengthDecisionSpec`) plus `LoopJumpFrameSpec` for the shared counting accumulator.
+
 **Exit:** a representative real project lints under wrasse with parity-equivalent findings to its
 ktlint + detekt setup (minus parked outbound rules) at measurably lower wall-clock.
 

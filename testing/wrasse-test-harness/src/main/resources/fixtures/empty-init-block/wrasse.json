@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "empty-init-block": { "level": "error" }
+    }
+}

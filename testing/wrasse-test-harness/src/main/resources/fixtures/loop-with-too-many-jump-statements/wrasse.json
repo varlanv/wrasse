@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "loop-with-too-many-jump-statements": { "level": "error" }
+    }
+}

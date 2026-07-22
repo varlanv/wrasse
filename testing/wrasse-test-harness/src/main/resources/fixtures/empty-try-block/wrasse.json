@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "empty-try-block": { "level": "error" }
+    }
+}

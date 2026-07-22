@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "double-negative": { "level": "error" }
+    }
+}

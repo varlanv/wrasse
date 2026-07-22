@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "empty-for-block": { "level": "error" }
+    }
+}

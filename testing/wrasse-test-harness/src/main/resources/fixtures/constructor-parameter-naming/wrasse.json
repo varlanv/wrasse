@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "constructor-parameter-naming": { "level": "error" }
+    }
+}

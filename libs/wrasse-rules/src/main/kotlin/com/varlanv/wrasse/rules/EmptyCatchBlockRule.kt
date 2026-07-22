@@ -55,7 +55,7 @@ class EmptyCatchBlockRule : WUninitializedRule {
             }
 
             private fun checkBody(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
-                if (!isEmptyBody(children)) return
+                if (!EmptyBlockCheck.isEmpty(children)) return
                 val name = pendingCatchNames.lastOrNull() ?: return
                 if (AllowedExceptionName.isAllowed(name)) return
                 reporter
@@ -66,16 +66,6 @@ class EmptyCatchBlockRule : WUninitializedRule {
                         ctx.endOffset,
                         this,
                     )
-            }
-
-            private fun isEmptyBody(children: ChildBuffer): Boolean {
-                for (i in 0 until children.size) {
-                    when (children.type(i)) {
-                        WNodeType.LBRACE, WNodeType.RBRACE, WNodeType.WHITE_SPACE -> {}
-                        else -> return false
-                    }
-                }
-                return true
             }
         }
     }

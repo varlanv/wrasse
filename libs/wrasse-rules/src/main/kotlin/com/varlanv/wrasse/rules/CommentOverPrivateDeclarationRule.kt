@@ -10,8 +10,7 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 
 /**
  * A KDoc attached to an explicitly `private` function or property, at any nesting, is reported
- * (see [CommentOverPrivateDeclarationDecision]) at the declaration's own span. Dedupes detekt's
- * own `DocumentationOverPrivateFunction`/`DocumentationOverPrivateProperty` into one id.
+ * (see [CommentOverPrivateDeclarationDecision]) at the declaration's own span.
  */
 class CommentOverPrivateDeclarationRule : WUninitializedRule {
     override val id: String = "comment-over-private-declaration"

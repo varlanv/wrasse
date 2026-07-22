@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "empty-while-block": { "level": "error" }
+    }
+}

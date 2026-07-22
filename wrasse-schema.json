@@ -331,6 +331,78 @@
                 "swallowed-exception": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow a caught exception that is never referenced anywhere in its own catch body"
+                },
+                "empty-if-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty if block"
+                },
+                "empty-else-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty else block"
+                },
+                "empty-for-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty for-loop block"
+                },
+                "empty-while-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty while-loop block"
+                },
+                "empty-do-while-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty do-while-loop block"
+                },
+                "empty-finally-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty finally block"
+                },
+                "empty-try-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty try block"
+                },
+                "empty-init-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty init block"
+                },
+                "empty-secondary-constructor": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty secondary constructor body"
+                },
+                "empty-function-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an empty function body, unless open or a member of an interface"
+                },
+                "empty-when-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a when expression with zero entries"
+                },
+                "empty-kotlin-file": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a file with no content beyond its own package declaration"
+                },
+                "unconditional-jump-statement-in-loop": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a loop whose entire body is a single unconditional break or return"
+                },
+                "loop-with-too-many-jump-statements": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a loop containing more than one break or continue statement"
+                },
+                "custom-label": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a custom label on a return/break/continue that no nested loop or forEach needs to disambiguate"
+                },
+                "double-negative": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an expression negated more than once via chained ! operators"
+                },
+                "constructor-parameter-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a constructor parameter name that is not lowerCamelCase"
+                },
+                "variable-name-max-length": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a property or variable name longer than 64 characters"
                 }
             }
         }

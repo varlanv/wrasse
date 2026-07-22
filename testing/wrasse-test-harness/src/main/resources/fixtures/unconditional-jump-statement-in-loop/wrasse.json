@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "unconditional-jump-statement-in-loop": { "level": "error" }
+    }
+}

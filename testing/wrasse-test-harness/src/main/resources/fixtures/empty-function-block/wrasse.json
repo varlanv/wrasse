@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "empty-function-block": { "level": "error" }
+    }
+}

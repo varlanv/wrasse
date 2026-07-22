@@ -14,9 +14,16 @@ import com.varlanv.wrasse.rules.ClassMetricsEngine
 import com.varlanv.wrasse.rules.ClassNamingRule
 import com.varlanv.wrasse.rules.CommentOverPrivateDeclarationRule
 import com.varlanv.wrasse.rules.ComplexConditionRule
+import com.varlanv.wrasse.rules.ConstructorParameterNamingRule
+import com.varlanv.wrasse.rules.CustomLabelRule
 import com.varlanv.wrasse.rules.DestructuringTooManyEntriesRule
+import com.varlanv.wrasse.rules.DoubleNegativeRule
+import com.varlanv.wrasse.rules.EmptyBlockEngine
 import com.varlanv.wrasse.rules.EmptyCatchBlockRule
 import com.varlanv.wrasse.rules.EmptyDefaultConstructorRule
+import com.varlanv.wrasse.rules.EmptyFunctionBlockRule
+import com.varlanv.wrasse.rules.EmptyKotlinFileRule
+import com.varlanv.wrasse.rules.EmptyWhenBlockRule
 import com.varlanv.wrasse.rules.EnumEntryNamingRule
 import com.varlanv.wrasse.rules.EqualsNullCallRule
 import com.varlanv.wrasse.rules.ExceptionRaisedInUnexpectedLocationRule
@@ -36,6 +43,7 @@ import com.varlanv.wrasse.rules.KdocDeprecatedTagRule
 import com.varlanv.wrasse.rules.KdocEngine
 import com.varlanv.wrasse.rules.LongNumericalValuesRule
 import com.varlanv.wrasse.rules.LongParameterListRule
+import com.varlanv.wrasse.rules.LoopWithTooManyJumpStatementsRule
 import com.varlanv.wrasse.rules.MayBeConstantRule
 import com.varlanv.wrasse.rules.ModifierEngine
 import com.varlanv.wrasse.rules.NestedClassesVisibilityRule
@@ -58,11 +66,13 @@ import com.varlanv.wrasse.rules.TooGenericExceptionThrownRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import com.varlanv.wrasse.rules.TrimMultilineRawStringRule
 import com.varlanv.wrasse.rules.TrivialAccessorsRule
+import com.varlanv.wrasse.rules.UnconditionalJumpStatementInLoopRule
 import com.varlanv.wrasse.rules.UnnecessaryBacktickRule
 import com.varlanv.wrasse.rules.UnnecessaryInheritanceRule
 import com.varlanv.wrasse.rules.UnusedParameterRule
 import com.varlanv.wrasse.rules.UnusedPrivateClassRule
 import com.varlanv.wrasse.rules.UseLetRule
+import com.varlanv.wrasse.rules.VariableNameMaxLengthRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
 import java.nio.file.Path
 import org.jetbrains.kotlin.backend.common.push
@@ -77,9 +87,15 @@ listOf(
     ClassNamingRule(),
     CommentOverPrivateDeclarationRule(),
     ComplexConditionRule(),
+    ConstructorParameterNamingRule(),
+    CustomLabelRule(),
     DestructuringTooManyEntriesRule(),
+    DoubleNegativeRule(),
     EmptyCatchBlockRule(),
     EmptyDefaultConstructorRule(),
+    EmptyFunctionBlockRule(),
+    EmptyKotlinFileRule(),
+    EmptyWhenBlockRule(),
     EnumEntryNamingRule(),
     EqualsNullCallRule(),
     ExceptionRaisedInUnexpectedLocationRule(),
@@ -95,6 +111,7 @@ listOf(
     KdocDeprecatedTagRule(),
     LongNumericalValuesRule(),
     LongParameterListRule(),
+    LoopWithTooManyJumpStatementsRule(),
     MayBeConstantRule(),
     NestedClassesVisibilityRule(),
     NoEmptyClassBodyRule(),
@@ -116,11 +133,13 @@ listOf(
     TrailingNewlineRule(),
     TrimMultilineRawStringRule(),
     TrivialAccessorsRule(),
+    UnconditionalJumpStatementInLoopRule(),
     UnnecessaryBacktickRule(),
     UnnecessaryInheritanceRule(),
     UnusedParameterRule(),
     UnusedPrivateClassRule(),
     UseLetRule(),
+    VariableNameMaxLengthRule(),
     WhenEntryBracingRule(),
 )
 
@@ -131,13 +150,23 @@ listOf(
  * [FunctionNameLengthEngine], backing `function-name-max-length`/`function-name-min-length`;
  * [FunctionMetricsEngine], backing `return-count`/`throws-count`/`nested-block-depth`/
  * `cyclomatic-complexity`/`long-method`; [ClassMetricsEngine], backing
- * `too-many-functions`/`large-class`; and [KdocEngine], backing `undocumented-public-class`/
- * `undocumented-public-function`/`undocumented-public-property`/`kdoc-tag-mismatch`. Composition
- * is internal to each engine, so unlike [registeredRules] this list carries no registration-order
- * constraint.
+ * `too-many-functions`/`large-class`; [KdocEngine], backing `undocumented-public-class`/
+ * `undocumented-public-function`/`undocumented-public-property`/`kdoc-tag-mismatch`; and
+ * [EmptyBlockEngine], backing `empty-if-block`/`empty-else-block`/`empty-for-block`/
+ * `empty-while-block`/`empty-do-while-block`/`empty-finally-block`/`empty-try-block`/
+ * `empty-init-block`/`empty-secondary-constructor`. Composition is internal to each engine, so
+ * unlike [registeredRules] this list carries no registration-order constraint.
  */
 internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> =
-listOf(ImportEngine(), ModifierEngine(), FunctionNameLengthEngine(), FunctionMetricsEngine(), ClassMetricsEngine(), KdocEngine())
+listOf(
+    ImportEngine(),
+    ModifierEngine(),
+    FunctionNameLengthEngine(),
+    FunctionMetricsEngine(),
+    ClassMetricsEngine(),
+    KdocEngine(),
+    EmptyBlockEngine(),
+)
 
 fun wrasseMain(
     sourceRoots: List<Path>,
