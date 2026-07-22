@@ -271,6 +271,66 @@
                 "when-entry-bracing": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Require braces around a bare when-entry body when some sibling entry is already braced and some entry has a multiline body"
+                },
+                "undocumented-public-class": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an undocumented top-level public class, interface, or object (active only under Kotlin's explicit API mode)"
+                },
+                "undocumented-public-function": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an undocumented top-level public function (active only under Kotlin's explicit API mode)"
+                },
+                "undocumented-public-property": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an undocumented top-level public property (active only under Kotlin's explicit API mode)"
+                },
+                "kdoc-tag-mismatch": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a KDoc's @param/@property tags that don't match the declaration's own parameters"
+                },
+                "kdoc-deprecated-tag": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a KDoc @deprecated block tag; use the @Deprecated annotation instead"
+                },
+                "comment-over-private-declaration": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a KDoc attached to a private function or property"
+                },
+                "too-generic-exception-caught": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow catching an overly generic exception type"
+                },
+                "too-generic-exception-thrown": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow throwing an overly generic exception type"
+                },
+                "print-stack-trace": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow Thread.dumpStack() and a caught exception's own printStackTrace()"
+                },
+                "rethrow-caught-exception": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a catch block that only rethrows its own caught exception unmodified"
+                },
+                "empty-catch-block": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a catch block containing nothing but whitespace"
+                },
+                "exception-raised-in-unexpected-location": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow equals/finalize/hashCode/toString throwing an exception"
+                },
+                "not-implemented-declaration": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow throw NotImplementedError(...) and a TODO(...) call with zero or one arguments"
+                },
+                "instance-of-check-for-exception": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an is-check or unsafe cast against a caught exception inside its own catch body"
+                },
+                "swallowed-exception": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a caught exception that is never referenced anywhere in its own catch body"
                 }
             }
         }

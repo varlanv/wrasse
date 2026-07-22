@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "instance-of-check-for-exception": { "level": "error" }
+    }
+}

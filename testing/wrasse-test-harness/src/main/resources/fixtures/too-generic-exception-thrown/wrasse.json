@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "too-generic-exception-thrown": { "level": "error" }
+    }
+}

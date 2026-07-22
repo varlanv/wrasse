@@ -120,11 +120,16 @@ class InternalConventionPlugin : Plugin<Project> {
         }
 
         fun configureTests() {
+            val isFixtureModule = project.path.startsWith(":testing:wrasse-kotlinc-plugin-tests-")
             tasks.withType(org.gradle.api.tasks.testing.Test::class.java).configureEach { test ->
                 test.useJUnitPlatform()
                 test.testLogging { logging ->
                     logging.showStandardStreams = true
                     logging.showStackTraces = true
+                }
+                if (isFixtureModule) {
+                    test.maxHeapSize = "2g"
+                    test.jvmArgs("-Xss8m", "-XX:MaxMetaspaceSize=1g")
                 }
             }
         }

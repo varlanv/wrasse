@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "exception-raised-in-unexpected-location": { "level": "error" }
+    }
+}

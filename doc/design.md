@@ -3881,6 +3881,39 @@ Scope per §6 / [autoformat-scope.md](autoformat-scope.md):
 Within a tier: complexity 1 → 3; implement overlapping ktlint/detekt/diktat rules once under a
 single wrasse id.
 
+- **B.6 — lint-only rules (bucket L), fourth installment, the COMMENT/KDOC-POLICY and
+  EXCEPTION-HANDLING families — done 2026-07-22.** Fifteen ids. KDoc/comment policy:
+  `undocumented-public-class`/`-function`/`-property` (fused in `KdocEngine`, gated on the compile
+  running under Kotlin explicit-API mode via D23 `explicitApiActive` — an ungated "KDoc on every
+  public declaration" rule would fight this project's own contract-only-not-mandatory style, so
+  outside explicit-API mode these three report nothing; members and non-public declarations are
+  never candidates), `kdoc-tag-mismatch` (also fused; a `@param`/`@property` tag naming a parameter
+  the signature does not have — never gated on explicit-API mode), `kdoc-deprecated-tag` (a
+  `@deprecated` block tag, which Kotlin does not honour), `comment-over-private-declaration` (KDoc
+  on a private function/property). Exception handling: `empty-catch-block`, `swallowed-exception`,
+  `too-generic-exception-caught`, `too-generic-exception-thrown`, `print-stack-trace`,
+  `rethrow-caught-exception`, `not-implemented-declaration` (`TODO()`/`throw NotImplementedError`),
+  `instance-of-check-for-exception` (`is`/`as` on a caught exception), `exception-raised-in-
+  unexpected-location`. All syntax-only (no resolution); the catch-family shares
+  `AllowedExceptionName` (`_`/`ignore*`/`expected*` catch names are intentional-ignore signals) and
+  `CatchParameterText`. **Suppression-scope note:** a rule reporting on a KDoc leaf (e.g.
+  `kdoc-deprecated-tag`) reports at the KDoc's own offset, which under wrasse's positional
+  (offset-containment) suppression sits *before* the following declaration's `@Suppress` span — so
+  a declaration-level `@Suppress` does not cover it (unlike detekt's PSI-element containment).
+  File-scope `@file:Suppress` is the correct suppression for such findings; the fixtures encode this.
+
+- **Fixture-harness worker headroom (infrastructure, 2026-07-22).** The per-minor fixture modules
+  run every fixture as a separate in-process `K2JVMCompiler.exec` in one long-lived Gradle test
+  worker; repeated in-process kotlinc compiles accumulate IntelliJ-platform registry/classloader/
+  metaspace state that `exec` does not fully tear down. Around ~105 fixture directories this crossed
+  the worker's default stack/metaspace ceiling and surfaced as `StackOverflowError`s at random
+  compiler frames, cascading across unrelated fixtures and hanging the run. `forkEvery` cannot help
+  (Kotest emits one spec class of many dynamic tests, so there is nothing to fork between). Fix, in
+  the convention plugin's `configureTests`, scoped to the `:testing:wrasse-kotlinc-plugin-tests-*`
+  modules only: `maxHeapSize = "2g"`, `-Xss8m`, `-XX:MaxMetaspaceSize=1g`. Not a rule or fixture
+  defect — every rule was green on old fixtures and every new fixture directory green in isolation;
+  only the cumulative compile count tipped it over.
+
 **Exit:** a representative real project lints under wrasse with parity-equivalent findings to its
 ktlint + detekt setup (minus parked outbound rules) at measurably lower wall-clock.
 

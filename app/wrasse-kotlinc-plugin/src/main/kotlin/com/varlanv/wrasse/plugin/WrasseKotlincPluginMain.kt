@@ -12,11 +12,14 @@ import com.varlanv.wrasse.rules.AlsoCouldBeApplyRule
 import com.varlanv.wrasse.rules.BackingPropertyNamingRule
 import com.varlanv.wrasse.rules.ClassMetricsEngine
 import com.varlanv.wrasse.rules.ClassNamingRule
+import com.varlanv.wrasse.rules.CommentOverPrivateDeclarationRule
 import com.varlanv.wrasse.rules.ComplexConditionRule
 import com.varlanv.wrasse.rules.DestructuringTooManyEntriesRule
+import com.varlanv.wrasse.rules.EmptyCatchBlockRule
 import com.varlanv.wrasse.rules.EmptyDefaultConstructorRule
 import com.varlanv.wrasse.rules.EnumEntryNamingRule
 import com.varlanv.wrasse.rules.EqualsNullCallRule
+import com.varlanv.wrasse.rules.ExceptionRaisedInUnexpectedLocationRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaMultipleParametersRule
 import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
 import com.varlanv.wrasse.rules.FileNamingRule
@@ -28,6 +31,9 @@ import com.varlanv.wrasse.rules.FunctionNamingRule
 import com.varlanv.wrasse.rules.FunctionOnlyReturningConstantRule
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
+import com.varlanv.wrasse.rules.InstanceOfCheckForExceptionRule
+import com.varlanv.wrasse.rules.KdocDeprecatedTagRule
+import com.varlanv.wrasse.rules.KdocEngine
 import com.varlanv.wrasse.rules.LongNumericalValuesRule
 import com.varlanv.wrasse.rules.LongParameterListRule
 import com.varlanv.wrasse.rules.MayBeConstantRule
@@ -37,12 +43,18 @@ import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
+import com.varlanv.wrasse.rules.NotImplementedDeclarationRule
 import com.varlanv.wrasse.rules.PackageNamingRule
+import com.varlanv.wrasse.rules.PrintStackTraceRule
 import com.varlanv.wrasse.rules.PropertyNamingRule
 import com.varlanv.wrasse.rules.RangeConventionalRule
 import com.varlanv.wrasse.rules.RedundantConstructorKeywordRule
+import com.varlanv.wrasse.rules.RethrowCaughtExceptionRule
 import com.varlanv.wrasse.rules.SafeCastRule
 import com.varlanv.wrasse.rules.StringShouldBeRawStringRule
+import com.varlanv.wrasse.rules.SwallowedExceptionRule
+import com.varlanv.wrasse.rules.TooGenericExceptionCaughtRule
+import com.varlanv.wrasse.rules.TooGenericExceptionThrownRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import com.varlanv.wrasse.rules.TrimMultilineRawStringRule
 import com.varlanv.wrasse.rules.TrivialAccessorsRule
@@ -63,11 +75,14 @@ listOf(
     AlsoCouldBeApplyRule(),
     BackingPropertyNamingRule(),
     ClassNamingRule(),
+    CommentOverPrivateDeclarationRule(),
     ComplexConditionRule(),
     DestructuringTooManyEntriesRule(),
+    EmptyCatchBlockRule(),
     EmptyDefaultConstructorRule(),
     EnumEntryNamingRule(),
     EqualsNullCallRule(),
+    ExceptionRaisedInUnexpectedLocationRule(),
     ExplicitItLambdaMultipleParametersRule(),
     ExplicitItLambdaParameterRule(),
     FileSizeRule(),
@@ -76,6 +91,8 @@ listOf(
     FunctionNamingRule(),
     FunctionOnlyReturningConstantRule(),
     IfElseBracingRule(),
+    InstanceOfCheckForExceptionRule(),
+    KdocDeprecatedTagRule(),
     LongNumericalValuesRule(),
     LongParameterListRule(),
     MayBeConstantRule(),
@@ -84,12 +101,18 @@ listOf(
     NoEmptyParensBeforeTrailingLambdaRule(),
     NoSemicolonsRule(),
     NoUnitReturnRule(),
+    NotImplementedDeclarationRule(),
     PackageNamingRule(),
+    PrintStackTraceRule(),
     PropertyNamingRule(),
     RangeConventionalRule(),
     RedundantConstructorKeywordRule(),
+    RethrowCaughtExceptionRule(),
     SafeCastRule(),
     StringShouldBeRawStringRule(),
+    SwallowedExceptionRule(),
+    TooGenericExceptionCaughtRule(),
+    TooGenericExceptionThrownRule(),
     TrailingNewlineRule(),
     TrimMultilineRawStringRule(),
     TrivialAccessorsRule(),
@@ -107,12 +130,14 @@ listOf(
  * decision-maker; [ModifierEngine], backing `modifier-order`/`redundant-visibility-modifier`;
  * [FunctionNameLengthEngine], backing `function-name-max-length`/`function-name-min-length`;
  * [FunctionMetricsEngine], backing `return-count`/`throws-count`/`nested-block-depth`/
- * `cyclomatic-complexity`/`long-method`; and [ClassMetricsEngine], backing
- * `too-many-functions`/`large-class`. Composition is internal to each engine, so unlike
- * [registeredRules] this list carries no registration-order constraint.
+ * `cyclomatic-complexity`/`long-method`; [ClassMetricsEngine], backing
+ * `too-many-functions`/`large-class`; and [KdocEngine], backing `undocumented-public-class`/
+ * `undocumented-public-function`/`undocumented-public-property`/`kdoc-tag-mismatch`. Composition
+ * is internal to each engine, so unlike [registeredRules] this list carries no registration-order
+ * constraint.
  */
 internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> =
-listOf(ImportEngine(), ModifierEngine(), FunctionNameLengthEngine(), FunctionMetricsEngine(), ClassMetricsEngine())
+listOf(ImportEngine(), ModifierEngine(), FunctionNameLengthEngine(), FunctionMetricsEngine(), ClassMetricsEngine(), KdocEngine())
 
 fun wrasseMain(
     sourceRoots: List<Path>,

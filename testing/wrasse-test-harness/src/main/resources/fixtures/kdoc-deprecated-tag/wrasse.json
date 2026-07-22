@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "kdoc-deprecated-tag": { "level": "error" }
+    }
+}

@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "not-implemented-declaration": { "level": "error" }
+    }
+}

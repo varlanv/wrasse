@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "comment-over-private-declaration": { "level": "error" }
+    }
+}
