@@ -7067,6 +7067,119 @@ as intended, not a regression.
   `ktlint`/`detekt`/`diktat` checkouts confirmed byte-clean (`git status`) throughout — read-only,
   single-threaded (no sub-agents/forks).
 
+- **L-rule backfill wave 4 (batch-7 + batch-8, final), 2026-07-22.** A dedicated pass over the local
+  `ktlint`/`detekt`/`diktat` checkouts' own rule test suites (read-only, confirmed byte-clean
+  throughout via `git status`, never the internet) for the batch-7 KDoc/comment-placement family
+  (B.9's twelve ids) and the batch-8 family (B.10's nine ids) — the two remaining shipped-L batches
+  no prior wave had touched. Each upstream test case was enumerated and classified: already covered
+  by an existing independently-derived fixture, worth porting as new coverage, out of wrasse's
+  documented scope (citing the exact B.9/B.10 narrowing prose), or upstream-config-specific (none
+  found in this pass — none of these 21 ids expose a `@ValueSource`/`TestConfig`-style tunable the
+  way the batch-6 metrics family did). New fixtures were added to the existing per-rule directories
+  only; no `libs/`/`app/` production source, no existing passing fixture, and no
+  `wrasse.json`/`wrasse-schema.json` were touched. Work was single-threaded throughout — no
+  sub-agents or forks.
+
+  **Coverage table** (per rule; counts are approximate tallies across each rule's upstream test
+  file(s), not a strict per-test-method count):
+
+  | Rule | (a) already-covered | (b) newly-ported | (c) out-of-scope (cited) | (d) config-skip |
+  |---|---|---|---|---|
+  | `kdoc-placement` | 10 | 6 (one fixture covers the four disallowed-parent type-position shapes, a second covers the empty `value_parameter_list` shape plus the mid-position `value_parameter` shape) | 0 | 0 |
+  | `type-argument-comment` | 5 | 0 | 0 | 0 |
+  | `type-parameter-comment` | 5 | 0 | 0 | 0 |
+  | `value-argument-comment` | 5 | 0 | 0 | 0 |
+  | `value-parameter-comment` | 4 | 1 (mid-position KDoc, not the parameter's first child) | 0 | 0 |
+  | `lambda-return` | 5 | 0 | 0 | 0 |
+  | `mixed-condition-operators` | 4 | 1 (a mixed-operator chain nested inside parens while the outer chain itself stays uniform — an independent per-nesting-level finding) | 0 | 0 |
+  | `no-consecutive-comments` | 9 | 2 (KDoc-then-block; EOL-then-KDoc with no blank line) | 0 | 1 (non-`ktlint_official` code style gate — the rule is opt-in outside that style, a config axis this project's own tri-state level model already subsumes) |
+  | `no-single-line-block-comment` | 6 | 0 | 0 | 0 |
+  | `redundant-to-string-in-template` | 4 | 1 (a `.toString()` chained onto a *derived* super expression, e.g. `super.hashCode().toString()` — the `super` exemption is a literal-receiver check, not a "super appears somewhere upstream" check) | ~6 (upstream's own bundled "redundant curly braces" slice — retired from the L-bucket inventory entirely per B.9, a Phase-C printer concern, not re-litigated here) | 0 |
+  | `kdoc-references-non-public-property` | 8 | 0 (1 genuine bug found and quarantined, below) | 0 | 0 |
+  | `debug-print` | 8 | 0 (1 genuine bug found and quarantined, below) | 0 | 0 |
+  | `function-expression-body` | 9 | 0 | 0 | 0 |
+  | `useless-postfix-expression` | 3 | 2 (postfix as the *left* child of a right-hand-side inner binary, `i = i++ + 1`; a locked-in `clean` fixture for the undetected `return i++` family, citing B.10's own documented narrowing) | 6 (upstream's whole `return i++`/dot-chained-return/field-increment/local-shadow-detection cluster — all gated on the same not-ported forward/backward whole-function name collection B.10 already documents) | 0 |
+  | `collapse-if` | 18 | 1 (a KDoc immediately preceding the nested `if` disqualifies the collapse — TRIVIAL_TYPES excludes `KDOC`, unlike a block/EOL comment — parity with upstream's own quirk, locked in rather than newly diverging) | 0 | 0 |
+  | `extension-functions-same-name` | 5 | 0 (1 genuine bug found and quarantined, below) | 1 (upstream's own `@Disabled` cross-file test — out of scope by construction, this project also sees one file at a time) | 0 |
+  | `getter-setter-fields` | 4 | 1 (a same-named local var declared *after* the self-reference in source order does not exempt it — locks in the `isGoingAfter`-style ordering B.10 already documents) | 0 | 0 |
+  | `sync-in-async` | 2 | 1 (`runBlocking { }` wrapping an `async { }` — reverse nesting — stays clean, since the async is a descendant, never a governing ancestor) | 0 | 0 |
+  | `when-must-have-else` | 7 | 1 (a non-enum numeric `in 1..5` range entry mixed with otherwise-enum-shaped entries stays clean — locks in B.10's own documented "any `in` range is always treated as enum-like" narrowing, the exact upstream case (`when in func not only enum entries but in ranges`) that would otherwise regress) | 0 | 0 |
+  | `string-concatenation` | 10 | 1 (a literal-starting `+` step buried one `PARENTHESIZED` level inside an outer chain is never found — the paren boundary blocks both the direct top-level report and the parent's inheritance lookup — locks in B.10's own documented "opaque parens" miss) | 0 | 0 |
+  | `boolean-expressions` | 0 | 1 (a complement pair split across a paren boundary and a different operator, upstream's own `a > 5 \|\| (!(a > 5) && b > 5)` shape — locks in B.10's own "only two direct operands, no chain flattening" narrowing) | ~10 (idempotent-duplicate/double-negation/general-absorption/distributive-law cases — every one of upstream's own test cases outside the two narrowly-ported laws, literal-absorption and direct-complement) | 0 |
+
+  Per-rule notes on the four newly-found bugs (quarantined under
+  `testing/wrasse-test-harness/src/main/resources/fixtures-backfill-failing/<rule-id>/`, each
+  carrying its own copy of the rule dir's `wrasse.json`, matching the pre-existing convention; not
+  fixed in-task per this wave's TESTS-ONLY constraint):
+
+  1. **`debug-print`'s `console.*` branch never exempts a trailing lambda, unlike its own
+     `print`/`println` branch.** `DebugPrintRule.checkConsoleCall` reports any bare-`console`-
+     receiver `.error()`/`.info()`/`.log()`/`.warn()` call whose selector text starts with one of
+     those four words — with no `LAMBDA_ARGUMENT` check at all — while the sibling `checkPrintCall`
+     explicitly excludes a trailing-lambda call (`if (children.hasChildOfType(LAMBDA_ARGUMENT))
+     return`) to rule out a same-named user overload. Upstream's own diktat `DebugPrintRuleWarnTest`
+     (`custom method console with lambda as last parameter`) confirms a `console.log("1") { ... }`
+     shape — presumably a user-defined overload taking a trailing lambda, not the real JS `console`
+     API — is exempt upstream. Actual (wrasse): `console.log("debug") { doSomething() }` against a
+     user-defined `object console { fun log(message: String, block: () -> Unit) {} }` reports `ERROR
+     8:5 debug-print "'console.log()' looks like leftover debug output..."`. Expected (matching
+     upstream): clean. Fixture:
+     `fixtures-backfill-failing/debug-print/console-log-custom-method-with-lambda-clean.kt`.
+  2. **`extension-functions-same-name`'s `Map<Int, Int>` pairing structure silently drops a
+     candidate's earlier match when a later one overwrites it.** `ExtensionFunctionsSameNameDecision
+     .indicesToReport` returns one partner index per candidate; when a single first-occurrence
+     candidate (e.g. a `Base.process` extension) is related to *two* different later candidates
+     (e.g. both `DerivedA.process` and `DerivedB.process`, both direct subtypes of `Base`), the
+     second match's `result[firstIndex] = index` assignment overwrites the first match's own entry
+     for that same key, so the first-occurrence candidate's own earlier pairing is never reported.
+     Upstream's own `ExtensionFunctionsSameNameWarnTest` (`should trigger on functions with same
+     signatures`) tests exactly this three-related-class star shape and expects **4** diagnostics
+     (the first occurrence reported once per distinct partner). Actual (wrasse): only **3**
+     diagnostics — `Base.process` is reported once, mentioning only its *last*-found partner
+     (`DerivedB`), silently missing the `DerivedA` pairing entirely. Expected (matching upstream):
+     4 diagnostics, `Base` reported twice (once per related class). Fixture:
+     `fixtures-backfill-failing/extension-functions-same-name/three-related-classes-error.kt`.
+  3. **`kdoc-references-non-public-property` is a pure text match on `[name]`, so it cannot tell a
+     KDoc link to a same-named *function* apart from a link to the *property*.** The decision's
+     `isReferenced` only ever checks whether the KDoc's raw text contains the literal substring
+     `[propertyName]` (minus the custom-link-text exclusion) — it never checks what kind of
+     declaration that name is actually meant to resolve to, since the whole rule is deliberately
+     resolution-free. Upstream's own `KDocReferencesNonPublicPropertySpec` (`does not report public
+     function when same named private var is present - #6162`) has a KDoc link `[peek] - public
+     fun` intended for the public `fun peek()`, alongside an unrelated `private var peek` of the
+     identical name, and expects zero reports (upstream resolves the link to the function, not the
+     property). Actual (wrasse): `ERROR 7:17 kdoc-references-non-public-property "The property
+     'peek' is non-public..."` — a false positive, since the private property `peek` happens to
+     share its bare name with the linked (but unrelated) function. Expected (matching upstream):
+     clean. Fixture: `fixtures-backfill-failing/kdoc-references-non-public-property/
+     link-targets-function-not-property-clean.kt`.
+
+  None of these three bugs was previously documented anywhere in B.9/B.10's own prose — all three
+  are new findings from this wave's own fresh re-derivation against upstream's current test suites,
+  not previously-known gaps re-surfaced.
+
+  **Totals:** 18 new fixture files: 15 landed in existing `fixtures/<rule-id>/` directories across
+  12 of the 21 in-scope rules (the other 9 — `type-argument-comment`, `type-parameter-comment`,
+  `value-argument-comment`, `lambda-return`, `no-single-line-block-comment`, `function-expression-
+  body` needed no new fixture since their upstream suites were already fully covered by the
+  independently-derived set, and `kdoc-references-non-public-property`/`debug-print`/`extension-
+  functions-same-name`'s only new case each turned out to be the genuine bug quarantined below, not
+  an ordinary passing fixture), 3 quarantined under `fixtures-backfill-failing/` (three distinct new
+  bugs, one rule-id each). Full ladder (`build`, `test --rerun-tasks`, `testMinorHarness
+  --rerun-tasks`, `testPatchHarness`, `wrasseLint -Prepublish`) green against the resulting fixture
+  set. `ktlint`/`detekt`/`diktat` checkouts confirmed byte-clean (`git status`) throughout —
+  read-only, single-threaded (no sub-agents/forks).
+
+  **This completes the L-rule test-backfill wave across every shipped L rule.** Waves 1–4 together
+  have now re-derived, from each upstream checkout's own *current* test suite, dedicated fixture
+  coverage for every lint-only rule shipped through B.10 — naming (B.1), metrics (B.4), the B.6/B.7
+  deferred-naming closures, correctness/KDoc/exceptions (B.5/B.6), the empty-block/control-flow
+  family (B.7) and batch-6 style rules (B.8's first eight ids), and now the KDoc/comment-placement
+  family (B.9) and the closing batch-8 rules (B.10) — with every found gap either already a
+  documented, cited divergence (locked in as a passing fixture) or quarantined as a genuine,
+  previously-unknown bug under `fixtures-backfill-failing/` for a future fix-focused session. No
+  further L-rule backfill wave is scoped or needed.
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.
