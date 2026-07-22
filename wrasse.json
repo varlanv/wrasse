@@ -7,7 +7,13 @@
         "backing-property-naming": {
             "level": "error"
         },
+        "boolean-expressions": {
+            "level": "error"
+        },
         "class-naming": {
+            "level": "error"
+        },
+        "collapse-if": {
             "level": "error"
         },
         "constructor-parameter-naming": {
@@ -76,6 +82,9 @@
         "explicit-it-lambda-parameter": {
             "level": "error"
         },
+        "extension-functions-same-name": {
+            "level": "error"
+        },
         "filename": {
             "level": "error"
         },
@@ -89,6 +98,9 @@
             "level": "error"
         },
         "function-parameter-naming": {
+            "level": "error"
+        },
+        "getter-setter-fields": {
             "level": "error"
         },
         "global-coroutine-usage": {
@@ -193,6 +205,9 @@
         "swallowed-exception": {
             "level": "error"
         },
+        "sync-in-async": {
+            "level": "error"
+        },
         "throwing-exception-in-main": {
             "level": "error"
         },
@@ -233,6 +248,9 @@
             "level": "error"
         },
         "use-let": {
+            "level": "error"
+        },
+        "useless-postfix-expression": {
             "level": "error"
         },
         "value-argument-comment": {
