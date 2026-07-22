@@ -36,15 +36,21 @@ import com.varlanv.wrasse.rules.FunctionMetricsEngine
 import com.varlanv.wrasse.rules.FunctionNameLengthEngine
 import com.varlanv.wrasse.rules.FunctionNamingRule
 import com.varlanv.wrasse.rules.FunctionOnlyReturningConstantRule
+import com.varlanv.wrasse.rules.FunctionParameterNamingRule
+import com.varlanv.wrasse.rules.GlobalCoroutineUsageRule
 import com.varlanv.wrasse.rules.IfElseBracingRule
 import com.varlanv.wrasse.rules.ImportEngine
 import com.varlanv.wrasse.rules.InstanceOfCheckForExceptionRule
+import com.varlanv.wrasse.rules.InvalidRangeRule
 import com.varlanv.wrasse.rules.KdocDeprecatedTagRule
 import com.varlanv.wrasse.rules.KdocEngine
+import com.varlanv.wrasse.rules.LambdaParameterNamingRule
 import com.varlanv.wrasse.rules.LongNumericalValuesRule
 import com.varlanv.wrasse.rules.LongParameterListRule
 import com.varlanv.wrasse.rules.LoopWithTooManyJumpStatementsRule
+import com.varlanv.wrasse.rules.MagicNumberRule
 import com.varlanv.wrasse.rules.MayBeConstantRule
+import com.varlanv.wrasse.rules.MissingPackageDeclarationRule
 import com.varlanv.wrasse.rules.ModifierEngine
 import com.varlanv.wrasse.rules.NestedClassesVisibilityRule
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
@@ -61,6 +67,7 @@ import com.varlanv.wrasse.rules.RethrowCaughtExceptionRule
 import com.varlanv.wrasse.rules.SafeCastRule
 import com.varlanv.wrasse.rules.StringShouldBeRawStringRule
 import com.varlanv.wrasse.rules.SwallowedExceptionRule
+import com.varlanv.wrasse.rules.ThrowingExceptionInMainRule
 import com.varlanv.wrasse.rules.TooGenericExceptionCaughtRule
 import com.varlanv.wrasse.rules.TooGenericExceptionThrownRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
@@ -69,6 +76,7 @@ import com.varlanv.wrasse.rules.TrivialAccessorsRule
 import com.varlanv.wrasse.rules.UnconditionalJumpStatementInLoopRule
 import com.varlanv.wrasse.rules.UnnecessaryBacktickRule
 import com.varlanv.wrasse.rules.UnnecessaryInheritanceRule
+import com.varlanv.wrasse.rules.UnnecessaryPartOfBinaryExpressionRule
 import com.varlanv.wrasse.rules.UnusedParameterRule
 import com.varlanv.wrasse.rules.UnusedPrivateClassRule
 import com.varlanv.wrasse.rules.UseLetRule
@@ -106,13 +114,19 @@ listOf(
     ForbiddenCommentRule(),
     FunctionNamingRule(),
     FunctionOnlyReturningConstantRule(),
+    FunctionParameterNamingRule(),
+    GlobalCoroutineUsageRule(),
     IfElseBracingRule(),
     InstanceOfCheckForExceptionRule(),
+    InvalidRangeRule(),
     KdocDeprecatedTagRule(),
+    LambdaParameterNamingRule(),
     LongNumericalValuesRule(),
     LongParameterListRule(),
     LoopWithTooManyJumpStatementsRule(),
+    MagicNumberRule(),
     MayBeConstantRule(),
+    MissingPackageDeclarationRule(),
     NestedClassesVisibilityRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
@@ -128,6 +142,7 @@ listOf(
     SafeCastRule(),
     StringShouldBeRawStringRule(),
     SwallowedExceptionRule(),
+    ThrowingExceptionInMainRule(),
     TooGenericExceptionCaughtRule(),
     TooGenericExceptionThrownRule(),
     TrailingNewlineRule(),
@@ -136,6 +151,7 @@ listOf(
     UnconditionalJumpStatementInLoopRule(),
     UnnecessaryBacktickRule(),
     UnnecessaryInheritanceRule(),
+    UnnecessaryPartOfBinaryExpressionRule(),
     UnusedParameterRule(),
     UnusedPrivateClassRule(),
     UseLetRule(),

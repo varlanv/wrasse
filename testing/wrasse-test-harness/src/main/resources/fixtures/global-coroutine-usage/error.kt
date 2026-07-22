@@ -1,0 +1,12 @@
+package sample
+
+object GlobalScope {
+    fun launch(block: () -> Unit) {}
+    fun async(block: () -> Unit) {}
+}
+
+fun start() {
+    GlobalScope.launch { }
+}
+
+// expect-error 9:5 global-coroutine-usage "This use of GlobalScope should be replaced by a CoroutineScope or coroutineScope"

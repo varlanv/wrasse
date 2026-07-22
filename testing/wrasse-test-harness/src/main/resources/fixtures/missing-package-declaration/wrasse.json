@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "missing-package-declaration": { "level": "error" }
+    }
+}

@@ -19,6 +19,12 @@ object WordBoundaryScan {
         }
     }
 
+    fun startsWithWord(text: CharSequence, word: String): Boolean {
+        if (text.length < word.length) return false
+        for (i in word.indices) if (text[i] != word[i]) return false
+        return text.length == word.length || !isWordChar(text[word.length])
+    }
+
     private fun isWordChar(c: Char): Boolean = c.isLetterOrDigit() || c == '_'
 
     fun indexOf(source: CharSequence, part: String, from: Int): Int {

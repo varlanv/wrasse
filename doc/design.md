@@ -4094,6 +4094,187 @@ single wrasse id.
   `CustomLabelDecisionSpec`, `DoubleNegativeDecisionSpec`, `ConstructorParameterNamingDecisionSpec`,
   `VariableNameMaxLengthDecisionSpec`) plus `LoopJumpFrameSpec` for the shared counting accumulator.
 
+- **B.8 — lint-only rules (bucket L), sixth installment, plus the remaining-L completeness
+  inventory — shipped 2026-07-22.** Eight new ids: `magic-number`, `function-parameter-naming`,
+  `lambda-parameter-naming`, `global-coroutine-usage`, `throwing-exception-in-main`,
+  `invalid-range`, `missing-package-declaration`, `unnecessary-part-of-binary-expression`. Report,
+  never fix — `canAutofix` is false everywhere in this batch.
+
+  **Remaining-L inventory (the task's own required deliverable):** every ktlint/detekt/diktat L-
+  bucket row from autoformat-scope.md was cross-checked against `registeredRules()`/
+  `registeredRuleGroups()` in `WrasseKotlincPluginMain.kt` — the actual shipped-id list, not the
+  prose in B.1–B.7 alone (which turned out to already have one gap: `unnecessary-inheritance` is
+  shipped, described in a B.2-adjacent paragraph rather than its own L-bucket entry, and was
+  nearly re-shipped by this batch before the registration file caught it). ktlint/detekt's own
+  current sources were read directly for several rows the catalog doesn't carry at all
+  (`MagicNumber`, `UseRequire`/`UseRequireNotNull`/`UseCheckNotNull`/`UseCheckOrError`,
+  `SpreadOperator`, `UnnecessaryLet` — all real detekt-rules-style/performance classes missing from
+  `detekt-rules-catalog.md`, the same stale-snapshot pattern B.7 already found for
+  `DoubleNegativeLambda`/`ConstructorParameterNaming`). Headline count: **29 genuinely-remaining,
+  syntax-only-feasible L candidates** identified across the three catalogs (yes/narrowed
+  feasibility, not already shipped or deduped, not blocked by a resolution or config-shape need) —
+  8 shipped this batch, 21 held for a later installment. A larger set of rows were checked and
+  found **not** portable at all (needs resolution, needs a config surface with no sensible
+  default, needs project-structure/build knowledge this rule layer doesn't have, or is already
+  covered/deduped by a shipped id) — the full triage table below records every row, shipped and
+  skipped alike, with its reason.
+
+  **Triage table** (✓ = shipped this batch; every "skip" reason was checked against that rule's
+  actual current source, not assumed):
+
+  | candidate | catalog | concern | syntax-only feasible? | outcome |
+  |---|---|---|---|---|
+  | `magic-number` | detekt (sole catalog; diktat's own `MagicNumberRule` dedupes to it, see below) | numeric literal not declared as a named constant | yes — no `RequiresAnalysisApi` | ✓ shipped |
+  | `function-parameter-naming` | detekt | casing on a plain function's own value parameters | yes — pure PSI | ✓ shipped (closes a B.1 deferral) |
+  | `lambda-parameter-naming` | detekt | casing on a lambda's own parameters (destructured included) | yes — pure PSI | ✓ shipped (closes a B.1 deferral) |
+  | `global-coroutine-usage` | detekt | `GlobalScope.launch`/`.async` usage | yes — pure PSI, no `analyze` call at all | ✓ shipped |
+  | `throwing-exception-in-main` | detekt | `throw` anywhere in a top-level `main`'s own subtree | yes — pure PSI (`isMainFunction()` is a syntactic signature check) | ✓ shipped |
+  | `invalid-range` | detekt | literal-bounded range that can never iterate (`2..1`) | yes, narrowed — only a bare-literal-vs-bare-literal comparison, matching upstream's own identical cast-based restriction | ✓ shipped |
+  | `missing-package-declaration` | detekt | file with no `package` statement | yes — pure PSI (`packageDirective?.text.isNullOrBlank()`) | ✓ shipped (inactive by default upstream, but sole-catalog, no config surface, no overlap — safe despite that) |
+  | `unnecessary-part-of-binary-expression` | detekt | duplicate operand in an `&&`/`\|\|` chain | yes — upstream's own check is a text-based, non-overlapping-flatten comparison, no resolution | ✓ shipped |
+  | `use-require`/`use-require-not-null`/`use-check-not-null`/`use-check-or-error` | detekt (missing from the catalog entirely) | prefer `require`/`check`/`error`/`requireNotNull`/`checkNotNull` over manually throwing `IllegalArgumentException`/`IllegalStateException` | **no** — all four declare `RequiresAnalysisApi` today (resolving the thrown type, or resolving that the called `require`/`check` really is `kotlin.require`/`kotlin.check` and not a same-named user function) | **skipped**, same precedent as `unused-private-member` (B.5) |
+  | `spread-operator` | detekt (missing from the catalog) | spread-operator array-copy cost | **no** — `RequiresAnalysisApi`; the one syntactically-visible exemption (`*arrayOf(...)` literal argument) is not the only one upstream grants (a vararg-forwarding case needs symbol resolution too), so a syntax-only port would report cases upstream's own resolution-backed version would not | **skipped** |
+  | `unnecessary-let` | detekt (missing from the catalog) | redundant `.let { }` call | **no** — `RequiresAnalysisApi` (`analyze` used for parameter-reference counting and resolving that the callee really is `kotlin.let`) | **skipped** |
+  | `redundant-visibility` on interface members | — | — | already shipped | **already covered** — `redundant-visibility-modifier`/`ModifierEngine` (T-bucket, B.2), not L; not re-portable here |
+  | `no-wildcard-imports`-adjacent | — | — | already shipped | **already covered** — `ImportEngine` (S-bucket, B.3) |
+  | ktlint `kdoc` (misplaced KDoc) | ktlint | KDoc not immediately before its declaration | yes | portable, **held for a later batch** |
+  | ktlint `lambda-return` | ktlint | explicit labeled `return` as a trailing lambda's last statement | yes | portable, **held for a later batch** |
+  | ktlint `mixed-condition-operators` | ktlint | `&&`/`\|\|` mixed at the same nesting level without disambiguating parens | yes — pure token scan | portable, **held for a later batch** |
+  | ktlint `no-consecutive-comments` | ktlint | stacked `//` comments where one KDoc/block comment reads better | yes | portable, **held for a later batch** |
+  | ktlint `no-single-line-block-comment` | ktlint | a `/* ... */` that fits on one line should be `//` | yes | portable, **held for a later batch** |
+  | ktlint `string-template` (`.toString()` redundancy) | ktlint | `"${x.toString()}"` inside a template | yes | portable, **held for a later batch** |
+  | ktlint `type-argument-comment`/`type-parameter-comment`/`value-argument-comment`/`value-parameter-comment` | ktlint | comment in a disallowed position inside a type/value argument or parameter list | yes, and naturally fuseable into one engine (the `EmptyBlockEngine` precedent) | portable, **held for a later batch** |
+  | ktlint `no-empty-file` | ktlint | zero-content file | already covered | **dedupe, not a skip** — identical concept to shipped `empty-kotlin-file` (detekt `EmptyKotlinFile`, B.7); the catalog listed both sides of the same dedupe separately |
+  | ktlint `function-expression-body` | ktlint | prefer expression-body over a single-`return`-statement block body | yes, narrowed (report-only "prefer expression body", no rewrite) | portable but judgment-flavored; **held for a later batch** |
+  | detekt `unnecessary-inheritance` | detekt | redundant `: Any()`/`: Object()` | already covered | **already shipped**, undocumented gap in the B.1–B.7 prose closed by this batch's own registration-file audit |
+  | detekt `function-parameter-naming`/`lambda-parameter-naming` siblings | detekt | — | — | ✓ shipped this batch (see above) |
+  | detekt `kdoc-references-non-public-property` | detekt | KDoc `@property` tag naming a non-public property | yes, syntax-only (same shape as shipped `kdoc-tag-mismatch`) | portable, **held for a later batch** |
+  | detekt `no-name-shadowing` | detekt | a name reintroduced in a nested scope | unresolved (hard call #6, still open) | **held — needs the "does kotlinc's own extra-checkers tier already cover this" verification `unused-parameter` (B.5) did for its own hard call, not yet done for this one** |
+  | detekt `outdated-documentation` | detekt | KDoc drifted from the signature it documents | overlaps `kdoc-tag-mismatch`'s own coverage; the rest is prose-drift judgment | **skipped** — not a distinct, narrowly-portable concept once the tag-mismatch slice is already carved out |
+  | detekt `cognitive-complex-method` | detekt | second complexity metric | already decided | **skipped**, already documented in B.4 (overlaps `cyclomatic-complexity`) |
+  | detekt `labeled-expression` | detekt | any custom label present | already covered | **dedupe** — the same concept `custom-label` (B.7, diktat) already ships under; shipping detekt's own variant too would be a second id for one concept |
+  | detekt `global-coroutine-usage` sibling checks | — | — | — | ✓ shipped (see above) |
+  | detekt `throwing-exception-in-main` | — | — | — | ✓ shipped (see above) |
+  | detekt `forbidden-public-data-class`/`forbidden-class-name`/`forbidden-suppress` | detekt | annotation/name/rule-id blocklist | config-shaped, no sensible hardcoded default (same reasoning `forbidden-suppress` was already skipped for in B.5) | **skipped**, all three |
+  | detekt `library-entities-should-not-be-public` | detekt | library-API-surface policy | needs a "library module" concept this rule layer doesn't have | **skipped** |
+  | detekt `array-primitive`/`for-each-on-range`/`last-index`/`useless-supertype`/`inverse-method` | detekt/diktat | boxing/receiver-type/supertype-member questions | all need resolution to avoid false positives | **skipped**, all five |
+  | detekt `invalid-package-declaration` | detekt | package statement doesn't match directory structure | needs source-root/directory convention knowledge, a different axis than syntax | **skipped** |
+  | detekt `useless-postfix-expression` | detekt | postfix `++`/`--` whose value is provably discarded | yes, pure PSI, but needs a correctly-scoped (not detekt's own flat, order-fragile) per-class property-name set plus per-return/binary-expression correlation — meaningfully more machinery than this batch's other seven | portable, **held for a later batch** on complexity grounds, not a feasibility gap |
+  | diktat `debug-print` | diktat | bare `print`/`println`/`console.*` call | yes, pure PSI, same family as shipped `print-stack-trace` (B.6) | portable, **held for a later batch** |
+  | diktat `collapse-if` | diktat | nested `if` with no `else` at either level, mergeable | yes, report-only | portable, **held for a later batch** |
+  | diktat `extension-functions-same-name` | diktat | two unrelated extension functions with an identical signature on related classes | yes, whole-file two-pass (same shape as `unused-private-class`'s own whole-file scan), **though its own catalog description ("member-shadows-extension confusion") does not match what the rule's actual source does** — another stale-catalog-description finding | portable, **held for a later batch** |
+  | diktat `getter-setter-fields` | diktat | accessor that recurses on itself instead of using `field` | plausible pure-PSI bug catcher, **current diktat source for the exact row this catalog name refers to was not re-derived in this session** (only `CustomGetterSetterRule`, a different, already-`X`-classified rule, was found under this area) | **verification incomplete — do not assume portable; re-derive from source before a future batch scopes it** |
+  | diktat `sync-in-async` | diktat | `runBlocking` reached from inside a coroutine | yes, narrowed, ancestor-based (same idiom `custom-label`'s own ancestor counting already established) | portable, **held for a later batch** |
+  | diktat `when-must-have-else`/`string-concatenation`/`boolean-expressions` | diktat | statement-`when` without `else`; `+`-chained string building; boolean-algebra simplification (including whether this is actually where `== true`/`== false` lives, correcting B.7's "not present in any of the three catalogs" note for that shape) | plausible, **not re-derived from current diktat source this session** | **verification incomplete — re-derive before scoping** |
+  | every other diktat row already marked judgment/ABI/refactoring-shaped in autoformat-scope.md (`class-like-structures`, `data-classes`, `inline-classes`, `single-constructor`, `single-init`, `stateless-class`, `compact-initialization`, `overloading-default-values`, `lambda-parameter-order`, `type-alias`, `variable-generic-type`, `no-var-rule`, `null-checks`, `local-variables`, `nullable-type`, `comments` (commented-out code)) | diktat | — | judgment-shaped or heuristic-risky by the catalog's own description | **skipped**, matches this project's own established "judgment-shaped rewrites stay L-or-nothing, never guessed" stance; not re-verified individually this session since none looked like a plausible reclassification |
+
+  Per-rule semantics, exemptions, and provenance:
+
+  - **`magic-number`** — an `INTEGER_CONSTANT`/`FLOAT_CONSTANT` whose parsed value (see
+    `NumericLiteralValue`, mirroring the sole catalog's own suffix/underscore/radix-prefix parsing
+    exactly) is not one of `{-1, 0, 1, 2}` is reported, unless it sits in one of six structural
+    exemptions: nested (at any depth) inside a property's own initializer — member, top-level,
+    local, `const`, or companion, all folded into one check since detekt's own defaults exempt
+    every one of them; a parameter's own default value; a named call argument; a `hashCode`
+    function's own body; the receiver of a dot-qualified call (`5.toString()`); or a function's own
+    bare-literal return value (an expression body, or a block body's `return <literal>` — narrowed
+    to not require "sole statement in the block" the way the upstream check does, a documented
+    simplification that only lowers the report count, matching this project's own may-be-constant
+    precedent for accepting a narrower, single-pass-friendly shape). **Catalog disagreement**:
+    diktat ships its own `MagicNumberRule` with several defaults that diverge from detekt's — it
+    does *not* exempt property/local-variable declarations or an extension-function's own receiver
+    by default, and it always checks named arguments (no such exemption axis at all) — on every
+    one of these points detekt's own default is the more permissive (fewer-report) reading, so this
+    id adopts detekt's algorithm and defaults wholesale, per the task's own narrowest-reading
+    instruction; diktat's differently-shaped ignore-number list (explicit suffixed-string forms
+    like `1UL`) is subsumed anyway by detekt's own normalize-then-compare-as-`Double` approach. Two
+    of detekt's own unconditional exemptions (a parameter's own default value; a bare-literal
+    function return) are ported as documented structural simplifications rather than detekt's own
+    exact PSI-parent checks, both strictly narrower. Implemented as a `WStreamRule` (not a
+    `WNodeRule` targeting the constant types directly, and not a leaf rule): kotlinc's LightTree
+    wraps the literal token inside an interior `INTEGER_CONSTANT`/`FLOAT_CONSTANT` node, so the
+    check fires from `enterNode`, and since `WStreamRule.enterNode` carries no reporter, every
+    candidate is stashed and decided together in `afterFile` — this exact wiring mistake (routing
+    the check through `visitLeaf`, which the constant node type never reaches, silently producing
+    zero reports for every fixture) was caught by the fixture harness during this batch's own
+    development, not a live risk in the shipped code. A hand-rolled `FunFrame` stack (`hasOverride`,
+    `paramCount`, `name`, populated by watching `KW_OVERRIDE`/`IDENTIFIER`/`VALUE_PARAMETER` leaves
+    against the innermost open frame) answers the `hashCode`-function exemption without the
+    double-firing risk a self-nestable `WNodeRule` target would carry — the same reasoning
+    `FunctionMetricsEngine`/`ThrowingExceptionInMainRule` already documented.
+  - **`function-parameter-naming`** — a plain function's own direct value parameter (never a
+    primary/secondary constructor's, `constructor-parameter-naming`'s exclusive territory) must be
+    lowerCamelCase, exempt on `override` (the enclosing function's own fact, not the parameter's)
+    and a backtick-wrapped keyword. Closes a deferral B.1 explicitly logged ("a different scope-
+    resolution shape than member/top-level declarations, held for a follow-up batch").
+  - **`lambda-parameter-naming`** — a lambda's own parameter (plain or, uniquely among this
+    project's naming ids, each individual entry of a destructured one, `{ (a, b) -> } `) must be
+    lowerCamelCase or a lone `_`; no override concept applies since lambdas cannot be overridden.
+    Also closes a B.1 deferral.
+  - **`global-coroutine-usage`** — a dot-qualified expression whose receiver's own text is exactly
+    `GlobalScope` and whose selector call begins with `launch` or `async` is reported at the whole
+    expression's span — matches upstream exactly (its own check is equally receiver-text/callee-
+    name based, no resolution).
+  - **`throwing-exception-in-main`** — a top-level, non-override, public `fun main` with 0 or 1
+    parameters (Kotlin's only legal entry-point shapes) containing a `throw` anywhere in its own
+    subtree (nested local functions/lambdas included) is reported at the function's own span.
+    Narrowed to the common top-level case only: upstream's own second recognized shape (a
+    `@JvmStatic`-annotated `main` inside an object) is not ported, a documented, strictly-narrower
+    omission. The parameter-count check accepts any 0-or-1-arity `main`, not upstream's own exact
+    `Array<String>`/`vararg String` type-text match — a narrow, documented widening whose only
+    realistic false-positive shape (`fun main(x: Int)`, a legal-but-not-really-an-entry-point
+    signature) is vanishingly rare in practice.
+  - **`invalid-range`** — a `..`/`downTo`/`until`/`..<` binary expression whose left and right
+    operands are both direct `INTEGER_CONSTANT` children is reported when the bounds can never
+    produce an iteration, mirroring the sole catalog's own per-operator arithmetic exactly. A
+    unary-minus-wrapped literal (`-1..1`) is never a candidate, matching upstream's own identical
+    gap (its cast to a bare constant expression fails the same way) — not a narrowing, an exact
+    match.
+  - **`missing-package-declaration`** — a file whose `PACKAGE_DIRECTIVE` carries no dotted name
+    (checked via the same `DOT_QUALIFIED_EXPRESSION`/`REFERENCE_EXPRESSION`-child test
+    `PackageNamingRule` already uses to tell "has a package" from "does not") is reported at offset
+    0. Inactive by default upstream, but sole-catalog, config-free, and non-overlapping — shipped
+    anyway per this project's own "every rule ships off by default regardless of upstream's own
+    default" stance (D6).
+  - **`unnecessary-part-of-binary-expression`** — a chain of `&&`/`||` operands containing a
+    whitespace-insensitive duplicate is reported at the whole chain's span, matching upstream's own
+    crude text-comparison exactly (`a` and `(a)` count as different operands, same as upstream).
+    Each `&&`/`||` `BINARY_EXPRESSION` stores its own flattened operand list at its own exit, keyed
+    by its own offsets; a same-operator direct child's own list is merged in and removed from the
+    map (never independently reported); a parenthesized sub-expression is never itself
+    `BINARY_EXPRESSION`-typed, so it is always treated as one opaque operand, never flattened
+    through — the same boundary upstream's own recursive descent respects. Whatever survives
+    unconsumed in the map by `afterFile` is each chain's own true outermost node, decided and
+    reported there.
+
+  Fixture coverage: 61 fixtures across the 8 rule directories (error/threshold/exemption cases,
+  `@Suppress` happy/negative pairs per rule; `magic-number` additionally covers a rise-then-fall
+  case for its property-depth counter — a magic number after a local property's own scope closes
+  is still reported, proving the depth counter actually decrements rather than leaking the
+  exemption forward). Unit specs: one Decision spec per rule plus `NumericLiteralValueSpec` for the
+  shared suffix/radix parser.
+
+  **Own-codebase measurement** (isolated `rsync` copy, never this repo's own `wrasse.json`;
+  `allWarningsAsErrors` disabled in the copy's convention plugin; `publishToMavenLocal` run in the
+  copy before `compileKotlin compileTestKotlin -PwrasseCheck --continue`, so the mavenLocal plugin
+  jar under test was freshly built from the code this batch actually ships): of the eight new ids,
+  seven fire **zero** times anywhere in this repo's own `main`+`test` sources —
+  `function-parameter-naming`, `lambda-parameter-naming`, `global-coroutine-usage`,
+  `throwing-exception-in-main`, `invalid-range`, `missing-package-declaration`,
+  `unnecessary-part-of-binary-expression`. `magic-number` alone fires 319 times, concentrated in
+  test sources (kotest specs asserting on raw numeric expected values — 181 in
+  `libs/wrasse-rules/src/test`, 51 in `libs/wrasse-lang/src/test`, 47 in `libs/wrasse-model/src/test`,
+  11 in `testing/wrasse-kotlinc-plugin-tests-base/src/test`) but with a real, plausibly-fixable tail
+  in production code too (15 in `libs/wrasse-rules/src/main`, 8 in `libs/wrasse-lang/src/main`
+  — e.g. radix/offset literals in `HexEncoding.kt`/`WPatchReader.kt`/`ConfigValueJsonc.kt` — 2 in
+  `libs/wrasse-format/src/main`, 4 in `testing/wrasse-kotlinc-plugin-tests-base/src/main`).
+  **Enablement recommendation** (not applied to this repo's own `wrasse.json`, per the task's own
+  instruction): the other seven ids are safe to enable at `error` immediately, zero-risk by this
+  measurement. `magic-number` is real and correctly-scoped but too noisy for this repo's own test
+  suites to enable uniformly today; enable it for `main` source sets only (via a per-rule
+  `exclude` glob over `**/src/test/**`), or accept the one-time cost of naming the ~29 production-
+  code constants it would flag across the whole repo, before turning it on repo-wide.
+
 **Exit:** a representative real project lints under wrasse with parity-equivalent findings to its
 ktlint + detekt setup (minus parked outbound rules) at measurably lower wall-clock.
 

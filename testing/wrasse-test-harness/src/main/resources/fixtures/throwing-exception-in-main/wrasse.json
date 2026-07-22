@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "throwing-exception-in-main": { "level": "error" }
+    }
+}

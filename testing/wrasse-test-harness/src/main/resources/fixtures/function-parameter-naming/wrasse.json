@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "function-parameter-naming": { "level": "error" }
+    }
+}

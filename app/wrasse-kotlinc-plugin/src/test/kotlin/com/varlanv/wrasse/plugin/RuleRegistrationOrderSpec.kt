@@ -21,14 +21,18 @@ class RuleRegistrationOrderSpec :
                     "empty-when-block, enum-entry-naming, equals-null-call, " +
                     "exception-raised-in-unexpected-location, explicit-it-lambda-multiple-parameters, " +
                     "explicit-it-lambda-parameter, file-size, filename, forbidden-comment, function-naming, " +
-                    "function-only-returning-constant, if-else-bracing, instance-of-check-for-exception, " +
-                    "kdoc-deprecated-tag, long-numerical-values, long-parameter-list, loop-with-too-many-jump-statements, " +
-                    "may-be-constant, nested-classes-visibility, no-empty-class-body, no-empty-parens-before-trailing-lambda, " +
+                    "function-only-returning-constant, function-parameter-naming, global-coroutine-usage, if-else-bracing, " +
+                    "instance-of-check-for-exception, invalid-range, kdoc-deprecated-tag, lambda-parameter-naming, " +
+                    "long-numerical-values, long-parameter-list, loop-with-too-many-jump-statements, magic-number, " +
+                    "may-be-constant, missing-package-declaration, nested-classes-visibility, no-empty-class-body, " +
+                    "no-empty-parens-before-trailing-lambda, " +
                     "no-semicolons, no-unit-return, not-implemented-declaration, package-naming, print-stack-trace, " +
                     "property-naming, range-conventional, redundant-constructor-keyword, rethrow-caught-exception, " +
-                    "safe-cast, string-should-be-raw-string, swallowed-exception, too-generic-exception-caught, " +
+                    "safe-cast, string-should-be-raw-string, swallowed-exception, throwing-exception-in-main, " +
+                    "too-generic-exception-caught, " +
                     "too-generic-exception-thrown, trailing-newline, trim-multiline-raw-string, trivial-accessors, " +
-                    "unconditional-jump-statement-in-loop, unnecessary-backticks, unnecessary-inheritance, unused-parameter, " +
+                    "unconditional-jump-statement-in-loop, unnecessary-backticks, unnecessary-inheritance, " +
+                    "unnecessary-part-of-binary-expression, unused-parameter, " +
                     "unused-private-class, use-let, variable-name-max-length, and when-entry-bracing as single-id rules",
             ) {
                 val ids = registeredRules().map { it.id }
@@ -59,13 +63,19 @@ class RuleRegistrationOrderSpec :
                         "forbidden-comment",
                         "function-naming",
                         "function-only-returning-constant",
+                        "function-parameter-naming",
+                        "global-coroutine-usage",
                         "if-else-bracing",
                         "instance-of-check-for-exception",
+                        "invalid-range",
                         "kdoc-deprecated-tag",
+                        "lambda-parameter-naming",
                         "long-numerical-values",
                         "long-parameter-list",
                         "loop-with-too-many-jump-statements",
+                        "magic-number",
                         "may-be-constant",
+                        "missing-package-declaration",
                         "nested-classes-visibility",
                         "no-empty-class-body",
                         "no-empty-parens-before-trailing-lambda",
@@ -81,6 +91,7 @@ class RuleRegistrationOrderSpec :
                         "safe-cast",
                         "string-should-be-raw-string",
                         "swallowed-exception",
+                        "throwing-exception-in-main",
                         "too-generic-exception-caught",
                         "too-generic-exception-thrown",
                         "trailing-newline",
@@ -89,6 +100,7 @@ class RuleRegistrationOrderSpec :
                         "unconditional-jump-statement-in-loop",
                         "unnecessary-backticks",
                         "unnecessary-inheritance",
+                        "unnecessary-part-of-binary-expression",
                         "unused-parameter",
                         "unused-private-class",
                         "use-let",

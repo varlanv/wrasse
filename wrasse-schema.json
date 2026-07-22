@@ -403,6 +403,38 @@
                 "variable-name-max-length": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow a property or variable name longer than 64 characters"
+                },
+                "magic-number": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a numeric literal other than -1, 0, 1, or 2 outside an exempt position"
+                },
+                "function-parameter-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a regular function parameter name that is not lowerCamelCase"
+                },
+                "lambda-parameter-naming": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a lambda parameter name that is not lowerCamelCase or '_'"
+                },
+                "global-coroutine-usage": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow GlobalScope.launch and GlobalScope.async"
+                },
+                "throwing-exception-in-main": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a top-level main function that throws an exception"
+                },
+                "invalid-range": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a literal-bounded range that can never iterate"
+                },
+                "missing-package-declaration": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a file with no package declaration"
+                },
+                "unnecessary-part-of-binary-expression": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a duplicate operand in a chain of && or || expressions"
                 }
             }
         }

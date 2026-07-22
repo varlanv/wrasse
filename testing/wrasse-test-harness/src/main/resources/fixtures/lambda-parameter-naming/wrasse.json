@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "lambda-parameter-naming": { "level": "error" }
+    }
+}

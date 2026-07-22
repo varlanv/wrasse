@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "unnecessary-part-of-binary-expression": { "level": "error" }
+    }
+}
