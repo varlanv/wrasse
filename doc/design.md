@@ -6901,6 +6901,172 @@ as intended, not a regression.
   `fixtures-backfill-failing/` no longer holds any of these four rule-ids' entries (unrelated
   entries from the Phase C printer backfill remain).
 
+- **L-rule backfill wave 3 (empty-block/control-flow family + batch-6 style), 2026-07-22.** A
+  dedicated pass over the local `ktlint`/`detekt`/`diktat` checkouts' own rule test suites
+  (read-only, confirmed byte-clean throughout, never the internet) for the EMPTY-BLOCK/CONTROL-FLOW
+  family (B.7) and the batch-6 style family (B.8's first eight ids), enumerating each upstream test
+  case and classifying it: already covered by an existing fixture, worth porting as a new one, out
+  of scope per an already-documented divergence, or upstream-config-specific. New fixtures were
+  added to the existing per-rule directories only — no production code, no existing passing
+  fixture, no `wrasse.json`/`wrasse-schema.json` touched. `function-parameter-naming`,
+  `lambda-parameter-naming`, and `variable-name-max-length` were backfilled in wave 1 (not
+  documented separately in this log) and were out of this wave's scope per the task's own
+  instruction.
+
+  **Coverage table** (per rule; counts are approximate tallies across each rule's upstream test
+  file(s), not a strict per-test-method count):
+
+  | Rule | (a) already-covered | (b) newly-ported | (c) out-of-scope (cited) | (d) config-skip |
+  |---|---|---|---|---|
+  | `empty-if-block` | 6 | 1 (quarantined bug) | 2 (same bug, compound shapes) | 0 |
+  | `empty-else-block` | 4 | 2 (1 quarantined bug + 1 clean gap) | 2 (same bug, compound shapes) | 0 |
+  | `empty-for-block` | 1 | 0 | 0 | 0 |
+  | `empty-while-block` | 1 | 0 | 0 | 0 |
+  | `empty-do-while-block` | 1 | 0 | 0 | 0 |
+  | `empty-finally-block` | 1 | 0 | 0 | 0 |
+  | `empty-try-block` | 1 | 0 | 0 | 0 |
+  | `empty-init-block` | 1 | 0 | 0 | 0 |
+  | `empty-secondary-constructor` | 1 | 0 | 0 | 0 |
+  | `empty-function-block` | 4 | 3 | 0 | 2 (`ignoreOverridden`) |
+  | `empty-when-block` | 1 | 0 | 0 | 0 |
+  | `empty-kotlin-file` | 4 | 0 | 0 | 0 |
+  | `unconditional-jump-statement-in-loop` | ~10 | 6 | ~10 (bare-`continue`-never-flagged + multi-statement backward-scan, both already-documented narrowings) | 0 |
+  | `loop-with-too-many-jump-statements` | ~9 | 3 | 0 | 3 (`maxJumpCount`) |
+  | `custom-label` | 1 | 2 | 1 (the diktat `it.foreach{ break@forEach }` sub-shape does not compile as real Kotlin — `break`/`continue` can only target an enclosing *loop* label, never a lambda's implicit name-label — dropped, not portable to a real-compile harness) | 0 |
+  | `double-negative` | 5 (incl. existing `dot-not-call-clean.kt` locking the `.not()`-form narrowing) | 1 | 4 (`.not()`/qualified-call forms, already documented as dropped) | 0 |
+  | `magic-number` | ~15 | 4 | 3 (`NumberFormatException`/empty-ignoredNumber no-op tests, not behavior) | ~70 (`ignoreNumbers`/`ignorePropertyDeclaration`/etc. TestConfig permutations) |
+  | `global-coroutine-usage` | 2 | 2 | 0 | 0 |
+  | `throwing-exception-in-main` | 6 | 3 | 1 (`@JvmStatic`-in-companion-object shape, already-documented omission) | 0 |
+  | `invalid-range` | 2 | 5 | 0 | 0 |
+  | `missing-package-declaration` | 2 | 0 | 0 | 0 |
+  | `unnecessary-part-of-binary-expression` | 10 | 8 | 0 | 0 |
+
+  Per-rule notes:
+
+  - **`empty-if-block`/`empty-else-block`** — a real, previously-undocumented gap found and
+    quarantined (detail below): upstream's own `EmptyIfBlock`/`EmptyElseBlock` also fire on a bare
+    `;` standing in for an entire `then`/`else` branch (`if (x);`, `} else;`), read off
+    `expression.nextSibling` when the branch itself is PSI-`null` — a second, independent code path
+    neither id's own KDoc (B.7) nor `EmptyBlockEngine` (which only ever routes an existing `BLOCK`
+    node) attempts. ktlint's own `else` compound variants (semicolon-on-its-own-line, semicolon-
+    plus-a-following-unrelated-`{}`) share the identical root cause and were not separately
+    fixtured — citing the one quarantined fixture per id is sufficient, porting three near-identical
+    shapes of the same gap would not surface anything new. Upstream's own `does not report empty if
+    but nonempty else` pair (`if (x) ; else i++`) was **not** re-fixtured: with a following `else`,
+    kotlinc's real grammar folds the `;` into the same `KtIfExpression`/LightTree `IF` construct
+    (needed so the parser can keep consuming the `else` clause), so it never reaches
+    `expression.nextSibling` either upstream or here — both engines already agree "clean" today,
+    for the same structural reason, so re-fixturing it would not lock anything not already true.
+  - **`empty-function-block`** — `should flag function with protected modifier` and `should flag
+    the nested empty function` (a local function inside another function's body) were genuinely
+    new shapes (no existing fixture exercised a non-`open` modifier list, nor `FUN`-inside-`FUN`
+    nesting) and passed on the first try; an `override`-on-truly-empty-body case
+    (`override-member-error.kt`) was added since no fixture had locked that overriding a function
+    does **not** exempt it from the emptiness check (only `open`/interface-membership do) — also
+    passed unmodified, confirming detekt's own `addFindingIfBlockExprIsEmptyAndNotCommented`/
+    `addFindingIfBlockExprIsEmpty` split is a no-op in practice (both paths require
+    `children.isEmpty() && !hasComment`), so wrasse's single uniform `EmptyBlockCheck` already
+    matches it exactly with no override-specific branch needed.
+  - **`unconditional-jump-statement-in-loop`** — new fixtures locked: a `do`-`while` braced-return
+    shape (loop-keyword parity); the elvis-fallback regex correctly still *reports* a bare
+    `return compute(i) ?: return 0` (the regex only special-cases a trailing `break`/`continue`,
+    never `return`, so a `return`-into-`return` elvis chain is not accidentally swallowed); a bare
+    `compute(i) ?: return 0` used as an *expression statement* (not itself a `RETURN` node) stays
+    clean for a structurally different reason than the elvis-`RETURN` case; a `try`/`break`/
+    `finally` loop body (sole statement is `TRY`, not `BREAK`) stays clean; and detekt's own real
+    issue-6442 regression (`while (true) this.poll()?.let { } ?: break`, bare body, sole statement
+    is a `BINARY_EXPRESSION` not `BREAK`) stays clean. detekt's own label-based "already exited by a
+    prior sibling statement" backward-scan tests (issues 6657/6657-variants) and every bare/`for`/
+    `while` **`continue`** case are the two already-documented narrowings (§13 B.7's own KDoc text)
+    — cited, not re-fixtured, since re-porting them would only re-demonstrate a narrowing this
+    project already committed to in writing.
+  - **`custom-label`** — diktat's own `should trigger custom label` test was ported nearly verbatim
+    (`multi-shape-mixed-error.kt`, locking both the `@qwe`/`@qq` reports and the `@forEachIndexed`/
+    `@loop`-convention/`run`-non-forEach clean sub-shapes in one file) **except** its own
+    `it.foreach{ break@forEach }` sub-case, which relies on `break` targeting a lambda's *implicit*
+    name-label — not legal Kotlin (`break`/`continue` can only ever target an enclosing *loop*
+    label) — confirming diktat's own test harness does not compile-check its fixtures the way
+    wrasse's always does; not portable without changing what the case actually tests, so dropped.
+    `nested-forEach-custom-label-clean.kt` ports diktat's second test (`should not trigger custom
+    label in nested expression`)'s own forEach-nesting half (the `for`-nesting half was already
+    covered by the existing `genuine-nesting-clean.kt`).
+  - **`double-negative`** — `double-exclamation-with-not-call-tail-error.kt` locks that a `.not()`
+    tail after a real `!!` prefix chain does not defeat detection (the chain-length scan only reads
+    the prefix run, stopping at the first non-`!`/non-whitespace character, so the trailing
+    dot-call is simply never inspected either way) — the observed report count happens to match
+    upstream's own (which additionally counts the `.not()` itself) for an unrelated reason, not
+    because wrasse implements the qualified-call form.
+  - **`magic-number`** — `MagicNumberSpec` is ~90% `TestConfig`-permutation coverage (no wrasse
+    config surface beyond `level` exists for this id, matching D21), so only default-config
+    (`Config.empty`)-equivalent shapes were ported: an `if`-expression's branches (all reported when
+    outside a property initializer — upstream's own version of this case uses a non-default
+    `ignorePropertyDeclaration=false` override to isolate the same collection logic, adapted here
+    into a real non-property context instead of relying on that knob); a `when`-statement whose
+    entry conditions are reported but whose `return <literal>` branches stay exempt regardless of
+    `when`-nesting depth (confirms the bare-function-return exemption checks the literal's
+    *immediate* parent only, per its own documented "narrowed to not require sole statement in the
+    block" simplification — a real, previously-unlocked divergence from upstream's own 6-report
+    expectation for the identical shape, cited, not a bug); a non-bare `9 + 1` return value in both
+    expression- and block-body form (confirms the bare-return exemption requires *direct* nesting
+    under `RETURN`/`FUN`, not "eventually inside one"); and one real end-to-end unsigned-literal
+    (`65520U`) firing case, since the constraint that magic-number's `INTEGER_CONSTANT` routing is
+    interior-node-only (§13's own task note) makes an unusual literal *format* actually reaching
+    `afterFile` worth confirming past the unit-level parser test that already covers the format
+    itself.
+  - **`invalid-range`** — every existing fixture exercised a bare top-level property initializer;
+    none exercised the rule firing inside a real `for`-loop header (the construct upstream's own
+    suite spends most of its cases on) or the `..<` operator. New fixtures close both gaps, plus a
+    `step`-wrapped chain (confirms the inner `until`/`downTo`/`..` sub-expression reports
+    independently when the outer `step` binary expression's own left operand is not a bare literal)
+    and a nested-`for`-loop case (independence, no cross-loop interference).
+  - **`unnecessary-part-of-binary-expression`** — new fixtures close: mixed-shape operands
+    (comparison expressions and property-access chains, not just bare identifiers) both for the
+    distinct (clean) and duplicate (error) cases; an exact-span assertion when the outer and inner
+    chains use *different* operators (`foo || baz && baz` — the outer `||` chain's own two operands
+    never collide, but the *inner* `&&` chain's own `baz`/`baz` does, and the report lands on that
+    inner chain's own span, not the outer one — ported from upstream's own `hasTextLocation` check);
+    whitespace-asymmetric duplicates (`foo> 1` vs `foo >1`, confirming the whitespace-insensitive
+    comparison is not merely a leading/trailing trim); same-left-different-right comparisons
+    (`foo > bar` vs `foo > 1`, confirming pure text comparison, not left-operand-only matching);
+    firing inside a lambda body (`list.filter { it > 1 || it > 1 }`) and inside a `when`-entry
+    condition (contexts distinct from the existing if/return-statement fixtures); and a `1 to 1`
+    infix-call clean case (confirms a non-`&&`/`||` infix operator, even with textually identical
+    operands, is never a candidate — `to` fails the operator-text check before operands are ever
+    compared).
+
+  **Found bug — one real gap, quarantined** (empty-if-block/empty-else-block share the identical
+  root cause, so it is one finding reported once): **`empty-if-block`/`empty-else-block` never
+  detect a bare `;` standing in for an entire empty `then`/`else` branch.** detekt's own
+  `EmptyIfBlock`/`EmptyElseBlock` special-case this via `checkThenBodyForLoneSemicolon` (reads
+  `expression.nextSibling` when the PSI `then`/`else` is `null`, i.e. no branch content at all was
+  parsed) — a second detection path alongside the ordinary `KtBlockExpression`-with-zero-children
+  check `EmptyBlockEngine`/`EmptyBlockCheck` already implements. wrasse's engine only ever routes an
+  existing `BLOCK` node reached through a `THEN`/`ELSE` ancestor; a bare `;` produces no `BLOCK`
+  node at all (kotlinc's own grammar leaves the branch simply absent, with the `;` as a plain
+  sibling statement terminator), so this shape was never reachable by the shipped code, in either
+  rule, confirmed against a real compile (not assumed from reading the grammar alone). Actual:
+  `if (x);` / `} else;` produce zero wrasse diagnostics. Expected (matching upstream):
+  `ERROR 4:5 empty-if-block "This if block is empty and can be removed"` and
+  `ERROR 6:7 empty-else-block "This else block is empty and can be removed"` respectively. Fixtures:
+  `fixtures-backfill-failing/empty-if-block/bare-semicolon-then-error.kt`,
+  `fixtures-backfill-failing/empty-else-block/bare-semicolon-else-error.kt` (each carries its own
+  copy of the rule dir's `wrasse.json`, matching the pre-existing `fixtures-backfill-failing/
+  format-class-signatures`/`format-declaration-blank-lines` precedent, even though the directory
+  itself is not scanned by the harness). Not fixed in-task per the task's own TESTS-ONLY constraint:
+  a fix needs a second detection path reading `nextSibling`/an equivalent LightTree sibling check
+  when `THEN`/`ELSE` carries no `BLOCK` child at all — a small, contained, engine-shape addition,
+  not attempted here.
+
+  **Totals:** 40 new fixture files: 38 landed in existing `fixtures/<rule-id>/` directories across
+  20 of the 22 in-scope rules (`empty-for-block`, `empty-while-block`, `empty-do-while-block`,
+  `empty-finally-block`, `empty-init-block`, `empty-secondary-constructor`, `empty-when-block`,
+  `empty-kotlin-file`, and `missing-package-declaration` needed no new fixture — their upstream
+  suites were already fully covered), 2 quarantined under `fixtures-backfill-failing/` (one bug,
+  two rule-ids). Full ladder (`build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`,
+  `testPatchHarness`, `wrasseLint -Prepublish`) green against the resulting fixture set.
+  `ktlint`/`detekt`/`diktat` checkouts confirmed byte-clean (`git status`) throughout — read-only,
+  single-threaded (no sub-agents/forks).
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.
