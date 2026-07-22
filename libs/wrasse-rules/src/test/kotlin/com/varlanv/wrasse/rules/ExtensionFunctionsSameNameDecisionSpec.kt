@@ -15,7 +15,7 @@ class ExtensionFunctionsSameNameDecisionSpec :
                     ExtensionFunctionsSameNameDecision.Candidate("Derived", "process", listOf("x"), "Int"),
                 )
 
-                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe mapOf(0 to 1, 1 to 0)
+                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe listOf(0 to 1, 1 to 0)
             }
 
             should("not report when the receiver classes are unrelated") {
@@ -25,7 +25,7 @@ class ExtensionFunctionsSameNameDecisionSpec :
                     ExtensionFunctionsSameNameDecision.Candidate("Unrelated", "process", listOf("x"), "Int"),
                 )
 
-                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe emptyMap()
+                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe emptyList()
             }
 
             should("not report when parameter names differ") {
@@ -35,7 +35,7 @@ class ExtensionFunctionsSameNameDecisionSpec :
                     ExtensionFunctionsSameNameDecision.Candidate("Derived", "process", listOf("y"), "Int"),
                 )
 
-                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe emptyMap()
+                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe emptyList()
             }
 
             should("not report when return types differ") {
@@ -45,10 +45,10 @@ class ExtensionFunctionsSameNameDecisionSpec :
                     ExtensionFunctionsSameNameDecision.Candidate("Derived", "process", listOf("x"), "String"),
                 )
 
-                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe emptyMap()
+                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe emptyList()
             }
 
-            should("pair a third same-signature function only with the first occurrence, never the second") {
+            should("pair a third same-signature occurrence with every earlier related occurrence, not just the first") {
                 val candidates =
                 listOf(
                     ExtensionFunctionsSameNameDecision.Candidate("Base", "process", listOf("x"), "Int"),
@@ -56,7 +56,19 @@ class ExtensionFunctionsSameNameDecisionSpec :
                     ExtensionFunctionsSameNameDecision.Candidate("Derived", "process", listOf("x"), "Int"),
                 )
 
-                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe mapOf(0 to 2, 1 to 0, 2 to 0)
+                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe listOf(0 to 1, 1 to 0, 0 to 2, 2 to 0)
+            }
+
+            should("report every pairwise relation in a star topology of three related classes") {
+                val starRelated = listOf("Base" to "DerivedA", "Base" to "DerivedB")
+                val candidates =
+                listOf(
+                    ExtensionFunctionsSameNameDecision.Candidate("Base", "process", listOf("x"), "String"),
+                    ExtensionFunctionsSameNameDecision.Candidate("DerivedA", "process", listOf("x"), "String"),
+                    ExtensionFunctionsSameNameDecision.Candidate("DerivedB", "process", listOf("x"), "String"),
+                )
+
+                ExtensionFunctionsSameNameDecision.indicesToReport(candidates, starRelated) shouldBe listOf(0 to 1, 1 to 0, 0 to 2, 2 to 0)
             }
         },
     )

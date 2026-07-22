@@ -14,4 +14,11 @@ object KdocReferencesNonPublicPropertyDecision {
 
     fun message(propertyName: String): String =
     "The property '$propertyName' is non-public and should not be referenced from KDoc comments."
+
+    /**
+     * True when some other member (function or property) of the same class body shares
+     * [propertyName] and is not private — the KDoc link resolves to that member instead.
+     */
+    fun hasNonPrivateSameNameMember(propertyName: String, otherMembers: List<Pair<String, Boolean>>): Boolean =
+    otherMembers.any { (name, isPrivate) -> name == propertyName && !isPrivate }
 }

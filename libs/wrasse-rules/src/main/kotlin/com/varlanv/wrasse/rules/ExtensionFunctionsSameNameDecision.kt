@@ -10,9 +10,10 @@ package com.varlanv.wrasse.rules
  * supertype — never transitively, matching upstream's own single-hop check, and only within this
  * file (upstream's own known limitation, "should find all related classes in project, not only in
  * file", carried over unchanged since this project's rules see one file at a time regardless).
- * Each duplicate signature only ever pairs with the *first* occurrence seen (never with a later
- * one), so three same-signature functions on three pairwise-related classes report only two of the
- * three, matching the upstream rule's own first-occurrence-anchored pairing exactly.
+ * Every same-signature occurrence is compared against every earlier occurrence still pending, so a
+ * function related to N others yields N reported pairs (a star topology of three pairwise-related
+ * classes sharing one signature reports all four directed pairs), matching the upstream rule's own
+ * pairwise behavior.
  */
 object ExtensionFunctionsSameNameDecision {
     data class Candidate(val receiverClassName: String, val functionName: String, val paramNames: List<String>, val returnType: String?)
@@ -20,21 +21,20 @@ object ExtensionFunctionsSameNameDecision {
     fun message(functionName: String, receiverClassName: String, otherReceiverClassName: String): String =
     "Extension function '$functionName' on '$receiverClassName' has the same signature as one on related class '$otherReceiverClassName'"
 
-    fun indicesToReport(candidates: List<Candidate>, relatedClassPairs: List<Pair<String, String>>): Map<Int, Int> {
-        val firstIndexBySignature = LinkedHashMap<List<Any?>, Int>()
-        val result = mutableMapOf<Int, Int>()
+    fun indicesToReport(candidates: List<Candidate>, relatedClassPairs: List<Pair<String, String>>): List<Pair<Int, Int>> {
+        val indicesBySignature = LinkedHashMap<List<Any?>, MutableList<Int>>()
+        val result = mutableListOf<Pair<Int, Int>>()
         for ((index, candidate) in candidates.withIndex()) {
             val key = listOf(candidate.functionName, candidate.paramNames, candidate.returnType)
-            val firstIndex = firstIndexBySignature[key]
-            if (firstIndex == null) {
-                firstIndexBySignature[key] = index
-                continue
+            val priorIndices = indicesBySignature.getOrPut(key) { mutableListOf() }
+            for (priorIndex in priorIndices) {
+                val prior = candidates[priorIndex]
+                if (areRelated(relatedClassPairs, prior.receiverClassName, candidate.receiverClassName)) {
+                    result.add(priorIndex to index)
+                    result.add(index to priorIndex)
+                }
             }
-            val first = candidates[firstIndex]
-            if (areRelated(relatedClassPairs, first.receiverClassName, candidate.receiverClassName)) {
-                result[firstIndex] = index
-                result[index] = firstIndex
-            }
+            priorIndices.add(index)
         }
         return result
     }

@@ -33,11 +33,15 @@ class DebugPrintRule : WUninitializedRule {
             override val targetTypes = setOf(WNodeType.CALL_EXPRESSION, WNodeType.VALUE_ARGUMENT_LIST, WNodeType.DOT_QUALIFIED_EXPRESSION)
 
             private val argCounts = mutableMapOf<Long, Int>()
+            private val selectorLambdaFlags = mutableMapOf<Long, Boolean>()
 
             override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
                 when (ctx.type) {
                     WNodeType.VALUE_ARGUMENT_LIST -> recordArgCount(ctx, children)
-                    WNodeType.CALL_EXPRESSION -> checkPrintCall(ctx, children, reporter)
+                    WNodeType.CALL_EXPRESSION -> {
+                        recordSelectorLambdaFlag(ctx, children)
+                        checkPrintCall(ctx, children, reporter)
+                    }
                     WNodeType.DOT_QUALIFIED_EXPRESSION -> checkConsoleCall(ctx, children, reporter)
                     else -> {}
                 }
@@ -47,6 +51,12 @@ class DebugPrintRule : WUninitializedRule {
                 var count = 0
                 for (i in 0 until children.size) if (children.type(i) == WNodeType.VALUE_ARGUMENT) count++
                 argCounts[key(ctx.startOffset, ctx.endOffset)] = count
+            }
+
+            private fun recordSelectorLambdaFlag(ctx: WContext, children: ChildBuffer) {
+                if (ctx.ancestors.peekType() == WNodeType.DOT_QUALIFIED_EXPRESSION) {
+                    selectorLambdaFlags[key(ctx.startOffset, ctx.endOffset)] = children.hasChildOfType(WNodeType.LAMBDA_ARGUMENT)
+                }
             }
 
             private fun checkPrintCall(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
@@ -74,6 +84,7 @@ class DebugPrintRule : WUninitializedRule {
                 val (receiverIdx, dotIdx, selectorIdx) = Triple(significant[0], significant[1], significant[2])
                 if (children.type(dotIdx) != WNodeType.DOT) return
                 if (!children.textSpan(receiverIdx, ctx.sourceText).contentEquals("console")) return
+                if (selectorLambdaFlags.remove(key(children.startOffset(selectorIdx), children.endOffset(selectorIdx))) == true) return
                 val selectorText = children.textSpan(selectorIdx, ctx.sourceText)
                 val callee =
                 when {

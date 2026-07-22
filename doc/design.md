@@ -7180,6 +7180,32 @@ as intended, not a regression.
   previously-unknown bug under `fixtures-backfill-failing/` for a future fix-focused session. No
   further L-rule backfill wave is scoped or needed.
 
+- **Wave-4 bug fixes, 2026-07-22.** The three genuine bugs quarantined by wave 4 are now fixed; their
+  fixtures moved from `fixtures-backfill-failing/` into their rule's own `fixtures/` directory.
+  1. **`debug-print`.** Root cause: `checkConsoleCall` had no `LAMBDA_ARGUMENT` guard at all, unlike
+     the sibling `checkPrintCall`. Mechanism: a qualified call's selector (e.g. `log("debug") {
+     ... }`) is one opaque `CALL_EXPRESSION` child of the `DOT_QUALIFIED_EXPRESSION` — its own
+     `LAMBDA_ARGUMENT` is nested inside that selector, not a direct sibling reachable from the
+     qualified expression's own `ChildBuffer`. Fixed by recording each `CALL_EXPRESSION`'s own
+     lambda-argument presence (only when its immediate parent is a `DOT_QUALIFIED_EXPRESSION`) into
+     a small offset-keyed map at `CALL_EXPRESSION` exit, consumed by `checkConsoleCall` at the
+     enclosing qualified expression's own exit.
+  2. **`extension-functions-same-name`.** Root cause: `indicesToReport` anchored every later match
+     to a single `firstIndexBySignature` slot and wrote pairs into a `Map<Int, Int>`, so a second
+     related match for the same first occurrence overwrote the first match's own map entry.
+     Mechanism/fix: replaced the single-slot map with a per-signature list of every prior index seen,
+     compared against each new candidate in turn, and changed the return type to `List<Pair<Int,
+     Int>>` so one candidate can appear as the first element of more than one pair — a star topology
+     of three related classes now reports all four directed pairs.
+  3. **`kdoc-references-non-public-property`.** Root cause: the rule flagged any private/internal
+     property whose name appeared in a `[name]` KDoc link, never checking whether that name also
+     resolves to some other, non-private class member. Mechanism/fix: `FUN` added to the rule's
+     target types, each function's own name/`private`-modifier fact recorded and correlated per
+     `CLASS_BODY` the same way properties already were, and a new
+     `KdocReferencesNonPublicPropertyDecision.hasNonPrivateSameNameMember` check (compiler-free,
+     unit-tested) suppresses the report when a same-named non-private function or property exists
+     in that same class body.
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.
