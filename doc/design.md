@@ -4690,6 +4690,94 @@ single wrasse id.
 **Exit:** a representative real project lints under wrasse with parity-equivalent findings to its
 ktlint + detekt setup (minus parked outbound rules) at measurably lower wall-clock.
 
+- **L-rule backfill wave 1 (naming + metrics) — shipped 2026-07-22.** Test-only pass: ported/adapted
+  upstream ktlint/detekt/diktat test suites for the B.1 naming family and B.4 metrics family (plus
+  the B.6/B.7 deferred-naming closures `function-parameter-naming`/`lambda-parameter-naming`/
+  `variable-name-max-length`) into wrasse fixtures, deduping against the existing independently-
+  derived fixture set. No production code touched. 46 new fixtures added across 21 rule
+  directories; zero genuine bugs found (every newly-ported fixture that initially failed did so
+  because of an arithmetic/column mistake in the fixture itself, corrected before landing — none
+  needed quarantine under `fixtures-backfill-failing/`).
+
+  Naming family (8 B.1 ids + 3 deferred ids), already-covered / newly-ported / out-of-scope /
+  skipped-config counts per rule:
+
+  | rule | already-covered | newly-ported | out-of-scope | skipped-config |
+  |---|---|---|---|---|
+  | `class-naming` | 4 | 2 | 1 | 1 |
+  | `function-naming` | 7 | 4 | 1 | 1 |
+  | `property-naming` | 9 | 6 | 1 | 0 |
+  | `enum-entry-naming` | 4 | 3 | 0 | 1 |
+  | `package-naming` | 4 | 3 | 0 | 0 |
+  | `backing-property-naming` | 6 | 4 | 1 | 0 |
+  | `filename` | 5 | 2 | 1 | 0 |
+  | `constructor-parameter-naming` | 5 | 2 | 1 | 1 |
+  | `function-parameter-naming` | 5 | 1 | 1 | 0 |
+  | `lambda-parameter-naming` | 5 | 2 | 0 | 0 |
+  | `variable-name-max-length` | 4 | 1 | 1 | 0 |
+  | **naming total** | **58** | **30** | **8** | **4** |
+
+  Metrics family (13 B.4 ids), same four buckets:
+
+  | rule | already-covered | newly-ported | out-of-scope | skipped-config |
+  |---|---|---|---|---|
+  | `long-parameter-list` | 6 | 2 | 1 | 1 |
+  | `long-method` | 4 | 1 | 0 | 1 |
+  | `large-class` | 4 | 0 | 0 | 1 |
+  | `too-many-functions` | 5 | 3 | 1 | 1 |
+  | `nested-block-depth` | 5 | 1 | 0 | 1 |
+  | `cyclomatic-complexity` | 4 | 3 | 3 | 1 |
+  | `return-count` | 4 | 1 | 1 | 1 |
+  | `throws-count` | 3 | 1 | 0 | 1 |
+  | `destructuring-declaration-with-too-many-entries` | 2 | 2 | 0 | 1 |
+  | `complex-condition` | 3 | 2 | 0 | 1 |
+  | `function-name-max-length` | 4 | 0 | 1 | 1 |
+  | `function-name-min-length` | 4 | 0 | 1 | 0 |
+  | `file-size` | 3 | 0 | 0 | 1 |
+  | **metrics total** | **51** | **16** | **8** | **12** |
+
+  **Notable newly-locked shapes:** `class-naming`/`function-naming`/`enum-entry-naming`/
+  `package-naming`/`backing-property-naming` diacritic-identifier acceptance (ktlint's own
+  Unicode-identifier tests, previously asserted only in prose, never fixture-locked);
+  `property-naming`'s local-variable enforcement, permanently landed as a real fixture pair
+  (`local-variable-camel-clean`/`local-variable-pascal-error`) closing the gap B.1's own text
+  admitted was only ever verified with a temporary, removed fixture; `backing-property-naming`'s
+  companion-object-indirection narrowing (`companion-object-indirection-not-checked-clean`) and
+  getter-with-parameter non-correlation, both previously documented in prose only;
+  `destructuring-declaration-with-too-many-entries` firing on a lambda's own destructured parameter
+  list (same `DESTRUCTURING_DECLARATION` node shape as a `val (a, b, c, d) = ...` statement — not
+  previously fixture-tested for the lambda shape); `complex-condition`'s crude substring counting
+  matching upstream's own known imprecision (a string-literal operand containing the literal text
+  `&&` inflates the count, `string-literal-substring-crudely-counted-error`); `return-count`'s
+  documented broadening over upstream's default (a labeled lambda return, `return@lit`, counts
+  toward the enclosing function — `labeled-lambda-return-counts-toward-enclosing-error`); and
+  `cyclomatic-complexity` counting every `if` in an unbraced `else if` chain unconditionally
+  (`else-if-chain-counts-each-branch-error`/`else-if-chain-at-threshold-clean`).
+
+  **Documentation inconsistency found (not a code bug, not quarantined):** B.4's own prose above
+  states `cyclomatic-complexity` exempts "an unbraced `else if` continuation" from the `+1`-per-`if`
+  count. Reading `FunctionMetricsEngine.kt`'s actual `WNodeType.IF` handling shows the `else`-parent
+  check (`ctx.ancestors.peekType() != WNodeType.ELSE`) gates only the *nesting-construct* tracking
+  shared with `nested-block-depth` (`enterNestingConstruct`/`exitNestingConstruct`) — the
+  `addComplexity(1)` call for `cyclomatic-complexity` itself is unconditional on every `IF` node,
+  matching detekt's own real `CyclomaticComplexity.visitIfExpression` (which also increments
+  unconditionally, with no `else`-if exemption at all). The shipped code is therefore *more*
+  faithful to upstream than B.4's own text claims; `else-if-chain-counts-each-branch-error`/
+  `else-if-chain-at-threshold-clean` lock in the actual (unconditional) behavior. B.4's prose sentence
+  should be corrected to scope that parenthetical to `nested-block-depth` only, not left as written.
+
+  **Harness constraint found:** `filename`'s fixture harness always compiles every fixture under the
+  fixed path `sample/test.kt` (`WrasseFixtureSpec.kt`), so upstream's own `.kts`-extension-ignored,
+  `package.kt`-ignored, and diacritic-actual-filename shapes have no constructible fixture under the
+  current harness — noted as a structural harness limitation, not a gap in rule behavior; the two
+  new `filename` fixtures instead target the one facet the fixed path does allow varying: which
+  top-level declaration shape (`object` vs. `typealias`) a mismatched `test.kt` gets checked against.
+
+  Ladder: `build`, `test --rerun-tasks`, `testMinorHarness --rerun-tasks`, `testPatchHarness`, and
+  `wrasseLint -Prepublish` all green after this wave. All three upstream checkouts (`ktlint`,
+  `detekt`, `diktat`) verified byte-clean (`git status`) before and after — read-only throughout,
+  no probe cases added this wave.
+
 ### Phase C — The printer
 
 - `wrasse-format`: `Doc` + `DocBuilder` + `Layout` per §5.3; style parameters per D21.
