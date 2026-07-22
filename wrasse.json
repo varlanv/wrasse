@@ -106,10 +106,19 @@
         "invalid-range": {
             "level": "error"
         },
+        "kdoc-placement": {
+            "level": "error"
+        },
+        "kdoc-references-non-public-property": {
+            "level": "error"
+        },
         "kdoc-tag-mismatch": {
             "level": "error"
         },
         "lambda-parameter-naming": {
+            "level": "error"
+        },
+        "lambda-return": {
             "level": "error"
         },
         "long-numerical-values": {
@@ -121,10 +130,16 @@
         "missing-package-declaration": {
             "level": "error"
         },
+        "mixed-condition-operators": {
+            "level": "error"
+        },
         "modifier-order": {
             "level": "error"
         },
         "nested-classes-visibility": {
+            "level": "error"
+        },
+        "no-consecutive-comments": {
             "level": "error"
         },
         "no-empty-class-body": {
@@ -134,6 +149,9 @@
             "level": "error"
         },
         "no-semicolons": {
+            "level": "error"
+        },
+        "no-single-line-block-comment": {
             "level": "error"
         },
         "no-unit-return": {
@@ -163,6 +181,9 @@
         "redundant-constructor-keyword": {
             "level": "error"
         },
+        "redundant-to-string-in-template": {
+            "level": "error"
+        },
         "rethrow-caught-exception": {
             "level": "error"
         },
@@ -182,6 +203,12 @@
             "level": "error"
         },
         "trivial-accessors": {
+            "level": "error"
+        },
+        "type-argument-comment": {
+            "level": "error"
+        },
+        "type-parameter-comment": {
             "level": "error"
         },
         "unconditional-jump-statement-in-loop": {
@@ -206,6 +233,12 @@
             "level": "error"
         },
         "use-let": {
+            "level": "error"
+        },
+        "value-argument-comment": {
+            "level": "error"
+        },
+        "value-parameter-comment": {
             "level": "error"
         },
         "variable-name-max-length": {
