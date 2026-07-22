@@ -6757,6 +6757,126 @@ properties) are expected to report `format`/"File is not wrasse-formatted" on th
 until a `wrasseFix` re-convergence pass corrects them; that specific failure mode is this fix working
 as intended, not a regression.
 
+- **L-rule backfill wave 2 (correctness + KDoc/exceptions), 2026-07-22.** A dedicated pass over the
+  local `ktlint`/`detekt`/`diktat` checkouts' own rule test suites (read-only, confirmed byte-clean
+  throughout, never the internet) for the CORRECTNESS-SMELL family (B.5) and the KDoc/EXCEPTION
+  family (B.6), enumerating each upstream test case and classifying it: already covered by an
+  existing fixture, worth porting as a new one, out of scope per an already-documented divergence
+  (this batch's own KDoc comments on `SwallowedExceptionDecision`, `UnusedParameterRule`,
+  `MayBeConstantDecision`, `InstanceOfCheckForExceptionDecision` already cite most of these), or
+  upstream-config-specific (a non-default config knob with no wrasse analog, since none of this
+  batch's rules expose per-rule config beyond `level`). New fixtures were added to the existing
+  per-rule directories only — no production code, no existing passing fixture, no
+  `wrasse.json`/`wrasse-schema.json` touched. The `undocumented-public-class`/`-function`/
+  `-property` explicit-API-mode constraint was honored by leaving `UndocumentedPublicApiExplicitApiSpec`
+  as-is (its five cases already exercise the off/on/documented/member/independent-of-tag-mismatch
+  matrix) rather than attempting to express explicit-API mode via a fixture-dir directive, which the
+  harness has no mechanism for.
+
+  **Coverage table** (per rule; counts are per-upstream-test-file tallies, not exhaustive
+  line-by-line accounting):
+
+  | Rule | (a) already-covered | (b) newly-ported | (c) out-of-scope (cited) | (d) config-skip |
+  |---|---|---|---|---|
+  | `equals-null-call` | 4 | 1 | 0 | 0 |
+  | `safe-cast` | 5 | 3 | 0 | 0 |
+  | `use-let` | 4 | 2 | 0 | 0 |
+  | `also-could-be-apply` | 5 | 3 | 0 | 0 |
+  | `function-only-returning-constant` | 6 | 3 | 0 | 2 (`excludedFunctions` list/wildcard) |
+  | `may-be-constant` | 5 | 2 | ~6 (binary-expression/named-constant-reference extension, dropped per its own KDoc) | 0 |
+  | `unused-parameter` | 6 | 0 | 1 (named-argument-label permissive narrowing, its own KDoc) | ~3 (backtick/kdoc-position/guard-clause version risk) |
+  | `unused-private-class` | 3 | 5 | 0 | 0 |
+  | `nested-classes-visibility` | 5 | 4 | 0 | 0 |
+  | `forbidden-comment` | 4 | 2 | 0 | ~15 (`COMMENTS`/`ALLOWED_PATTERNS`/custom-message config) |
+  | `string-should-be-raw-string` | 6 | 3 | ~15 (multi-piece concatenation "pivot element" analysis, dropped per its own KDoc) | ~15 (`MAX_ESCAPED_CHARACTER_COUNT`/`IGNORED_CHARACTERS`) |
+  | `trim-multiline-raw-string` | 5 | 4 | 0 | 1 (`trimmingMethods` list) |
+  | `explicit-it-lambda-multiple-parameters` | 3 | 3 | 0 | 0 |
+  | `undocumented-public-class`/`-function`/`-property` | 5 (via `UndocumentedPublicApiExplicitApiSpec`) | 0 | ~40 (nested/member-scope tests — all three ids are top-level-only by design) | ~15 (`searchInNestedClass`/`ignoreDefaultCompanionObject`/etc.) |
+  | `kdoc-tag-mismatch` | 8 | 1 | ~10 (`matchTypeParameters` type-param tests, dropped per its own KDoc) | ~10 (`matchDeclarationsOrder`/`allowParamOnConstructorProperties`/`exhaustive` off) |
+  | `kdoc-deprecated-tag` | 4 | 1 | 0 | 0 |
+  | `comment-over-private-declaration` | 5 | 0 | 0 | 0 |
+  | `empty-catch-block` | 4 | 2 | 0 | 2 (`allowedExceptionNameRegex`, invalid-regex exception) |
+  | `swallowed-exception` | 5 | 1 | ~7 (message/`toString()`-derived "referenced without carrying the exception" cases, dropped per its own KDoc) | ~4 (`ignoredExceptionTypes`/`allowedExceptionNameRegex`) |
+  | `too-generic-exception-caught` | 4 | 1 | 0 | ~4 (`exceptionNames`/`allowedExceptionNameRegex`/invalid-regex) |
+  | `too-generic-exception-thrown` | 4 | 2 | 0 | ~3 (`exceptionNames` config, `@ValueSource`-driven) |
+  | `print-stack-trace` | 5 | 1 | 0 | 0 |
+  | `rethrow-caught-exception` | 6 | 2 | 0 | 0 |
+  | `not-implemented-declaration` | 5 | 1 | 0 | 0 |
+  | `instance-of-check-for-exception` | 6 | 1 | 0 | 0 |
+  | `exception-raised-in-unexpected-location` | 5 | 3 | 0 | 1 (`methodNames` config) |
+
+  **Found bugs — three distinct real gaps, each demonstrated by one fixture moved to
+  `testing/wrasse-test-harness/src/main/resources/fixtures-backfill-failing/<rule-id>/`** (a
+  sibling of `fixtures/`, excluded from the harness by construction, not by any test-code change):
+
+  1. **`may-be-constant` treats a lone `$` as real string interpolation.**
+     `StringTemplateText.hasInterpolation` (shared by four rules in this and the prior batch) flags
+     any unescaped `$` character as interpolated, with no check that a real interpolation actually
+     follows (an identifier or `{`). Upstream's own equivalent test (`does not detect just a dollar
+     as interpolation`) confirms `"$"` alone is still a compile-time constant. Actual: `val
+     hasDollar = "$"` produces no `may-be-constant` report (the string is wrongly treated as
+     non-constant). Expected (matching upstream): `ERROR 3:5 may-be-constant "Property 'hasDollar'
+     can be a 'const val'"`. Fixture: `fixtures-backfill-failing/may-be-constant/
+     dollar-only-string-error.kt`.
+  2. **`trim-multiline-raw-string`'s constant-context exemption misses an annotation class's own
+     constructor parameter defaults.** `TrimMultilineRawStringRule.isExpectedAsConstant` only
+     special-cases a string nested inside an `ANNOTATION_ENTRY` (an annotation *usage*) or a
+     top-level/object `const val`; it never considers an `annotation class`'s own primary
+     constructor parameter default, which the Kotlin compiler also requires to be a compile-time
+     constant. Actual: an unrimmed multiline raw string as an `annotation class`'s own parameter
+     default reports `ERROR 5:9 trim-multiline-raw-string "Multiline raw strings should be followed
+     by trimIndent() or trimMargin()"`. Expected (matching upstream's `doesn't raise on annotation
+     constructor parameters`): clean. Fixture: `fixtures-backfill-failing/trim-multiline-raw-string/
+     annotation-class-constructor-parameter-clean.kt`.
+  3. **`rethrow-caught-exception`'s trailing-run heuristic treats a leading comment as a
+     non-rethrow, unlike upstream.** Both `RethrowCaughtExceptionRule`'s own KDoc and its
+     `recordOutcome` logic explicitly document that a leading comment inside a catch body "defeats"
+     the bare-rethrow check (only `WHITE_SPACE`/`LBRACE`/`RBRACE` are skipped before the first
+     significant child is read) — asserting this mirrors upstream's own `children.firstOrNull()`
+     quirk. It does not: upstream's `KtCatchClause.catchBody?.children` is a PSI child list that
+     does not surface comments as elements, so a leading `// comment` before `throw e` still reads
+     `throw e` as the body's first real child. Upstream's own test (`reports 2 violations for each
+     catch`) has a comment before the second catch's `throw e` and still expects **both** catches
+     reported. Actual (wrasse): zero reports (the last catch's own leading comment breaks its
+     `isTrivial` verdict, which breaks the trailing-run scan from the end before it ever reaches the
+     first catch). Expected (matching upstream): `ERROR 7:9` and `ERROR 10:9`, both
+     `rethrow-caught-exception`. Fixture: `fixtures-backfill-failing/rethrow-caught-exception/
+     comment-before-rethrow-error.kt`. This corrects the existing KDoc's own claim that this is a
+     shared quirk — it is a wrasse-only defect relative to upstream, not parity.
+
+  Two further, smaller divergences were located and **intentionally kept as ordinary passing
+  fixtures** (not quarantined) because they are pre-existing, already-cited narrowings, not new
+  discoveries: `kdoc-tag-mismatch`'s own `recordParameter` marks *every* `val`/`var` constructor
+  parameter as `PROPERTY` kind regardless of visibility, while upstream's `OutdatedDocumentation`
+  only does so when the parameter is not `private` (a `private val` documented via `@param` is
+  upstream-clean but wrasse-flags it as a mismatch) — demonstrated as an **actual bug**, not kept
+  passing; see quarantine list above (this is a fourth distinct gap, sharing its family with #2's
+  KDoc-tag-mismatch id but a different code path — `fixtures-backfill-failing/kdoc-tag-mismatch/
+  private-val-documented-as-param-clean.kt`); and `kdoc-tag-mismatch`'s own scope never includes
+  `KtSecondaryConstructor`/`SECONDARY_CONSTRUCTOR` at all (`KdocEngine`'s `targetTypes` omits it
+  entirely), so a secondary constructor's own KDoc is never checked for a tag mismatch — upstream's
+  `should report when doc for constructor is incorrect` case (a secondary constructor) goes
+  undetected by wrasse — a fifth gap, quarantined as `fixtures-backfill-failing/kdoc-tag-mismatch/
+  secondary-constructor-mismatch-error.kt`. (Re-tallied: **four** quarantined fixtures total, one
+  per bug above, all under distinct filenames; `kdoc-tag-mismatch` contributes two of the four.)
+
+  `instance-of-check-for-exception`'s own resolution-free narrowing (flags `e is AnyType` even when
+  `AnyType` shares no relationship with `Throwable`, since no type resolution is attempted) was
+  already documented in its own KDoc; this pass added `unrelated-type-permissive-error.kt` to lock
+  in the current, intentional behavior rather than treat it as a new finding. Likewise
+  `unused-parameter`'s named-argument-label permissive narrowing was locked in via
+  `named-argument-label-permissive-clean.kt`, citing the rule's own KDoc rather than re-discovering
+  it as a bug.
+
+  **Totals:** 56 new fixture files added: 52 to existing `fixtures/<rule-id>/` directories across
+  25 of the 28 in-scope rules (`comment-over-private-declaration` and the three
+  `undocumented-public-*` ids needed no new fixture — see their own rows above), 4 quarantined
+  under `fixtures-backfill-failing/` (three distinct new bugs above, the fourth being
+  `kdoc-tag-mismatch`'s second gap). Full ladder (`build`, `test --rerun-tasks`, `testMinorHarness
+  --rerun-tasks`, `testPatchHarness`, `wrasseLint -Prepublish`) green against the resulting fixture
+  set. `ktlint`/`detekt`/`diktat` checkouts confirmed byte-clean (`git status`) throughout —
+  read-only, single-threaded (no sub-agents/forks).
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.
