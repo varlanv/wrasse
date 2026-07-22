@@ -1,42 +1,146 @@
 {
     "$schema": "./wrasse-schema.json",
-    "format": { "enabled": true },
+    "format": {
+        "enabled": true
+    },
     "rules": {
-        "backing-property-naming": { "level": "error" },
-        "class-naming": { "level": "error" },
-        "enum-entry-naming": { "level": "error" },
-        "filename": { "level": "error" },
-        "function-naming": { "level": "error" },
-        "package-naming": { "level": "error" },
-        "destructuring-declaration-with-too-many-entries": { "level": "error" },
-        "function-name-min-length": { "level": "error" },
-        "throws-count": { "level": "error" },
-        "equals-null-call": { "level": "error" },
-        "explicit-it-lambda-multiple-parameters": { "level": "error" },
-        "function-only-returning-constant": { "level": "error" },
-        "may-be-constant": { "level": "error" },
-        "nested-classes-visibility": { "level": "error" },
-        "safe-cast": { "level": "error" },
-        "unused-private-class": { "level": "error" },
-        "use-let": { "level": "error" },
-        "unused-parameter": { "level": "error" },
-        "empty-default-constructor": { "level": "error" },
-        "explicit-it-lambda-parameter": { "level": "error" },
-        "redundant-constructor-keyword": { "level": "error" },
-        "modifier-order": { "level": "error" },
-        "unnecessary-backticks": { "level": "error" },
-        "no-empty-class-body": { "level": "error" },
-        "if-else-bracing": { "level": "error" },
-        "import-ordering": { "level": "error" },
-        "long-numerical-values": { "level": "error" },
-        "range-conventional": { "level": "error" },
-        "trivial-accessors": { "level": "error" },
-        "no-unnecessary-fqn": { "level": "error" },
-        "no-unit-return": { "level": "error" },
-        "no-empty-parens-before-trailing-lambda": { "level": "error" },
-        "no-semicolons": { "level": "error" },
-        "no-unused-imports": { "level": "error" },
-        "no-wildcard-imports": { "level": "error" },
-        "trailing-newline": { "level": "error" }
+        "backing-property-naming": {
+            "level": "error"
+        },
+        "class-naming": {
+            "level": "error"
+        },
+        "destructuring-declaration-with-too-many-entries": {
+            "level": "error"
+        },
+        "empty-catch-block": {
+            "level": "error"
+        },
+        "empty-default-constructor": {
+            "level": "error"
+        },
+        "enum-entry-naming": {
+            "level": "error"
+        },
+        "equals-null-call": {
+            "level": "error"
+        },
+        "exception-raised-in-unexpected-location": {
+            "level": "error"
+        },
+        "explicit-it-lambda-multiple-parameters": {
+            "level": "error"
+        },
+        "explicit-it-lambda-parameter": {
+            "level": "error"
+        },
+        "filename": {
+            "level": "error"
+        },
+        "function-name-min-length": {
+            "level": "error"
+        },
+        "function-naming": {
+            "level": "error"
+        },
+        "function-only-returning-constant": {
+            "level": "error"
+        },
+        "if-else-bracing": {
+            "level": "error"
+        },
+        "import-ordering": {
+            "level": "error"
+        },
+        "instance-of-check-for-exception": {
+            "level": "error"
+        },
+        "kdoc-tag-mismatch": {
+            "level": "error"
+        },
+        "long-numerical-values": {
+            "level": "error"
+        },
+        "may-be-constant": {
+            "level": "error"
+        },
+        "modifier-order": {
+            "level": "error"
+        },
+        "nested-classes-visibility": {
+            "level": "error"
+        },
+        "no-empty-class-body": {
+            "level": "error"
+        },
+        "no-empty-parens-before-trailing-lambda": {
+            "level": "error"
+        },
+        "no-semicolons": {
+            "level": "error"
+        },
+        "no-unit-return": {
+            "level": "error"
+        },
+        "no-unnecessary-fqn": {
+            "level": "error"
+        },
+        "no-unused-imports": {
+            "level": "error"
+        },
+        "no-wildcard-imports": {
+            "level": "error"
+        },
+        "not-implemented-declaration": {
+            "level": "error"
+        },
+        "package-naming": {
+            "level": "error"
+        },
+        "print-stack-trace": {
+            "level": "error"
+        },
+        "range-conventional": {
+            "level": "error"
+        },
+        "redundant-constructor-keyword": {
+            "level": "error"
+        },
+        "rethrow-caught-exception": {
+            "level": "error"
+        },
+        "safe-cast": {
+            "level": "error"
+        },
+        "swallowed-exception": {
+            "level": "error"
+        },
+        "throws-count": {
+            "level": "error"
+        },
+        "trailing-newline": {
+            "level": "error"
+        },
+        "trivial-accessors": {
+            "level": "error"
+        },
+        "undocumented-public-function": {
+            "level": "error"
+        },
+        "undocumented-public-property": {
+            "level": "error"
+        },
+        "unnecessary-backticks": {
+            "level": "error"
+        },
+        "unused-parameter": {
+            "level": "error"
+        },
+        "unused-private-class": {
+            "level": "error"
+        },
+        "use-let": {
+            "level": "error"
+        }
     }
 }
