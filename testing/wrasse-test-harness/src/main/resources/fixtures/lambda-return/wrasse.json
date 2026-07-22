@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "lambda-return": { "level": "error" }
+    }
+}

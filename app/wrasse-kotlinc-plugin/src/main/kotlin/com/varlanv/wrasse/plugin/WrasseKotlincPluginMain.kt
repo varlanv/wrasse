@@ -13,9 +13,11 @@ import com.varlanv.wrasse.rules.BackingPropertyNamingRule
 import com.varlanv.wrasse.rules.ClassMetricsEngine
 import com.varlanv.wrasse.rules.ClassNamingRule
 import com.varlanv.wrasse.rules.CommentOverPrivateDeclarationRule
+import com.varlanv.wrasse.rules.CommentPositionEngine
 import com.varlanv.wrasse.rules.ComplexConditionRule
 import com.varlanv.wrasse.rules.ConstructorParameterNamingRule
 import com.varlanv.wrasse.rules.CustomLabelRule
+import com.varlanv.wrasse.rules.DebugPrintRule
 import com.varlanv.wrasse.rules.DestructuringTooManyEntriesRule
 import com.varlanv.wrasse.rules.DoubleNegativeRule
 import com.varlanv.wrasse.rules.EmptyBlockEngine
@@ -44,18 +46,23 @@ import com.varlanv.wrasse.rules.InstanceOfCheckForExceptionRule
 import com.varlanv.wrasse.rules.InvalidRangeRule
 import com.varlanv.wrasse.rules.KdocDeprecatedTagRule
 import com.varlanv.wrasse.rules.KdocEngine
+import com.varlanv.wrasse.rules.KdocReferencesNonPublicPropertyRule
 import com.varlanv.wrasse.rules.LambdaParameterNamingRule
+import com.varlanv.wrasse.rules.LambdaReturnRule
 import com.varlanv.wrasse.rules.LongNumericalValuesRule
 import com.varlanv.wrasse.rules.LongParameterListRule
 import com.varlanv.wrasse.rules.LoopWithTooManyJumpStatementsRule
 import com.varlanv.wrasse.rules.MagicNumberRule
 import com.varlanv.wrasse.rules.MayBeConstantRule
 import com.varlanv.wrasse.rules.MissingPackageDeclarationRule
+import com.varlanv.wrasse.rules.MixedConditionOperatorsRule
 import com.varlanv.wrasse.rules.ModifierEngine
 import com.varlanv.wrasse.rules.NestedClassesVisibilityRule
+import com.varlanv.wrasse.rules.NoConsecutiveCommentsRule
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule
+import com.varlanv.wrasse.rules.NoSingleLineBlockCommentRule
 import com.varlanv.wrasse.rules.NoUnitReturnRule
 import com.varlanv.wrasse.rules.NotImplementedDeclarationRule
 import com.varlanv.wrasse.rules.PackageNamingRule
@@ -63,6 +70,7 @@ import com.varlanv.wrasse.rules.PrintStackTraceRule
 import com.varlanv.wrasse.rules.PropertyNamingRule
 import com.varlanv.wrasse.rules.RangeConventionalRule
 import com.varlanv.wrasse.rules.RedundantConstructorKeywordRule
+import com.varlanv.wrasse.rules.RedundantToStringInTemplateRule
 import com.varlanv.wrasse.rules.RethrowCaughtExceptionRule
 import com.varlanv.wrasse.rules.SafeCastRule
 import com.varlanv.wrasse.rules.StringShouldBeRawStringRule
@@ -97,6 +105,7 @@ listOf(
     ComplexConditionRule(),
     ConstructorParameterNamingRule(),
     CustomLabelRule(),
+    DebugPrintRule(),
     DestructuringTooManyEntriesRule(),
     DoubleNegativeRule(),
     EmptyCatchBlockRule(),
@@ -120,17 +129,22 @@ listOf(
     InstanceOfCheckForExceptionRule(),
     InvalidRangeRule(),
     KdocDeprecatedTagRule(),
+    KdocReferencesNonPublicPropertyRule(),
     LambdaParameterNamingRule(),
+    LambdaReturnRule(),
     LongNumericalValuesRule(),
     LongParameterListRule(),
     LoopWithTooManyJumpStatementsRule(),
     MagicNumberRule(),
     MayBeConstantRule(),
     MissingPackageDeclarationRule(),
+    MixedConditionOperatorsRule(),
     NestedClassesVisibilityRule(),
+    NoConsecutiveCommentsRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
     NoSemicolonsRule(),
+    NoSingleLineBlockCommentRule(),
     NoUnitReturnRule(),
     NotImplementedDeclarationRule(),
     PackageNamingRule(),
@@ -138,6 +152,7 @@ listOf(
     PropertyNamingRule(),
     RangeConventionalRule(),
     RedundantConstructorKeywordRule(),
+    RedundantToStringInTemplateRule(),
     RethrowCaughtExceptionRule(),
     SafeCastRule(),
     StringShouldBeRawStringRule(),
@@ -170,8 +185,10 @@ listOf(
  * `undocumented-public-function`/`undocumented-public-property`/`kdoc-tag-mismatch`; and
  * [EmptyBlockEngine], backing `empty-if-block`/`empty-else-block`/`empty-for-block`/
  * `empty-while-block`/`empty-do-while-block`/`empty-finally-block`/`empty-try-block`/
- * `empty-init-block`/`empty-secondary-constructor`. Composition is internal to each engine, so
- * unlike [registeredRules] this list carries no registration-order constraint.
+ * `empty-init-block`/`empty-secondary-constructor`; and [CommentPositionEngine], backing
+ * `kdoc-placement`/`type-argument-comment`/`type-parameter-comment`/`value-argument-comment`/
+ * `value-parameter-comment`. Composition is internal to each engine, so unlike [registeredRules]
+ * this list carries no registration-order constraint.
  */
 internal fun registeredRuleGroups(): List<WUninitializedRuleGroup> =
 listOf(
@@ -182,6 +199,7 @@ listOf(
     ClassMetricsEngine(),
     KdocEngine(),
     EmptyBlockEngine(),
+    CommentPositionEngine(),
 )
 
 fun wrasseMain(

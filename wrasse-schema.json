@@ -435,6 +435,54 @@
                 "unnecessary-part-of-binary-expression": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow a duplicate operand in a chain of && or || expressions"
+                },
+                "kdoc-placement": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a KDoc anywhere other than the start of the declaration it documents"
+                },
+                "type-argument-comment": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a discouraged comment position inside a type argument list"
+                },
+                "type-parameter-comment": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a discouraged comment position inside a type parameter list"
+                },
+                "value-argument-comment": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a comment inside or directly after a value argument"
+                },
+                "value-parameter-comment": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a comment inside or directly after a value parameter, other than a leading KDoc"
+                },
+                "lambda-return": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow an unnecessary labeled return as the last statement in a lambda"
+                },
+                "mixed-condition-operators": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow mixing && and || within the same condition without disambiguating parentheses"
+                },
+                "no-consecutive-comments": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a comment immediately preceded by another, unrelated comment"
+                },
+                "no-single-line-block-comment": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a single-line block comment where an EOL comment would do"
+                },
+                "redundant-to-string-in-template": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a redundant .toString() call inside a string template"
+                },
+                "kdoc-references-non-public-property": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a class KDoc linking one of its own non-public member properties"
+                },
+                "debug-print": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow a bare print/println or console.* debug call"
                 }
             }
         }

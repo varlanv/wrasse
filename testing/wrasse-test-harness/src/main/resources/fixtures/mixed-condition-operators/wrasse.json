@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "mixed-condition-operators": { "level": "error" }
+    }
+}

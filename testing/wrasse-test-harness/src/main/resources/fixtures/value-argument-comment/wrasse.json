@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "value-argument-comment": { "level": "error" }
+    }
+}

@@ -4275,6 +4275,209 @@ single wrasse id.
   `exclude` glob over `**/src/test/**`), or accept the one-time cost of naming the ~29 production-
   code constants it would flag across the whole repo, before turning it on repo-wide.
 
+- **B.9 — lint-only rules (bucket L), seventh installment, closing the ktlint comment-position
+  family plus five more remaining-L candidates — shipped 2026-07-22.** Twelve new ids:
+  `kdoc-placement`, `type-argument-comment`, `type-parameter-comment`, `value-argument-comment`,
+  `value-parameter-comment` (all five fused into one new `CommentPositionEngine`), `lambda-return`,
+  `mixed-condition-operators`, `no-consecutive-comments`, `no-single-line-block-comment`,
+  `redundant-to-string-in-template`, `kdoc-references-non-public-property`, and `debug-print`.
+  Report, never fix — `canAutofix` is false everywhere in this batch. Every candidate was
+  re-verified against the three ground-truth checkouts' own *current* source (not the B.8 prose
+  alone) before porting; one genuine semantic gap was found and closed during this batch's own
+  mandatory own-codebase measurement (see `lambda-return` below), not left for a future session.
+
+  **Remaining-L inventory, continued:** B.8's own held list bundled two ktlint/diktat catalog rows
+  each covering several distinct named concepts under one triage line (`type-argument-comment`/
+  `type-parameter-comment`/`value-argument-comment`/`value-parameter-comment` as one row of four;
+  `when-must-have-else`/`string-concatenation`/`boolean-expressions` as one row of three) — B.8's
+  own headline "21 held" arithmetic only unbundles the first of those two rows, not the second.
+  Read at the granularity of each row's own individually-named concepts (the reading this batch's
+  own work list needs to track distinct candidates one-for-one), the prior held count was 22, not
+  21. Twelve of those 22 ship this batch (enumerated above); **ten remain**, carried forward
+  unchanged from B.8 (none re-verified this session, per the time this batch spent on the twelve
+  it did ship): ktlint `function-expression-body` (judgment-flavored); detekt `no-name-shadowing`
+  (still an open hard call — needs the "does kotlinc's own extra-checkers tier already cover this"
+  verification `unused-parameter` (B.5) did for its own hard call); detekt
+  `useless-postfix-expression` (held on complexity grounds, not a feasibility gap); diktat
+  `collapse-if`, `extension-functions-same-name`, and `sync-in-async` (all three portable,
+  simply not yet scoped); diktat `getter-setter-fields` (verification incomplete — the exact
+  current-source row this catalog name refers to was still not re-derived this session either);
+  and diktat `when-must-have-else`/`string-concatenation`/`boolean-expressions`, each still
+  needing its own from-source re-derivation before a future batch scopes it.
+
+  One item is explicitly retired from the inventory rather than carried forward or shipped:
+  ktlint's own `string-template` rule bundles two independent concerns — the `.toString()`-
+  redundancy slice this batch ships as `redundant-to-string-in-template`, and a second "redundant
+  curly braces" slice (`"${x}"` → `"$x"`) that is a rewrite/style decision belonging to the
+  opinionated printer (D16, Phase C), not a lint-only concern at all. It is recorded here once,
+  explicitly, so it does not silently vanish from the record: it is neither shipped nor held, it
+  is out of L-bucket scope entirely.
+
+  **Triage table** (✓ = shipped this batch; every "skip" reason was checked against that rule's
+  actual current source):
+
+  | candidate | catalog | concern | syntax-only feasible? | outcome |
+  |---|---|---|---|---|
+  | `kdoc` | ktlint | where a KDoc may structurally sit (only at a documentable declaration's own first child; a dangling top-level KDoc, or one nested inside any other node kind, is disallowed) | yes — pure position/parent-type check (`ctx.ancestors.peekType()` + `ctx.childIndex`), no resolution | ✓ shipped as `kdoc-placement` |
+  | `lambda-return` | ktlint | a labeled `return@label` carrying a value as a lambda's own last statement | yes — pure PSI, narrowed further than upstream (see below) | ✓ shipped |
+  | `mixed-condition-operators` | ktlint | `&&`/`\|\|` mixed within one condition without disambiguating parens | yes — pure token/chain scan, same shape as shipped `unnecessary-part-of-binary-expression` | ✓ shipped |
+  | `no-consecutive-comments` | ktlint | a comment immediately preceded by another, differently-classed comment | yes — pure leaf-adjacency check; simpler in this project's own model than upstream's own KDOC_START/KDOC_END split, since `KDOC` is already one leaf token here | ✓ shipped |
+  | `no-single-line-block-comment` | ktlint | a single-line `/* ... */` with nothing but same-line whitespace after it | yes — pure leaf + forward text scan, no tree needed at all | ✓ shipped |
+  | `string-template` (`.toString()` slice only) | ktlint | `"${x.toString()}"` redundancy inside a string template | yes — pure structural check on the template entry's own sole `DOT_QUALIFIED_EXPRESSION` child | ✓ shipped as `redundant-to-string-in-template`; the rule's own "redundant curly braces" slice is explicitly retired (see above), not ported |
+  | `type-argument-comment` | ktlint | a non-KDoc comment discouraged inside a type argument list/projection | yes — pure parent-type + adjacency check | ✓ shipped (fused into `CommentPositionEngine`) |
+  | `type-parameter-comment` | ktlint | same concern for a type parameter list/parameter | yes | ✓ shipped (fused) |
+  | `value-argument-comment` | ktlint | any comment (including KDoc) whose immediate parent is a value argument | yes | ✓ shipped (fused) |
+  | `value-parameter-comment` | ktlint | any comment whose immediate parent is a value parameter, except a KDoc that is that parameter's own first child | yes | ✓ shipped (fused) |
+  | `kdoc-references-non-public-property` | detekt | a class KDoc linking one of its own non-public member properties | yes, narrowed — a class's own immediate `CLASS_BODY` members only, no nested-object qualified-name traversal (see below) | ✓ shipped |
+  | `debug-print` | diktat | a bare `print()`/`println()` or `console.error`/`info`/`log`/`warn()` call | yes — pure structural/textual check, same resolution-free heuristic (argument-count cap) upstream itself relies on | ✓ shipped |
+  | `function-expression-body` | ktlint | prefer expression-body over a single-`return` block body | judgment-flavored, not attempted this batch | held |
+  | `no-name-shadowing` | detekt | a name reintroduced in a nested scope | unresolved hard call, not attempted this batch | held |
+  | `useless-postfix-expression` | detekt | postfix `++`/`--` whose value is provably discarded | portable but meaningfully more machinery than this batch's other candidates, not attempted | held |
+  | `collapse-if` | diktat | nested `if` with no `else` at either level, mergeable | portable, not attempted this batch | held |
+  | `extension-functions-same-name` | diktat | two unrelated extension functions with an identical signature on related classes | portable, not attempted this batch | held |
+  | `getter-setter-fields` | diktat | accessor recursing on itself instead of using `field` | verification incomplete, not attempted this batch | held |
+  | `sync-in-async` | diktat | `runBlocking` reached from inside a coroutine | portable, not attempted this batch | held |
+  | `when-must-have-else` | diktat | statement-`when` without `else` | verification incomplete, not attempted this batch | held |
+  | `string-concatenation` | diktat | `+`-chained string building | verification incomplete, not attempted this batch | held |
+  | `boolean-expressions` | diktat | boolean-algebra simplification | verification incomplete, not attempted this batch | held |
+
+  Per-rule semantics, exemptions, and provenance:
+
+  - **`kdoc-placement`** — a `KDOC` leaf whose immediate parent is one of eight documentable
+    declaration kinds (`CLASS`, `ENUM_ENTRY`, `FUN`, `OBJECT_DECLARATION`, `PROPERTY`,
+    `SECONDARY_CONSTRUCTOR`, `TYPEALIAS`, `VALUE_PARAMETER`) must be that parent's own first child
+    (`ctx.childIndex == 0`) or is reported "allowed only at the start of"; a `KDOC` whose parent is
+    `FILE` is a dangling top-level KDoc; any other parent reports "not allowed inside". Matches the
+    upstream rule this derives from exactly — both rely on the same "leading KDoc is pulled in as
+    the following declaration's own first child" kotlinc convention, confirmed against this
+    project's own `KdocEngine` precedent, and, separately, against a fixture-harness failure this
+    batch hit and fixed: a bare (non-KDoc) comment preceding a *sibling* declaration is **not**
+    pulled into that declaration's own span the way a KDoc is (only KDoc gets that special
+    treatment), which is exactly why `no-consecutive-comments`' own suppression fixtures had to
+    annotate an *enclosing* class rather than the immediately-following declaration (see below).
+  - **`type-argument-comment`/`type-parameter-comment`/`value-argument-comment`/
+    `value-parameter-comment`** — fused with `kdoc-placement` into `CommentPositionEngine` since
+    all five read nothing but a comment leaf's own `WNodeType`, `ctx.ancestors.peekType()`,
+    `ctx.childIndex`, and `ctx.prevLeafType`/`prevLeafText` — facts `WContext` already carries for
+    every leaf dispatch, so the whole engine is one `WLeafRule`, no buffering anywhere. A comment
+    directly inside a `type_projection`/`type_parameter` is always disallowed; one that is a direct
+    child of the enclosing `type_argument_list`/`type_parameter_list` itself is allowed only when
+    preceded by a newline-containing whitespace (i.e. it sits alone on its own line). A comment
+    (any kind) whose parent is `value_argument` is always disallowed. A comment whose parent is
+    `value_parameter` is disallowed unless it is a KDoc that is that parameter's own first child —
+    the same allowance `kdoc-placement` grants that exact shape, so the two ids never contradict
+    each other on it (upstream ships them as independently overlapping ids too, so both firing on
+    the same misplaced-KDoc-in-a-parameter case is expected, matching parity, not a bug).
+  - **`lambda-return`** — a lambda's own `BLOCK` whose last non-whitespace statement is a labeled
+    `return@label` carrying a value, **where `label` names that same immediately-enclosing lambda**
+    (not some further-out scope), is reported at the `RETURN`'s own span. The label a lambda
+    answers to is resolved from its own immediate ancestry: an explicit `label@ { }` wrapper, or,
+    skipping through any `VALUE_ARGUMENT`/`VALUE_ARGUMENT_LIST` wrapping, the callee name of the
+    call this lambda is passed to (trailing-lambda or plain-argument form) — the same
+    callee-name-as-implicit-label idea `CustomLabelRule` already uses, narrowed to the single
+    governing call/label rather than any enclosing one. **This label-matching check is a
+    deliberate narrowing beyond the upstream rule this derives from**, whose own check fires on any
+    labeled+valued return in tail position regardless of what the label actually names — this
+    batch's own mandatory own-codebase measurement (below) caught the gap live: `by lazy { ...
+    .let { return@lazy it } ... }` in `WrasseTestHarness.kt` has `return@lazy it` as the `let`
+    lambda's own last statement, but `@lazy` is a genuine non-local exit from the *outer* `lazy`
+    block, not a redundant label on the `let` lambda itself; removing it would silently change
+    which scope the return exits. Ported and fixed before shipping, not left as a known gap — a
+    dedicated `clean-outer-label.kt` fixture now guards this exact shape permanently.
+  - **`mixed-condition-operators`** — a maximal chain of directly-nested `&&`/`\|\|`
+    `BINARY_EXPRESSION`s using both operators somewhere in the chain is reported once, at the
+    chain's own outermost span, via the same offset-keyed chain-merge shape
+    `unnecessary-part-of-binary-expression` already established (B.8) — except every logical child
+    is merged in regardless of whether its own operator matches (mixing *is* the different-operator
+    case), where the sibling rule only merges same-operator children. A parenthesized
+    sub-expression is never itself a recorded chain entry, so it is always an opaque, un-flattened
+    operand — confirmed to be the same boundary the upstream rule's own recursive `.parent` walk
+    respects (a `PARENTHESIZED` node's own `elementType` breaks that walk's `BINARY_EXPRESSION`
+    chain identically). **Deliberately narrower than upstream**: the upstream implementation's own
+    visitor fires independently from *every* mismatched nested node and can emit more than one
+    finding at the same outer offset for one condition; this port decides and reports each chain
+    exactly once, a documented, safer simplification.
+  - **`no-consecutive-comments`** — a comment leaf (KDoc/block/EOL) whose nearest preceding
+    non-whitespace leaf is also a comment is reported, tracked via a running
+    last-significant-leaf-type `WStreamRule` (the same shape `NoSemicolonsRule` already
+    establishes). Consecutive EOL comments are always allowed; a KDoc or a block comment preceding
+    another comment is disallowed even across a blank line; any other mismatched pair is allowed
+    only when separated by a blank line (more than one newline in the intervening whitespace, read
+    directly off `ctx.prevLeafText` since the immediately-preceding leaf is always that whitespace
+    run). This project's own single-token `KDOC` leaf makes the port simpler than upstream, which
+    needs its own separate `KDOC_START`/`KDOC_END` tracking to get the same facts.
+  - **`no-single-line-block-comment`** — a `BLOCK_COMMENT` leaf containing no `\n` with nothing but
+    same-line spaces/tabs before either end-of-file or a newline is reported. Pure leaf-level text
+    scan (`ctx.sourceText` forward from the comment's own `endOffset`), no tree access at all —
+    the simplest rule in this batch.
+  - **`redundant-to-string-in-template`** — a `${...}` string-template entry (`LONG_STRING_TEMPLATE_ENTRY`)
+    whose sole content is one `DOT_QUALIFIED_EXPRESSION` of the exact literal shape
+    `<receiver>.toString()` (a `CALL_EXPRESSION` selector whose own span-text equals `toString()`
+    exactly — no arguments, no internal whitespace, matching the upstream rule this derives from's
+    own equally literal text comparison) is reported at the whole expression's span; `super.toString()`
+    is exempt (there is no bare `$super` shorthand). Only this slice of upstream's own bundled
+    `string-template` rule is ported — see the retirement note above for the other slice.
+  - **`kdoc-references-non-public-property`** — a class's own KDoc that links (`[name]`, never
+    `[name][target]` — a real link with custom display text, not a same-name reference) one of
+    that class's own direct `CLASS_BODY` member properties, when that member is `private` or
+    `internal`, is reported at the property's own name span. **Narrowed to a class's own immediate
+    `CLASS_BODY` members only**: a primary constructor's `val`/`var` parameters are naturally
+    excluded (they are `PRIMARY_CONSTRUCTOR`'s own children, never `CLASS_BODY`'s — the same
+    exclusion upstream's own logic applies, but reached here for free rather than by an explicit
+    "is this a constructor parameter" check), and a nested class's/object's own properties reached
+    through upstream's own qualified (`Outer.inner`) KDoc-link matching are never traversed at all
+    — a documented, strictly narrower reading than upstream's own nested-`KtObjectDeclaration`
+    qualified-name walk. Each `PROPERTY`'s own name/visibility facts, its own `CLASS_BODY`'s
+    consumption of them, and that body's own consumption by its `CLASS`, are three levels of the
+    same offset-correlation shape `KdocEngine` already establishes for parameter/constructor facts.
+  - **`debug-print`** — a bare (unqualified — `someObj.print()` excluded by the call's own
+    `childIndex` position inside its enclosing `DOT_QUALIFIED_EXPRESSION`, if any), zero/one-argument,
+    non-trailing-lambda `print()`/`println()` call is reported at the whole call's own span, and so
+    is a `console.error()`/`console.info()`/`console.log()`/`console.warn()` call on a bare
+    `console` receiver (Kotlin/JS interop), matching the upstream rule this derives from's own two
+    checks. The argument-count cap is upstream's own resolution-free proxy for "probably the real
+    stdlib function, not a same-named user overload with more parameters", carried over unchanged;
+    a `VALUE_ARGUMENT_LIST`'s own argument count is recorded and unconditionally consumed by its
+    own enclosing `CALL_EXPRESSION` regardless of that call's own callee name, keeping the pending
+    map bounded by call-nesting depth rather than the file's total call count.
+
+  Fixture coverage: 72 fixtures across the 12 rule directories (error/clean/every-exemption,
+  `@Suppress` happy/negative pairs per rule); `lambda-return` additionally covers a nested
+  same-batch-of-labels case (proving the per-block pending-return sweep never cross-contaminates
+  across nesting depth) and the `clean-outer-label.kt` regression fixture for the cross-scope-label
+  exemption found during this batch's own measurement. Unit specs: one Decision spec per rule
+  (`KdocPlacementDecisionSpec`, `TypeArgumentCommentDecisionSpec`, `TypeParameterCommentDecisionSpec`,
+  `ValueArgumentCommentDecisionSpec`, `ValueParameterCommentDecisionSpec`, `LambdaReturnDecisionSpec`,
+  `MixedConditionOperatorsDecisionSpec`, `NoConsecutiveCommentsDecisionSpec`,
+  `NoSingleLineBlockCommentDecisionSpec`, `RedundantToStringInTemplateDecisionSpec`,
+  `KdocReferencesNonPublicPropertyDecisionSpec`, `DebugPrintDecisionSpec`).
+
+  **Own-codebase measurement** (isolated `rsync` copy, never this repo's own `wrasse.json`;
+  `allWarningsAsErrors` disabled in the copy's convention plugin; `publishToMavenLocal` run in the
+  copy before `compileKotlin compileTestKotlin -PwrasseCheck --continue`, so the mavenLocal plugin
+  jar under test was freshly built from the code this batch actually ships): of the twelve new
+  ids, ten fire **zero** times anywhere in this repo's own `main`+`test` sources —
+  `kdoc-placement`, `type-argument-comment`, `type-parameter-comment`, `value-argument-comment`,
+  `value-parameter-comment`, `mixed-condition-operators`, `no-consecutive-comments`,
+  `no-single-line-block-comment`, `redundant-to-string-in-template`,
+  `kdoc-references-non-public-property`. `lambda-return` fired once before this batch's own
+  `lambda-return`-vs-`ownLambdaLabel` narrowing (the `WrasseTestHarness.kt` case described above)
+  and fires zero times after it — confirmed by re-measuring after the fix, not merely asserted.
+  `debug-print` fires twice, both in `libs/wrasse-lang/src/main/kotlin/com/varlanv/wrasse/lang/WPatchApplier.kt`
+  (lines 109 and 112): `println("Fixed: ...")`/`println("Skipped: ...")` inside that file's own
+  `fun main` — genuine, intentional CLI stdout for the `wrasseApply` command-line entry point, not
+  leftover debug output, but a true positive by this rule's own literal, resolution-free
+  definition (upstream's own rule has no `fun main`/CLI-entry-point exemption either, so this
+  matches upstream fidelity, not a bug in the port). **Enablement recommendation** (not applied to
+  this repo's own `wrasse.json`, per the task's own instruction): all eleven other ids are
+  zero-risk to enable at `error` immediately. `debug-print` is correctly scoped but would need
+  either a one-line `@Suppress("debug-print")` on `WPatchApplier.kt`'s own `main` or a per-rule
+  `exclude` for that one file before enabling it repo-wide; enabling it everywhere else today is
+  already zero-risk.
+
+  **Updated remaining-portable-L count: 10** (see the remaining-L inventory note above for the
+  full list and the recount that produced this number).
+
 **Exit:** a representative real project lints under wrasse with parity-equivalent findings to its
 ktlint + detekt setup (minus parked outbound rules) at measurably lower wall-clock.
 

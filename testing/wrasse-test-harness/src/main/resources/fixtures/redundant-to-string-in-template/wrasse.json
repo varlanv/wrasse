@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "redundant-to-string-in-template": { "level": "error" }
+    }
+}

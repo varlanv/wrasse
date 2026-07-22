@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "kdoc-references-non-public-property": { "level": "error" }
+    }
+}

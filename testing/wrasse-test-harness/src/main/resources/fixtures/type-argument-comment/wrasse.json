@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "type-argument-comment": { "level": "error" }
+    }
+}
