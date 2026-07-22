@@ -88,6 +88,12 @@
         "function-only-returning-constant": {
             "level": "error"
         },
+        "function-parameter-naming": {
+            "level": "error"
+        },
+        "global-coroutine-usage": {
+            "level": "error"
+        },
         "if-else-bracing": {
             "level": "error"
         },
@@ -97,13 +103,22 @@
         "instance-of-check-for-exception": {
             "level": "error"
         },
+        "invalid-range": {
+            "level": "error"
+        },
         "kdoc-tag-mismatch": {
+            "level": "error"
+        },
+        "lambda-parameter-naming": {
             "level": "error"
         },
         "long-numerical-values": {
             "level": "error"
         },
         "may-be-constant": {
+            "level": "error"
+        },
+        "missing-package-declaration": {
             "level": "error"
         },
         "modifier-order": {
@@ -157,6 +172,9 @@
         "swallowed-exception": {
             "level": "error"
         },
+        "throwing-exception-in-main": {
+            "level": "error"
+        },
         "throws-count": {
             "level": "error"
         },
@@ -176,6 +194,9 @@
             "level": "error"
         },
         "unnecessary-backticks": {
+            "level": "error"
+        },
+        "unnecessary-part-of-binary-expression": {
             "level": "error"
         },
         "unused-parameter": {
