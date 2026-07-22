@@ -23,9 +23,10 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * A KDoc attaches as a direct child of the declaration it documents (confirmed against kotlinc's
  * own `findDocComment`, which walks `declaration.allChildren` — not a preceding sibling in the
  * enclosing `FILE`/`CLASS_BODY`), so every fact each id needs — `KDOC` presence, `MODIFIER_LIST`
- * text, the name, and (for `kdoc-tag-mismatch`) the primary constructor's/function's own ordered
- * parameter facts — is read directly off one `ChildBuffer` per declaration, no sibling
- * correlation needed anywhere.
+ * text, the name, and (for `kdoc-tag-mismatch`) the primary/secondary constructor's or function's
+ * own ordered parameter facts — is read directly off one `ChildBuffer` per declaration, no sibling
+ * correlation needed anywhere. A secondary constructor's own KDoc is matched against its own
+ * parameter list, reported against the enclosing class's name at the `constructor` keyword's span.
  */
 class KdocEngine : WUninitializedRuleGroup {
     override val ids: Set<String> = setOf(UNDOCUMENTED_CLASS_ID, UNDOCUMENTED_FUNCTION_ID, UNDOCUMENTED_PROPERTY_ID, KDOC_TAG_MISMATCH_ID)
@@ -53,6 +54,7 @@ class KdocEngine : WUninitializedRuleGroup {
                 WNodeType.FUN,
                 WNodeType.PROPERTY,
                 WNodeType.PRIMARY_CONSTRUCTOR,
+                WNodeType.SECONDARY_CONSTRUCTOR,
                 WNodeType.VALUE_PARAMETER_LIST,
                 WNodeType.VALUE_PARAMETER,
             )
@@ -60,10 +62,26 @@ class KdocEngine : WUninitializedRuleGroup {
             private val pendingParamLists = mutableListOf<MutableList<KdocDeclaration>>()
             private val completedParamLists = mutableListOf<CompletedParams>()
             private val completedConstructors = mutableListOf<CompletedParams>()
+            private val pendingClassNames = mutableListOf<String?>()
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 if (ctx.type == WNodeType.VALUE_PARAMETER_LIST) pendingParamLists.add(mutableListOf())
+                if (ctx.type == WNodeType.CLASS) pendingClassNames.add(null)
                 return true
+            }
+
+            override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
+                if (
+                ctx.type ==
+                    WNodeType.IDENTIFIER &&
+                    pendingClassNames.isNotEmpty() &&
+                    pendingClassNames[pendingClassNames.size - 1] ==
+                    null &&
+                    ctx.ancestors.peekType() ==
+                    WNodeType.CLASS
+                ) {
+                    pendingClassNames[pendingClassNames.size - 1] = IdentifierCasing.unquote(ctx.leafText!!)
+                }
             }
 
             override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
@@ -72,7 +90,11 @@ class KdocEngine : WUninitializedRuleGroup {
                     WNodeType.VALUE_PARAMETER_LIST -> completedParamLists
                         .add(CompletedParams(ctx.startOffset, ctx.endOffset, pendingParamLists.removeAt(pendingParamLists.size - 1)))
                     WNodeType.PRIMARY_CONSTRUCTOR -> recordConstructor(ctx, children)
-                    WNodeType.CLASS -> handleClass(ctx, children, reporter)
+                    WNodeType.SECONDARY_CONSTRUCTOR -> handleSecondaryConstructor(ctx, children, reporter)
+                    WNodeType.CLASS -> {
+                        handleClass(ctx, children, reporter)
+                        pendingClassNames.removeAt(pendingClassNames.size - 1)
+                    }
                     WNodeType.OBJECT_DECLARATION -> handleObject(ctx, children, reporter)
                     WNodeType.FUN -> handleFun(ctx, children, reporter)
                     WNodeType.PROPERTY -> handleProperty(ctx, children, reporter)
@@ -84,10 +106,32 @@ class KdocEngine : WUninitializedRuleGroup {
                 val nameIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (nameIdx < 0) return
                 val name = IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
-                val isProperty = children.hasChildOfType(WNodeType.KW_VAL) || children.hasChildOfType(WNodeType.KW_VAR)
+                val isValOrVar = children.hasChildOfType(WNodeType.KW_VAL) || children.hasChildOfType(WNodeType.KW_VAR)
+                val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
+                val isPrivate = modifierIdx >= 0 && WordBoundaryScan.containsWord(children.textSpan(modifierIdx, ctx.sourceText), "private")
+                val isProperty = isValOrVar && !isPrivate
                 pendingParamLists
                     .lastOrNull()
                     ?.add(KdocDeclaration(name, if (isProperty) KdocDeclarationKind.PROPERTY else KdocDeclarationKind.PARAM))
+            }
+
+            private fun handleSecondaryConstructor(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+                if (mismatchRule == null) return
+                val keywordIdx = children.firstChildOfType(WNodeType.KW_CONSTRUCTOR)
+                if (keywordIdx < 0) return
+                val className = pendingClassNames.lastOrNull() ?: return
+                val facts =
+                DeclarationFacts(
+                    name = className,
+                    nameStart = children.startOffset(keywordIdx),
+                    nameEnd = children.endOffset(keywordIdx),
+                    hasKdoc = children.hasChildOfType(WNodeType.KDOC),
+                    isPublic = false,
+                    isOverride = false,
+                )
+                if (!facts.hasKdoc) return
+                val elementParams = takeCompletedForChild(children, WNodeType.VALUE_PARAMETER_LIST, completedParamLists)
+                reportMismatch(ctx, children, facts, elementParams, reporter)
             }
 
             private fun recordConstructor(ctx: WContext, children: ChildBuffer) {

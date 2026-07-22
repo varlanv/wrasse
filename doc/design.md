@@ -6877,6 +6877,30 @@ as intended, not a regression.
   set. `ktlint`/`detekt`/`diktat` checkouts confirmed byte-clean (`git status`) throughout —
   read-only, single-threaded (no sub-agents/forks).
 
+  **All four quarantined bugs fixed, 2026-07-22, fixtures un-quarantined into `fixtures/<rule-id>/`:**
+
+  1. `may-be-constant` dollar-only literal: `StringTemplateText.hasInterpolation` now requires the
+     char after an unescaped `$` to be `{`, a letter, or `_` before counting it as interpolation;
+     a `$` followed by anything else (or end-of-text) is a literal dollar.
+  2. `trim-multiline-raw-string` annotation-class ctor param default: `TrimMultilineRawStringRule`
+     gained `isAnnotationClassConstructorParamDefault`, which walks the ancestor stack for a
+     `PRIMARY_CONSTRUCTOR` directly under a `CLASS` and word-scans the span between them for
+     `annotation`, exempting the same way the existing `const` scan does.
+  3. `rethrow-caught-exception` leading comment: the catch-body first-significant-child scan in
+     `RethrowCaughtExceptionRule.recordOutcome` now also skips `WNodeType.isWhitespaceOrComment`
+     nodes (not just `WHITE_SPACE`/`LBRACE`/`RBRACE`), so a leading comment no longer defeats
+     bare-rethrow detection; the rule's own KDoc no longer claims the opposite.
+  4. `kdoc-tag-mismatch`, two sub-fixes in `KdocEngine`: (a) `recordParameter` now marks a ctor
+     `val`/`var` as `PROPERTY` only when its own `MODIFIER_LIST` lacks `private` (private ctor
+     params are `PARAM` kind, so `@param` on them is clean); (b) `SECONDARY_CONSTRUCTOR` was added
+     to `targetTypes`, with a new `handleSecondaryConstructor` that reads the constructor's own
+     KDoc and `VALUE_PARAMETER_LIST`, resolves the enclosing class's name via a
+     `pendingClassNames` stack populated off the class's own `IDENTIFIER` leaf, and reports through
+     the existing `reportMismatch` at the `constructor` keyword's span.
+
+  `fixtures-backfill-failing/` no longer holds any of these four rule-ids' entries (unrelated
+  entries from the Phase C printer backfill remain).
+
 ### Phase D — Hardening & release
 
 - Extended version matrix (per-patch, next EAP early); fuzz on real-world Kotlin repos.

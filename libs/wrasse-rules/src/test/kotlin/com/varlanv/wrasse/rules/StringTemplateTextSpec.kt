@@ -26,5 +26,21 @@ class StringTemplateTextSpec :
             should("find interpolation after an unrelated escape sequence") {
                 StringTemplateText.hasInterpolation("\"a\\tb\${c}\"") shouldBe true
             }
+
+            should("not find interpolation in a lone trailing dollar") {
+                StringTemplateText.hasInterpolation("\"\$\"") shouldBe false
+            }
+
+            should("not find interpolation when the dollar is followed by a space") {
+                StringTemplateText.hasInterpolation("\"\$ \"") shouldBe false
+            }
+
+            should("not find interpolation when the dollar is followed by punctuation") {
+                StringTemplateText.hasInterpolation("\"cost:\$\"") shouldBe false
+            }
+
+            should("find interpolation when the dollar is followed by an underscore identifier") {
+                StringTemplateText.hasInterpolation("\"\$_y\"") shouldBe true
+            }
         },
     )

@@ -7,18 +7,19 @@ import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 /**
- * A catch clause whose body's first significant child (skipping only leading whitespace) is a
- * bare `throw <own parameter>` is a rethrow candidate; only the maximal trailing run of such
- * candidates within one `try`, counted back from its last catch clause, is actually reported (see
- * [RethrowCaughtExceptionDecision]) at each reported throw's own span — a non-rethrowing catch
- * clause anywhere after a candidate suppresses every earlier candidate's own report, exactly
- * mirroring the upstream rule this derives from.
+ * A catch clause whose body's first significant child (skipping leading whitespace, `LBRACE`/
+ * `RBRACE`, and comments) is a bare `throw <own parameter>` is a rethrow candidate; only the
+ * maximal trailing run of such candidates within one `try`, counted back from its last catch
+ * clause, is actually reported (see [RethrowCaughtExceptionDecision]) at each reported throw's own
+ * span — a non-rethrowing catch clause anywhere after a candidate suppresses every earlier
+ * candidate's own report.
  *
- * "First significant child" skips only `WHITE_SPACE`/`LBRACE`/`RBRACE` — a leading comment is
- * itself the first child and defeats the check (not skipped past), the same quirk the upstream
- * rule's own `children.firstOrNull()` has.
+ * "First significant child" skips `WHITE_SPACE`/`LBRACE`/`RBRACE` and comment nodes
+ * (`EOL_COMMENT`/`BLOCK_COMMENT`/`KDOC`), so a leading comment before the rethrow does not defeat
+ * detection.
  */
 class RethrowCaughtExceptionRule : WUninitializedRule {
     override val id: String = "rethrow-caught-exception"
@@ -73,7 +74,7 @@ class RethrowCaughtExceptionRule : WUninitializedRule {
                 var firstIdx = -1
                 for (i in 0 until children.size) {
                     val type = children.type(i)
-                    if (type == WNodeType.WHITE_SPACE || type == WNodeType.LBRACE || type == WNodeType.RBRACE) continue
+                    if (type == WNodeType.LBRACE || type == WNodeType.RBRACE || type.isWhitespaceOrComment) continue
                     firstIdx = i
                     break
                 }

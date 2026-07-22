@@ -17,9 +17,10 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * derives from, strictly fewer reports.
  *
  * Exempt entirely (matching the upstream rule's own carve-outs): a `const val`'s own direct,
- * unwrapped initializer, and any string literal nested anywhere inside an
- * [WNodeType.ANNOTATION_ENTRY]'s arguments — both contexts require a compile-time constant, so a
- * trim call could never legally be attached there regardless.
+ * unwrapped initializer, any string literal nested anywhere inside an
+ * [WNodeType.ANNOTATION_ENTRY]'s arguments, and an `annotation class`'s own primary-constructor
+ * parameter default value — all three contexts require a compile-time constant, so a trim call
+ * could never legally be attached there regardless.
  */
 class TrimMultilineRawStringRule : WUninitializedRule {
     override val id: String = "trim-multiline-raw-string"
@@ -57,10 +58,23 @@ class TrimMultilineRawStringRule : WUninitializedRule {
 
             private fun isExpectedAsConstant(ctx: WContext): Boolean {
                 if (ctx.hasAncestor(WNodeType.ANNOTATION_ENTRY)) return true
+                if (isAnnotationClassConstructorParamDefault(ctx)) return true
                 val ancestors = ctx.ancestors
                 if (ancestors.isEmpty || ancestors.peekType() != WNodeType.PROPERTY) return false
                 val propertyStart = ancestors.peekStartOffset()
                 return WordBoundaryScan.containsWord(ctx.sourceText.subSequence(propertyStart, ctx.startOffset), "const")
+            }
+
+            private fun isAnnotationClassConstructorParamDefault(ctx: WContext): Boolean {
+                val ancestors = ctx.ancestors
+                for (i in ancestors.size - 1 downTo 1) {
+                    if (ancestors.typeAt(i) == WNodeType.PRIMARY_CONSTRUCTOR && ancestors.typeAt(i - 1) == WNodeType.CLASS) {
+                        val classStart = ancestors.startOffsetAt(i - 1)
+                        val constructorStart = ancestors.startOffsetAt(i)
+                        return WordBoundaryScan.containsWord(ctx.sourceText.subSequence(classStart, constructorStart), "annotation")
+                    }
+                }
+                return false
             }
         }
     }
