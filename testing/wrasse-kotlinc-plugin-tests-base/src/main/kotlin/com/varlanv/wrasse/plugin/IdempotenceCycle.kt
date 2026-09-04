@@ -129,7 +129,8 @@ object IdempotenceCycle {
             "Autofix broke the compile: round 2 (after applying round 1's emitted edits and " +
                 "recompiling) introduced non-wrasse compiler error(s) that round 1 did not have. " +
                 "A fix must never turn compiling code into code that no longer compiles.\n" +
-                "New errors introduced by the fix:\n${formatDiagnostics(newDiagnostics)}",
+                "New errors introduced by the fix:\n${formatDiagnostics(newDiagnostics)}\n" +
+                "Round 1 non-wrasse errors:\n${formatDiagnostics(round1.filter { it.message in round1Messages })}",
         ) {
             newMessages.isEmpty() shouldBe true
         }

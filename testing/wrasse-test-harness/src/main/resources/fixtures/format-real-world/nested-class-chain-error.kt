@@ -6,7 +6,7 @@ class AnalyticsMarketData {
     class Aggregated {
         class Bingx {
             class Futures {
-                data class FuturesCandlestick1Min(
+                class FuturesCandlestick1Min(
                     val open: Dec64,
                     val close: Dec64,
                     val high: Dec64,

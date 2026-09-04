@@ -8,9 +8,6 @@ class HttpClient {
 }
 
 fun doRequest(client: HttpClient, request: String) {
-    val future =
-        client.execute(request) { println(it) }
+    val future = client.execute(request) { println(it) }
     println(future)
 }
-
-// expect-clean

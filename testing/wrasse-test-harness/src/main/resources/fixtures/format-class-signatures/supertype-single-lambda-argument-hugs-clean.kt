@@ -7,4 +7,4 @@ class Foo(a: Int) : Base({
     println("b")
 })
 
-// expect-error 1:1 format "File is not wrasse-formatted"
+// expect-clean

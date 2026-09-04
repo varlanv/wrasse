@@ -108,6 +108,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                     ChildEntry.Resolved(
                         ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment,
                         frame.reindentedRawString, frame.isQualifiedNameChain,
+                        frame.hugsLambdaArgument, frame.isSimpleQualifiedCall,
                     ),
                 )
         }
@@ -155,6 +156,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         resolveBinaryFrame(frame, start, end, isRoot = parentType != WNodeType.BINARY_EXPRESSION)
 
         WNodeType.VALUE_ARGUMENT_LIST -> resolveArgumentListFrame(frame, start, end)
+
+        WNodeType.VALUE_ARGUMENT -> resolveValueArgumentFrame(frame, start, end)
+
+        WNodeType.SUPER_TYPE_CALL_ENTRY -> resolveSuperTypeCallEntryFrame(frame, start, end)
 
         WNodeType.VALUE_PARAMETER_LIST -> resolveValueParameterListFrame(frame, start, end, parentType)
 
@@ -424,7 +429,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val gapIdx = anchorIdx + 1
         if (children.getOrNull(gapIdx) !is ChildEntry.Ws) return false
         val valueIdx = (gapIdx until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return false
-        return children[valueIdx].type == WNodeType.CALL_EXPRESSION
+        val value = children[valueIdx]
+        if (value.type == WNodeType.CALL_EXPRESSION) return true
+        return value.type in CHAIN_LINK_TYPES && value is ChildEntry.Resolved && value.isSimpleQualifiedCall
     }
 
     private fun collapseGapAfterAnchor(children: List<ChildEntry>, anchorIdx: Int): List<ChildEntry> {
@@ -935,6 +942,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val receiverType = (0 until opIdx).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }?.let { children[it].type }
             val shouldCollapse = receiverType != WNodeType.STRING_TEMPLATE && (isRoot || !hasCallAnywhere)
             if (shouldCollapse) {
+                frame.isSimpleQualifiedCall = children.lastOrNull { it.type != WNodeType.WHITE_SPACE }?.type == WNodeType.CALL_EXPRESSION
                 val collapsed = children.mapNotNull { entry ->
                     if (entry.type == WNodeType.WHITE_SPACE) null else resolveEntry(entry)
                 }
@@ -1161,6 +1169,12 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val rparDoc = resolveEntry(children[rparIdx])
         val trailingCommaIdx = trailingCommaIndex(children, lparIdx + 1, rparIdx)
 
+        val huggedArgument = soleHuggableLambdaArgument(children, lparIdx, rparIdx, trailingCommaIdx)
+        if (huggedArgument != null) {
+            frame.hugsLambdaArgument = true
+            return Doc.Concat(listOf(lparDoc, huggedArgument.doc, rparDoc), start, end)
+        }
+
         val interior = ArrayList<Doc>()
         interior.add(wsBreakAt(children, lparIdx + 1, lparDoc.end, flat = ""))
         var i = lparIdx + 1
@@ -1190,6 +1204,36 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     private fun Int.isWs(children: List<ChildEntry>): Boolean = children[this].type == WNodeType.WHITE_SPACE
+
+    /**
+     * The one [WNodeType.VALUE_ARGUMENT] between `(` and `)` when it is the list's only content
+     * besides whitespace and an optional trailing comma, and it is itself a bare lambda
+     * ([ChildEntry.Resolved.hugsLambdaArgument]); `null` for every other argument list. Such an
+     * argument hugs its parentheses — `foo({` / `})` — with no break, indent, or trailing comma of
+     * the list's own, so the lambda body indents from the call's line exactly like a trailing lambda.
+     */
+    private fun soleHuggableLambdaArgument(children: List<ChildEntry>, lparIdx: Int, rparIdx: Int, trailingCommaIdx: Int?): ChildEntry.Resolved? {
+        var sole: ChildEntry.Resolved? = null
+        for (i in lparIdx + 1 until rparIdx) {
+            val entry = children[i]
+            if (entry.type == WNodeType.WHITE_SPACE || i == trailingCommaIdx) continue
+            if (sole != null || entry !is ChildEntry.Resolved || entry.type != WNodeType.VALUE_ARGUMENT || !entry.hugsLambdaArgument) return null
+            sole = entry
+        }
+        return sole
+    }
+
+    private fun resolveValueArgumentFrame(frame: Frame, start: Int, end: Int): Doc {
+        val real = frame.children.filter { it.type != WNodeType.WHITE_SPACE }
+        frame.hugsLambdaArgument = real.size == 1 && real[0].type == WNodeType.LAMBDA_EXPRESSION
+        return resolveBraceFrame(frame, start, end)
+    }
+
+    private fun resolveSuperTypeCallEntryFrame(frame: Frame, start: Int, end: Int): Doc {
+        val last = frame.children.lastOrNull { it.type != WNodeType.WHITE_SPACE }
+        frame.hugsLambdaArgument = last is ChildEntry.Resolved && last.type == WNodeType.VALUE_ARGUMENT_LIST && last.hugsLambdaArgument
+        return resolveBraceFrame(frame, start, end)
+    }
 
     /**
      * Index of the trailing comma in `children[fromIdx until closeIdx]` — a [WNodeType.COMMA]
@@ -1358,7 +1402,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         val entryDocs = entryIndices.map { resolveEntry(children[it]) }
 
-        if (entryDocs.size == 1 && ctorWrapped) {
+        val soleEntryHugsLambda = (children[entryIndices[0]] as ChildEntry.Resolved).hugsLambdaArgument
+        if (entryDocs.size == 1 && (ctorWrapped || soleEntryHugsLambda)) {
             return Doc.Concat(listOf(Doc.Text(" ", start, start), entryDocs[0]), start, end)
         }
         if (entryDocs.size == 1) {
@@ -1705,6 +1750,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var hasLeadingAnnotation = false
         var reindentedRawString: Doc? = null
         var isQualifiedNameChain = false
+        var hugsLambdaArgument = false
+        var isSimpleQualifiedCall = false
     }
 
     private sealed interface ChildEntry {
@@ -1717,6 +1764,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val hasLeadingComment: Boolean = false,
             val reindentedRawString: Doc? = null,
             val isQualifiedNameChain: Boolean = false,
+            val hugsLambdaArgument: Boolean = false,
+            val isSimpleQualifiedCall: Boolean = false,
         ) : ChildEntry
 
         class Ws(val rawText: String, val start: Int) : ChildEntry {

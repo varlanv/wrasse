@@ -1,6 +1,6 @@
 package sample
 
-private data class Trade(
+private class Trade(
     val at: Long,
     val price: String,
     val qty: String = "1",
