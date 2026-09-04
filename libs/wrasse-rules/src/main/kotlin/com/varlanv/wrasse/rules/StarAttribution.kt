@@ -88,6 +88,7 @@ object StarAttribution {
         for (classifier in classifiers) {
             if (classifier.startsWith(prefix)) {
                 val symbol = topLevelSymbol(packageFqName, prefix, classifier)
+                if (symbol != classifier && !isTopLevelClassifier(symbol, prefix, classifiers)) continue
                 if (isWritten(symbol, writtenIdentifiers)) {
                     result.add(symbol)
                 }
@@ -101,6 +102,7 @@ object StarAttribution {
                 }
             } else if (classFqName.startsWith(prefix)) {
                 val symbol = topLevelSymbol(packageFqName, prefix, classFqName)
+                if (symbol != classFqName && !isTopLevelClassifier(symbol, prefix, classifiers)) continue
                 if (isWritten(symbol, writtenIdentifiers)) {
                     result.add(symbol)
                 }
@@ -118,6 +120,13 @@ object StarAttribution {
             }
         }
         return false
+    }
+
+    private fun isTopLevelClassifier(symbol: String, packagePrefix: String, classifiers: Set<String>): Boolean {
+        if (symbol in classifiers) return true
+        val simpleName = symbol.removePrefix(packagePrefix)
+        if (simpleName.isEmpty()) return false
+        return simpleName[0].isUpperCase()
     }
 
     private fun isWritten(symbol: String, writtenIdentifiers: Set<String>): Boolean =

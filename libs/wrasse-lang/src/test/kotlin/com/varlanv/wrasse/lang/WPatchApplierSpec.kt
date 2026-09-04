@@ -192,12 +192,12 @@ class WPatchApplierSpec :
                         result.files.all { it is FileApplyResult.Applied } shouldBe true
                         Files.readString(mainSourceFile) shouldBe "val x = 1"
                         Files.readString(testSourceFile) shouldBe "val y = 2"
-                        Files.exists(mainDir.resolve("wrasse-fixes.txt")) shouldBe false
-                        Files.exists(testDir.resolve("wrasse-fixes.txt")) shouldBe false
+                        Files.exists(mainDir.resolve("wrasse-fixes.txt")) shouldBe true
+                        Files.exists(testDir.resolve("wrasse-fixes.txt")) shouldBe true
                     }
                 }
 
-                should("delete patch file after applying") {
+                should("keep patch file after applying for hash-guard re-runs") {
                     useTempDir { dir ->
                         val sourceFile = dir.resolve("Del.kt")
                         val content = "abc"
@@ -207,7 +207,7 @@ class WPatchApplierSpec :
 
                         WPatchApplier.apply(dir)
 
-                        Files.exists(dir.resolve("wrasse-fixes.txt")) shouldBe false
+                        Files.exists(dir.resolve("wrasse-fixes.txt")) shouldBe true
                     }
                 }
             }

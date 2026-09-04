@@ -2,12 +2,6 @@ package com.varlanv.wrasse.format
 
 import com.varlanv.wrasse.model.FormatStyle
 
-/**
- * The single deterministic pass over a [Doc] tree: threads the current column and the ambient
- * indent depth top-down; for each [Doc.Group], decides flat-vs-broken once by checking whether the
- * group's flat width fits in the remaining line width, then renders its body in that mode. Nested
- * groups decide independently once their enclosing group's mode is known. Never re-derives tokens.
- */
 object Layout {
     private enum class Mode {
         FLAT,
@@ -16,11 +10,19 @@ object Layout {
 
     fun render(doc: Doc, style: FormatStyle): String {
         val sb = StringBuilder()
-        renderNode(sb, doc, indentDepth = 0, column = 0, mode = Mode.BROKEN, style = style)
+        renderNode(sb, doc, indentDepth = 0, column = 0, mode = Mode.BROKEN, style = style, tailWidth = 0)
         return sb.toString()
     }
 
-    private fun renderNode(sb: StringBuilder, doc: Doc, indentDepth: Int, column: Int, mode: Mode, style: FormatStyle): Int =
+    private fun renderNode(
+        sb: StringBuilder,
+        doc: Doc,
+        indentDepth: Int,
+        column: Int,
+        mode: Mode,
+        style: FormatStyle,
+        tailWidth: Int,
+    ): Int =
     when (doc) {
         is Doc.Text -> {
             sb.append(doc.value)
@@ -29,13 +31,14 @@ object Layout {
 
         is Doc.Concat -> {
             var col = column
-            for (part in doc.parts) {
-                col = renderNode(sb, part, indentDepth, col, mode, style)
+            for ((i, part) in doc.parts.withIndex()) {
+                val partTail = if (i < doc.parts.size - 1) computeTailWidth(doc.parts, i + 1, tailWidth) else tailWidth
+                col = renderNode(sb, part, indentDepth, col, mode, style, partTail)
             }
             col
         }
 
-        is Doc.Indent -> renderNode(sb, doc.body, indentDepth + 1, column, mode, style)
+        is Doc.Indent -> renderNode(sb, doc.body, indentDepth + 1, column, mode, style, tailWidth)
 
         is Doc.Break -> renderBreak(sb, doc, indentDepth, column, mode, style)
 
@@ -49,10 +52,21 @@ object Layout {
             }
 
         is Doc.Group -> {
-            val flatWidth = flatWidth(doc.body)
-            val chosenMode = if (flatWidth != null && column + flatWidth <= style.maxLineLength) Mode.FLAT else Mode.BROKEN
-            renderNode(sb, doc.body, indentDepth, column, chosenMode, style)
+            val flatW = flatWidth(doc.body)
+            val chosenMode = if (flatW != null && column + flatW + tailWidth <= style.maxLineLength) Mode.FLAT else Mode.BROKEN
+            renderNode(sb, doc.body, indentDepth, column, chosenMode, style, tailWidth)
         }
+    }
+
+    private fun computeTailWidth(parts: List<Doc>, fromIndex: Int, outerTailWidth: Int): Int {
+        var total = 0
+        for (i in fromIndex until parts.size) {
+            val part = parts[i]
+            if (part is Doc.Break) return total
+            val w = flatWidth(part) ?: return total
+            total += w
+        }
+        return total + outerTailWidth
     }
 
     private fun renderBreak(sb: StringBuilder, doc: Doc.Break, indentDepth: Int, column: Int, mode: Mode, style: FormatStyle): Int =
@@ -87,12 +101,6 @@ object Layout {
         return if (lastNewline < 0) column + text.length else text.length - lastNewline - 1
     }
 
-    /**
-     * Total rendered width of [doc] if it were laid out fully flat (every `SOFT` break as its
-     * [Doc.Break.flat] text), or `null` if it can never be flat — a `HARD` break inside, or a
-     * [Doc.Text] leaf carrying an embedded newline (a multiline string/KDoc token spliced in
-     * verbatim), forces the enclosing group broken rather than pretending it fits one line.
-     */
     private fun flatWidth(doc: Doc): Int? = when (doc) {
         is Doc.Text -> if (doc.value.contains('\n')) null else doc.value.length
         is Doc.Break -> if (doc.kind == BreakKind.HARD) null else doc.flat.length

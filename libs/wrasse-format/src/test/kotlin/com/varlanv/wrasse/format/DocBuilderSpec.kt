@@ -1313,7 +1313,7 @@ class DocBuilderSpec :
                 render(builder, ctx) shouldBe "class Foo(\n    a: Int,\n) : Bar"
             }
 
-            should("force every supertype onto its own line when there are two or more and the primary constructor did not wrap") {
+            should("keep supertypes flat when they fit on one line with the class header") {
                 val builder = DocBuilder(formatConfig())
                 val ctx = WContext(filePath = "test.kt")
                 builder.enterNode(ctx.apply { type = WNodeType.FILE })
@@ -1330,7 +1330,7 @@ class DocBuilderSpec :
                 builder.exitNode(ctx.apply { type = WNodeType.CLASS })
                 builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-                render(builder, ctx) shouldBe "class Foo :\n    Bar,\n    Baz"
+                render(builder, ctx) shouldBe "class Foo : Bar, Baz"
             }
 
             should("join only the first of two or more supertypes onto the constructor's closing line once it is forced multiline") {

@@ -661,6 +661,43 @@ class WildcardExpansionDecisionSpec :
                 edit.shouldBeNull()
             }
 
+            should("not attribute a subpackage classifier to a parent package star") {
+                val edit = WildcardExpansionDecision
+                    .decide(
+                        star = star("p.aux", startOffset = 0, endOffset = 14),
+                        allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
+                        duplicatePackages = emptySet(),
+                        explicitImports = emptyList(),
+                        filePackageFqName = "sample",
+                        classifiers = setOf("p.aux.Widget", "p.aux.sub.SubWidget"),
+                        callables = emptySet(),
+                        writtenIdentifiers = setOf("Widget", "sub", "SubWidget"),
+                        kdocSpans = emptyList(),
+                        sourceText = "import p.aux.*",
+                        resolvedImports = packageStar("p.aux"),
+                    )
+                edit.shouldNotBeNull()
+                edit.replacement shouldBe "import p.aux.Widget"
+            }
+
+            should("bail on zero attribution when only subpackage classifiers match the star prefix") {
+                val edit = WildcardExpansionDecision
+                    .decide(
+                        star = star("p.aux", startOffset = 0, endOffset = 14),
+                        allStars = listOf(star("p.aux", startOffset = 0, endOffset = 14)),
+                        duplicatePackages = emptySet(),
+                        explicitImports = emptyList(),
+                        filePackageFqName = "sample",
+                        classifiers = setOf("p.aux.sub.SubWidget"),
+                        callables = emptySet(),
+                        writtenIdentifiers = setOf("sub", "SubWidget"),
+                        kdocSpans = emptyList(),
+                        sourceText = "import p.aux.*",
+                        resolvedImports = packageStar("p.aux"),
+                    )
+                edit.shouldBeNull()
+            }
+
             should("MEMBER-STAR: bail with no edit when an attributed member's simple name collides with a different FQN") {
                 val edit = WildcardExpansionDecision
                     .decide(

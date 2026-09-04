@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.fir.references.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.references.FirResolvedErrorReference
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirTypeAliasSymbol
 import org.jetbrains.kotlin.fir.types.ConeClassLikeType
 import org.jetbrains.kotlin.fir.types.ConeErrorType
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
@@ -137,6 +138,10 @@ object ResolvedUsageCollector {
 
         override fun visitResolvedQualifier(resolvedQualifier: FirResolvedQualifier) {
             resolvedQualifier.classId?.let { classifiers.add(it.asFqNameString()) }
+            val symbol = resolvedQualifier.symbol
+            if (symbol is FirTypeAliasSymbol) {
+                classifiers.add(symbol.classId.asFqNameString())
+            }
             if (collectQualifiedUsages) {
                 recordQualifierUsage(resolvedQualifier)
             }

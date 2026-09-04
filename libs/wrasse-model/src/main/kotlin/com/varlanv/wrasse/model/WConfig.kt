@@ -158,10 +158,10 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                 enabled = enabled,
                 style = FormatStyle(
                     indentWidth = raw?.indentWidth ?: 4,
-                    maxLineLength = raw?.maxLineLength ?: 140,
+                    maxLineLength = raw?.maxLineLength ?: 120,
                     trailingCommas = raw?.trailingCommas ?: true,
                     importLayout = raw?.importLayout ?: ImportLayout.ASCII,
-                    multilineSignatureThreshold = raw?.multilineSignatureThreshold,
+                    multilineSignatureThreshold = raw?.multilineSignatureThreshold ?: 3,
                 ),
                 ruleConfig = WrasseRuleConfig(
                     level = level,

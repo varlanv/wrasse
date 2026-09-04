@@ -1,6 +1,7 @@
 package sample
 
-fun demo(a: Int, b: Int, c: Int?): Int {
+fun demo(a: Int, b: Int): Int {
+    val c: Int? = a
     val sum = a  +  b
     val diff = a -  b
     val ok = a  ==  b

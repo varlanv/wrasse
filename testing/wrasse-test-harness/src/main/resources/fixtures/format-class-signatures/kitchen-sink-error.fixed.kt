@@ -12,12 +12,11 @@ class Point(
     val z: Int,
 )
 
-class Foo(a: Int) :
-    VeryLongSuperTypeName
+class Foo(
+    a: Int,
+) : VeryLongSuperTypeName
 
-class Baz(a: Int) :
-    Sup1,
-    Sup2
+class Baz(a: Int) : Sup1, Sup2
 
 class Qux(
     a: Int,

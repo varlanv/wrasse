@@ -67,10 +67,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
         val text = ctx.leafText?.toString() ?: ""
         val entry =
-            when {
-                ctx.type == WNodeType.WHITE_SPACE && text.contains('\n') -> ChildEntry.Ws(text, ctx.startOffset)
-                ctx.type == WNodeType.EOL_COMMENT ->
-                ChildEntry.Resolved(ctx.type, Doc.Text(normalizeEolCommentText(text), ctx.startOffset, ctx.endOffset))
+            when (ctx.type) {
+                WNodeType.WHITE_SPACE if text.contains('\n') -> ChildEntry.Ws(text, ctx.startOffset)
+                WNodeType.EOL_COMMENT ->
+                    ChildEntry.Resolved(ctx.type, Doc.Text(normalizeEolCommentText(text), ctx.startOffset, ctx.endOffset))
 
                 else -> ChildEntry.Resolved(ctx.type, Doc.Text(text, ctx.startOffset, ctx.endOffset))
             }
@@ -104,7 +104,12 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             frames
                 .last()
                 .children
-                .add(ChildEntry.Resolved(ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment, frame.reindentedRawString))
+                .add(
+                    ChildEntry.Resolved(
+                        ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment,
+                        frame.reindentedRawString, frame.isQualifiedNameChain,
+                    ),
+                )
         }
     }
 
@@ -164,6 +169,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         WNodeType.MODIFIER_LIST, WNodeType.ANNOTATED_EXPRESSION -> resolveAnnotationContainerFrame(frame, start, end, parentType)
 
         WNodeType.PROPERTY -> resolvePropertyFrame(frame, start, end)
+
+        WNodeType.FUN -> resolveFunFrame(frame, start, end)
+
+        WNodeType.TYPEALIAS -> resolveTypealiasFrame(frame, start, end)
 
         WNodeType.PREFIX_EXPRESSION, WNodeType.POSTFIX_EXPRESSION -> resolveUnaryFrame(frame, start, end)
 
@@ -334,7 +343,103 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (accessorIdx >= 0) return resolvePropertyAccessorsFrame(children, start, end, accessorIdx)
         val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
         if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
-        return resolveAssignedValueFrame(children, WNodeType.PROPERTY, start, end, eqIdx) ?: resolveBraceFrame(frame, start, end)
+        return resolveAssignedValueFrame(children, WNodeType.PROPERTY, start, end, eqIdx)
+            ?: resolvePropertyInitializerFrame(children, start, end, eqIdx)
+    }
+
+    private fun resolvePropertyInitializerFrame(children: List<ChildEntry>, start: Int, end: Int, eqIdx: Int): Doc {
+        if (valueAfterAnchorIsCall(children, eqIdx)) {
+            val normalized = collapseGapAfterAnchor(children, eqIdx)
+            return resolveBraceFrame(Frame(WNodeType.PROPERTY).also { it.children.addAll(normalized) }, start, end)
+        }
+        val gapIdx = eqIdx + 1
+        val gapEntry = children.getOrNull(gapIdx)
+        if (gapEntry !is ChildEntry.Ws) return resolveBraceFrame(Frame(WNodeType.PROPERTY).also { it.children.addAll(children) }, start, end)
+        val valueIdx = (gapIdx until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
+            ?: return resolveBraceFrame(Frame(WNodeType.PROPERTY).also { it.children.addAll(children) }, start, end)
+        val headParts = normalizeChildren(children.subList(0, eqIdx + 1), WNodeType.PROPERTY)
+        val breakDoc = clampWs(gapEntry, newlineCount = 1)
+        val tailParts = normalizeChildren(children.subList(valueIdx, children.size), WNodeType.PROPERTY)
+        val tailEnd = tailParts.lastOrNull()?.end ?: end
+        val body = Doc.Indent(Doc.Concat(listOf(breakDoc) + tailParts, breakDoc.start, tailEnd))
+        return Doc.Concat(headParts + listOf(body), start, end)
+    }
+
+    private fun resolveFunFrame(frame: Frame, start: Int, end: Int): Doc {
+        val children = frame.children
+        val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
+        if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
+        return resolveExpressionBodyFrame(children, start, end, eqIdx)
+    }
+
+    private fun resolveTypealiasFrame(frame: Frame, start: Int, end: Int): Doc {
+        val children = frame.children
+        val parts = ArrayList<Doc>()
+        for ((i, entry) in children.withIndex()) {
+            when {
+                entry is ChildEntry.Ws -> {
+                    parts.add(Doc.Text(" ", entry.start, entry.start + entry.rawText.length))
+                }
+                isPlainWhitespace(entry) -> {
+                    val ws = (entry as ChildEntry.Resolved).doc
+                    val prevType = children.getOrNull(i - 1)?.type
+                    val nextType = children.getOrNull(i + 1)?.type
+                    val decision = if (prevType != null && nextType != null) spacingDecision(WNodeType.TYPEALIAS, prevType, nextType) else " "
+                    parts.add(Doc.Text(decision ?: " ", ws.start, ws.end))
+                }
+                else -> parts.add(flattenDoc(resolveEntry(entry)))
+            }
+        }
+        return Doc.Concat(parts, start, end)
+    }
+
+    private fun flattenDoc(doc: Doc): Doc = when (doc) {
+        is Doc.Text -> doc
+        is Doc.Break -> Doc.Text(doc.flat, doc.start, doc.end)
+        is Doc.Concat -> Doc.Concat(doc.parts.map { flattenDoc(it) }, doc.start, doc.end)
+        is Doc.Indent -> flattenDoc(doc.body)
+        is Doc.Group -> flattenDoc(doc.body)
+        is Doc.TrailingComma -> Doc.Text("", doc.start, doc.end)
+    }
+
+    private fun resolveExpressionBodyFrame(children: List<ChildEntry>, start: Int, end: Int, eqIdx: Int): Doc {
+        if (valueAfterAnchorIsCall(children, eqIdx)) {
+            val normalized = collapseGapAfterAnchor(children, eqIdx)
+            return resolveBraceFrame(Frame(WNodeType.FUN).also { it.children.addAll(normalized) }, start, end)
+        }
+        val gapIdx = eqIdx + 1
+        val gapEntry = children.getOrNull(gapIdx)
+        if (gapEntry !is ChildEntry.Ws) return resolveBraceFrame(Frame(WNodeType.FUN).also { it.children.addAll(children) }, start, end)
+        val valueIdx = (gapIdx until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
+            ?: return resolveBraceFrame(Frame(WNodeType.FUN).also { it.children.addAll(children) }, start, end)
+        val headParts = normalizeChildren(children.subList(0, eqIdx + 1), WNodeType.FUN)
+        val breakDoc = clampWs(gapEntry, newlineCount = 1)
+        val tailParts = normalizeChildren(children.subList(valueIdx, children.size), WNodeType.FUN)
+        val tailEnd = tailParts.lastOrNull()?.end ?: end
+        val body = Doc.Indent(Doc.Concat(listOf(breakDoc) + tailParts, breakDoc.start, tailEnd))
+        return Doc.Concat(headParts + listOf(body), start, end)
+    }
+
+    private fun valueAfterAnchorIsCall(children: List<ChildEntry>, anchorIdx: Int): Boolean {
+        val gapIdx = anchorIdx + 1
+        if (children.getOrNull(gapIdx) !is ChildEntry.Ws) return false
+        val valueIdx = (gapIdx until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return false
+        return children[valueIdx].type == WNodeType.CALL_EXPRESSION
+    }
+
+    private fun collapseGapAfterAnchor(children: List<ChildEntry>, anchorIdx: Int): List<ChildEntry> {
+        val gapIdx = anchorIdx + 1
+        val gapEntry = children.getOrNull(gapIdx) ?: return children
+        if (gapEntry !is ChildEntry.Ws) return children
+        val result = ArrayList<ChildEntry>(children.size)
+        for (i in children.indices) {
+            if (i == gapIdx) {
+                result.add(ChildEntry.Resolved(WNodeType.WHITE_SPACE, Doc.Text(" ", gapEntry.start, gapEntry.start + gapEntry.rawText.length)))
+            } else {
+                result.add(children[i])
+            }
+        }
+        return result
     }
 
     /**
@@ -794,6 +899,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         if (prevType == WNodeType.COLONCOLON) return ""
 
+        if (nextType == WNodeType.DOT || prevType == WNodeType.DOT) return ""
+        if (nextType == WNodeType.SAFE_ACCESS || prevType == WNodeType.SAFE_ACCESS) return ""
+
         if (nextType == WNodeType.RANGE || prevType == WNodeType.RANGE) return ""
 
         if (nextType == WNodeType.QUEST) return ""
@@ -819,8 +927,32 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val opIdx = children.indexOfFirst { it.type == WNodeType.DOT || it.type == WNodeType.SAFE_ACCESS }
         if (opIdx < 0) return Doc.Concat(children.map { resolveEntry(it) }, start, end)
 
+        if (!receiverHasMethodCall(children, opIdx)) {
+            val hasCallAnywhere = children.any { it.type == WNodeType.CALL_EXPRESSION }
+            if (!hasCallAnywhere) {
+                frame.isQualifiedNameChain = true
+            }
+            val receiverType = (0 until opIdx).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }?.let { children[it].type }
+            val shouldCollapse = receiverType != WNodeType.STRING_TEMPLATE && (isRoot || !hasCallAnywhere)
+            if (shouldCollapse) {
+                val collapsed = children.mapNotNull { entry ->
+                    if (entry.type == WNodeType.WHITE_SPACE) null else resolveEntry(entry)
+                }
+                return Doc.Concat(collapsed, start, end)
+            }
+        }
+
         val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = true, flat = "")
         return if (isRoot) wrapRoot(parts, start, end) else Doc.Concat(parts, start, end)
+    }
+
+    private fun receiverHasMethodCall(children: List<ChildEntry>, opIdx: Int): Boolean {
+        for (i in 0 until opIdx) {
+            val entry = children[i]
+            if (entry.type == WNodeType.CALL_EXPRESSION) return true
+            if (entry.type in CHAIN_LINK_TYPES && entry is ChildEntry.Resolved && !entry.isQualifiedNameChain) return true
+        }
+        return false
     }
 
     /**
@@ -864,7 +996,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             resolveAssignedValueFrame(children, WNodeType.BINARY_EXPRESSION, start, end, opIdx)?.let { return it }
         }
         val isElvis = opText == "?:"
+        val isLogical = opText == "&&" || opText == "||"
         val flat = if (opText == "..") "" else " "
+        if (!isRoot && !isLogical && !isElvis) {
+            return Doc.Concat(normalizeChildren(children, WNodeType.BINARY_EXPRESSION), start, end)
+        }
         val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = isElvis, flat = flat)
         return if (isRoot) wrapRoot(parts, start, end) else Doc.Concat(parts, start, end)
     }
@@ -1035,8 +1171,13 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                 continue
             }
             val entryDoc = resolveEntry(entry)
+            if (entry.type == WNodeType.EOL_COMMENT && interior.lastOrNull() !is Doc.Break) {
+                interior.add(Doc.Break(BreakKind.HARD, start = entryDoc.start, end = entryDoc.start))
+            }
             interior.add(entryDoc)
-            if (entry.type == WNodeType.COMMA && hasNonWsBetween(children, i + 1, rparIdx)) {
+            if (entry.type == WNodeType.EOL_COMMENT) {
+                interior.add(Doc.Break(BreakKind.HARD, start = entryDoc.end, end = entryDoc.end))
+            } else if (entry.type == WNodeType.COMMA && hasNonWsBetween(children, i + 1, rparIdx)) {
                 interior.add(wsBreakAt(children, i + 1, entryDoc.end, flat = " "))
             }
             i++
@@ -1056,7 +1197,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      */
     private fun trailingCommaIndex(children: List<ChildEntry>, fromIdx: Int, closeIdx: Int): Int? =
     (fromIdx until closeIdx).lastOrNull {
-        children[it].type == WNodeType.COMMA && !hasNonWsBetween(children, it + 1, closeIdx)
+        children[it].type == WNodeType.COMMA && !hasNonWsNonCommentBetween(children, it + 1, closeIdx)
     }
 
     /**
@@ -1076,6 +1217,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     private fun hasNonWsBetween(children: List<ChildEntry>, from: Int, until: Int): Boolean =
     (from until until).any { children[it].type != WNodeType.WHITE_SPACE }
+
+    private fun hasNonWsNonCommentBetween(children: List<ChildEntry>, from: Int, until: Int): Boolean =
+    (from until until).any { children[it].type != WNodeType.WHITE_SPACE && children[it].type !in COMMENT_TYPES }
 
     /**
      * A [WNodeType.FUN]'s or a [WNodeType.PRIMARY_CONSTRUCTOR]'s own parameter list wraps one
@@ -1109,7 +1253,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (hasComment) return passthroughParameterList(children, start, end)
 
         val threshold = style.multilineSignatureThreshold
+        val hasDefaultValue = paramIndices.size >= 2 &&
+            paramIndices.any { "= " in flatText((children[it] as ChildEntry.Resolved).doc) }
         val forceMultiline = (threshold != null && paramIndices.size >= threshold) ||
+            hasDefaultValue ||
             paramIndices.any { spansMultipleLines((children[it] as ChildEntry.Resolved).doc) }
         val breakKind = if (forceMultiline) BreakKind.HARD else BreakKind.SOFT
 
@@ -1224,24 +1371,32 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val commaIndices = entryIndices.zipWithNext().map { (a, b) ->
             (a + 1 until b).first { children[it].type == WNodeType.COMMA }
         }
-        val lead: Doc =
-            if (ctorWrapped) {
-                Doc.Text(" ", start, start)
-            } else {
-                Doc.Break(BreakKind.HARD, literal = "\n", start = start, end = start)
+
+        if (ctorWrapped) {
+            val body = ArrayList<Doc>()
+            body.add(Doc.Text(" ", start, start))
+            body.add(entryDocs[0])
+            for (i in 1 until entryDocs.size) {
+                val commaIdx = commaIndices[i - 1]
+                val commaDoc = resolveEntry(children[commaIdx])
+                body.add(commaDoc)
+                body.add(wsBreakAt(children, commaIdx + 1, commaDoc.end, flat = " ", kind = BreakKind.HARD))
+                body.add(entryDocs[i])
             }
+            return Doc.Indent(Doc.Concat(body, start, end))
+        }
 
         val body = ArrayList<Doc>()
-        body.add(lead)
+        body.add(Doc.Break(BreakKind.SOFT, flat = " ", start = start, end = start))
         body.add(entryDocs[0])
         for (i in 1 until entryDocs.size) {
             val commaIdx = commaIndices[i - 1]
             val commaDoc = resolveEntry(children[commaIdx])
             body.add(commaDoc)
-            body.add(wsBreakAt(children, commaIdx + 1, commaDoc.end, flat = " ", kind = BreakKind.HARD))
+            body.add(wsBreakAt(children, commaIdx + 1, commaDoc.end, flat = " "))
             body.add(entryDocs[i])
         }
-        return Doc.Indent(Doc.Concat(body, start, end))
+        return Doc.Group(Doc.Indent(Doc.Concat(body, start, end)))
     }
 
     /**
@@ -1549,6 +1704,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var ownsSuperTypeListLeadGap = false
         var hasLeadingAnnotation = false
         var reindentedRawString: Doc? = null
+        var isQualifiedNameChain = false
     }
 
     private sealed interface ChildEntry {
@@ -1560,6 +1716,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val hasLeadingAnnotation: Boolean = false,
             val hasLeadingComment: Boolean = false,
             val reindentedRawString: Doc? = null,
+            val isQualifiedNameChain: Boolean = false,
         ) : ChildEntry
 
         class Ws(val rawText: String, val start: Int) : ChildEntry {

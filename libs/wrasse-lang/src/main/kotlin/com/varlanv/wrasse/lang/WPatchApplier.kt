@@ -20,7 +20,7 @@ import kotlin.streams.asSequence
  * 3. Applies edits in descending offset order so earlier edits don't shift later offsets.
  * 4. Writes via temp file + atomic rename.
  *
- * Deletes each patch file after all its edits are applied.
+ * Patch files are kept after application — the hash guard skips already-fixed files on re-runs.
  */
 object WPatchApplier {
     private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
@@ -39,7 +39,6 @@ object WPatchApplier {
                 val filePath = Path.of(fileEdits.filePath)
                 results.add(applyToFile(filePath, fileEdits))
             }
-            Files.delete(patchFile)
         }
 
         return ApplyResult(results)

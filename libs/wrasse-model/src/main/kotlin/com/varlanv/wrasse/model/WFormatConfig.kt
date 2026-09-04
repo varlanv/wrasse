@@ -17,10 +17,10 @@ class WFormatConfig(val enabled: Boolean, val style: FormatStyle, val ruleConfig
  */
 class FormatStyle(
     val indentWidth: Int = 4,
-    val maxLineLength: Int = 140,
+    val maxLineLength: Int = 120,
     val trailingCommas: Boolean = true,
     val importLayout: ImportLayout = ImportLayout.ASCII,
-    val multilineSignatureThreshold: Int? = null,
+    val multilineSignatureThreshold: Int? = 3,
 )
 
 enum class ImportLayout {

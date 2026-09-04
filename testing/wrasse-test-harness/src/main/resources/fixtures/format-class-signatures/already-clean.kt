@@ -14,9 +14,7 @@ class Small(a: Int, b: Int)
 
 class Foo(a: Int) : Sup1
 
-class Baz(a: Int) :
-    Sup1,
-    Sup2
+class Baz(a: Int) : Sup1, Sup2
 
 class Qux(
     a: Int,

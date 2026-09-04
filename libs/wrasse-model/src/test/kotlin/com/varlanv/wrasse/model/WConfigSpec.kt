@@ -60,10 +60,10 @@ class WConfigSpec :
                 val config = buildConfig("""{"rules":{"no-semicolons":{"level":"error"}}}""")
                 config.format.enabled shouldBe false
                 config.format.style.indentWidth shouldBe 4
-                config.format.style.maxLineLength shouldBe 140
+                config.format.style.maxLineLength shouldBe 120
                 config.format.style.trailingCommas shouldBe true
                 config.format.style.importLayout shouldBe ImportLayout.ASCII
-                config.format.style.multilineSignatureThreshold shouldBe null
+                config.format.style.multilineSignatureThreshold shouldBe 3
                 config.format.ruleConfig.level shouldBe RuleLevel.OFF
                 config.format.ruleConfig.effectiveLevel shouldBe RuleLevel.OFF
             }
@@ -117,7 +117,7 @@ class WConfigSpec :
                 )
                 config.format.enabled shouldBe true
                 config.format.style.indentWidth shouldBe 2
-                config.format.style.maxLineLength shouldBe 140
+                config.format.style.maxLineLength shouldBe 120
             }
 
             should("inherit the base's format block when the child does not set one") {
