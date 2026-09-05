@@ -24,6 +24,7 @@ import com.varlanv.wrasse.rules.RedundantToStringInTemplateRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import com.varlanv.wrasse.rules.UseLetRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
+import org.jetbrains.kotlin.KtInMemoryTextSourceFile
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
@@ -32,8 +33,7 @@ import org.jetbrains.kotlin.com.intellij.openapi.Disposable
 import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
 import org.jetbrains.kotlin.config.CompilerConfiguration
-import org.jetbrains.kotlin.psi.KtPsiFactory
-import org.jetbrains.kotlin.toKtPsiSourceElement
+import org.jetbrains.kotlin.parsing.KotlinLightParser
 import org.openjdk.jmh.annotations.Level
 import org.openjdk.jmh.annotations.Scope
 import org.openjdk.jmh.annotations.Setup
@@ -59,23 +59,20 @@ open class WalkBenchmarkState {
             CompilerConfiguration(),
             EnvironmentConfigFiles.JVM_CONFIG_FILES,
         )
-        val psiFactory = KtPsiFactory(environment.project)
         val generated = BenchmarkCorpusGenerator.generate()
         println(
             "wrasse-benchmarks: corpus version=${BenchmarkCorpusGenerator.CORPUS_VERSION} " +
-                "files=${generated.fileCount} totalBytes=${generated.totalBytes}",
+                "files=${generated.fileCount} totalBytes=${generated.totalBytes} tree=light project=${environment.project.name}",
         )
         corpus = generated.files.map { file ->
-            val ktFile = psiFactory.createFile(file.fileName, file.content)
-            val psiSource = ktFile.toKtPsiSourceElement()
+            val tree = KotlinLightParser.buildLightTree(
+                file.content,
+                KtInMemoryTextSourceFile(file.fileName, file.fileName, file.content),
+            ) { _, _, message -> error("benchmark corpus does not parse: ${file.fileName}: $message") }
+            val root = tree.root
             CorpusSource(
                 fileName = file.fileName,
-                lightSource = KtLightSourceElement(
-                    psiSource.lighterASTNode,
-                    psiSource.startOffset,
-                    psiSource.endOffset,
-                    psiSource.treeStructure,
-                ),
+                lightSource = KtLightSourceElement(root, root.startOffset, root.endOffset, tree),
             )
         }
         uninitializedRules = listOf(NoSemicolonsRule(), TrailingNewlineRule())
