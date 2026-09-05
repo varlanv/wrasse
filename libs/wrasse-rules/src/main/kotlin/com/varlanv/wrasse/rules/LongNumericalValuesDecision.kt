@@ -33,12 +33,11 @@ object LongNumericalValuesDecision {
         if (text.contains('e') || text.contains('E')) return null
         val dotIdx = text.indexOf('.')
         if (dotIdx < 0) return null
-        val suffix =
-            when {
-                text.endsWith("f") -> "f"
-                text.endsWith("F") -> "F"
-                else -> ""
-            }
+        val suffix = when {
+            text.endsWith("f") -> "f"
+            text.endsWith("F") -> "F"
+            else -> ""
+        }
         val realPart = text.substring(0, dotIdx)
         val fractionalPart = text.substring(dotIdx + 1, text.length - suffix.length)
         if (realPart.length <= MAX_LENGTH && fractionalPart.length <= MAX_LENGTH) return null

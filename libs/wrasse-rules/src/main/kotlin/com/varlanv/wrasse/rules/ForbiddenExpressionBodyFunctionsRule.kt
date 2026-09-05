@@ -10,6 +10,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.FUN)
+
 /**
  * A function declared with an expression body (`fun f(): T = expr`) is reported at its `=`.
  * Autofixed into a block body (see [ForbiddenExpressionBodyDecision]) only when the return type
@@ -27,7 +29,7 @@ class ForbiddenExpressionBodyFunctionsRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.FUN)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

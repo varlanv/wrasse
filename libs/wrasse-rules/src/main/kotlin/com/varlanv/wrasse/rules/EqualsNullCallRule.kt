@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.CALL_EXPRESSION)
+
 /**
  * A call whose callee is spelled `equals` with a single `null` argument (`x.equals(null)` or bare
  * `equals(null)`) is reported (see [EqualsNullCallDecision]) at the call expression's own span.
@@ -22,7 +24,7 @@ class EqualsNullCallRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CALL_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

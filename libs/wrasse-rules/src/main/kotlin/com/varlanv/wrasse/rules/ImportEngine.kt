@@ -167,12 +167,11 @@ class ImportEngine : WUninitializedRuleGroup {
                 }
 
                 for (p in pending) {
-                    val rule =
-                        when (p.ruleId) {
-                            NO_UNUSED_IMPORTS_ID -> unusedRule
-                            NO_WILDCARD_IMPORTS_ID -> wildcardRule
-                            else -> unnecessaryFqnRule
-                        }
+                    val rule = when (p.ruleId) {
+                        NO_UNUSED_IMPORTS_ID -> unusedRule
+                        NO_WILDCARD_IMPORTS_ID -> wildcardRule
+                        else -> unnecessaryFqnRule
+                    }
                     if (rule == null) continue
                     reporter.report(
                         p.ruleId,
@@ -416,12 +415,11 @@ class ImportEngine : WUninitializedRuleGroup {
                 taken: List<PendingImportReport>,
                 newFqns: List<String>,
                 anchorsByFqn: Map<String, PendingImportReport>,
-            ): PendingImportReport =
-                if (newFqns.isNotEmpty()) {
-                    anchorsByFqn.getValue(newFqns.first())
-                } else {
-                    taken.minWith(compareBy({ it.reportStart }, { it.reportEnd }))
-                }
+            ): PendingImportReport = if (newFqns.isNotEmpty()) {
+                anchorsByFqn.getValue(newFqns.first())
+            } else {
+                taken.minWith(compareBy({ it.reportStart }, { it.reportEnd }))
+            }
 
             /**
              * Used whenever a new import can't ride `import-ordering`'s composed rewrite (ordering

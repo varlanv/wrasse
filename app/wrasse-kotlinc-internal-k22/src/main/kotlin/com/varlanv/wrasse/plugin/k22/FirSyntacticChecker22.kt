@@ -24,12 +24,11 @@ class FirSyntacticChecker22(private val plugin: WrassePlugin) : FirFileChecker(M
         ) { collectQualifiedUsages, collectCallSites ->
             ResolvedUsageCollector.collect(declaration, collectQualifiedUsages, collectCallSites)
         }) {
-            val diagnostic =
-                when (violation.level) {
-                    RuleLevel.ERROR -> WrasseErrors22Container.WRASSE_ERROR
-                    RuleLevel.WARN -> WrasseErrors22Container.WRASSE_WARNING
-                    RuleLevel.OFF -> continue
-                }
+            val diagnostic = when (violation.level) {
+                RuleLevel.ERROR -> WrasseErrors22Container.WRASSE_ERROR
+                RuleLevel.WARN -> WrasseErrors22Container.WRASSE_WARNING
+                RuleLevel.OFF -> continue
+            }
             val violationSource = KtLightSourceElement(
                 source.lighterASTNode,
                 violation.startOffset,

@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.THROW)
+
 /**
  * A `throw` constructing one of a fixed set of overly-generic exception types is reported (see
  * [TooGenericExceptionThrownDecision]) at the whole `throw` expression's own span. The thrown
@@ -23,7 +25,7 @@ class TooGenericExceptionThrownRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.THROW)
+            override val targetTypes = TARGET_TYPES
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 val body = ctx.sourceText

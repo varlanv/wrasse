@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.PREFIX_EXPRESSION)
+
 /** See [DoubleNegativeDecision]. Reports once, at the outermost `!` of a chain. */
 class DoubleNegativeRule : WUninitializedRule {
     override val id: String = "double-negative"
@@ -16,7 +18,7 @@ class DoubleNegativeRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.PREFIX_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 if (ctx.sourceText[ctx.startOffset] != '!') return false

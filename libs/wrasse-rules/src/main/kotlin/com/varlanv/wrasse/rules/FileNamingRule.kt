@@ -8,6 +8,15 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(
+    WNodeType.FILE,
+    WNodeType.CLASS,
+    WNodeType.OBJECT_DECLARATION,
+    WNodeType.FUN,
+    WNodeType.PROPERTY,
+    WNodeType.TYPEALIAS,
+)
+
 /** A file's own name must match its sole non-private top-level class/object, or be PascalCase (see [FileNamingDecision]). */
 class FileNamingRule : WUninitializedRule {
     override val id: String = "filename"
@@ -17,14 +26,7 @@ class FileNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.FILE,
-                WNodeType.CLASS,
-                WNodeType.OBJECT_DECLARATION,
-                WNodeType.FUN,
-                WNodeType.PROPERTY,
-                WNodeType.TYPEALIAS,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val topLevelClassLikeNames = mutableListOf<String>()
             private var otherTopLevelDeclarations = 0

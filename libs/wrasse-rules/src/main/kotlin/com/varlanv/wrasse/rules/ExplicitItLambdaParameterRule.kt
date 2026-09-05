@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.FUNCTION_LITERAL, WNodeType.VALUE_PARAMETER)
+
 /**
  * A lambda declaring its own single value parameter explicitly as `it` (`list.map { it -> it.x }`)
  * has that declaration removed, leaving Kotlin's implicit `it` to name the same slot.
@@ -30,7 +32,7 @@ class ExplicitItLambdaParameterRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.FUNCTION_LITERAL, WNodeType.VALUE_PARAMETER)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingLiterals = mutableListOf<PendingLiteral>()
 

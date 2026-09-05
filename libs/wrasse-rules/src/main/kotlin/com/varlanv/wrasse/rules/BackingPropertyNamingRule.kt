@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.CLASS_BODY, WNodeType.PROPERTY, WNodeType.FUN)
+
 /**
  * Checks a leading-underscore property against its direct class-body siblings (see
  * [BackingPropertyNamingDecision]). Only member properties are targets — a top-level or local
@@ -23,7 +25,7 @@ class BackingPropertyNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CLASS_BODY, WNodeType.PROPERTY, WNodeType.FUN)
+            override val targetTypes = TARGET_TYPES
 
             private val classBodyStack = mutableListOf<MutableList<MemberInfo>>()
 
@@ -65,13 +67,12 @@ class BackingPropertyNamingRule : WUninitializedRule {
                     !WordScan.containsWord(modifierText, "protected") &&
                     !WordScan.containsWord(modifierText, "internal")
 
-                val emptyParamList =
-                    if (isProperty) {
-                        false
-                    } else {
-                        val paramListIdx = children.firstChildOfType(WNodeType.VALUE_PARAMETER_LIST)
-                        paramListIdx >= 0 && WordScan.isEmptyParens(children.textSpan(paramListIdx, ctx.sourceText))
-                    }
+                val emptyParamList = if (isProperty) {
+                    false
+                } else {
+                    val paramListIdx = children.firstChildOfType(WNodeType.VALUE_PARAMETER_LIST)
+                    paramListIdx >= 0 && WordScan.isEmptyParens(children.textSpan(paramListIdx, ctx.sourceText))
+                }
 
                 classBodyStack
                     .last()

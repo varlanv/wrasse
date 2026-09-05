@@ -1,12 +1,15 @@
 package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.model.ChildBuffer
+import com.varlanv.wrasse.model.ChildLeafHandler
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
+
+private val TARGET_TYPES = setOf(WNodeType.CALL_EXPRESSION, WNodeType.FUN, WNodeType.REFERENCE_EXPRESSION)
 
 /**
  * A `runBlocking { }` call (a trailing-lambda `CALL_EXPRESSION` whose own callee is the bare name
@@ -23,10 +26,10 @@ class SyncInAsyncRule : WUninitializedRule {
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
-        return object : WBufferedNodeRule {
+        return object : WBufferedNodeRule, ChildLeafHandler {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CALL_EXPRESSION, WNodeType.FUN, WNodeType.REFERENCE_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private val callFrames = mutableListOf<CallFrame>()
             private val funSuspendFrames = mutableListOf<Boolean>()

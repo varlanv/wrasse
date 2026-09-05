@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.INTEGER_LITERAL, WNodeType.FLOAT_LITERAL)
+
 /**
  * An integer or float literal whose digit run is long enough to be hard to scan at a glance gains
  * underscore separators (`1000000` becomes `1_000_000`). See [LongNumericalValuesDecision] for the
@@ -21,7 +23,7 @@ class LongNumericalValuesRule : WUninitializedRule {
         return object : WLeafRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.INTEGER_LITERAL, WNodeType.FLOAT_LITERAL)
+            override val targetTypes = TARGET_TYPES
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val text = ctx.leafString() ?: return

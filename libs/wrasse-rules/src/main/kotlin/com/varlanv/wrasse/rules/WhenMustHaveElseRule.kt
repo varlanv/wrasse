@@ -9,6 +9,13 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(
+    WNodeType.WHEN,
+    WNodeType.WHEN_ENTRY,
+    WNodeType.WHEN_CONDITION_EXPRESSION,
+    WNodeType.BLOCK,
+)
+
 /**
  * A statement-position `when` missing an `else` branch, whose own entries are not entirely
  * enum-entry-shaped, is reported (see [WhenMustHaveElseDecision]) at its own span. A stack of open
@@ -36,12 +43,7 @@ class WhenMustHaveElseRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.WHEN,
-                WNodeType.WHEN_ENTRY,
-                WNodeType.WHEN_CONDITION_EXPRESSION,
-                WNodeType.BLOCK,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val whenFrames = mutableListOf<WhenFrame>()
             private val candidates = mutableListOf<WhenCandidate>()

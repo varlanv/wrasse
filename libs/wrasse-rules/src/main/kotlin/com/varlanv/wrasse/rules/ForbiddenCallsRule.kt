@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WRuleOptionType
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.CALL_EXPRESSION)
+
 /**
  * Reports every call, written with call syntax, whose resolved callee matches one of the
  * `calls` option's patterns (see [ForbiddenCallsDecision] for the pattern forms), unless the
@@ -36,7 +38,7 @@ class ForbiddenCallsRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CALL_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private var messagesByCallEnd: Map<Int, String> = emptyMap()
 

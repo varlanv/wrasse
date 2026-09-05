@@ -9,6 +9,14 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(
+    WNodeType.DOT_QUALIFIED_EXPRESSION,
+    WNodeType.CALL_EXPRESSION,
+    WNodeType.VALUE_ARGUMENT_LIST,
+    WNodeType.BINARY_EXPRESSION,
+    WNodeType.PARENTHESIZED,
+)
+
 /**
  * Two conventional range rewrites, fused behind one id since both are the same "prefer the
  * operator form" preference: a qualified `rangeTo` call becomes `..` (see
@@ -29,13 +37,7 @@ class RangeConventionalRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.DOT_QUALIFIED_EXPRESSION,
-                WNodeType.CALL_EXPRESSION,
-                WNodeType.VALUE_ARGUMENT_LIST,
-                WNodeType.BINARY_EXPRESSION,
-                WNodeType.PARENTHESIZED,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val singleArgumentLists = mutableMapOf<Int, ArgSpan>()
             private val rangeToCalls = mutableMapOf<Int, ArgSpan>()
@@ -192,12 +194,11 @@ class RangeConventionalRule : WUninitializedRule {
                 val rightStart = children.startOffset(rightIdx)
                 val rightType = children.type(rightIdx)
                 val parenUnwrap = if (rightType == WNodeType.PARENTHESIZED) parenUnwraps[rightStart] else null
-                val candidateStart =
-                    when (rightType) {
-                        WNodeType.BINARY_EXPRESSION -> rightStart
-                        WNodeType.PARENTHESIZED -> parenUnwrap?.innerStart ?: return
-                        else -> return
-                    }
+                val candidateStart = when (rightType) {
+                    WNodeType.BINARY_EXPRESSION -> rightStart
+                    WNodeType.PARENTHESIZED -> parenUnwrap?.innerStart ?: return
+                    else -> return
+                }
                 val minusOne = minusOneExpressions[candidateStart] ?: return
 
                 val hasLeadingSpace = opIdx > 0 && children.type(opIdx - 1) == WNodeType.WHITE_SPACE

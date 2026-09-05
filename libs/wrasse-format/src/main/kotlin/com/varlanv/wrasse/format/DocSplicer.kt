@@ -122,7 +122,7 @@ object DocSplicer {
                 start,
                 end,
                 after,
-            )?.let { Doc.Group(it, doc.kind, doc.indentWhenBroken, doc.forceBreak) }
+            )?.let { Doc.Group(it, doc.kind, doc.indentWhenBroken, doc.forceBreak, doc.singleArgument) }
             else -> null
         }
     }
@@ -173,13 +173,12 @@ object DocSplicer {
 
         var emitted = false
 
-        fun emitReplacementOnce(): Doc? =
-            if (!emitted) {
-                emitted = true
-                replacementDoc(edit)
-            } else {
-                null
-            }
+        fun emitReplacementOnce(): Doc? = if (!emitted) {
+            emitted = true
+            replacementDoc(edit)
+        } else {
+            null
+        }
 
         fun splitText(node: Doc.Text): Doc {
             val len = node.value.length
@@ -227,12 +226,11 @@ object DocSplicer {
 
         fun rec(node: Doc): Doc? {
             val isInsertion = edit.startOffset == edit.endOffset
-            val touches =
-                if (isInsertion) {
-                    node.start <= edit.startOffset && edit.startOffset < node.end
-                } else {
-                    edit.startOffset < node.end && node.start < edit.endOffset
-                }
+            val touches = if (isInsertion) {
+                node.start <= edit.startOffset && edit.startOffset < node.end
+            } else {
+                edit.startOffset < node.end && node.start < edit.endOffset
+            }
             if (!touches) return node
 
             val fullyCovered = !isInsertion && edit.startOffset <= node.start && node.end <= edit.endOffset
@@ -249,7 +247,7 @@ object DocSplicer {
                     if (node.kind == GroupKind.FLUID && lostLeadingBreak(node.body, body)) {
                         Doc.Group(body)
                     } else {
-                        Doc.Group(body, node.kind, node.indentWhenBroken, node.forceBreak)
+                        Doc.Group(body, node.kind, node.indentWhenBroken, node.forceBreak, node.singleArgument)
                     }
                 }
                 is Doc.Concat -> {

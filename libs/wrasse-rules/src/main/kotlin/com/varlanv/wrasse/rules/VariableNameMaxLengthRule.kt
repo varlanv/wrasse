@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.PROPERTY)
+
 /**
  * See [VariableNameMaxLengthDecision]. Targets every `PROPERTY` (top-level, member, object,
  * local — the same uniform scope the upstream rule this id derives from uses), a different axis
@@ -21,7 +23,7 @@ class VariableNameMaxLengthRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.PROPERTY)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.SUPER_TYPE_LIST)
+
 /**
  * A supertype-list entry whose own source span is the literal text `"Any()"` or `"Object()"` is a
  * redundant supertype. Report-only.
@@ -31,7 +33,7 @@ class UnnecessaryInheritanceRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.SUPER_TYPE_LIST)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

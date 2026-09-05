@@ -36,8 +36,14 @@ Build/test via the Gradle wrapper only (`./gradlew`, never a bare `gradle`).
 
 - `-Prepublish` on `wrasseLint`/`wrasseFix` forces `publishToMavenLocal` first — needed after changing
   rule/plugin code before wrasse can lint itself with the new build.
+- `wrasseFix` first runs `wrasseFormatRequest`, which drops a `format-request` file into every
+  compilation's `build/wrasse/<compilation>/` (D25); the following check compile then keeps every
+  autofixable diagnostic quiet and still emits the patch. The file is consumed by that compile,
+  ignored after five minutes, and removed by `wrasseApply`. `./gradlew wrasseFix -PwrasseDebugPerformance`
+  adds `debugPerformance=true` to it: the compile then records per-phase and per-rule timings into
+  `build/wrasse/<compilation>/wrasse-perf.txt` and `wrasseApply` prints them together with its own.
 - Patch emission rides check mode (D22): whenever `-PwrasseCheck` is set, every compile task emits its
-  own patch under `build/wrasse/<compilation>/wrasse-fixes.txt` (merge-on-write, self-cleaning),
+  own patch under `build/wrasse/<compilation>/patch/wrasse-fixes.txt` (merge-on-write, self-cleaning),
   regardless of whether `wrasseFix` is the task being run — `wrasseFix` is just that same compile
   (identical args to `wrasseLint`, so Gradle sees it as UP-TO-DATE if check already ran) followed by
   `wrasseApply`. Editing `wrasse.json` does **not** invalidate the compile tasks (D1's cost), so after
@@ -117,7 +123,8 @@ built tree of node objects:
 - **`WLeafRule`** — fires on leaf tokens whose type is in `targetTypes`, ordinal-indexed array
   dispatch (O(1)). The common case (~most rules): comment-spacing, naming, nullable-type-spacing.
 - **`WNodeRule`** — enter/exit on interior nodes by `targetTypes`; `enterNode` returning `true` opts
-  into `onChildLeaf` callbacks for every descendant leaf plus a matching `exitNode`.
+  into staying active until the matching `exitNode`; a node rule that also implements `ChildLeafHandler`
+  receives every descendant leaf of an entered node, any other node rule is never called per leaf.
   `WBufferedNodeRule` extends it to auto-buffer direct children into a `ChildBuffer` for exit-time
   inspection (wrapping rules, argument lists).
 - **`WStreamRule`** — receives every leaf event unfiltered, plus enter/exit node boundaries. Most
@@ -134,7 +141,7 @@ reporter reads `rule.config.effectiveLevel` to pick error vs. warning. Rules tha
 
 `WrassePlugin.checkFile` collects `WEdit`s from the walk and, whenever `fixOutputDir` is set (i.e.
 whenever the plugin is active under `-PwrasseCheck` — there is no separate fix flag; D22), merges
-them into that compilation's own patch under `build/wrasse/<compilation>/wrasse-fixes.txt`
+them into that compilation's own patch under `build/wrasse/<compilation>/patch/wrasse-fixes.txt`
 (`FileEdits` = file + SHA-256 source hash + edits). On the first `checkFile` of a compilation the
 existing patch is loaded into memory; each subsequent `checkFile` upserts or removes (on zero edits,
 self-cleaning) that file's entry and atomically rewrites the whole patch from the in-memory map
@@ -171,6 +178,10 @@ centralizes: Kotlin/Java toolchain + target version wiring (from `gradle/libs.ve
 `wrasseApply` task registration, and wiring the `wrasseCheck` Gradle property into
 `kotlinCompilerPluginClasspath` plus a distinct `fixOutputDir` compiler free-arg per compile task
 (`build/wrasse/main` for `compileKotlin`, `build/wrasse/test` for `compileTestKotlin`, pattern-matched
-off the `compile(.*)Kotlin` task name so future source sets get their own patch directory for free).
+off the `compile(.*)Kotlin` task name so future source sets get their own patch directory for free),
+and declaring `<fixOutputDir>/patch` as an output of that compile task (`outputs.dir`, never
+`outputs.file` — the Kotlin Gradle plugin recreates declared outputs as directories) so a build-cache
+hit restores the journal too; the request and perf files stay in `fixOutputDir` itself, outside the
+declared output.
 Don't duplicate this logic in a module's own `build.gradle.kts` — extend the convention plugin
 instead.

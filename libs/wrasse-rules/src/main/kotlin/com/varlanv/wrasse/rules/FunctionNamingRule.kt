@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.IMPORT_DIRECTIVE, WNodeType.FUN)
+
 /**
  * Function names must be lowerCamelCase (report-only, see [FunctionNamingDecision]).
  *
@@ -25,7 +27,7 @@ class FunctionNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.IMPORT_DIRECTIVE, WNodeType.FUN)
+            override val targetTypes = TARGET_TYPES
 
             private var isTestLibraryImported = false
 

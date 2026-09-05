@@ -13,11 +13,14 @@ import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.VALUE_ARGUMENT_LIST)
+
 /**
  * Reports a parenthesized argument list that mixes named and positional arguments and, when the
  * call resolved to a callee with stable parameter names outside `excluded-packages`, names the
  * positional ones (the same edits `named-arguments` would emit, so both rules on together agree).
- * A trailing lambda is outside the list and never counts. See [MixedArgumentsDecision].
+ * A trailing lambda is outside the list and never counts; neither does an element of a vararg
+ * parameter, which cannot be named. See [MixedArgumentsDecision].
  */
 class MixedArgumentsRule : WUninitializedRule {
     override val id: String = "no-mixed-named-positional-arguments"
@@ -38,7 +41,7 @@ class MixedArgumentsRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.VALUE_ARGUMENT_LIST)
+            override val targetTypes = TARGET_TYPES
 
             private var sitesByCallEnd: Map<Int, WCallSite> = emptyMap()
 
@@ -53,6 +56,7 @@ class MixedArgumentsRule : WUninitializedRule {
                 children: ChildBuffer,
                 reporter: WReporter,
             ) {
+                val site = resolvedSite(ctx)
                 var named = 0
                 var positional = 0
                 val written = ArrayList<WrittenArgument>(children.size)
@@ -61,18 +65,25 @@ class MixedArgumentsRule : WUninitializedRule {
                     val start = children.startOffset(i)
                     val end = children.endOffset(i)
                     val isNamed = MixedArgumentsDecision.isNamedArgument(ctx.sourceText, start, end)
-                    if (isNamed) named++ else positional++
+                    if (isNamed) {
+                        named++
+                    } else if (!MixedArgumentsDecision.isVarargElement(site, start, end)) {
+                        positional++
+                    }
                     written.add(WrittenArgument(start, end, isNamed))
                 }
                 if (!MixedArgumentsDecision.mixesNamedAndPositional(named, positional)) return
-                reporter.report(ruleId, MESSAGE, ctx.startOffset, ctx.endOffset, this, edits = fixEdits(ctx, written))
+                reporter.report(ruleId, MESSAGE, ctx.startOffset, ctx.endOffset, this, edits = fixEdits(site, written))
             }
 
-            private fun fixEdits(ctx: WContext, written: List<WrittenArgument>): List<WEdit> {
+            private fun resolvedSite(ctx: WContext): WCallSite? {
                 val ancestors = ctx.ancestors
-                if (ancestors.isEmpty || ancestors.peekType() != WNodeType.CALL_EXPRESSION) return emptyList()
-                val site = sitesByCallEnd[ancestors.peekEndOffset()] ?: return emptyList()
-                if (NamedArgumentsDecision.isExcludedCallee(site, excludedPackages)) return emptyList()
+                if (ancestors.isEmpty || ancestors.peekType() != WNodeType.CALL_EXPRESSION) return null
+                return sitesByCallEnd[ancestors.peekEndOffset()]
+            }
+
+            private fun fixEdits(site: WCallSite?, written: List<WrittenArgument>): List<WEdit> {
+                if (site == null || NamedArgumentsDecision.isExcludedCallee(site, excludedPackages)) return emptyList()
                 return NamedArgumentsDecision.nameEdits(site, written)
             }
         }

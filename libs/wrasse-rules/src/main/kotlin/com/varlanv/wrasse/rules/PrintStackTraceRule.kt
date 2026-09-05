@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST, WNodeType.DOT_QUALIFIED_EXPRESSION)
+
 /**
  * `Thread.dumpStack()` (reported at the whole call) and a caught exception's own
  * `<param>.printStackTrace()` (reported at the receiver's own name) are both reported (see
@@ -23,11 +25,7 @@ class PrintStackTraceRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.CATCH,
-                WNodeType.VALUE_PARAMETER_LIST,
-                WNodeType.DOT_QUALIFIED_EXPRESSION,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val pendingCatchNames = mutableListOf<String?>()
 

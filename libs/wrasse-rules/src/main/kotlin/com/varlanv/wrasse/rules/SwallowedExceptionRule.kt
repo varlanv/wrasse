@@ -1,11 +1,14 @@
 package com.varlanv.wrasse.rules
 
+import com.varlanv.wrasse.model.ChildLeafHandler
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeRule
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
+
+private val TARGET_TYPES = setOf(WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST)
 
 /**
  * A caught exception never referenced anywhere in its own catch body is reported (see
@@ -20,10 +23,10 @@ class SwallowedExceptionRule : WUninitializedRule {
 
     override fun initRule(config: WrasseRuleConfig): WNodeRule {
         val ruleId = id
-        return object : WNodeRule {
+        return object : WNodeRule, ChildLeafHandler {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingCatches = mutableListOf<PendingCatch>()
 

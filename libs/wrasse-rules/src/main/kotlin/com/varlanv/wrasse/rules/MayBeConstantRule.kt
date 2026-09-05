@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.PROPERTY)
+
 /**
  * A top-level or direct object/companion-member `val` whose own initializer is directly a literal
  * constant is reported (see [MayBeConstantDecision]) at its own name's span. Entirely stateless:
@@ -25,7 +27,7 @@ class MayBeConstantRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.PROPERTY)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,
@@ -51,12 +53,11 @@ class MayBeConstantRule : WUninitializedRule {
                 val hasNonJvmFieldAnnotation = hasNonJvmFieldAnnotation(modifierText)
 
                 val nameIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
-                val name =
-                    if (nameIdx < 0) {
-                        "<anonymous>"
-                    } else {
-                        IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
-                    }
+                val name = if (nameIdx < 0) {
+                    "<anonymous>"
+                } else {
+                    IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
+                }
 
                 val message =
                     MayBeConstantDecision.decide(

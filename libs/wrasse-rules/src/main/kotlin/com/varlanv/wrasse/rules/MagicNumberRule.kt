@@ -58,10 +58,9 @@ class MagicNumberRule : WUninitializedRule {
                 when (ctx.type) {
                     WNodeType.PROPERTY -> propertyDepth--
                     WNodeType.VALUE_PARAMETER -> parameterDefaultDepth--
-                    WNodeType.VALUE_ARGUMENT ->
-                        if (namedArgumentFrames.isNotEmpty()) {
-                            namedArgumentFrames.removeAt(namedArgumentFrames.size - 1)
-                        }
+                    WNodeType.VALUE_ARGUMENT -> if (namedArgumentFrames.isNotEmpty()) {
+                        namedArgumentFrames.removeAt(namedArgumentFrames.size - 1)
+                    }
 
                     WNodeType.FUN -> if (funFrames.isNotEmpty()) funFrames.removeAt(funFrames.size - 1)
                     else -> {}
@@ -70,17 +69,16 @@ class MagicNumberRule : WUninitializedRule {
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 when (ctx.type) {
-                    WNodeType.EQ ->
-                        if (ctx.ancestors.peekType() == WNodeType.VALUE_ARGUMENT && namedArgumentFrames.isNotEmpty()) {
-                            namedArgumentFrames[namedArgumentFrames.size - 1] = true
-                        }
+                    WNodeType.EQ -> if (ctx.ancestors.peekType() == WNodeType.VALUE_ARGUMENT &&
+                        namedArgumentFrames.isNotEmpty()) {
+                        namedArgumentFrames[namedArgumentFrames.size - 1] = true
+                    }
 
                     WNodeType.KW_OVERRIDE ->
                         if (isOwnFunModifier(ctx)) funFrames.lastOrNull()?.let { it.hasOverride = true }
-                    WNodeType.IDENTIFIER ->
-                        if (ctx.ancestors.peekType() == WNodeType.FUN) {
-                            funFrames.lastOrNull()?.let { it.name = ctx.leafString() }
-                        }
+                    WNodeType.IDENTIFIER -> if (ctx.ancestors.peekType() == WNodeType.FUN) {
+                        funFrames.lastOrNull()?.let { it.name = ctx.leafString() }
+                    }
 
                     else -> {}
                 }

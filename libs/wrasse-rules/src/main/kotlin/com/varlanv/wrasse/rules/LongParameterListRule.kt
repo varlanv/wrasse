@@ -8,6 +8,15 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(
+    WNodeType.CLASS,
+    WNodeType.MODIFIER_LIST,
+    WNodeType.FUN,
+    WNodeType.PRIMARY_CONSTRUCTOR,
+    WNodeType.SECONDARY_CONSTRUCTOR,
+    WNodeType.VALUE_PARAMETER_LIST,
+)
+
 /**
  * Reports a function, primary constructor, or secondary constructor with too many parameters
  * (see [LongParameterListDecision]). `CLASS`/`MODIFIER_LIST` are tracked only to answer "is the
@@ -23,14 +32,7 @@ class LongParameterListRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.CLASS,
-                WNodeType.MODIFIER_LIST,
-                WNodeType.FUN,
-                WNodeType.PRIMARY_CONSTRUCTOR,
-                WNodeType.SECONDARY_CONSTRUCTOR,
-                WNodeType.VALUE_PARAMETER_LIST,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val classes = mutableListOf<PendingClass>()
             private val owners = mutableListOf<PendingOwner>()
@@ -97,12 +99,11 @@ class LongParameterListRule : WUninitializedRule {
             ) {
                 val parent = ctx.ancestors.peekType()
                 val owner = owners.lastOrNull() ?: return
-                val expectedType =
-                    when (owner.kind) {
-                        ParameterListOwner.FUNCTION -> WNodeType.FUN
-                        ParameterListOwner.PRIMARY_CONSTRUCTOR -> WNodeType.PRIMARY_CONSTRUCTOR
-                        ParameterListOwner.SECONDARY_CONSTRUCTOR -> WNodeType.SECONDARY_CONSTRUCTOR
-                    }
+                val expectedType = when (owner.kind) {
+                    ParameterListOwner.FUNCTION -> WNodeType.FUN
+                    ParameterListOwner.PRIMARY_CONSTRUCTOR -> WNodeType.PRIMARY_CONSTRUCTOR
+                    ParameterListOwner.SECONDARY_CONSTRUCTOR -> WNodeType.SECONDARY_CONSTRUCTOR
+                }
                 if (parent != expectedType) return
                 var count = 0
                 for (i in 0 until children.size) {

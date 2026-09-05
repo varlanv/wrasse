@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.BINARY_EXPRESSION, WNodeType.PREFIX_EXPRESSION)
+
 /**
  * A `&&`/`||` [WNodeType.BINARY_EXPRESSION] anywhere inside an `if`/`while`/`do-while` own
  * `CONDITION` — matching the upstream rule this derives from's own scope exactly — whose own two
@@ -26,7 +28,7 @@ class BooleanExpressionsRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BINARY_EXPRESSION, WNodeType.PREFIX_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private val negationFacts = mutableMapOf<Long, String>()
 

@@ -47,12 +47,11 @@ object ImportInsertionDecision {
         }
         return bySeam.map { (offset, fqns) ->
             val sorted = fqns.sorted()
-            val text =
-                if (offset == listEnd) {
-                    "\n" + sorted.joinToString("\n") { "import $it" }
-                } else {
-                    sorted.joinToString("") { "import $it\n" }
-                }
+            val text = if (offset == listEnd) {
+                "\n" + sorted.joinToString("\n") { "import $it" }
+            } else {
+                sorted.joinToString("") { "import $it\n" }
+            }
             ImportInsertionGroup(WEdit(offset, offset, text), sorted)
         }
     }

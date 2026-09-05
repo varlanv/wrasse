@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.WHEN, WNodeType.WHEN_ENTRY)
+
 /**
  * Wraps a bare (unbraced) `when`-entry body in braces whenever the enclosing `when` has at least
  * one entry with a block body, or at least one entry whose body doesn't start on the same line as
@@ -47,7 +49,7 @@ class WhenEntryBracingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.WHEN, WNodeType.WHEN_ENTRY)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingWhens = mutableListOf<PendingWhen>()
 
@@ -75,12 +77,11 @@ class WhenEntryBracingRule : WUninitializedRule {
                 )) {
                     return
                 }
-                val baseIndentColumn =
-                    if (config.formatEnabled) {
-                        0
-                    } else {
-                        BraceInsertion.physicalLineIndentColumn(ctx.sourceText, ctx.startOffset) + INDENT_WIDTH
-                    }
+                val baseIndentColumn = if (config.formatEnabled) {
+                    0
+                } else {
+                    BraceInsertion.physicalLineIndentColumn(ctx.sourceText, ctx.startOffset) + INDENT_WIDTH
+                }
                 var siblingIdx = 0
                 for (candidate in pending.candidates) {
                     while (siblingIdx <

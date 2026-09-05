@@ -10,6 +10,8 @@ import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.FUN)
+
 /**
  * Fuses `function-name-max-length`/`function-name-min-length` into one decision-maker: both
  * inspect the exact same `FUN` name identifier and its `override`/`operator` modifiers, so one
@@ -26,7 +28,7 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
         return object : WBufferedNodeRule {
             override val id = ENGINE_ID
             override val config = configs.values.first()
-            override val targetTypes = setOf(WNodeType.FUN)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

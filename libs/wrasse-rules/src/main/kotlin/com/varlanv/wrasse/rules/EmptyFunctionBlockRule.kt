@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.FUN)
+
 /**
  * Reports a function whose block body ([EmptyBlockCheck]) is empty. Exempt: an `open` function
  * (a subclass may still rely on the no-op default), and any member function declared directly
@@ -22,7 +24,7 @@ class EmptyFunctionBlockRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.FUN)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

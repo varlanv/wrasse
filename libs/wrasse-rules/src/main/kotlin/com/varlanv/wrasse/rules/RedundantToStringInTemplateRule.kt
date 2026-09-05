@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION)
+
 /**
  * A `${receiver.toString()}` string-template entry whose entire content is one dot-qualified
  * `.toString()` call is reported (see [RedundantToStringInTemplateDecision]) at the whole
@@ -25,7 +27,7 @@ class RedundantToStringInTemplateRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

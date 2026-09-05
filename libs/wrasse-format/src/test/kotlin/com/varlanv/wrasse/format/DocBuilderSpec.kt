@@ -1817,7 +1817,7 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "when (x) {\n    one -> ten\n    else -> zero\n}"
     }
 
-    should("move a property's already-forced-multiline IF value onto its own line, one indent level deeper") {
+    should("keep a property's multi-line IF value on the = line") {
         val builder = DocBuilder(formatConfig())
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
@@ -1832,7 +1832,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "val x =\n    if (cond) {\n        a\n    }"
+        render(builder, ctx) shouldBe "val x = if (cond) {\n    a\n}"
     }
 
     should("leave a property's single-line IF value untouched — not (yet) forced multi-line") {
@@ -1903,7 +1903,7 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "val foo =\n    // comment\n    \"foo\""
     }
 
-    should("move a reassignment BINARY_EXPRESSION's already-forced-multiline IF value onto its own line") {
+    should("keep a reassignment BINARY_EXPRESSION's multi-line IF value on the = line") {
         val builder = DocBuilder(formatConfig())
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
@@ -1920,10 +1920,10 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.BINARY_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "x =\n    if (cond) {\n        a\n    }"
+        render(builder, ctx) shouldBe "x = if (cond) {\n    a\n}"
     }
 
-    should("move a when-entry arrow's already-forced-multiline IF body onto its own line") {
+    should("keep a when-entry arrow's multi-line IF body on the arrow line") {
         val builder = DocBuilder(formatConfig())
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
@@ -1952,7 +1952,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.WHEN })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "when (x) {\n    one ->\n        if (cond) {\n            a\n        }\n}"
+        render(builder, ctx) shouldBe "when (x) {\n    one -> if (cond) {\n        a\n    }\n}"
     }
 
     fun bareClass(

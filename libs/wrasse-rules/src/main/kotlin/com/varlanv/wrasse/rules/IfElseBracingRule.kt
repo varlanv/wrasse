@@ -12,6 +12,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.IF)
+
 /**
  * Wraps a bare (unbraced) `if`/`else` branch in braces. With the `allow-inline` option at its
  * default `false`, every bare branch is braced, including a chain written entirely on one source
@@ -61,7 +63,7 @@ class IfElseBracingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.IF)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,
@@ -89,12 +91,11 @@ class IfElseBracingRule : WUninitializedRule {
                     return
                 }
 
-                val baseIndentColumn =
-                    if (config.formatEnabled) {
-                        0
-                    } else {
-                        BraceInsertion.physicalLineIndentColumn(ctx.sourceText, chainStart)
-                    }
+                val baseIndentColumn = if (config.formatEnabled) {
+                    0
+                } else {
+                    BraceInsertion.physicalLineIndentColumn(ctx.sourceText, chainStart)
+                }
                 val hasElse = elseKwIdx >= 0 && elseIdx >= 0
 
                 evaluateThen(
@@ -133,13 +134,12 @@ class IfElseBracingRule : WUninitializedRule {
 
                 val hasElse = elseKwIdx >= 0
                 var hasComment = hasCommentBetween(children, rparIdx + 1, thenIdx)
-                val trailingGapEnd =
-                    if (hasElse) {
-                        hasComment = hasComment || hasCommentBetween(children, thenIdx + 1, elseKwIdx)
-                        children.startOffset(elseKwIdx)
-                    } else {
-                        contentEnd
-                    }
+                val trailingGapEnd = if (hasElse) {
+                    hasComment = hasComment || hasCommentBetween(children, thenIdx + 1, elseKwIdx)
+                    children.startOffset(elseKwIdx)
+                } else {
+                    contentEnd
+                }
 
                 report(
                     ctx = ctx,

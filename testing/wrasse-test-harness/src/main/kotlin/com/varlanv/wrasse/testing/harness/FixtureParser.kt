@@ -41,11 +41,10 @@ object FixtureParser {
             if (match != null) {
                 expectations.add(
                     ExpectedDiagnostic(
-                        severity =
-                            when (match.groupValues[1]) {
-                                "warning" -> ExpectedSeverity.WARNING
-                                else -> ExpectedSeverity.ERROR
-                            },
+                        severity = when (match.groupValues[1]) {
+                            "warning" -> ExpectedSeverity.WARNING
+                            else -> ExpectedSeverity.ERROR
+                        },
                         line = match.groupValues[2].toInt(),
                         column = match.groupValues[3].toInt(),
                         ruleId = match.groupValues[4],

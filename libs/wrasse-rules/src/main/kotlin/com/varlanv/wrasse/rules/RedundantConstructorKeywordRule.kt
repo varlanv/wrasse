@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.CLASS, WNodeType.PRIMARY_CONSTRUCTOR)
+
 /**
  * A primary constructor's own `constructor` keyword is removed when it carries no annotation and
  * no visibility modifier of its own — the keyword is then pure syntax noise, since Kotlin only
@@ -27,7 +29,7 @@ class RedundantConstructorKeywordRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CLASS, WNodeType.PRIMARY_CONSTRUCTOR)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingKeywords = mutableListOf<PendingKeyword?>()
 

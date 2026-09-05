@@ -3,9 +3,12 @@ package com.varlanv.wrasse.plugin
 import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
 import com.varlanv.wrasse.format.DocBuilder
 import com.varlanv.wrasse.lang.FileEdits
+import com.varlanv.wrasse.lang.NoopPerf
+import com.varlanv.wrasse.lang.PerfStore
 import com.varlanv.wrasse.lang.Sha256
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.lang.WPatchStore
+import com.varlanv.wrasse.lang.WPerf
 import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
 import com.varlanv.wrasse.model.WCallSite
@@ -32,8 +35,11 @@ class WrassePlugin(
     private val configDir: Path? = null,
     private val dumpResolvedUsage: Boolean = false,
     private val formatConfig: WFormatConfig? = null,
+    private val formatRun: Boolean = false,
+    private val perf: WPerf = NoopPerf,
 ) {
-    private val patchStore: WPatchStore? = fixOutputDir?.let { WPatchStore(it) }
+    private val patchStore: WPatchStore? = fixOutputDir?.let { WPatchStore(it.resolve(WPatchStore.PATCH_DIR_NAME)) }
+    private val perfTitle: String = "compile ${fixOutputDir?.fileName ?: "-"}"
 
     fun checkFile(
         source: KtLightSourceElement,
@@ -46,9 +52,28 @@ class WrassePlugin(
         if (matchesAny(globalExclude, configRelativePath)) {
             return emptyList()
         }
-
-        return runCatching { checkFileOrThrow(filePath, configRelativePath, source, resolvedUsage) }
+        if (!perf.enabled) {
+            return runCatching { checkFileOrThrow(filePath, configRelativePath, source, resolvedUsage) }
+                .getOrElse { failure -> internalFailureReports(filePath, failure) }
+        }
+        val started = System.nanoTime()
+        val reports = runCatching { checkFileOrThrow(filePath, configRelativePath, source, resolvedUsage) }
             .getOrElse { failure -> internalFailureReports(filePath, failure) }
+        val elapsed = System.nanoTime() - started
+        perf.record("phase:total", elapsed)
+        perf.record("file:$filePath", elapsed)
+        perf.add("count:files", 1)
+        perf.add("count:reports", reports.size.toLong())
+        fixOutputDir?.let { PerfStore.write(it, perfTitle, perf) }
+        return reports
+    }
+
+    private inline fun <T> timed(key: String, block: () -> T): T {
+        if (!perf.enabled) return block()
+        val started = System.nanoTime()
+        val result = block()
+        perf.record(key, System.nanoTime() - started)
+        return result
     }
 
     /**
@@ -59,7 +84,7 @@ class WrassePlugin(
      * compile proceeds so kotlinc's own checkers still run and report normally.
      */
     private fun internalFailureReports(filePath: Path, failure: Throwable): List<ViolationReport> {
-        patchStore?.clear(filePath.toString())
+        runCatching { patchStore?.clear(filePath.toString()) }
         val exceptionType = failure::class.simpleName ?: failure.javaClass.name
         return listOf(
             ViolationReport(
@@ -69,6 +94,17 @@ class WrassePlugin(
                 endOffset = 0,
                 level = RuleLevel.WARN,
             ),
+        )
+    }
+
+    private fun patchStoreFailureReport(store: WPatchStore, failure: Throwable): ViolationReport {
+        val exceptionType = failure::class.simpleName ?: failure.javaClass.name
+        return ViolationReport(
+            message = "wrasse could not update the fix patch ${store.patchFile()} " +
+                "($exceptionType: ${failure.message}); this file's diagnostics are reported but will not be autofixed",
+            startOffset = 0,
+            endOffset = 0,
+            level = RuleLevel.WARN,
         )
     }
 
@@ -85,17 +121,20 @@ class WrassePlugin(
             docBuilder = DocBuilder(formatConfig)
             alwaysOn.add(docBuilder)
         }
-        val dispatch = ruleSet.dispatchForFile(
-            isExcluded = { config -> matchesAny(config.exclude, configRelativePath) },
-            alwaysOn = alwaysOn,
-        )
+        val dispatch = timed("phase:rule-init") {
+            ruleSet.dispatchForFile(
+                isExcluded = { config -> matchesAny(config.exclude, configRelativePath) },
+                alwaysOn = alwaysOn,
+                perf = perf,
+            )
+        }
 
         val ctx = WContext(filePath = filePath.toString(), configRelativeFilePath = configRelativePath)
         val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
         val needsCallSites = dumpResolvedUsage || ruleSet.requiresCallSites
         if (resolvedUsage != null &&
             (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages || needsCallSites)) {
-            ctx.resolvedUsage = resolvedUsage(needsQualifiedUsages, needsCallSites)
+            ctx.resolvedUsage = timed("phase:resolved-usage") { resolvedUsage(needsQualifiedUsages, needsCallSites) }
         }
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
@@ -111,32 +150,45 @@ class WrassePlugin(
                 if (suppressionCollector.index.isSuppressed(ruleId, startOffset, endOffset)) return
                 val declinedAutofix = edits.isEmpty() && ruleId in ruleSet.autofixCapableIds
                 val fullMessage = if (declinedAutofix) "$message$NO_AUTOFIX_MARKER" else message
-                reports.add(
-                    ViolationReport(
-                        message = "${rule.id}: $fullMessage",
-                        startOffset = startOffset,
-                        endOffset = endOffset,
-                        level = rule.config.effectiveLevel,
-                    ),
-                )
+                if (!formatRun || edits.isEmpty()) {
+                    reports.add(
+                        ViolationReport(
+                            message = "${rule.id}: $fullMessage",
+                            startOffset = startOffset,
+                            endOffset = endOffset,
+                            level = rule.config.effectiveLevel,
+                        ),
+                    )
+                }
                 for (edit in edits) {
                     requireWithinOpenAncestor(ctx, ruleId, edit)
                     ctx.editPlan.add(ruleId, edit)
                 }
             }
         }
-        LightTreeStreamAdapter.walk(source = source, ctx = ctx, dispatch = dispatch, reporter = reporter)
-        docBuilder?.finish(ctx, reporter)
+        timed("phase:walk") {
+            LightTreeStreamAdapter.walk(source = source, ctx = ctx, dispatch = dispatch, reporter = reporter)
+        }
+        if (perf.enabled) {
+            perf.add("count:bytes", ctx.sourceText.length.toLong())
+            perf.add("count:lines", ctx.sourceText.count { it == '\n' }.toLong())
+        }
+        if (docBuilder != null) timed("phase:format-finish") { docBuilder.finish(ctx, reporter, perf) }
 
-        val finalEdits = ctx.editPlan.finalEdits()
+        val finalEdits = timed("phase:edit-plan") { ctx.editPlan.finalEdits() }
         val store = patchStore
         if (store != null) {
-            if (finalEdits.isNotEmpty()) {
-                store.record(FileEdits(filePath.toString(), Sha256.ofText(ctx.sourceText), finalEdits))
-            } else {
-                store.clear(filePath.toString())
+            timed("phase:patch-store") {
+                runCatching {
+                    if (finalEdits.isNotEmpty()) {
+                        store.record(FileEdits(filePath.toString(), Sha256.ofText(ctx.sourceText), finalEdits))
+                    } else {
+                        store.clear(filePath.toString())
+                    }
+                }.onFailure { failure -> reporter.reports.add(patchStoreFailureReport(store, failure)) }
             }
         }
+        if (perf.enabled) perf.add("count:edits", finalEdits.size.toLong())
 
         val usage = ctx.resolvedUsage
         if (dumpResolvedUsage && usage != null) {
@@ -182,12 +234,11 @@ class WrassePlugin(
 
     private fun dumpImport(import: WResolvedImport): String {
         val suffix = if (import.isStarImport) ".*" else ""
-        val status =
-            when {
-                !import.resolved -> "?unresolved"
-                import.resolvedParentClassFqName != null -> "(parent=${import.resolvedParentClassFqName})"
-                else -> ""
-            }
+        val status = when {
+            !import.resolved -> "?unresolved"
+            import.resolvedParentClassFqName != null -> "(parent=${import.resolvedParentClassFqName})"
+            else -> ""
+        }
         return "${import.fqn}$suffix$status"
     }
 

@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.BLOCK_COMMENT)
+
 /**
  * A single-line `/* ... */` block comment with nothing but same-line whitespace after it (end of
  * file or a newline follows, skipping only spaces/tabs) is reported (see
@@ -21,7 +23,7 @@ class NoSingleLineBlockCommentRule : WUninitializedRule {
         return object : WLeafRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BLOCK_COMMENT)
+            override val targetTypes = TARGET_TYPES
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val text = ctx.leafText ?: return

@@ -48,6 +48,61 @@ class LayoutSpec : BaseSpec({
         Layout.render(doc, style) shouldBe "a very long first token\nand a second one"
     }
 
+    fun arguments(
+        vararg items: Doc,
+        forceBreak: Boolean = false,
+        singleArgument: Boolean = false,
+    ): Doc.Group {
+        val interior = ArrayList<Doc>()
+        interior.add(Doc.Break(BreakKind.SOFT, flat = ""))
+        for ((i, item) in items.withIndex()) {
+            if (i > 0) {
+                interior.add(Doc.Text(","))
+                interior.add(Doc.Break(BreakKind.SOFT, flat = " "))
+            }
+            interior.add(item)
+        }
+        val body = Doc.Concat(
+            listOf(
+                Doc.Text("("),
+                Doc.Indent(Doc.Concat(interior)),
+                Doc.Break(BreakKind.SOFT, flat = ""),
+                Doc.Text(")"),
+            ),
+        )
+        return Doc.Group(body, GroupKind.ARGUMENTS, forceBreak = forceBreak, singleArgument = singleArgument)
+    }
+
+    should("a forced ARGUMENTS group breaks every nested argument list but leaves a single-argument one flat") {
+        val inner = Doc.Concat(listOf(Doc.Text("g"), arguments(Doc.Text("x"), singleArgument = true)))
+        val other = Doc.Concat(listOf(Doc.Text("h"), arguments(Doc.Text("y"), Doc.Text("z"))))
+        val doc = Doc.Concat(listOf(Doc.Text("f"), arguments(inner, other, forceBreak = true)))
+        Layout.render(doc, style) shouldBe "f(\n    g(x),\n    h(\n        y,\n        z\n    )\n)"
+    }
+
+    should("a single-argument list passes no forcing on to the lists nested in it") {
+        val deepest = Doc.Concat(listOf(Doc.Text("k"), arguments(Doc.Text("y"), Doc.Text("z"))))
+        val inner = Doc.Concat(listOf(Doc.Text("g"), arguments(deepest, singleArgument = true)))
+        val doc = Doc.Concat(listOf(Doc.Text("f"), arguments(inner, Doc.Text("w"), forceBreak = true)))
+        Layout.render(doc, style) shouldBe "f(\n    g(k(y, z)),\n    w\n)"
+    }
+
+    should("a BARRIER group stops the forcing and renders in the enclosing mode") {
+        val condition = Doc.Concat(listOf(Doc.Text("if (c"), arguments(Doc.Text("y"), Doc.Text("z")), Doc.Text(") a")))
+        val barrier = Doc.Group(condition, GroupKind.BARRIER)
+        val doc = Doc.Concat(listOf(Doc.Text("f"), arguments(barrier, Doc.Text("w"), forceBreak = true)))
+        Layout.render(doc, style) shouldBe "f(\n    if (c(y, z)) a,\n    w\n)"
+    }
+
+    should("no group renders flat around a forced ARGUMENTS group") {
+        val forced = Doc.Concat(listOf(Doc.Text("f"), arguments(Doc.Text("y"), Doc.Text("z"), forceBreak = true)))
+        val outer = Doc.Group(
+            Doc.Concat(listOf(Doc.Text("x ="), Doc.Break(BreakKind.SOFT), forced)),
+            indentWhenBroken = true,
+        )
+        Layout.render(outer, style) shouldBe "x =\n    f(\n        y,\n        z\n    )"
+    }
+
     should("force a Group broken when it contains a HARD break regardless of width") {
         val doc = Doc.Group(Doc.Concat(listOf(Doc.Text("a"), Doc.Break(BreakKind.HARD, literal = "\n"), Doc.Text("b"))))
         Layout.render(doc, style) shouldBe "a\nb"

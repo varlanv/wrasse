@@ -48,41 +48,35 @@ class WConfig(
             }
             val root = configValue.value
 
-            val base =
-                when (val extendsProp = root.get("extends", ConfigValue.Str::class.java)) {
-                    is Property.Val -> {
-                        if (resolveExtends == null) {
-                            return Result.failure(Exception("'extends' is not supported in this context"))
-                        }
-                        val baseValue = resolveExtends(extendsProp.value.value).getOrElse { return Result.failure(it) }
-                        resolveRaw(baseValue, resolveExtends, depth + 1).getOrElse { return Result.failure(it) }
+            val base = when (val extendsProp = root.get("extends", ConfigValue.Str::class.java)) {
+                is Property.Val -> {
+                    if (resolveExtends == null) {
+                        return Result.failure(Exception("'extends' is not supported in this context"))
                     }
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception("'extends' must be a string, got ${extendsProp.actual.typeName()}"),
-                        )
-                    }
-                    is Property.Missing -> {
-                        null
-                    }
+                    val baseValue = resolveExtends(extendsProp.value.value).getOrElse { return Result.failure(it) }
+                    resolveRaw(baseValue, resolveExtends, depth + 1).getOrElse { return Result.failure(it) }
                 }
+                is Property.TypeMismatch -> {
+                    return Result.failure(Exception("'extends' must be a string, got ${extendsProp.actual.typeName()}"))
+                }
+                is Property.Missing -> {
+                    null
+                }
+            }
 
             var excludeSet = false
-            val exclude =
-                when (val prop = root.get("exclude", ConfigValue.StrArr::class.java)) {
-                    is Property.Val -> {
-                        excludeSet = true
-                        prop.value.value
-                    }
-                    is Property.Missing -> {
-                        emptyList()
-                    }
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception("'exclude' must be a string array, got ${prop.actual.typeName()}"),
-                        )
-                    }
+            val exclude = when (val prop = root.get("exclude", ConfigValue.StrArr::class.java)) {
+                is Property.Val -> {
+                    excludeSet = true
+                    prop.value.value
                 }
+                is Property.Missing -> {
+                    emptyList()
+                }
+                is Property.TypeMismatch -> {
+                    return Result.failure(Exception("'exclude' must be a string array, got ${prop.actual.typeName()}"))
+                }
+            }
 
             val rules = mutableMapOf<String, RawRuleConfig>()
             when (val rulesProp = root.get("rules", ConfigValue.Obj::class.java)) {
@@ -100,19 +94,16 @@ class WConfig(
             }
 
             var formatSet = false
-            val format =
-                when (val formatProp = root.get("format", ConfigValue.Obj::class.java)) {
-                    is Property.Val -> {
-                        formatSet = true
-                        parseRawFormatConfig(formatProp.value.value).getOrElse { return Result.failure(it) }
-                    }
-                    is Property.Missing -> null
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception("'format' must be an object, got ${formatProp.actual.typeName()}"),
-                        )
-                    }
+            val format = when (val formatProp = root.get("format", ConfigValue.Obj::class.java)) {
+                is Property.Val -> {
+                    formatSet = true
+                    parseRawFormatConfig(formatProp.value.value).getOrElse { return Result.failure(it) }
                 }
+                is Property.Missing -> null
+                is Property.TypeMismatch -> {
+                    return Result.failure(Exception("'format' must be an object, got ${formatProp.actual.typeName()}"))
+                }
+            }
 
             return if (base != null) {
                 Result.success(mergeRaw(base, RawConfig(exclude, excludeSet, rules, format, formatSet)))
@@ -226,6 +217,14 @@ class WConfig(
                             "Option '${spec.name}' for rule '$ruleId' must be a ${spec.type.jsonName}, got ${rawValue.typeName()}",
                         ),
                     )
+                val minimum = spec.minimum
+                if (minimum != null && value is WRuleOptionValue.Num && value.value < minimum) {
+                    return Result.failure(
+                        Exception(
+                            "Option '${spec.name}' for rule '$ruleId' must be at least $minimum, got ${value.value}",
+                        ),
+                    )
+                }
                 values[spec.name] = value
             }
             return Result.success(WRuleOptions(values))
@@ -290,92 +289,83 @@ class WConfig(
         }
 
         private fun parseRawFormatConfig(formatObj: SafeProperties): Result<RawFormatConfig> {
-            val enabled =
-                when (val prop = formatObj.get("enabled", ConfigValue.Bool::class.java)) {
-                    is Property.Val -> prop.value.value
-                    is Property.Missing -> true
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception(
-                                "Property 'enabled' for 'format' must be a boolean, got ${prop.actual.typeName()}",
-                            ),
-                        )
-                    }
+            val enabled = when (val prop = formatObj.get("enabled", ConfigValue.Bool::class.java)) {
+                is Property.Val -> prop.value.value
+                is Property.Missing -> true
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception("Property 'enabled' for 'format' must be a boolean, got ${prop.actual.typeName()}"),
+                    )
                 }
+            }
 
-            val indentWidth =
-                when (val prop = formatObj.get("indentWidth", ConfigValue.Num::class.java)) {
-                    is Property.Val -> prop.value.value.toInt()
-                    is Property.Missing -> null
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception(
-                                "Property 'indentWidth' for 'format' must be a number, got ${prop.actual.typeName()}",
-                            ),
-                        )
-                    }
+            val indentWidth = when (val prop = formatObj.get("indentWidth", ConfigValue.Num::class.java)) {
+                is Property.Val -> prop.value.value.toInt()
+                is Property.Missing -> null
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception(
+                            "Property 'indentWidth' for 'format' must be a number, got ${prop.actual.typeName()}",
+                        ),
+                    )
                 }
+            }
 
-            val maxLineLength =
-                when (val prop = formatObj.get("maxLineLength", ConfigValue.Num::class.java)) {
-                    is Property.Val -> prop.value.value.toInt()
-                    is Property.Missing -> null
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception(
-                                "Property 'maxLineLength' for 'format' must be a number, got ${prop.actual.typeName()}",
-                            ),
-                        )
-                    }
+            val maxLineLength = when (val prop = formatObj.get("maxLineLength", ConfigValue.Num::class.java)) {
+                is Property.Val -> prop.value.value.toInt()
+                is Property.Missing -> null
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception(
+                            "Property 'maxLineLength' for 'format' must be a number, got ${prop.actual.typeName()}",
+                        ),
+                    )
                 }
+            }
 
-            val trailingCommas =
-                when (val prop = formatObj.get("trailingCommas", ConfigValue.Bool::class.java)) {
-                    is Property.Val -> prop.value.value
-                    is Property.Missing -> null
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception(
-                                "Property 'trailingCommas' for 'format' must be a boolean, got ${prop.actual.typeName()}",
-                            ),
-                        )
-                    }
+            val trailingCommas = when (val prop = formatObj.get("trailingCommas", ConfigValue.Bool::class.java)) {
+                is Property.Val -> prop.value.value
+                is Property.Missing -> null
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception(
+                            "Property 'trailingCommas' for 'format' must be a boolean, got ${prop.actual.typeName()}",
+                        ),
+                    )
                 }
+            }
 
-            val importLayout =
-                when (val prop = formatObj.get("importLayout", ConfigValue.Str::class.java)) {
-                    is Property.Val ->
-                        when (prop.value.value) {
-                            "ascii" -> ImportLayout.ASCII
-                            else -> return Result.failure(
-                                Exception("Invalid importLayout '${prop.value.value}' for 'format'; expected 'ascii'"),
-                            )
-                        }
-                    is Property.Missing -> null
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception(
-                                "Property 'importLayout' for 'format' must be a string, got ${prop.actual.typeName()}",
-                            ),
-                        )
-                    }
+            val importLayout = when (val prop = formatObj.get("importLayout", ConfigValue.Str::class.java)) {
+                is Property.Val -> when (prop.value.value) {
+                    "ascii" -> ImportLayout.ASCII
+                    else -> return Result.failure(
+                        Exception("Invalid importLayout '${prop.value.value}' for 'format'; expected 'ascii'"),
+                    )
                 }
+                is Property.Missing -> null
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception(
+                            "Property 'importLayout' for 'format' must be a string, got ${prop.actual.typeName()}",
+                        ),
+                    )
+                }
+            }
 
-            val multilineSignatureThreshold =
-                when (
-                    val prop = formatObj.get("multilineSignatureThreshold", ConfigValue.Num::class.java)
-                    ) {
-                    is Property.Val -> prop.value.value.toInt()
-                    is Property.Missing -> null
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception(
-                                "Property 'multilineSignatureThreshold' for 'format' must be a number, got " +
-                                    prop.actual.typeName(),
-                            ),
-                        )
-                    }
+            val multilineSignatureThreshold = when (
+                val prop = formatObj.get("multilineSignatureThreshold", ConfigValue.Num::class.java)
+                ) {
+                is Property.Val -> prop.value.value.toInt()
+                is Property.Missing -> null
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception(
+                            "Property 'multilineSignatureThreshold' for 'format' must be a number, got " +
+                                prop.actual.typeName(),
+                        ),
+                    )
                 }
+            }
 
             return Result.success(
                 RawFormatConfig(
@@ -390,64 +380,53 @@ class WConfig(
         }
 
         private fun parseRawRuleConfig(rulesProps: SafeProperties, key: String): Result<RawRuleConfig> {
-            val ruleObj =
-                when (val prop = rulesProps.get(key, ConfigValue.Obj::class.java)) {
-                    is Property.Val -> prop.value.value
-                    is Property.Missing ->
-                        return Result.success(
-                            RawRuleConfig(
-                                level = null,
-                                exclude = emptyList(),
-                                excludeSet = false,
-                                options = emptyMap(),
-                            ),
-                        )
-                    is Property.TypeMismatch -> {
-                        return Result.failure(Exception("Rule '$key' must be an object, got ${prop.actual.typeName()}"))
-                    }
+            val ruleObj = when (val prop = rulesProps.get(key, ConfigValue.Obj::class.java)) {
+                is Property.Val -> prop.value.value
+                is Property.Missing ->
+                    return Result.success(
+                        RawRuleConfig(level = null, exclude = emptyList(), excludeSet = false, options = emptyMap()),
+                    )
+                is Property.TypeMismatch -> {
+                    return Result.failure(Exception("Rule '$key' must be an object, got ${prop.actual.typeName()}"))
                 }
+            }
 
-            val level =
-                when (val prop = ruleObj.get("level", ConfigValue.Str::class.java)) {
-                    is Property.Val ->
-                        when (prop.value.value) {
-                            "off" -> RuleLevel.OFF
-                            "warn" -> RuleLevel.WARN
-                            "error" -> RuleLevel.ERROR
-                            else -> return Result.failure(
-                                Exception(
-                                    "Invalid level '${prop.value.value}' for rule '$key'; expected 'off', 'warn', or 'error'",
-                                ),
-                            )
-                        }
-                    is Property.Missing -> null
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception(
-                                "Property 'level' for rule '$key' must be a string, got ${prop.actual.typeName()}",
-                            ),
-                        )
-                    }
+            val level = when (val prop = ruleObj.get("level", ConfigValue.Str::class.java)) {
+                is Property.Val -> when (prop.value.value) {
+                    "off" -> RuleLevel.OFF
+                    "warn" -> RuleLevel.WARN
+                    "error" -> RuleLevel.ERROR
+                    else -> return Result.failure(
+                        Exception(
+                            "Invalid level '${prop.value.value}' for rule '$key'; expected 'off', 'warn', or 'error'",
+                        ),
+                    )
                 }
+                is Property.Missing -> null
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception("Property 'level' for rule '$key' must be a string, got ${prop.actual.typeName()}"),
+                    )
+                }
+            }
 
             var excludeSet = false
-            val exclude =
-                when (val prop = ruleObj.get("exclude", ConfigValue.StrArr::class.java)) {
-                    is Property.Val -> {
-                        excludeSet = true
-                        prop.value.value
-                    }
-                    is Property.Missing -> {
-                        emptyList()
-                    }
-                    is Property.TypeMismatch -> {
-                        return Result.failure(
-                            Exception(
-                                "Property 'exclude' for rule '$key' must be a string array, got ${prop.actual.typeName()}",
-                            ),
-                        )
-                    }
+            val exclude = when (val prop = ruleObj.get("exclude", ConfigValue.StrArr::class.java)) {
+                is Property.Val -> {
+                    excludeSet = true
+                    prop.value.value
                 }
+                is Property.Missing -> {
+                    emptyList()
+                }
+                is Property.TypeMismatch -> {
+                    return Result.failure(
+                        Exception(
+                            "Property 'exclude' for rule '$key' must be a string array, got ${prop.actual.typeName()}",
+                        ),
+                    )
+                }
+            }
 
             val options = LinkedHashMap<String, ConfigValue>()
             for (name in ruleObj.keys()) {

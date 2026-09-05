@@ -6,7 +6,8 @@ package com.varlanv.wrasse.model
  * call expression, receiver and trailing lambda included — [callEndOffset] is also where the
  * call's own `CALL_EXPRESSION` node ends. [arguments] holds every argument FIR mapped, in source
  * order — a trailing lambda and each element of a vararg parameter included, empty for a call
- * without arguments. Collected only when a rule asks for it ([WUninitializedRule.requiresCallSites]).
+ * without arguments. [parameterCount] is how many value parameters the callee declares (a vararg
+ * counts once). Collected only when a rule asks for it ([WUninitializedRule.requiresCallSites]).
  */
 class WCallSite(
     val callStartOffset: Int,
@@ -21,6 +22,7 @@ class WCallSite(
     val arguments: List<WCallArgument>,
     /** True for a constructor call; [calleeName] is then the class's own short name. */
     val isConstructor: Boolean = false,
+    val parameterCount: Int = 0,
 )
 
 /**

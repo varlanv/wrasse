@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.ENUM_ENTRY)
+
 /** Enum entry names must be PascalCase or SCREAMING_SNAKE_CASE (see [EnumEntryNamingDecision]). */
 class EnumEntryNamingRule : WUninitializedRule {
     override val id: String = "enum-entry-naming"
@@ -17,7 +19,7 @@ class EnumEntryNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.ENUM_ENTRY)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

@@ -1,6 +1,6 @@
 {
     "format": { "enabled": true },
     "rules": {
-        "named-arguments": { "level": "error", "wrap": false }
+        "named-arguments": { "level": "error", "threshold": 1, "wrap": false }
     }
 }

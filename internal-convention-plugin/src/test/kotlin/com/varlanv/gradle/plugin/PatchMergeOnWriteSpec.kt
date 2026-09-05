@@ -116,7 +116,7 @@ private fun runExpectingSuccess(projectDir: Path, vararg args: String): BuildRes
         .build()
 
 private fun readPatch(moduleDir: Path, compilation: String): String {
-    val patchFile = moduleDir.resolve("build/wrasse/$compilation/wrasse-fixes.txt")
+    val patchFile = moduleDir.resolve("build/wrasse/$compilation/patch/wrasse-fixes.txt")
     check(Files.exists(patchFile)) { "expected a patch file at $patchFile" }
     return Files.readString(patchFile)
 }

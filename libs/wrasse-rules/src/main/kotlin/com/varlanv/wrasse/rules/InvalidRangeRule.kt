@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.BINARY_EXPRESSION)
+
 /**
  * A `..`/`downTo`/`until`/`..<` binary expression whose left and right operands are both bare
  * integer literals is reported (see [InvalidRangeDecision]) at the whole expression's own span.
@@ -25,7 +27,7 @@ class InvalidRangeRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BINARY_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

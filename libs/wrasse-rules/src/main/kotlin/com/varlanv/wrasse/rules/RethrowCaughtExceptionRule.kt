@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.TRY, WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST, WNodeType.BLOCK)
+
 /**
  * A catch clause whose body's first significant child (skipping leading whitespace, `LBRACE`/
  * `RBRACE`, and comments) is a bare `throw <own parameter>` is a rethrow candidate; only the
@@ -29,12 +31,7 @@ class RethrowCaughtExceptionRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.TRY,
-                WNodeType.CATCH,
-                WNodeType.VALUE_PARAMETER_LIST,
-                WNodeType.BLOCK,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val pendingCatchNames = mutableListOf<String?>()
             private val pendingTryOutcomes = mutableListOf<MutableList<CatchOutcome>>()

@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.BINARY_EXPRESSION, WNodeType.POSTFIX_EXPRESSION)
+
 /**
  * A `++`/`--` [WNodeType.POSTFIX_EXPRESSION] that is either the direct right operand of a binary
  * expression whose left operand has the exact same text (`i = i++`), or a direct child of that
@@ -33,7 +35,7 @@ class UselessPostfixExpressionRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BINARY_EXPRESSION, WNodeType.POSTFIX_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private val postfixFacts = mutableMapOf<Long, PostfixFact>()
             private val binaryPostfixChildren = mutableMapOf<Long, MutableList<PostfixHit>>()

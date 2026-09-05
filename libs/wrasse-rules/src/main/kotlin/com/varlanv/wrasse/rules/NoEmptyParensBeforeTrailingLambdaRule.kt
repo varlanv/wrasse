@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.CALL_EXPRESSION)
+
 /**
  * An empty `()` argument list immediately before a trailing lambda is redundant — `list.map() {
  * it }` and `list.map { it }` call the same overload — and, where deleting it stays compile-legal,
@@ -40,7 +42,7 @@ class NoEmptyParensBeforeTrailingLambdaRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CALL_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,
@@ -60,12 +62,11 @@ class NoEmptyParensBeforeTrailingLambdaRule : WUninitializedRule {
 
                 val parensStart = children.startOffset(argsIndex)
                 val parensEnd = children.endOffset(argsIndex)
-                val edits =
-                    if (hasNewlineGap) {
-                        emptyList()
-                    } else {
-                        listOf(NoEmptyParensBeforeTrailingLambdaDeletionSpan.compute(parensStart, parensEnd))
-                    }
+                val edits = if (hasNewlineGap) {
+                    emptyList()
+                } else {
+                    listOf(NoEmptyParensBeforeTrailingLambdaDeletionSpan.compute(parensStart, parensEnd))
+                }
 
                 reporter.report(
                     ruleId,

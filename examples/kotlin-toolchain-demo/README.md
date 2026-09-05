@@ -11,6 +11,11 @@ command. No Gradle anywhere.
 ./kotlin run
 ```
 
+`./format.sh` does the same as the first two commands but asks the plugin to stay quiet about
+the findings it is about to fix: it writes `build/wrasse/app/format-request` (a timestamp and
+`formatting=true`) before the build, which the plugin consumes on start. The toolchain has no
+hook to run a task only ahead of a format build, so this lives in a script.
+
 `app/src/Main.kt` ships unformatted on purpose (2-space indent, semicolons, wildcard and unused
 imports, unsorted imports, positional arguments, an unnecessary FQN, a one-line if/else).
 

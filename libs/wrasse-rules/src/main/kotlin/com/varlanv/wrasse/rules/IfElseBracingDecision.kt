@@ -67,26 +67,25 @@ object IfElseBracingDecision {
             return IfElseBracingVerdict(candidate.contentStart, candidate.contentStart, emptyList())
         }
 
-        val edits =
-            if (formatEnabled) {
-                BraceInsertion.wrapEditsMinimal(
-                    leadingGapStart = candidate.leadingGapStart,
-                    contentStart = candidate.contentStart,
-                    contentEnd = candidate.contentEnd,
-                    trailingGapEnd = candidate.trailingGapEnd,
-                    hasFollowingBranch = candidate.hasFollowingBranch,
-                )
-            } else {
-                BraceInsertion.wrapEdits(
-                    leadingGapStart = candidate.leadingGapStart,
-                    contentStart = candidate.contentStart,
-                    contentEnd = candidate.contentEnd,
-                    trailingGapEnd = candidate.trailingGapEnd,
-                    hasFollowingBranch = candidate.hasFollowingBranch,
-                    baseIndentColumn = baseIndentColumn,
-                    indentWidth = indentWidth,
-                )
-            }
+        val edits = if (formatEnabled) {
+            BraceInsertion.wrapEditsMinimal(
+                leadingGapStart = candidate.leadingGapStart,
+                contentStart = candidate.contentStart,
+                contentEnd = candidate.contentEnd,
+                trailingGapEnd = candidate.trailingGapEnd,
+                hasFollowingBranch = candidate.hasFollowingBranch,
+            )
+        } else {
+            BraceInsertion.wrapEdits(
+                leadingGapStart = candidate.leadingGapStart,
+                contentStart = candidate.contentStart,
+                contentEnd = candidate.contentEnd,
+                trailingGapEnd = candidate.trailingGapEnd,
+                hasFollowingBranch = candidate.hasFollowingBranch,
+                baseIndentColumn = baseIndentColumn,
+                indentWidth = indentWidth,
+            )
+        }
         return IfElseBracingVerdict(
             reportStart = candidate.contentStart,
             reportEnd = candidate.contentEnd,

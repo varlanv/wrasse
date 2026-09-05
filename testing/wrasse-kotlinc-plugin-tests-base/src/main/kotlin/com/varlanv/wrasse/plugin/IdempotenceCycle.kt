@@ -26,7 +26,7 @@ object IdempotenceCycle {
         round1: CompilationResult,
         auxSources: List<TestSource> = emptyList(),
     ): String? {
-        val patchFile = fixOutputDir.resolve(PATCH_FILE_NAME)
+        val patchFile = fixOutputDir.resolve("patch").resolve(PATCH_FILE_NAME)
         if (!Files.exists(patchFile)) return null
 
         val edits = WPatchReader.read(Files.readString(patchFile)).flatMap { it.edits }
@@ -71,12 +71,11 @@ object IdempotenceCycle {
     fun diagnosticOffsetRange(sourceText: String, location: CompilerMessageSourceLocation?): IntRange? {
         if (location == null) return null
         val start = lineColToOffset(sourceText, location.line, location.column)
-        val end =
-            if (location.lineEnd >= 1 && location.columnEnd >= 1) {
-                lineColToOffset(sourceText, location.lineEnd, location.columnEnd)
-            } else {
-                start
-            }
+        val end = if (location.lineEnd >= 1 && location.columnEnd >= 1) {
+            lineColToOffset(sourceText, location.lineEnd, location.columnEnd)
+        } else {
+            start
+        }
         return if (start <= end) start..end else end..start
     }
 
@@ -186,12 +185,11 @@ object IdempotenceCycle {
     private fun IntRange.overlapsInclusive(other: IntRange): Boolean =
         first <= other.last && other.first <= last
 
-    private fun describeApplyResult(result: FileApplyResult): String =
-        when (result) {
-            is FileApplyResult.Applied -> "  Applied: ${result.filePath} (${result.editCount} edits)"
-            is FileApplyResult.Skipped -> "  Skipped: ${result.filePath} - ${result.reason}"
-            is FileApplyResult.Failed -> "  Failed: ${result.filePath} - ${result.reason}"
-        }
+    private fun describeApplyResult(result: FileApplyResult): String = when (result) {
+        is FileApplyResult.Applied -> "  Applied: ${result.filePath} (${result.editCount} edits)"
+        is FileApplyResult.Skipped -> "  Skipped: ${result.filePath} - ${result.reason}"
+        is FileApplyResult.Failed -> "  Failed: ${result.filePath} - ${result.reason}"
+    }
 
     private fun formatKeys(keys: List<String>): String = keys.joinToString("\n") { "  $it" }.ifEmpty { "  (none)" }
 

@@ -11,6 +11,7 @@ dependencies {
     jmh(projects.libs.wrasseRules)
     jmh(projects.libs.wrasseFormat)
     jmh(projects.libs.wrasseLang)
+    jmh(projects.app.wrasseKotlincPlugin)
     jmh(libs.kotlin.compiler.embeddable)
 }
 

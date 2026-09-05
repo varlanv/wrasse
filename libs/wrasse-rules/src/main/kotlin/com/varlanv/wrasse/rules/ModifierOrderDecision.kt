@@ -54,21 +54,18 @@ object ModifierOrderDecision {
         if (isAlreadyOrdered(keywords, sorted)) return null
 
         val expectedOrder = sorted.joinToString(" ") { sourceText.subSequence(it.startOffset, it.endOffset) }
-        val edits =
-            if (hasComment) {
-                emptyList()
-            } else {
-                buildList {
-                    for (i in keywords.indices) {
-                        if (keywords[i].canonicalIndex != sorted[i].canonicalIndex) {
-                            val replacement = sourceText
-                                .subSequence(sorted[i].startOffset, sorted[i].endOffset)
-                                .toString()
-                            add(WEdit(keywords[i].startOffset, keywords[i].endOffset, replacement))
-                        }
+        val edits = if (hasComment) {
+            emptyList()
+        } else {
+            buildList {
+                for (i in keywords.indices) {
+                    if (keywords[i].canonicalIndex != sorted[i].canonicalIndex) {
+                        val replacement = sourceText.subSequence(sorted[i].startOffset, sorted[i].endOffset).toString()
+                        add(WEdit(keywords[i].startOffset, keywords[i].endOffset, replacement))
                     }
                 }
             }
+        }
 
         return ModifierOrderVerdict(
             reportStart = keywords.first().startOffset,

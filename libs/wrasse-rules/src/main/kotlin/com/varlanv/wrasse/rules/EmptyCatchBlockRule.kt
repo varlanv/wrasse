@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST, WNodeType.BLOCK)
+
 /**
  * A catch body containing nothing but whitespace is reported at the body's own span (see
  * [AllowedExceptionName] for the catch-parameter-name exemption every catch-shaped rule in this
@@ -22,7 +24,7 @@ class EmptyCatchBlockRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST, WNodeType.BLOCK)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingCatchNames = mutableListOf<String?>()
 

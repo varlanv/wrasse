@@ -43,7 +43,7 @@ open class SuppressionEditsDroppedSpec : BaseSpec({
                 val round1 = harness.compile(listOf(unsuppressed), workDir)
                 round1.wrasseDiagnostics shouldHaveSize 1
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
                 Files.exists(patchFile) shouldBe true
                 val round1Entries = WPatchReader.read(Files.readString(patchFile))
                 val round1Entry = round1Entries.firstOrNull { it.filePath.endsWith("test.kt") }

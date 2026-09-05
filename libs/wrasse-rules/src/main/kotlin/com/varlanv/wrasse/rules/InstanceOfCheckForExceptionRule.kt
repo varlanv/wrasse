@@ -7,6 +7,13 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(
+    WNodeType.CATCH,
+    WNodeType.VALUE_PARAMETER_LIST,
+    WNodeType.IS_EXPRESSION,
+    WNodeType.AS_EXPRESSION,
+)
+
 /**
  * An `is`/`!is` check or an unsafe `as` cast against the innermost enclosing catch parameter,
  * found anywhere within that catch's own body, is reported (see
@@ -23,12 +30,7 @@ class InstanceOfCheckForExceptionRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.CATCH,
-                WNodeType.VALUE_PARAMETER_LIST,
-                WNodeType.IS_EXPRESSION,
-                WNodeType.AS_EXPRESSION,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val pendingCatchNames = mutableListOf<String?>()
 
@@ -66,12 +68,11 @@ class InstanceOfCheckForExceptionRule : WUninitializedRule {
                 val name = pendingCatchNames.lastOrNull() ?: return
                 val text = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset).toString()
                 val checkedType = when (ctx.type) {
-                    WNodeType.IS_EXPRESSION ->
-                        when {
-                            text.startsWith("$name is ") -> text.removePrefix("$name is ")
-                            text.startsWith("$name !is ") -> text.removePrefix("$name !is ")
-                            else -> null
-                        }
+                    WNodeType.IS_EXPRESSION -> when {
+                        text.startsWith("$name is ") -> text.removePrefix("$name is ")
+                        text.startsWith("$name !is ") -> text.removePrefix("$name !is ")
+                        else -> null
+                    }
 
                     WNodeType.AS_EXPRESSION ->
                         if (text.startsWith("$name as ")) text.removePrefix("$name as ") else null

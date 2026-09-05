@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.BINARY_EXPRESSION)
+
 /**
  * A chain of `&&` or `||` operands containing a duplicate (after stripping all whitespace, an
  * exact textual match) is reported (see [UnnecessaryPartOfBinaryExpressionDecision]) at the whole
@@ -33,7 +35,7 @@ class UnnecessaryPartOfBinaryExpressionRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BINARY_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private val chains = mutableMapOf<Long, ChainNode>()
 

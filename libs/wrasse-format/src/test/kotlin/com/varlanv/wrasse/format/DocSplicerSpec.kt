@@ -212,4 +212,18 @@ class DocSplicerSpec : BaseSpec({
         val spliced = DocSplicer.splice(doc, listOf(WEdit(0, 0, " {\n", indentScope = IndentScope.OPEN)))
         spliced shouldBe null
     }
+
+    should("keep a group's forceBreak and singleArgument flags when splicing an edit inside it") {
+        val group = Doc.Group(
+            Doc.Concat(listOf(Doc.Text("(", 0, 1), Doc.Text("x", 1, 2), Doc.Text(")", 2, 3)), 0, 3),
+            GroupKind.ARGUMENTS,
+            forceBreak = true,
+            singleArgument = true,
+        )
+        val spliced = DocSplicer.splice(group, listOf(WEdit(1, 1, "name = "))) as Doc.Group
+        spliced.kind shouldBe GroupKind.ARGUMENTS
+        spliced.forceBreak shouldBe true
+        spliced.singleArgument shouldBe true
+        Layout.render(spliced, style) shouldBe "(name = x)"
+    }
 })

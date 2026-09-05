@@ -64,7 +64,7 @@ open class WildcardExpansionAmbiguitySafetySpec : BaseSpec({
                 val round1 = harness.compile(listOf(source, aux1, aux2), workDir)
                 round1.wrasseDiagnostics shouldHaveSize 1
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
                 if (Files.exists(patchFile)) {
                     val edits = WPatchReader.read(Files.readString(patchFile)).flatMap { it.edits }
                     if (edits.isNotEmpty()) {
@@ -110,7 +110,7 @@ open class WildcardExpansionAmbiguitySafetySpec : BaseSpec({
                 val round1 = harness.compile(listOf(source, aux), workDir)
                 round1.wrasseDiagnostics shouldHaveSize 1
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
                 if (Files.exists(patchFile)) {
                     val edits = WPatchReader.read(Files.readString(patchFile)).flatMap { it.edits }
                     if (edits.isNotEmpty()) {

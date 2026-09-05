@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.PACKAGE_DIRECTIVE)
+
 /** Package names must be all-lowercase dotted segments with no underscore (see [PackageNamingDecision]). */
 class PackageNamingRule : WUninitializedRule {
     override val id: String = "package-naming"
@@ -17,7 +19,7 @@ class PackageNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.PACKAGE_DIRECTIVE)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

@@ -141,12 +141,11 @@ class KotlinSourceGen(
         val indent = if (v.twoSpaceIndent) "  " else "    "
         val semi = if (v.semicolons) ";" else ""
         val comma = if (v.missingTrailingComma) "" else ","
-        val longLine =
-            if (v.longLine) {
-                "        val summary = \"service-$i handled \" + events.size + \" events for \" + name + \" with total \" + total + \" and average \" + average + \" over \" + models.size + \" models in kind \" + kind\n"
-            } else {
-                "        val summary = \"service-$i handled ${'$'}{events.size} events for ${'$'}name\"\n"
-            }
+        val longLine = if (v.longLine) {
+            "        val summary = \"service-$i handled \" + events.size + \" events for \" + name + \" with total \" + total + \" and average \" + average + \" over \" + models.size + \" models in kind \" + kind\n"
+        } else {
+            "        val summary = \"service-$i handled ${'$'}{events.size} events for ${'$'}name\"\n"
+        }
         val fqn = if (v.unnecessaryFqn) "kotlin.collections.List<Model$i>" else "List<Model$i>"
         return """
             |class Service$i(

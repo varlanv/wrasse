@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.FUNCTION_LITERAL, WNodeType.VALUE_PARAMETER)
+
 /**
  * A lambda declaring more than one parameter, one of them named `it`, is reported (see
  * [ExplicitItLambdaMultipleParametersDecision]) — never fixed, since choosing a meaningful
@@ -21,7 +23,7 @@ class ExplicitItLambdaMultipleParametersRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.FUNCTION_LITERAL, WNodeType.VALUE_PARAMETER)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingLiterals = mutableListOf<PendingLiteral>()
 

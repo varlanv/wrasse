@@ -46,7 +46,7 @@ open class IfElseBracingSafetySpec : BaseSpec({
                 val round1 = harness.compile(listOf(source), workDir)
                 round1.wrasseDiagnostics shouldHaveSize 3
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
                 if (Files.exists(patchFile)) {
                     WPatchApplier.apply(fixOutputDir)
                 }
@@ -100,7 +100,7 @@ open class IfElseBracingSafetySpec : BaseSpec({
                 val round1 = harness.compile(listOf(source), workDir)
                 round1.wrasseDiagnostics shouldHaveSize 3
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
                 if (Files.exists(patchFile)) {
                     WPatchApplier.apply(fixOutputDir)
                 }

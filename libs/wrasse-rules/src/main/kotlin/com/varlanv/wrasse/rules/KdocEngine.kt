@@ -1,6 +1,7 @@
 package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.model.ChildBuffer
+import com.varlanv.wrasse.model.ChildLeafHandler
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFileRule
@@ -9,6 +10,17 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
+
+private val TARGET_TYPES = setOf(
+    WNodeType.CLASS,
+    WNodeType.OBJECT_DECLARATION,
+    WNodeType.FUN,
+    WNodeType.PROPERTY,
+    WNodeType.PRIMARY_CONSTRUCTOR,
+    WNodeType.SECONDARY_CONSTRUCTOR,
+    WNodeType.VALUE_PARAMETER_LIST,
+    WNodeType.VALUE_PARAMETER,
+)
 
 /**
  * Fuses four ids sharing the same "read a declaration's own KDoc/visibility/parameters off its
@@ -42,39 +54,27 @@ class KdocEngine : WUninitializedRuleGroup {
         val propertyConfig = configs[UNDOCUMENTED_PROPERTY_ID]
         val mismatchConfig = configs[KDOC_TAG_MISMATCH_ID]
 
-        val classRule =
-            if (classConfig != null && classConfig.explicitApiActive) {
-                ReportFacade(UNDOCUMENTED_CLASS_ID, classConfig)
-            } else {
-                null
-            }
-        val functionRule =
-            if (functionConfig != null && functionConfig.explicitApiActive) {
-                ReportFacade(UNDOCUMENTED_FUNCTION_ID, functionConfig)
-            } else {
-                null
-            }
-        val propertyRule =
-            if (propertyConfig != null && propertyConfig.explicitApiActive) {
-                ReportFacade(UNDOCUMENTED_PROPERTY_ID, propertyConfig)
-            } else {
-                null
-            }
+        val classRule = if (classConfig != null && classConfig.explicitApiActive) {
+            ReportFacade(UNDOCUMENTED_CLASS_ID, classConfig)
+        } else {
+            null
+        }
+        val functionRule = if (functionConfig != null && functionConfig.explicitApiActive) {
+            ReportFacade(UNDOCUMENTED_FUNCTION_ID, functionConfig)
+        } else {
+            null
+        }
+        val propertyRule = if (propertyConfig != null && propertyConfig.explicitApiActive) {
+            ReportFacade(UNDOCUMENTED_PROPERTY_ID, propertyConfig)
+        } else {
+            null
+        }
         val mismatchRule = mismatchConfig?.let { ReportFacade(KDOC_TAG_MISMATCH_ID, it) }
 
-        return object : WBufferedNodeRule {
+        return object : WBufferedNodeRule, ChildLeafHandler {
             override val id = ENGINE_ID
             override val config = (classConfig ?: functionConfig ?: propertyConfig ?: mismatchConfig)!!
-            override val targetTypes = setOf(
-                WNodeType.CLASS,
-                WNodeType.OBJECT_DECLARATION,
-                WNodeType.FUN,
-                WNodeType.PROPERTY,
-                WNodeType.PRIMARY_CONSTRUCTOR,
-                WNodeType.SECONDARY_CONSTRUCTOR,
-                WNodeType.VALUE_PARAMETER_LIST,
-                WNodeType.VALUE_PARAMETER,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val pendingParamLists = mutableListOf<MutableList<KdocDeclaration>>()
             private val completedParamLists = mutableListOf<CompletedParams>()

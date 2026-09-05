@@ -57,26 +57,25 @@ object WhenEntryBracingDecision {
             return WhenEntryBracingVerdict(candidate.contentStart, candidate.contentStart, emptyList())
         }
 
-        val edits =
-            if (formatEnabled) {
-                BraceInsertion.wrapEditsMinimal(
-                    leadingGapStart = candidate.leadingGapStart,
-                    contentStart = candidate.contentStart,
-                    contentEnd = candidate.contentEnd,
-                    trailingGapEnd = candidate.contentEnd,
-                    hasFollowingBranch = false,
-                )
-            } else {
-                BraceInsertion.wrapEdits(
-                    leadingGapStart = candidate.leadingGapStart,
-                    contentStart = candidate.contentStart,
-                    contentEnd = candidate.contentEnd,
-                    trailingGapEnd = candidate.contentEnd,
-                    hasFollowingBranch = false,
-                    baseIndentColumn = baseIndentColumn,
-                    indentWidth = indentWidth,
-                )
-            }
+        val edits = if (formatEnabled) {
+            BraceInsertion.wrapEditsMinimal(
+                leadingGapStart = candidate.leadingGapStart,
+                contentStart = candidate.contentStart,
+                contentEnd = candidate.contentEnd,
+                trailingGapEnd = candidate.contentEnd,
+                hasFollowingBranch = false,
+            )
+        } else {
+            BraceInsertion.wrapEdits(
+                leadingGapStart = candidate.leadingGapStart,
+                contentStart = candidate.contentStart,
+                contentEnd = candidate.contentEnd,
+                trailingGapEnd = candidate.contentEnd,
+                hasFollowingBranch = false,
+                baseIndentColumn = baseIndentColumn,
+                indentWidth = indentWidth,
+            )
+        }
         return WhenEntryBracingVerdict(
             reportStart = candidate.contentStart,
             reportEnd = candidate.contentEnd,

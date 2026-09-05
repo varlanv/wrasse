@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.BODY, WNodeType.BLOCK)
+
 /**
  * Reports a loop (`for`/`while`/`do-while`) whose entire body is exactly one statement that is
  * itself an unconditional `break` or `return` ([UnconditionalJumpDecision]) — the loop can then
@@ -26,7 +28,7 @@ class UnconditionalJumpStatementInLoopRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BODY, WNodeType.BLOCK)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

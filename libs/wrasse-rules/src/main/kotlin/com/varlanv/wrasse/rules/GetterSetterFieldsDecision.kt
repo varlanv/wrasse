@@ -18,10 +18,9 @@ object GetterSetterFieldsDecision {
         isCallExpressionCallee: Boolean,
         shadowedByLocalVar: Boolean,
         isExtensionProperty: Boolean,
-    ): String? =
-        if (foundSelfReference && !isCallExpressionCallee && !shadowedByLocalVar && !isExtensionProperty) {
-            MESSAGE
-        } else {
-            null
-        }
+    ): String? = if (foundSelfReference && !isCallExpressionCallee && !shadowedByLocalVar && !isExtensionProperty) {
+        MESSAGE
+    } else {
+        null
+    }
 }

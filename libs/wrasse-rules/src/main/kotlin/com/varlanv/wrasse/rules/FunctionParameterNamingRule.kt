@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.FUN, WNodeType.VALUE_PARAMETER)
+
 /**
  * See [FunctionParameterNamingDecision]. Only a plain function's own direct value parameters are
  * candidates — a primary/secondary constructor's own parameters are
@@ -25,7 +27,7 @@ class FunctionParameterNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.FUN, WNodeType.VALUE_PARAMETER)
+            override val targetTypes = TARGET_TYPES
 
             private val frames = mutableListOf<MutableList<Candidate>>()
 

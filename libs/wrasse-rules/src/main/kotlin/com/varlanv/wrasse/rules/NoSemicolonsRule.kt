@@ -82,12 +82,11 @@ class NoSemicolonsRule : WUninitializedRule {
                     parentType == WNodeType.ENUM_ENTRY) &&
                     classBodyOwnerEnumStack.lastOrNull() ==
                     true
-                val unnecessary =
-                    if (isEnumTail) {
-                        SemicolonNecessityScan.enumTailIsUnnecessary(ctx.sourceText, ctx.endOffset)
-                    } else {
-                        SemicolonNecessityScan.genericIsUnnecessary(ctx.sourceText, ctx.endOffset)
-                    }
+                val unnecessary = if (isEnumTail) {
+                    SemicolonNecessityScan.enumTailIsUnnecessary(ctx.sourceText, ctx.endOffset)
+                } else {
+                    SemicolonNecessityScan.genericIsUnnecessary(ctx.sourceText, ctx.endOffset)
+                }
                 if (unnecessary) {
                     reporter.report(
                         ruleId,

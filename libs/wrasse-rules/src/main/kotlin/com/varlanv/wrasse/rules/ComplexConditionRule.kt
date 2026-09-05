@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.CONDITION)
+
 /**
  * Reports an `if`/`while`/`do-while` condition combining too many boolean operators (see
  * [ComplexConditionDecision]). A plain [WNodeRule] on `CONDITION` suffices — the check reads the
@@ -20,7 +22,7 @@ class ComplexConditionRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CONDITION)
+            override val targetTypes = TARGET_TYPES
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 val text = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset)

@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION)
+
 /**
  * A dot-qualified expression whose receiver is spelled `GlobalScope` and whose selector call
  * begins with `launch` or `async` is reported (see [GlobalCoroutineUsageDecision]) at the whole
@@ -24,7 +26,7 @@ class GlobalCoroutineUsageRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,
@@ -40,12 +42,11 @@ class GlobalCoroutineUsageRule : WUninitializedRule {
 
                 val receiverText = children.textSpan(receiverIdx, ctx.sourceText)
                 val selectorText = children.textSpan(selectorIdx, ctx.sourceText)
-                val calleeText =
-                    when {
-                        WordBoundaryScan.startsWithWord(selectorText, "launch") -> "launch"
-                        WordBoundaryScan.startsWithWord(selectorText, "async") -> "async"
-                        else -> null
-                    }
+                val calleeText = when {
+                    WordBoundaryScan.startsWithWord(selectorText, "launch") -> "launch"
+                    WordBoundaryScan.startsWithWord(selectorText, "async") -> "async"
+                    else -> null
+                }
 
                 val message = GlobalCoroutineUsageDecision.decide(receiverText, calleeText) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)

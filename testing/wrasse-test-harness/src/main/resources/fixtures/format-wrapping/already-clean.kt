@@ -19,23 +19,21 @@ fun shortPropertyCase(): Int {
 }
 
 fun propertyCase(cond: Boolean): Int {
-    val x =
-        if (cond) {
-            1
-        } else {
-            2
-        }
+    val x = if (cond) {
+        1
+    } else {
+        2
+    }
     return x
 }
 
 fun whenEntryCase(x: Int, cond: Boolean): Int {
     return when (x) {
-        1 ->
-            if (cond) {
-                10
-            } else {
-                20
-            }
+        1 -> if (cond) {
+            10
+        } else {
+            20
+        }
         else -> 0
     }
 }

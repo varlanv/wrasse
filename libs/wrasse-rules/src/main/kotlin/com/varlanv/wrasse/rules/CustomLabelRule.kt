@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.LABEL_QUALIFIER)
+
 /** See [CustomLabelDecision]. Only a label reference on `return`/`break`/`continue` is a candidate; a loop's own label definition is not. */
 class CustomLabelRule : WUninitializedRule {
     override val id: String = "custom-label"
@@ -16,7 +18,7 @@ class CustomLabelRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.LABEL_QUALIFIER)
+            override val targetTypes = TARGET_TYPES
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 val parent = ctx.ancestors.peekType()
@@ -39,10 +41,13 @@ class CustomLabelRule : WUninitializedRule {
                 for (i in 0 until ancestors.size) {
                     when (ancestors.typeAt(i)) {
                         WNodeType.FOR, WNodeType.WHILE, WNodeType.DO_WHILE -> count++
-                        WNodeType.CALL_EXPRESSION ->
-                            if (isForEachCallee(ctx.sourceText, ancestors.startOffsetAt(i), ancestors.endOffsetAt(i))) {
-                                count++
-                            }
+                        WNodeType.CALL_EXPRESSION -> if (isForEachCallee(
+                            ctx.sourceText,
+                            ancestors.startOffsetAt(i),
+                            ancestors.endOffsetAt(i),
+                        )) {
+                            count++
+                        }
 
                         else -> {}
                     }

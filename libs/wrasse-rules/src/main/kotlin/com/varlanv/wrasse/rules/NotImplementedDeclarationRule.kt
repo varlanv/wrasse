@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.THROW, WNodeType.CALL_EXPRESSION)
+
 /**
  * `throw NotImplementedError(...)` (reported at the whole `throw`) and a `TODO(...)` call with
  * zero or one arguments (reported at the call) are both stub markers that should never reach
@@ -22,7 +24,7 @@ class NotImplementedDeclarationRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.THROW, WNodeType.CALL_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 when (ctx.type) {

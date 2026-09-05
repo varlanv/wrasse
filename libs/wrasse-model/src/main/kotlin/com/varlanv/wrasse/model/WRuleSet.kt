@@ -1,5 +1,8 @@
 package com.varlanv.wrasse.model
 
+import com.varlanv.wrasse.lang.NoopPerf
+import com.varlanv.wrasse.lang.WPerf
+
 /**
  * The set of rules active for a compilation: `(WUninitializedRule, WrasseRuleConfig)` pairs plus
  * `(WUninitializedRuleGroup, Map<id, WrasseRuleConfig>)` pairs for fused multi-id engines (see
@@ -56,6 +59,7 @@ class WRuleSet(
      */
     fun dispatchForFile(
         alwaysOn: List<WRule> = emptyList(),
+        perf: WPerf = NoopPerf,
         isExcluded: (WrasseRuleConfig) -> Boolean,
     ): StreamDispatch {
         val rules = ArrayList<WRule>(activeRules.size + activeGroups.size + alwaysOn.size)
@@ -69,6 +73,6 @@ class WRuleSet(
             rules.add(group.initGroup(surviving))
         }
         rules.addAll(alwaysOn)
-        return StreamDispatch(rules)
+        return StreamDispatch(if (perf.enabled) TimedRules.wrap(rules, perf) else rules)
     }
 }

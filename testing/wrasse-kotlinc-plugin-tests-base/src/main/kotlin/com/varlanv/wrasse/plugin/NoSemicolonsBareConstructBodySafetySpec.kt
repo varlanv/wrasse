@@ -35,7 +35,7 @@ open class NoSemicolonsBareConstructBodySafetySpec : BaseSpec({
                 val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
                 val round1 = harness.compile(listOf(source), workDir)
                 round1.wrasseDiagnostics.shouldBeEmpty()
-                IdempotenceCycle.assertNoResidualEdits(fixOutputDir.resolve("wrasse-fixes.txt"))
+                IdempotenceCycle.assertNoResidualEdits(fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt"))
             }
         }
     }
@@ -58,7 +58,7 @@ open class NoSemicolonsBareConstructBodySafetySpec : BaseSpec({
                 val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
                 val round1 = harness.compile(listOf(source), workDir)
                 round1.wrasseDiagnostics.shouldBeEmpty()
-                IdempotenceCycle.assertNoResidualEdits(fixOutputDir.resolve("wrasse-fixes.txt"))
+                IdempotenceCycle.assertNoResidualEdits(fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt"))
             }
         }
     }
@@ -81,7 +81,7 @@ open class NoSemicolonsBareConstructBodySafetySpec : BaseSpec({
                 val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
                 val round1 = harness.compile(listOf(source), workDir)
                 round1.wrasseDiagnostics.shouldBeEmpty()
-                IdempotenceCycle.assertNoResidualEdits(fixOutputDir.resolve("wrasse-fixes.txt"))
+                IdempotenceCycle.assertNoResidualEdits(fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt"))
             }
         }
     }

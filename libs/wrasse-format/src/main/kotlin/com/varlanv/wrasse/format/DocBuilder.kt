@@ -1,7 +1,10 @@
 package com.varlanv.wrasse.format
 
+import com.varlanv.wrasse.lang.NoopPerf
 import com.varlanv.wrasse.lang.WEdit
+import com.varlanv.wrasse.lang.WPerf
 import com.varlanv.wrasse.lang.containsChar
+import com.varlanv.wrasse.lang.indexOfChar
 import com.varlanv.wrasse.lang.lastIndexOfChar
 import com.varlanv.wrasse.model.EditPlan
 import com.varlanv.wrasse.model.WContext
@@ -40,7 +43,7 @@ private val ASSIGNMENT_OPERATOR_TEXTS = setOf("=", "+=", "-=", "*=", "/=", "%=")
 
 private val OWN_LINE_FORCE_TYPES = WNodeTypeSet.containing(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN)
 private val SEMICOLON_BREAK_SCOPE = WNodeTypeSet.containing(WNodeType.BLOCK, WNodeType.WHEN)
-private val MULTILINE_WRAPPABLE_VALUE_TYPES = WNodeTypeSet.containing(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
+private val HUGGING_VALUE_TYPES = WNodeTypeSet.containing(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
 private val BLANK_LINE_BEFORE_DECLARATION_TYPES = WNodeTypeSet.containing(
     WNodeType.CLASS,
     WNodeType.CLASS_INITIALIZER,
@@ -121,16 +124,15 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
         val text: CharSequence = ctx.leafText ?: ""
-        val entry =
-            when (ctx.type) {
-                WNodeType.WHITE_SPACE if text.containsChar('\n') -> ChildEntry.Ws(text, ctx.startOffset)
-                WNodeType.EOL_COMMENT -> ChildEntry.Resolved(
-                    ctx.type,
-                    Doc.Text(normalizeEolCommentText(text), ctx.startOffset, ctx.endOffset),
-                )
+        val entry = when (ctx.type) {
+            WNodeType.WHITE_SPACE if text.containsChar('\n') -> ChildEntry.Ws(text, ctx.startOffset)
+            WNodeType.EOL_COMMENT -> ChildEntry.Resolved(
+                ctx.type,
+                Doc.Text(normalizeEolCommentText(text), ctx.startOffset, ctx.endOffset),
+            )
 
-                else -> ChildEntry.Resolved(ctx.type, Doc.Text(text, ctx.startOffset, ctx.endOffset))
-            }
+            else -> ChildEntry.Resolved(ctx.type, Doc.Text(text, ctx.startOffset, ctx.endOffset))
+        }
         frames.last().children.add(entry)
     }
 
@@ -155,6 +157,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         editPlan = ctx.editPlan
         val frame = frames.removeLast()
         if (frame.type == WNodeType.LONG_STRING_TEMPLATE_ENTRY) templateEntryDepth--
+        if (frame.type == WNodeType.BLOCK) frame.branchOfMultilineIf = isBranchOfMultilineIf(ctx)
         val parentType = frames.lastOrNull()?.type
         val doc = resolveFrame(frame, ctx.startOffset, ctx.endOffset, parentType)
         if (frames.isEmpty()) {
@@ -193,15 +196,24 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * no edit) and the plan is handed back untouched so the declining rules' own edits still reach
      * the patch.
      */
-    fun finish(ctx: WContext, reporter: WReporter) {
+    fun finish(
+        ctx: WContext,
+        reporter: WReporter,
+        perf: WPerf = NoopPerf,
+    ) {
         val original = ctx.sourceText.toString()
         val taken = ctx.editPlan.takeAll()
+        val spliceStarted = if (perf.enabled) System.nanoTime() else 0L
         val spliced = DocSplicer.splice(rootDoc, taken.map { it.edit })
+        if (perf.enabled) perf.record("phase:format-splice", System.nanoTime() - spliceStarted)
         if (spliced == null) {
             ctx.editPlan.restore(taken)
+            if (perf.enabled) perf.add("count:format-splice-bailed", 1)
             return
         }
+        val renderStarted = if (perf.enabled) System.nanoTime() else 0L
         val rendered = Layout.render(spliced, style)
+        if (perf.enabled) perf.record("phase:format-render", System.nanoTime() - renderStarted)
         if (rendered == original) return
         reporter.report(
             id,
@@ -253,6 +265,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         WNodeType.LONG_STRING_TEMPLATE_ENTRY -> Doc.Group(resolveBraceFrame(frame, start, end), GroupKind.TEMPLATE)
 
+        WNodeType.IF, WNodeType.WHEN, WNodeType.TRY, WNodeType.OBJECT_LITERAL -> Doc.Group(
+            resolveBraceFrame(frame, start, end),
+            GroupKind.BARRIER,
+        )
+
         WNodeType.SUPER_TYPE_CALL_ENTRY -> resolveSuperTypeCallEntryFrame(frame, start, end)
 
         WNodeType.VALUE_PARAMETER_LIST -> resolveValueParameterListFrame(frame, start, end, parentType)
@@ -302,7 +319,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             if (frame.type == WNodeType.FUNCTION_LITERAL) normalizeLambdaBraces(frame.children) else frame.children
         val annotationAdjusted = adjustAnnotationTrailingGap(rawChildren)
         val semicolonAdjusted = convertStatementSeparatorSemicolons(annotationAdjusted, frame.type)
-        val children = forceMultilineBraceGaps(semicolonAdjusted, frame.type)
+        val children = forceMultilineBraceGaps(semicolonAdjusted, frame.type, frame.branchOfMultilineIf)
         if (children.isEmpty()) return Doc.Concat(emptyList(), start, end)
 
         val suppressSuperTypeListLeadGap = frame.ownsSuperTypeListLeadGap
@@ -393,21 +410,46 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * edit already collected inside the body inserts a line break) gets a `HARD` break right after
      * that `{` and right before its own closing `}` when one isn't
      * already there — no code shares `{`'s line, and `}` never shares a line with the content
-     * before it. A no-op for: a frame without its own `{`/`}` pair (a lambda's transparent
-     * [WNodeType.BLOCK]); an entirely single-line body (this mechanism never decides fit, only
-     * reacts to content that is already going to be multi-line); an enum [WNodeType.CLASS_BODY]
-     * that is, as a whole, still single-line (`enum class Foo { A, B }` stays exactly as written).
+     * before it. The same happens to a [branchOfMultilineIf] body whatever its own content, so
+     * every braced branch of an `if` that spans lines in the source is laid out alike. A no-op
+     * for: a frame without its own `{`/`}` pair (a lambda's transparent [WNodeType.BLOCK]); an
+     * entirely single-line body (this mechanism never decides fit, only reacts to content that is
+     * already going to be multi-line); an enum [WNodeType.CLASS_BODY] that is, as a whole, still
+     * single-line (`enum class Foo { A, B }` stays exactly as written).
      */
-    private fun forceMultilineBraceGaps(children: List<ChildEntry>, frameType: WNodeType): List<ChildEntry> {
+    private fun forceMultilineBraceGaps(
+        children: List<ChildEntry>,
+        frameType: WNodeType,
+        branchOfMultilineIf: Boolean,
+    ): List<ChildEntry> {
         if (frameType !in OWN_LINE_FORCE_TYPES) return children
         if (children.isEmpty() || children.last().type != WNodeType.RBRACE) return children
         val lbraceIdx = children.indexOfFirst { it.type == WNodeType.LBRACE }
         if (lbraceIdx < 0 || lbraceIdx >= children.size - 1) return children
         val body = children.subList(lbraceIdx, children.size)
-        if (body.none { isForcedMultilineChild(it) } && !pendingMultilineEditIn(body)) return children
+        if (!branchOfMultilineIf && body.none { isForcedMultilineChild(it) } && !pendingMultilineEditIn(body)) {
+            return children
+        }
 
         val withHeadBreak = insertBreakAfter(children, anchorIdx = lbraceIdx)
         return insertBreakBefore(withHeadBreak, anchorIdx = withHeadBreak.size - 1)
+    }
+
+    /**
+     * Whether the node being exited is the braced body of a `then`/`else` branch whose `if` chain
+     * (`else if` links included) spans more than one source line.
+     */
+    private fun isBranchOfMultilineIf(ctx: WContext): Boolean {
+        val ancestors = ctx.ancestors
+        var i = ancestors.size - 1
+        if (i < 1) return false
+        val parent = ancestors.typeAt(i)
+        if (parent != WNodeType.THEN && parent != WNodeType.ELSE) return false
+        i--
+        if (ancestors.typeAt(i) != WNodeType.IF) return false
+        while (i >= 2 && ancestors.typeAt(i - 1) == WNodeType.ELSE && ancestors.typeAt(i - 2) == WNodeType.IF) i -= 2
+        val newline = ctx.sourceText.indexOfChar('\n', ancestors.startOffsetAt(i))
+        return newline in 0 until ancestors.endOffsetAt(i)
     }
 
     private fun pendingMultilineEditIn(body: List<ChildEntry>): Boolean {
@@ -481,9 +523,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     /**
      * The value after a declaration's or named argument's `=` at [eqIdx]: a call-like value
-     * ([isCallLikeEntry]) becomes a [GroupKind.FLUID] group ([resolveFluidValueFrame]); any other
-     * value that already starts on its own line keeps that break and renders one indent level
-     * deeper; a same-line value is left to [resolveBraceFrame].
+     * ([isCallLikeEntry]) or a multi-line `if`/`when`/`try` ([hugsAnchor]) becomes a
+     * [GroupKind.FLUID] group ([resolveFluidValueFrame]); any other value that already starts on
+     * its own line keeps that break and renders one indent level deeper; a same-line value is left
+     * to [resolveBraceFrame].
      */
     private fun resolveInitializerFrame(
         children: List<ChildEntry>,
@@ -492,7 +535,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         end: Int,
         eqIdx: Int,
     ): Doc {
-        if (valueAfterAnchorIsCallLike(children, eqIdx)) {
+        if (valueAfterAnchorIsCallLike(children, eqIdx) || valueAfterAnchorHugs(children, eqIdx)) {
             return resolveFluidValueFrame(children, frameType, start, end, eqIdx)
         }
         val gapIdx = eqIdx + 1
@@ -538,12 +581,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                     val ws = (entry as ChildEntry.Resolved).doc
                     val prevType = children.getOrNull(i - 1)?.type
                     val nextType = children.getOrNull(i + 1)?.type
-                    val decision =
-                        if (prevType != null && nextType != null) {
-                            spacingDecision(WNodeType.TYPEALIAS, prevType, nextType)
-                        } else {
-                            " "
-                        }
+                    val decision = if (prevType != null && nextType != null) {
+                        spacingDecision(WNodeType.TYPEALIAS, prevType, nextType)
+                    } else {
+                        " "
+                    }
                     parts.add(Doc.Text(decision ?: " ", ws.start, ws.end))
                 }
                 else -> parts.add(flattenDoc(resolveEntry(entry)))
@@ -565,6 +607,22 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val valueIdx = (anchorIdx + 1 until
             children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return false
         return isCallLikeEntry(children[valueIdx])
+    }
+
+    private fun valueAfterAnchorHugs(children: List<ChildEntry>, anchorIdx: Int): Boolean {
+        val valueIdx = (anchorIdx + 1 until
+            children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return false
+        return hugsAnchor(children[valueIdx])
+    }
+
+    /**
+     * An `if`/`when`/`try` value that is multi-line — brace-bodied in the source, or about to
+     * become so through a collected rule edit — stays on its anchor's line (`x = if (c) {`).
+     */
+    private fun hugsAnchor(entry: ChildEntry): Boolean {
+        if (entry !is ChildEntry.Resolved || entry.type !in HUGGING_VALUE_TYPES) return false
+        if (spansMultipleLines(entry.doc)) return true
+        return editPlan?.hasMultilineEditIn(entry.doc.start, entry.doc.end) == true
     }
 
     private fun isCallLikeEntry(entry: ChildEntry): Boolean =
@@ -666,12 +724,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         accessorIdx: Int,
     ): Doc {
         val gapIdx = accessorIdx - 1
-        val bodyFrom =
-            if (gapIdx >= 0 && (children[gapIdx] is ChildEntry.Ws || isPlainWhitespace(children[gapIdx]))) {
-                gapIdx
-            } else {
-                accessorIdx
-            }
+        val bodyFrom = if (gapIdx >= 0 && (children[gapIdx] is ChildEntry.Ws || isPlainWhitespace(children[gapIdx]))) {
+            gapIdx
+        } else {
+            accessorIdx
+        }
         val headParts = normalizeChildren(children.subList(0, bodyFrom), WNodeType.PROPERTY)
         val tailParts = normalizeChildren(children.subList(bodyFrom, children.size), WNodeType.PROPERTY)
         val tailStart = tailParts.firstOrNull()?.start ?: start
@@ -682,14 +739,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     /**
      * Shared by [resolvePropertyFrame], [resolveBinaryFrame]'s assignment-operator case, and
-     * [resolveWhenEntryFrame]'s own arrow, for the value found right after [anchorIdx] — never by
-     * a named argument, whose `if`/`when`/`try` value stays on the `name =` line. A comment there (nested ahead of the real value) always moves onto its own
-     * line, one indent level deeper, reusing the source gap's own break. An `if`/`when`/`try` value
-     * ([MULTILINE_WRAPPABLE_VALUE_TYPES]) becomes a group that indents when broken: it stays on
-     * the anchor's line while it renders on one line and fits, and moves onto its own line one
-     * indent level deeper as soon as it is multi-line — decided at layout time, so braces spliced
-     * in by a rule count too. Returns `null` for every other value, leaving the caller's own
-     * default in place.
+     * [resolveWhenEntryFrame]'s own arrow, for the value found right after [anchorIdx]. A comment
+     * there (nested ahead of the real value) always moves onto its own line, one indent level
+     * deeper, reusing the source gap's own break. An `if`/`when`/`try` value
+     * ([HUGGING_VALUE_TYPES]) becomes a group that indents when broken: a multi-line one
+     * ([hugsAnchor]) is [GroupKind.FLUID] and stays on the anchor's line while its first line fits
+     * there (`x = if (c) {`); a single-line one stays on the anchor's line while it fits whole and
+     * moves onto its own line one indent level deeper otherwise. Returns `null` for every other
+     * value, leaving the caller's own default in place.
      */
     private fun resolveAssignedValueFrame(
         children: List<ChildEntry>,
@@ -702,7 +759,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return null
         val valueEntry = children[valueIdx]
         val isLeadingComment = valueEntry.type in COMMENT_TYPES
-        if (!isLeadingComment && valueEntry.type !in MULTILINE_WRAPPABLE_VALUE_TYPES) return null
+        if (!isLeadingComment && valueEntry.type !in HUGGING_VALUE_TYPES) return null
 
         val headParts = normalizeChildren(children.subList(0, anchorIdx + 1), frameType)
         val gapEntry = children.getOrNull(anchorIdx + 1)
@@ -712,21 +769,21 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val valueParts = normalizeChildren(children.subList(valueIdx, children.size), frameType)
             val valueEnd = valueParts.lastOrNull()?.end ?: end
             val body = Doc.Concat(listOf(softBreak) + valueParts, softBreak.start, valueEnd)
-            return Doc.Concat(headParts + listOf(Doc.Group(body, indentWhenBroken = true)), start, end)
+            val kind = if (hugsAnchor(valueEntry)) GroupKind.FLUID else GroupKind.DEFAULT
+            return Doc.Concat(headParts + listOf(Doc.Group(body, kind, indentWhenBroken = true)), start, end)
         }
-        val breakDoc =
-            when {
-                gapEntry is ChildEntry.Ws -> clampWs(gapEntry, newlineCount = 1)
-                gapEntry != null && isPlainWhitespace(gapEntry) -> {
-                    val ws = (gapEntry as ChildEntry.Resolved).doc
-                    Doc.Break(BreakKind.HARD, literal = "\n", start = ws.start, end = ws.end)
-                }
-
-                else -> {
-                    val anchorEnd = (children[anchorIdx] as ChildEntry.Resolved).doc.end
-                    Doc.Break(BreakKind.HARD, literal = "\n", start = anchorEnd, end = anchorEnd)
-                }
+        val breakDoc = when {
+            gapEntry is ChildEntry.Ws -> clampWs(gapEntry, newlineCount = 1)
+            gapEntry != null && isPlainWhitespace(gapEntry) -> {
+                val ws = (gapEntry as ChildEntry.Resolved).doc
+                Doc.Break(BreakKind.HARD, literal = "\n", start = ws.start, end = ws.end)
             }
+
+            else -> {
+                val anchorEnd = (children[anchorIdx] as ChildEntry.Resolved).doc.end
+                Doc.Break(BreakKind.HARD, literal = "\n", start = anchorEnd, end = anchorEnd)
+            }
+        }
         val tailParts = normalizeChildren(children.subList(valueIdx, children.size), frameType)
         val tailEnd = tailParts.lastOrNull()?.end ?: end
         val body = Doc.Indent(Doc.Concat(listOf(breakDoc) + tailParts, breakDoc.start, tailEnd))
@@ -1071,12 +1128,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     private fun clampWs(entry: ChildEntry.Ws, newlineCount: Int): Doc.Break {
         val end = entry.start + entry.rawText.length
         val actual = entry.rawText.count { it == '\n' }
-        val literal =
-            if (newlineCount == actual) {
-                entry.rawText.subSequence(0, entry.rawText.lastIndexOfChar('\n') + 1)
-            } else {
-                "\n".repeat(newlineCount)
-            }
+        val literal = if (newlineCount == actual) {
+            entry.rawText.subSequence(0, entry.rawText.lastIndexOfChar('\n') + 1)
+        } else {
+            "\n".repeat(newlineCount)
+        }
         return Doc.Break(BreakKind.HARD, literal = literal, start = entry.start, end = end)
     }
 
@@ -1264,8 +1320,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      *
      * An assignment operator ([ASSIGNMENT_OPERATOR_TEXTS], e.g. `x = <expr>`, `x += <expr>`) is
      * never chained (never a [WNodeType.BINARY_EXPRESSION] operand of another one), so it is
-     * always effectively root; when its value is already forced multi-line,
-     * [resolveAssignedValueFrame] takes over instead of the generic chain/binary machinery below.
+     * always effectively root; an `if`/`when`/`try` value is placed by
+     * [resolveAssignedValueFrame] instead of the generic chain/binary machinery below.
      */
     private fun resolveBinaryFrame(
         frame: Frame,
@@ -1380,12 +1436,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         val lastIdx = texts.lastIndex
         val last = texts[lastIdx]
-        val closingTailIdx =
-            when {
-                last == "\n" -> null
-                last.isNotEmpty() && last.isBlank() && lastIdx > 0 && texts[lastIdx - 1] == "\n" -> lastIdx
-                else -> return null
-            }
+        val closingTailIdx = when {
+            last == "\n" -> null
+            last.isNotEmpty() && last.isBlank() && lastIdx > 0 && texts[lastIdx - 1] == "\n" -> lastIdx
+            else -> return null
+        }
         val bodyLastIdx = closingTailIdx?.minus(1) ?: lastIdx
 
         if ((0..bodyLastIdx).any { texts[it] != "\n" && texts[it].isBlank() }) return null
@@ -1463,8 +1518,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             return Doc.Concat(children.map { resolveEntry(it) }, start, end)
         }
         frame.hasArguments = true
+        val argumentCount = (lparIdx + 1 until rparIdx).count { children[it].type == WNodeType.VALUE_ARGUMENT }
         val nestsCallWithArguments = style.wrapNestedCallArguments &&
             templateEntryDepth == 0 &&
+            argumentCount > 1 &&
             (lparIdx + 1 until rparIdx).any { (children[it] as? ChildEntry.Resolved)?.isCallWithArguments == true }
 
         val lparDoc = resolveEntry(children[lparIdx])
@@ -1506,6 +1563,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             Doc.Concat(listOf(lparDoc, Doc.Indent(interiorDoc), closingBreak, rparDoc), start, end),
             GroupKind.ARGUMENTS,
             forceBreak = nestsCallWithArguments,
+            singleArgument = argumentCount == 1,
         )
     }
 
@@ -1995,10 +2053,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * its own, so this is the only way to detect one). In all three cases the entry is left
      * untouched.
      *
-     * Independent of that bail (it concerns only the condition list): when the entry's own body —
-     * whatever follows the arrow — is already forced multi-line and is not itself a
-     * [WNodeType.BLOCK] (owned by [forceMultilineBraceGaps] instead), [resolveAssignedValueFrame]
-     * moves it onto its own line.
+     * Independent of that bail (it concerns only the condition list): an `if`/`when`/`try` body
+     * after the arrow is placed by [resolveAssignedValueFrame], a multi-line one hugging the
+     * arrow; a [WNodeType.BLOCK] body is owned by [forceMultilineBraceGaps] instead.
      */
     private fun resolveWhenEntryFrame(
         frame: Frame,
@@ -2082,7 +2139,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         is Doc.Break -> doc.kind == BreakKind.HARD
         is Doc.TrailingComma -> false
         is Doc.Indent -> spansMultipleLines(doc.body)
-        is Doc.Group -> spansMultipleLines(doc.body)
+        is Doc.Group -> doc.forceBreak || spansMultipleLines(doc.body)
         is Doc.Concat -> doc.parts.any { spansMultipleLines(it) }
     }
 
@@ -2188,6 +2245,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var hasArguments = false
         var isCallWithArguments = false
         var endsWithCallWithArguments = false
+        var branchOfMultilineIf = false
     }
 
     private sealed interface ChildEntry {

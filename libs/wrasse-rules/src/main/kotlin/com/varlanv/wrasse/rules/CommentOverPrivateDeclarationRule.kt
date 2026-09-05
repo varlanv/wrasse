@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.FUN, WNodeType.PROPERTY)
+
 /**
  * A KDoc attached to an explicitly `private` function or property, at any nesting, is reported
  * (see [CommentOverPrivateDeclarationDecision]) at the declaration's own span.
@@ -20,7 +22,7 @@ class CommentOverPrivateDeclarationRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.FUN, WNodeType.PROPERTY)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,
@@ -36,12 +38,11 @@ class CommentOverPrivateDeclarationRule : WUninitializedRule {
                 val message =
                     if (ctx.type == WNodeType.FUN) {
                         val nameIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
-                        val name =
-                            if (nameIdx < 0) {
-                                "<anonymous>"
-                            } else {
-                                IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
-                            }
+                        val name = if (nameIdx < 0) {
+                            "<anonymous>"
+                        } else {
+                            IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
+                        }
                         CommentOverPrivateDeclarationDecision.decideFunction(hasKdoc, isPrivate, name)
                     } else {
                         CommentOverPrivateDeclarationDecision.decideProperty(hasKdoc, isPrivate)

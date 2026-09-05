@@ -15,13 +15,12 @@ object InvalidRangeDecision {
         lower: Int,
         upper: Int,
     ): String? {
-        val isInvalid =
-            when {
-                operatorText.contentEquals("..") -> lower > upper
-                operatorText.contentEquals("downTo") -> lower < upper
-                operatorText.contentEquals("until") || operatorText.contentEquals("..<") -> lower >= upper
-                else -> false
-            }
+        val isInvalid = when {
+            operatorText.contentEquals("..") -> lower > upper
+            operatorText.contentEquals("downTo") -> lower < upper
+            operatorText.contentEquals("until") || operatorText.contentEquals("..<") -> lower >= upper
+            else -> false
+        }
         return if (isInvalid) MESSAGE else null
     }
 }

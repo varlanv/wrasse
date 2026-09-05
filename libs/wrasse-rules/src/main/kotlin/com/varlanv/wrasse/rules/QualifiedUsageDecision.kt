@@ -129,17 +129,16 @@ object QualifiedUsageDecision {
         }
 
         val written = sourceText.subSequence(usage.startOffset, usage.endOffset).toString()
-        val matches =
-            when (usage.kind) {
-                WQualifiedUsageKind.QUALIFIER -> written == usage.targetFqName
-                WQualifiedUsageKind.TYPE_REF -> {
-                    written.startsWith(
-                        usage.targetFqName,
-                    ) &&
-                        (written.length == usage.targetFqName.length ||
-                            written[usage.targetFqName.length].let { it == '<' || it == '?' })
-                }
+        val matches = when (usage.kind) {
+            WQualifiedUsageKind.QUALIFIER -> written == usage.targetFqName
+            WQualifiedUsageKind.TYPE_REF -> {
+                written.startsWith(
+                    usage.targetFqName,
+                ) &&
+                    (written.length == usage.targetFqName.length ||
+                        written[usage.targetFqName.length].let { it == '<' || it == '?' })
             }
+        }
         if (!matches) return null
 
         val relativeClassName = usage.targetFqName.removePrefix(prefix)

@@ -38,7 +38,7 @@ open class EmptyClassBodySafetySpec : BaseSpec({
                 val round1 = harness.compile(listOf(source), workDir)
                 round1.wrasseDiagnostics shouldHaveSize 0
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
                 if (Files.exists(patchFile)) {
                     WPatchApplier.apply(fixOutputDir)
                 }

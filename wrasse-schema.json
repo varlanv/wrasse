@@ -260,10 +260,16 @@
                             "default": false,
                             "description": "Name the positional arguments of every call, not only of calls nesting other calls. Default false."
                         },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 2,
+                            "description": "Only name the arguments of callees declaring at least this many parameters. Default 2."
+                        },
                         "wrap": {
                             "type": "boolean",
                             "default": true,
-                            "description": "With format enabled, also lay out every call nesting another call with arguments one argument per line. Default true."
+                            "description": "With format enabled, also lay out every call nesting another call with arguments one argument per line; a call with a single argument, or one written inside an if/when/try/object expression, is never wrapped for this reason. Default true."
                         }
                     }
                 },

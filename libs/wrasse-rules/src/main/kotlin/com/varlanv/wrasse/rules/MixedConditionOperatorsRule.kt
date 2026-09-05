@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.BINARY_EXPRESSION)
+
 /**
  * A maximal chain of directly-nested `&&`/`||` [WNodeType.BINARY_EXPRESSION]s that uses both
  * operators somewhere in the chain is reported (see [MixedConditionOperatorsDecision]) once, at
@@ -31,7 +33,7 @@ class MixedConditionOperatorsRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BINARY_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private val chains = mutableMapOf<Long, ChainNode>()
 

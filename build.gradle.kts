@@ -58,6 +58,7 @@ tasks.register("wrasseFix") {
         if (republish.isPresent) {
             forkGradle("publishToMavenLocal", "-q")
         }
+        forkGradle("wrasseFormatRequest", "-q")
         forkGradle("compileKotlin", "compileTestKotlin", "-PwrasseCheck", failOnError = false)
         forkGradle("wrasseApply", failOnError = true)
     }

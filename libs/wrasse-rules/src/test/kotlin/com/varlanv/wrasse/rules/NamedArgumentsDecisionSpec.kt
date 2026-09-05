@@ -23,7 +23,8 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         name: String = "f",
         stable: Boolean = true,
         arguments: List<WCallArgument> = listOf(argument(listStart + 1, callEnd - 1, "a")),
-    ) = WCallSite(callStart, callEnd, pkg, cls, name, stable, arguments)
+        parameterCount: Int = 2,
+    ) = WCallSite(callStart, callEnd, pkg, cls, name, stable, arguments, parameterCount = parameterCount)
 
     should("put a call and its nested call arguments in scope, transitively, but not an unrelated flat call") {
         val inner = site(callStart = 10, callEnd = 18, listStart = 15)
@@ -33,12 +34,46 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         NamedArgumentsDecision.callsInScope(
             listOf(flat, outer, inner, middle),
             allCalls = false,
+            threshold = 1,
         ) shouldBe setOf(20, 19, 18)
     }
 
     should("put every call in scope with all-calls") {
         val flat = site(callStart = 30, callEnd = 40, listStart = 33)
-        NamedArgumentsDecision.callsInScope(listOf(flat), allCalls = true) shouldBe setOf(40)
+        NamedArgumentsDecision.callsInScope(listOf(flat), allCalls = true, threshold = 1) shouldBe setOf(40)
+    }
+
+    should("leave a callee below the threshold out of scope while still reaching the calls nested in it") {
+        val inner = site(callStart = 10, callEnd = 18, listStart = 15, parameterCount = 2)
+        val middle = site(
+            callStart = 5,
+            callEnd = 19,
+            listStart = 8,
+            arguments = listOf(argument(10, 18, "m")),
+            parameterCount = 1,
+        )
+        val outer = site(
+            callStart = 0,
+            callEnd = 20,
+            listStart = 3,
+            arguments = listOf(argument(5, 19, "o")),
+            parameterCount = 3,
+        )
+        NamedArgumentsDecision.callsInScope(
+            listOf(outer, inner, middle),
+            allCalls = false,
+            threshold = 2,
+        ) shouldBe setOf(20, 18)
+        NamedArgumentsDecision.callsInScope(
+            listOf(outer, inner, middle),
+            allCalls = false,
+            threshold = 3,
+        ) shouldBe setOf(20)
+        NamedArgumentsDecision.callsInScope(
+            listOf(outer, inner, middle),
+            allCalls = true,
+            threshold = 2,
+        ) shouldBe setOf(20, 18)
     }
 
     should("exclude java and javax callees by package prefix, whole segments only") {

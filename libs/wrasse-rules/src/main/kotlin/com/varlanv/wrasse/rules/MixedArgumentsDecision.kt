@@ -1,11 +1,21 @@
 package com.varlanv.wrasse.rules
 
+import com.varlanv.wrasse.model.WCallSite
+
 /**
  * Pure verdict logic for `no-mixed-named-positional-arguments`: [isNamedArgument] recognizes an
  * argument written as `name = value` (an identifier, plain or backticked, then `=` that is not
  * `==`); [mixesNamedAndPositional] is true when a list has at least one argument of each kind.
+ * [isVarargElement] tells whether a written argument was mapped to an element of a vararg
+ * parameter — such an argument cannot be named at the call site and never counts as positional.
  */
 object MixedArgumentsDecision {
+    fun isVarargElement(
+        site: WCallSite?,
+        start: Int,
+        end: Int,
+    ): Boolean = site != null && NamedArgumentsDecision.mappedArgument(site, start, end)?.isVararg == true
+
     fun isNamedArgument(
         sourceText: CharSequence,
         start: Int,

@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.IF, WNodeType.BINARY_EXPRESSION)
+
 /**
  * An `if` whose condition is exactly `<expr> != null`/`null != <expr>` with an `else` branch that
  * reduces to `null`, or `<expr> == null`/`null == <expr>` with a `then` branch that reduces to
@@ -24,7 +26,7 @@ class UseLetRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.IF, WNodeType.BINARY_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingIfs = mutableListOf<PendingIf>()
 

@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.KDOC, WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT)
+
 /**
  * Fuses five ids sharing the same "a KDoc/EOL/block comment leaf's own immediate parent and
  * position among that parent's direct children" check into one leaf-level decision-maker:
@@ -35,7 +37,7 @@ class CommentPositionEngine : WUninitializedRuleGroup {
         return object : WLeafRule {
             override val id = ENGINE_ID
             override val config = configs.values.first()
-            override val targetTypes = setOf(WNodeType.KDOC, WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT)
+            override val targetTypes = TARGET_TYPES
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val parent = ctx.ancestors.peekType()

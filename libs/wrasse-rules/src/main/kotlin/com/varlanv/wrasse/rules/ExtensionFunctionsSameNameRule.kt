@@ -1,12 +1,20 @@
 package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.model.ChildBuffer
+import com.varlanv.wrasse.model.ChildLeafHandler
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
+
+private val TARGET_TYPES = setOf(
+    WNodeType.CLASS,
+    WNodeType.SUPER_TYPE_LIST,
+    WNodeType.FUN,
+    WNodeType.VALUE_PARAMETER_LIST,
+)
 
 /**
  * Collects, across the whole file: every non-interface class's own related supertypes (see
@@ -23,15 +31,10 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
-        return object : WBufferedNodeRule {
+        return object : WBufferedNodeRule, ChildLeafHandler {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.CLASS,
-                WNodeType.SUPER_TYPE_LIST,
-                WNodeType.FUN,
-                WNodeType.VALUE_PARAMETER_LIST,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val classFrames = mutableListOf<ClassFrame>()
             private val paramListFrames = mutableListOf<MutableList<String>>()
@@ -80,10 +83,9 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
                     WNodeType.CLASS -> if (classFrames.isNotEmpty()) classFrames.removeAt(classFrames.size - 1)
                     WNodeType.SUPER_TYPE_LIST -> finalizeSuperTypeList(ctx, children)
                     WNodeType.FUN -> finalizeFun(ctx, children)
-                    WNodeType.VALUE_PARAMETER_LIST ->
-                        if (paramListFrames.isNotEmpty()) {
-                            paramNamesByListStart[ctx.startOffset] = paramListFrames.removeAt(paramListFrames.size - 1)
-                        }
+                    WNodeType.VALUE_PARAMETER_LIST -> if (paramListFrames.isNotEmpty()) {
+                        paramNamesByListStart[ctx.startOffset] = paramListFrames.removeAt(paramListFrames.size - 1)
+                    }
 
                     else -> {}
                 }
@@ -111,12 +113,11 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
                 val receiverClassName = children.textSpan(receiverIdx, ctx.sourceText).toString()
 
                 val paramListIdx = children.firstChildOfType(WNodeType.VALUE_PARAMETER_LIST)
-                val paramNames =
-                    if (paramListIdx >= 0) {
-                        paramNamesByListStart.remove(children.startOffset(paramListIdx)) ?: emptyList()
-                    } else {
-                        emptyList()
-                    }
+                val paramNames = if (paramListIdx >= 0) {
+                    paramNamesByListStart.remove(children.startOffset(paramListIdx)) ?: emptyList()
+                } else {
+                    emptyList()
+                }
 
                 var returnType: String? = null
                 val colonIdx = children.firstChildOfType(WNodeType.COLON)

@@ -79,23 +79,22 @@ object WildcardExpansionDecision {
         if (star.packageFqName == filePackageFqName) return null
         if (!ImportLineSpan.isAloneOnLine(sourceText, star.startOffset, star.endOffset)) return null
 
-        val attributed =
-            when (StarAttribution.classify(star.packageFqName, resolvedImports, callables)) {
-                StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return null
-                StarClassification.MEMBER -> StarAttribution.attributedMembers(
-                    star.packageFqName,
-                    classifiers,
-                    callables,
-                    writtenIdentifiers,
-                )
+        val attributed = when (StarAttribution.classify(star.packageFqName, resolvedImports, callables)) {
+            StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return null
+            StarClassification.MEMBER -> StarAttribution.attributedMembers(
+                star.packageFqName,
+                classifiers,
+                callables,
+                writtenIdentifiers,
+            )
 
-                StarClassification.PACKAGE -> StarAttribution.attributedSymbols(
-                    star.packageFqName,
-                    classifiers,
-                    callables,
-                    writtenIdentifiers,
-                )
-            }
+            StarClassification.PACKAGE -> StarAttribution.attributedSymbols(
+                star.packageFqName,
+                classifiers,
+                callables,
+                writtenIdentifiers,
+            )
+        }
 
         val explicitFqns = explicitImports.filter { it.aliasName == null }.mapTo(mutableSetOf()) { it.fqn }
         val filtered = attributed.filterNot { it in explicitFqns }.toSortedSet()

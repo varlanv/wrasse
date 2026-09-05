@@ -11,6 +11,8 @@ import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.BLOCK)
+
 /**
  * Fuses nine empty-block ids into one decision-maker: every one of them is "this `BLOCK`'s own
  * direct children are nothing but braces and whitespace" ([EmptyBlockCheck]), routed to the right
@@ -40,7 +42,7 @@ class EmptyBlockEngine : WUninitializedRuleGroup {
         return object : WBufferedNodeRule {
             override val id = ENGINE_ID
             override val config = configs.values.first()
-            override val targetTypes = setOf(WNodeType.BLOCK)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

@@ -3,6 +3,9 @@ package com.varlanv.wrasse.plugin
 import com.varlanv.wrasse.lang.ConfigValue
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
+import com.varlanv.wrasse.lang.FormatRequest
+import com.varlanv.wrasse.lang.RunRequest
+import com.varlanv.wrasse.lang.WPerf
 import com.varlanv.wrasse.model.WConfig
 import com.varlanv.wrasse.model.WRuleOptionSpec
 import com.varlanv.wrasse.model.WRuleSet
@@ -259,6 +262,7 @@ fun wrasseMain(
             .toMap()
         if (configs.isNotEmpty()) activeGroups.push(group to configs)
     }
+    val request = if (fixOutputDir != null) FormatRequest.consume(fixOutputDir) else RunRequest.NONE
     return Result.success(
         WrassePlugin(
             ruleSet = WRuleSet(activeRules, activeGroups),
@@ -267,6 +271,8 @@ fun wrasseMain(
             configDir = config.configDir,
             dumpResolvedUsage = dumpResolvedUsage,
             formatConfig = config.format,
+            formatRun = request.formatting,
+            perf = WPerf.create(active = request.debugPerformance),
         ),
     )
 }

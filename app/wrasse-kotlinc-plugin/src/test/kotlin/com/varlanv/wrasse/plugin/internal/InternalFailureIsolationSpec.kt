@@ -144,7 +144,7 @@ class InternalFailureIsolationSpec : BaseSpec({
             result.wrasseDiagnostics shouldHaveSize 1
             result.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.WARNING
 
-            val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+            val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
             if (Files.exists(patchFile)) {
                 WPatchReader.read(Files.readString(patchFile)).shouldBeEmpty()
             }

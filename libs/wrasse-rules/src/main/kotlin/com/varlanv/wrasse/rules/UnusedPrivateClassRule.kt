@@ -53,10 +53,9 @@ class UnusedPrivateClassRule : WUninitializedRule {
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val ancestors = ctx.ancestors
                 when (ctx.type) {
-                    WNodeType.KW_PRIVATE ->
-                        if (inOwnModifierList(ancestors, WNodeType.CLASS)) {
-                            pendingClasses.lastOrNull()?.isPrivate = true
-                        }
+                    WNodeType.KW_PRIVATE -> if (inOwnModifierList(ancestors, WNodeType.CLASS)) {
+                        pendingClasses.lastOrNull()?.isPrivate = true
+                    }
 
                     WNodeType.IDENTIFIER -> {
                         val text = IdentifierCasing.unquote(ctx.leafString() ?: "")

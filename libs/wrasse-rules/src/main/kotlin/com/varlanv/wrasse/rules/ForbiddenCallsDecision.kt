@@ -12,12 +12,11 @@ import java.nio.file.PathMatcher
  */
 object ForbiddenCallsDecision {
     class ForbiddenCall(val pattern: String, val allowedIn: List<PathMatcher>) {
-        fun matches(canonicalName: String): Boolean =
-            if (pattern.endsWith("*")) {
-                canonicalName.regionMatches(0, pattern, 0, pattern.length - 1)
-            } else {
-                canonicalName == pattern
-            }
+        fun matches(canonicalName: String): Boolean = if (pattern.endsWith("*")) {
+            canonicalName.regionMatches(0, pattern, 0, pattern.length - 1)
+        } else {
+            canonicalName == pattern
+        }
 
         fun allowedIn(configRelativeFilePath: Path): Boolean = allowedIn.any { it.matches(configRelativeFilePath) }
     }

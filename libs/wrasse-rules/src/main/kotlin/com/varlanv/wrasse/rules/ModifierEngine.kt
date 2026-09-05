@@ -12,6 +12,8 @@ import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.MODIFIER_LIST)
+
 /**
  * Fuses two user-facing rule ids into one decision-maker: `modifier-order` and
  * `redundant-visibility-modifier`. Each id is configured independently in `wrasse.json`;
@@ -39,17 +41,16 @@ class ModifierEngine : WUninitializedRuleGroup {
         val orderConfig = configs[MODIFIER_ORDER_ID]
         val visibilityConfig = configs[REDUNDANT_VISIBILITY_MODIFIER_ID]
         val orderRule = orderConfig?.let { ReportFacade(MODIFIER_ORDER_ID, it) }
-        val visibilityRule =
-            if (visibilityConfig != null && !visibilityConfig.explicitApiActive) {
-                ReportFacade(REDUNDANT_VISIBILITY_MODIFIER_ID, visibilityConfig)
-            } else {
-                null
-            }
+        val visibilityRule = if (visibilityConfig != null && !visibilityConfig.explicitApiActive) {
+            ReportFacade(REDUNDANT_VISIBILITY_MODIFIER_ID, visibilityConfig)
+        } else {
+            null
+        }
 
         return object : WBufferedNodeRule {
             override val id = ENGINE_ID
             override val config = (orderConfig ?: visibilityConfig)!!
-            override val targetTypes = setOf(WNodeType.MODIFIER_LIST)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

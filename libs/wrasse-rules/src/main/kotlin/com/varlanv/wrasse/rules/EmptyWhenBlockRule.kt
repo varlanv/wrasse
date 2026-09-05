@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.WHEN)
+
 /**
  * Reports a `when` expression with zero entries. A comment or KDoc anywhere between the braces
  * exempts it, matching this project's own uniform empty-block convention even though the upstream
@@ -23,7 +25,7 @@ class EmptyWhenBlockRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.WHEN)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

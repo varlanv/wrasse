@@ -9,6 +9,12 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(
+    WNodeType.CALL_EXPRESSION,
+    WNodeType.VALUE_ARGUMENT_LIST,
+    WNodeType.DOT_QUALIFIED_EXPRESSION,
+)
+
 /**
  * A bare (unqualified — `x.print()` excluded), zero/one-argument, non-trailing-lambda `print()`/
  * `println()` call (see [DebugPrintDecision]) is reported at the whole call's own span, and so is
@@ -30,11 +36,7 @@ class DebugPrintRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.CALL_EXPRESSION,
-                WNodeType.VALUE_ARGUMENT_LIST,
-                WNodeType.DOT_QUALIFIED_EXPRESSION,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val argCounts = mutableMapOf<Long, Int>()
             private val selectorLambdaFlags = mutableMapOf<Long, Boolean>()
@@ -76,12 +78,11 @@ class DebugPrintRule : WUninitializedRule {
                 reporter: WReporter,
             ) {
                 val argListIdx = children.firstChildOfType(WNodeType.VALUE_ARGUMENT_LIST)
-                val argCount =
-                    if (argListIdx < 0) {
-                        0
-                    } else {
-                        argCounts.remove(key(children.startOffset(argListIdx), children.endOffset(argListIdx))) ?: 0
-                    }
+                val argCount = if (argListIdx < 0) {
+                    0
+                } else {
+                    argCounts.remove(key(children.startOffset(argListIdx), children.endOffset(argListIdx))) ?: 0
+                }
 
                 val nameIdx = children.firstChildOfType(WNodeType.REFERENCE_EXPRESSION)
                 if (nameIdx < 0) return

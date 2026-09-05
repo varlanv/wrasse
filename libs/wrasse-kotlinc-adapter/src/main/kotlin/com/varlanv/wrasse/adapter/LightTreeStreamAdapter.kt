@@ -2,6 +2,7 @@ package com.varlanv.wrasse.adapter
 
 import com.varlanv.wrasse.lang.StringSlice
 import com.varlanv.wrasse.model.ChildBuffer
+import com.varlanv.wrasse.model.ChildLeafHandler
 import com.varlanv.wrasse.model.StreamDispatch
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
@@ -19,7 +20,7 @@ import org.jetbrains.kotlin.com.intellij.util.diff.FlyweightCapableTreeStructure
  * dispatched directly via [StreamDispatch] with no intermediate tree built:
  *
  * 1. For leaf tokens — dispatches to matching [WLeafRule]s, all [WStreamRule]s, and
- *    any active [WNodeRule]s that requested child forwarding.
+ *    the active [WNodeRule]s that are [ChildLeafHandler]s.
  * 2. For interior nodes — fires enterNode/exitNode on matching [WNodeRule]s and all
  *    [WStreamRule]s. For [WBufferedNodeRule]s, the framework collects direct children
  *    into a [ChildBuffer] between enter and exit.
@@ -246,8 +247,8 @@ object LightTreeStreamAdapter {
                 }
             }
 
-            for (i in 0 until activeNodeRules.size) {
-                activeNodeRules.ruleAt(i).onChildLeaf(ctx = ctx, reporter = reporter)
+            for (i in 0 until activeNodeRules.handlerCount) {
+                activeNodeRules.handlerAt(i).onChildLeaf(ctx = ctx, reporter = reporter)
             }
 
             trackLastNewline(ctx)
@@ -402,12 +403,17 @@ object LightTreeStreamAdapter {
     /**
      * The node rules currently between their `enterNode` and `exitNode`, as two parallel arrays
      * (no per-entry object): the rule, and the [ChildBuffer] it will receive on exit — one buffer
-     * per node, shared by every buffered rule entered at that node.
+     * per node, shared by every buffered rule entered at that node. A third stack holds only the
+     * active rules that are [ChildLeafHandler]s, pushed and popped in the same order, so the
+     * per-leaf loop touches nothing else.
      */
     private class ActiveNodeRules {
         private var rules = arrayOfNulls<WNodeRule>(16)
         private var buffers = arrayOfNulls<ChildBuffer>(16)
+        private var handlers = arrayOfNulls<ChildLeafHandler>(16)
         var size = 0
+            private set
+        var handlerCount = 0
             private set
 
         fun add(rule: WNodeRule, buffer: ChildBuffer?) {
@@ -418,9 +424,16 @@ object LightTreeStreamAdapter {
             rules[size] = rule
             buffers[size] = buffer
             size++
+            if (rule is ChildLeafHandler) {
+                if (handlerCount == handlers.size) handlers = handlers.copyOf(handlerCount * 2)
+                handlers[handlerCount] = rule
+                handlerCount++
+            }
         }
 
         fun ruleAt(i: Int): WNodeRule = rules[i]!!
+
+        fun handlerAt(i: Int): ChildLeafHandler = handlers[i]!!
 
         fun bufferAt(i: Int): ChildBuffer? = buffers[i]
 
@@ -435,6 +448,10 @@ object LightTreeStreamAdapter {
 
         fun removeLast(count: Int) {
             for (i in size - count until size) {
+                if (rules[i] is ChildLeafHandler) {
+                    handlerCount--
+                    handlers[handlerCount] = null
+                }
                 rules[i] = null
                 buffers[i] = null
             }

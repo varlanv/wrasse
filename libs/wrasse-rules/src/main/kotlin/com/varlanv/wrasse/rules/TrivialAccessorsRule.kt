@@ -1,6 +1,7 @@
 package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.model.ChildBuffer
+import com.varlanv.wrasse.model.ChildLeafHandler
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeType
@@ -8,6 +9,13 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
+
+private val TARGET_TYPES = setOf(
+    WNodeType.PROPERTY_ACCESSOR,
+    WNodeType.BLOCK,
+    WNodeType.RETURN,
+    WNodeType.BINARY_EXPRESSION,
+)
 
 /**
  * A property accessor whose whole body does nothing but read or write the backing field is
@@ -31,15 +39,10 @@ class TrivialAccessorsRule : WUninitializedRule {
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
-        return object : WBufferedNodeRule {
+        return object : WBufferedNodeRule, ChildLeafHandler {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(
-                WNodeType.PROPERTY_ACCESSOR,
-                WNodeType.BLOCK,
-                WNodeType.RETURN,
-                WNodeType.BINARY_EXPRESSION,
-            )
+            override val targetTypes = TARGET_TYPES
 
             private val pendingAccessors = mutableListOf<PendingAccessor>()
 
@@ -158,12 +161,11 @@ class TrivialAccessorsRule : WUninitializedRule {
                     isTrivialBody = isTrivialBody,
                     hasModifierList = hasModifierList,
                 ) ?: return
-                val edits =
-                    if (verdict.fixable) {
-                        listOf(TrivialAccessorsDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset))
-                    } else {
-                        emptyList()
-                    }
+                val edits = if (verdict.fixable) {
+                    listOf(TrivialAccessorsDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset))
+                } else {
+                    emptyList()
+                }
                 reporter.report(
                     ruleId,
                     TrivialAccessorsDecision.MESSAGE,

@@ -1,5 +1,5 @@
 {
     "rules": {
-        "named-arguments": { "level": "error", "all-calls": true }
+        "named-arguments": { "level": "error", "threshold": 1, "all-calls": true }
     }
 }

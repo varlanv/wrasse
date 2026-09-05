@@ -245,9 +245,32 @@ class InternalConventionPlugin : Plugin<Project> {
                 task.isIgnoreExitValue = false
                 task.onlyIf {
                     val wrasseDir = project.layout.buildDirectory.dir("wrasse").get().asFile
-                    wrasseDir.exists() && wrasseDir.walkTopDown().any { it.isFile && it.name == "wrasse-fixes.txt" }
+                    wrasseDir.exists() &&
+                        wrasseDir.walkTopDown().any { it.isFile && (it.name == "wrasse-fixes.txt" || it.name == "format-request") }
                 }
             }
+
+            val pattern = compileTaskNamePattern
+            val wrasseDir = project.layout.buildDirectory.dir("wrasse").get().asFile
+            val requestDirs = project.provider {
+                tasks.withType(KotlinCompile::class.java).names.mapNotNull { name ->
+                    pattern.matchEntire(name)?.groupValues?.get(1)?.replaceFirstChar { it.lowercaseChar() }?.ifEmpty { "main" }
+                }.map { java.io.File(wrasseDir, it) }
+            }
+            val debugPerformance = providers.gradleProperty("wrasseDebugPerformance").isPresent
+            val formatRequest = tasks.register("wrasseFormatRequest") { task ->
+                task.group = "verification"
+                task.description = "Marks the next wrasse check compile of this project as a format run"
+                task.doLast {
+                    val content = "timestamp=${System.currentTimeMillis()}\nformatting=true\n" +
+                        (if (debugPerformance) "debugPerformance=true\n" else "")
+                    for (dir in requestDirs.get()) {
+                        dir.mkdirs()
+                        java.io.File(dir, "format-request").writeText(content)
+                    }
+                }
+            }
+            tasks.withType(KotlinCompile::class.java).configureEach { it.mustRunAfter(formatRequest) }
         }
 
         fun configureWrasse() {
@@ -260,6 +283,7 @@ class InternalConventionPlugin : Plugin<Project> {
             tasks.withType(KotlinCompile::class.java) { kotlinCompile ->
                 val compilationName = compilationNameFor(kotlinCompile.name) ?: return@withType
                 val fixOutputDir = project.layout.buildDirectory.dir("wrasse/$compilationName").get().asFile.absolutePath
+                kotlinCompile.outputs.dir(java.io.File(fixOutputDir, "patch")).withPropertyName("wrassePatch")
                 kotlinCompile.compilerOptions {
                     freeCompilerArgs.addAll(
                         "-P", "plugin:com.varlanv.wrasse:fixOutputDir=$fixOutputDir",

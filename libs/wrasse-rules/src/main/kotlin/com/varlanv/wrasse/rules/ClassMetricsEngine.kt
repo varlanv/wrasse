@@ -37,12 +37,11 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
                 when (ctx.type) {
                     WNodeType.CLASS -> frames.add(ClassMetricsFrame(-1, -1, "", "Class"))
                     WNodeType.OBJECT_DECLARATION -> frames.add(ClassMetricsFrame(-1, -1, "", "Object"))
-                    WNodeType.FUN ->
-                        when (ctx.ancestors.peekType()) {
-                            WNodeType.CLASS_BODY -> frames.lastOrNull()?.recordFunction()
-                            WNodeType.FILE -> topLevelFunctionCount++
-                            else -> {}
-                        }
+                    WNodeType.FUN -> when (ctx.ancestors.peekType()) {
+                        WNodeType.CLASS_BODY -> frames.lastOrNull()?.recordFunction()
+                        WNodeType.FILE -> topLevelFunctionCount++
+                        else -> {}
+                    }
 
                     else -> {}
                 }
@@ -50,10 +49,9 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
 
             override fun exitNode(ctx: WContext) {
                 when (ctx.type) {
-                    WNodeType.CLASS, WNodeType.OBJECT_DECLARATION ->
-                        if (frames.isNotEmpty()) {
-                            completed.add(frames.removeAt(frames.size - 1))
-                        }
+                    WNodeType.CLASS, WNodeType.OBJECT_DECLARATION -> if (frames.isNotEmpty()) {
+                        completed.add(frames.removeAt(frames.size - 1))
+                    }
                     else -> {}
                 }
             }

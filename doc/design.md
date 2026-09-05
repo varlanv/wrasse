@@ -189,7 +189,7 @@ so the whole architecture could be tested before committing to a 200+ rule catal
 - **Offset-patch autofix pipeline working end-to-end, emission rides check mode (D22):** rules
   attach `WEdit`s to reports → `WrassePlugin.checkFile` collects them → whenever `fixOutputDir` is
   set (no separate fix flag), merges them into that compilation's own
-  `build/wrasse/<compilation>/wrasse-fixes.txt` (file + SHA-256 + descending-offset edits),
+  `build/wrasse/<compilation>/patch/wrasse-fixes.txt` (file + SHA-256 + descending-offset edits),
   loading the existing patch once per compilation and upserting/removing (self-cleaning) each
   recompiled file's entry, atomically rewriting the whole file every time →
   `wrasseApply` (`WPatchApplier`) walks `build/wrasse/` recursively, hash-checks, overlap-checks,
@@ -238,7 +238,8 @@ Dispatched by `StreamDispatch` off the one walk, via arrays indexed by `WNodeTyp
 - **`WLeafRule`** — fires on leaf tokens whose type is in `targetTypes`. The common case
   (comment-spacing, naming, nullable-type-spacing class of rules).
 - **`WNodeRule`** — enter/exit on interior nodes by `targetTypes`; `enterNode` returning `true`
-  opts into `onChildLeaf` for every descendant leaf plus a matching `exitNode`.
+  opts into a matching `exitNode`; only a node rule that also implements `ChildLeafHandler`
+  receives `onChildLeaf` for every descendant leaf (D26).
   **`WBufferedNodeRule`** extends it: the framework buffers direct children into a `ChildBuffer`
   for exit-time inspection (argument lists, wrapping-shaped rules, future fused engines).
 - **`WStreamRule`** — every leaf unfiltered, plus node boundaries. The most expensive kind — keep
@@ -2035,7 +2036,7 @@ information. Statuses: Accepted · Rejected · Superseded.
   no separate fix flag, so lint and fix compiles have identical compiler args and never
   invalidate each other; (2) `wrasseFix` = the same check compile (UP-TO-DATE when check
   already ran → zero extra compile in the common flow) + `wrasseApply`; (3) patch files are
-  **per compilation** (`build/wrasse/<compilation>/wrasse-fixes.txt`, distinct
+  **per compilation** (`build/wrasse/<compilation>/patch/wrasse-fixes.txt`, distinct
   `fixOutputDir` per compile task) so parallel main/test compiles never race one file —
   apply walks the whole `build/wrasse/` tree; (4) **merge-on-write**: a compile replaces
   entries for the files it actually recompiled — including *removing* entries for
@@ -2045,6 +2046,50 @@ information. Statuses: Accepted · Rejected · Superseded.
   surface as loud `Skipped` results at apply. Config edits still don't invalidate compile
   tasks (D1 cost, unchanged) — a config change wants an explicit full re-check before
   fixing; the thin Gradle plugin (Phase D) remains the real fix for that.
+  *Addendum 2026-09-05:* the journal lives in its own `patch/` subdirectory of `fixOutputDir`
+  so the build tool can declare exactly that directory as an output of the compile task
+  (`outputs.dir(<fixOutputDir>/patch)`): a build-cache hit then restores the journal along with
+  the class files instead of silently leaving a stale or missing patch, and the request/perf
+  files the build tool writes *into* `fixOutputDir` (D25) never overlap the declared output.
+  Declaring the file itself does not work — the Kotlin Gradle plugin recreates every declared
+  output as a directory during its non-incremental cleanup.
+- **D25 — Format runs announce themselves through a one-shot request file · Accepted 2026-09-05.**
+  A fix flow is the same check compile as lint (D22), so the plugin cannot tell from its arguments
+  that its diagnostics are about to be applied, and printing them during `wrasseFix`/`format` is
+  noise. Any compiler argument would split the two compiles' up-to-date and cache state, so the
+  signal is a file, not an input: the build tool writes `<fixOutputDir>/format-request`
+  (`timestamp=<epoch millis>`, `formatting=true`) right before the compile, one per compilation;
+  the plugin reads and deletes it on start and, when the timestamp is present and at most five
+  minutes old, drops every report that carries edits and keeps the rest (lint-only rules,
+  "no autofix for this shape"). The patch is emitted as always. `wrasseApply` deletes any request
+  it finds, so a compile that never ran (UP-TO-DATE) cannot leave a live request behind; the
+  timestamp covers an interrupted build. Nothing that changes what is computed or written to the
+  patch may travel this way — only what is printed — because an UP-TO-DATE compile silently
+  ignores the file. Writer: `wrasseFormatRequest` in this repo's convention plugin, ordered
+  before every compile task and run by `wrasseFix`; other builds write the same two lines.
+- **D26 — Leaf forwarding is opt-in by type (`ChildLeafHandler`) · Accepted 2026-09-05.** A
+  `WNodeRule` used to inherit a no-op `onChildLeaf` and, because a buffered rule's `enterNode`
+  defaults to `true`, every active node rule was called once per descendant leaf — 64 of 78 node
+  rules received millions of empty calls per compile, and nested targets (`CLASS` ⊃ `FUN` ⊃
+  `BLOCK`) delivered one leaf several times. `onChildLeaf` now lives on a separate
+  `ChildLeafHandler` interface a rule implements alongside `WNodeRule`; the adapter keeps a second
+  stack of the active rules that are handlers and the per-leaf loop iterates only that. The
+  rule's static type is the subscription, so nothing can drift between "wants leaves" and
+  "handles leaves" — rejected alternatives were a boolean flag (needs a guard test) and a handler
+  property (an override can be a getter, so constancy could not be enforced).
+- **D27 — Nested-call wrapping skips single-argument lists and stops at value expressions ·
+  Accepted 2026-09-05.** `named-arguments`' `wrap` lays every call that nests another call with
+  arguments out one argument per line, and the printer used to push that forcing into every
+  argument list nested anywhere below it. Two corrections: (1) a list holding one argument is
+  never wrapped for this reason — "one argument per line" is already true of it — and passes no
+  forcing on to the lists inside it, so `price = Dec64.fromDecimal(row.decimal("price"))` stays
+  on its line while `Trade(...)` around it still breaks; a forced list, in turn, can never sit
+  inside a flat group (its enclosing groups break around it). (2) An `if`/`when`/`try`/object
+  expression written as an argument is a `BARRIER` group: the forcing does not reach the calls in
+  its condition or branches. Independently, every braced `then`/`else` body of an `if` chain that
+  spans lines in the source is laid out multi-line, so `} else { x }` after a multi-line branch is
+  expanded instead of being left as written. `named-arguments` also gained `threshold` (default 2,
+  minimum 1): a callee declaring fewer parameters is never named, its nested calls still are.
 
 ### Build & distribution
 

@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.VALUE_PARAMETER_LIST)
+
 /**
  * A `catch` clause declaring one of a fixed set of overly-generic exception types is reported
  * (see [TooGenericExceptionCaughtDecision]) at the catch parameter's own name, unless the
@@ -22,7 +24,7 @@ class TooGenericExceptionCaughtRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.VALUE_PARAMETER_LIST)
+            override val targetTypes = TARGET_TYPES
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 if (ctx.ancestors.peekType() != WNodeType.CATCH) return false

@@ -5,6 +5,7 @@ import com.varlanv.wrasse.plugin.KEY_ENABLED
 import com.varlanv.wrasse.plugin.KEY_FIX_OUTPUT_DIR
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
 import com.varlanv.wrasse.plugin.PLUGIN_ID
+import com.varlanv.wrasse.plugin.WrassePlugin
 import com.varlanv.wrasse.plugin.wrasseMain
 import java.nio.file.Paths
 import org.jetbrains.kotlin.cli.jvm.config.javaSourceRoots
@@ -42,17 +43,33 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
             }
 
             classExists(cl, "org.jetbrains.kotlin.diagnostics.KtDiagnosticsContainer") -> {
-                delegateToRegistrar("com.varlanv.wrasse.plugin.k22.WrasseCompilerPluginRegistrar22", configuration)
+                delegateToRegistrar(
+                    "com.varlanv.wrasse.plugin.k22.WrasseCompilerPluginRegistrar22",
+                    configuration,
+                    plugin,
+                )
             }
 
             else -> {
-                delegateToRegistrar("com.varlanv.wrasse.plugin.k20.WrasseCompilerPluginRegistrar20", configuration)
+                delegateToRegistrar(
+                    "com.varlanv.wrasse.plugin.k20.WrasseCompilerPluginRegistrar20",
+                    configuration,
+                    plugin,
+                )
             }
         }
     }
 
-    private fun ExtensionStorage.delegateToRegistrar(className: String, configuration: CompilerConfiguration) {
-        val registrar = Class.forName(className).getDeclaredConstructor().newInstance() as CompilerPluginRegistrar
+    private fun ExtensionStorage.delegateToRegistrar(
+        className: String,
+        configuration: CompilerConfiguration,
+        plugin: WrassePlugin,
+    ) {
+        val registrar =
+            Class
+                .forName(className)
+                .getDeclaredConstructor(WrassePlugin::class.java)
+                .newInstance(plugin) as CompilerPluginRegistrar
         with(registrar) { this@delegateToRegistrar.registerExtensions(configuration) }
     }
 

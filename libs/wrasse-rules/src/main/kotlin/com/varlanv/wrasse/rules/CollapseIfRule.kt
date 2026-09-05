@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.IF, WNodeType.BLOCK)
+
 /**
  * An `if` whose own `then` branch's only content — braced or not, comments and whitespace aside —
  * is another nested `if` is reported (see [CollapseIfDecision]) at the nested `if`'s own span, when
@@ -32,7 +34,7 @@ class CollapseIfRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.IF, WNodeType.BLOCK)
+            override val targetTypes = TARGET_TYPES
 
             private val ifFrames = mutableListOf<IfFrame>()
             private val hasElseByStart = mutableMapOf<Int, Boolean>()

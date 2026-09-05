@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.IF, WNodeType.IS_EXPRESSION)
+
 /**
  * An `if`/`else` whose condition is exactly `<identifier> is T` (or `!is T`) and whose branches
  * are exactly the identifier on one side and `null` on the other is reported (see
@@ -22,7 +24,7 @@ class SafeCastRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.IF, WNodeType.IS_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingIfs = mutableListOf<PendingIf>()
 

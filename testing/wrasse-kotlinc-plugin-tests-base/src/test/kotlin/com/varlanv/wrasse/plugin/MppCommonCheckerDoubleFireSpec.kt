@@ -43,7 +43,7 @@ class MppCommonCheckerDoubleFireSpec : BaseSpec({
 
                 harness.compile(listOf(commonSource, platformSource), workDir)
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
                 Files.exists(patchFile) shouldBe true
                 val patchContent = Files.readString(patchFile)
                 val commonFilePath = harness.sourcePath(workDir, commonSource).toString()

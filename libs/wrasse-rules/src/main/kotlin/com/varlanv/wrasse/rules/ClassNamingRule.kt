@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.IMPORT_DIRECTIVE, WNodeType.CLASS, WNodeType.OBJECT_DECLARATION)
+
 /**
  * `class`/`interface`/`object` names must be PascalCase (report-only, see [ClassNamingDecision]).
  *
@@ -24,7 +26,7 @@ class ClassNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.IMPORT_DIRECTIVE, WNodeType.CLASS, WNodeType.OBJECT_DECLARATION)
+            override val targetTypes = TARGET_TYPES
 
             private var isJUnitJupiterImported = false
 

@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.BINARY_EXPRESSION)
+
 /**
  * A single-line, top-level `+` binary-expression chain containing a `+` step whose own left
  * operand is textually a string (see [StringConcatenationDecision]) is reported once, at that
@@ -30,7 +32,7 @@ class StringConcatenationRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BINARY_EXPRESSION)
+            override val targetTypes = TARGET_TYPES
 
             private val findings = mutableMapOf<Long, Finding>()
 

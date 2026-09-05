@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.VALUE_PARAMETER, WNodeType.DESTRUCTURING_DECLARATION_ENTRY)
+
 /**
  * See [LambdaParameterNamingDecision]. A plain lambda parameter is checked directly on its own
  * `VALUE_PARAMETER` exit; a destructured one (`{ (a, b) -> ... }`) has no `IDENTIFIER` child of
@@ -23,7 +25,7 @@ class LambdaParameterNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.VALUE_PARAMETER, WNodeType.DESTRUCTURING_DECLARATION_ENTRY)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

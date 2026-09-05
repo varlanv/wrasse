@@ -77,10 +77,9 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
 
             override fun exitNode(ctx: WContext) {
                 when (ctx.type) {
-                    WNodeType.IF ->
-                        if (ctx.ancestors.peekType() != WNodeType.ELSE) {
-                            frames.lastOrNull()?.frame?.exitNestingConstruct()
-                        }
+                    WNodeType.IF -> if (ctx.ancestors.peekType() != WNodeType.ELSE) {
+                        frames.lastOrNull()?.frame?.exitNestingConstruct()
+                    }
                     WNodeType.WHEN, WNodeType.TRY, WNodeType.FOR, WNodeType.WHILE, WNodeType.DO_WHILE -> frames
                         .lastOrNull()
                         ?.frame

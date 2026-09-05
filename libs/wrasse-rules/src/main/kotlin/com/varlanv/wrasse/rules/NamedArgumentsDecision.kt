@@ -1,6 +1,7 @@
 package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.lang.WEdit
+import com.varlanv.wrasse.model.WCallArgument
 import com.varlanv.wrasse.model.WCallSite
 
 /**
@@ -8,7 +9,8 @@ import com.varlanv.wrasse.model.WCallSite
  *
  * [callsInScope] returns the [WCallSite.callEndOffset] of every call whose positional arguments
  * should be named: with [allCalls], every call; otherwise every call that has an argument which
- * is itself a call with arguments, plus — transitively — each such nested call.
+ * is itself a call with arguments, plus — transitively — each such nested call. A callee declaring
+ * fewer than [threshold] parameters is never in scope, though its nested calls still are.
  *
  * [isExcludedCallee] is true for a callee whose parameter names must not be written at the call
  * site: one without stable parameter names (a Java method), one in a package listed in
@@ -20,21 +22,30 @@ import com.varlanv.wrasse.model.WCallSite
  * lambda is never among the written arguments (it sits outside the parenthesized list).
  */
 object NamedArgumentsDecision {
-    fun callsInScope(callSites: List<WCallSite>, allCalls: Boolean): Set<Int> {
-        if (allCalls) return callSites.mapTo(HashSet(callSites.size)) { it.callEndOffset }
+    fun callsInScope(
+        callSites: List<WCallSite>,
+        allCalls: Boolean,
+        threshold: Int,
+    ): Set<Int> {
+        val inScope = HashSet<Int>()
+        if (allCalls) {
+            for (site in callSites) if (site.parameterCount >= threshold) inScope.add(site.callEndOffset)
+            return inScope
+        }
         val byCallSpan = HashMap<Long, WCallSite>(callSites.size)
         for (site in callSites) byCallSpan[spanKey(site.callStartOffset, site.callEndOffset)] = site
-        val inScope = HashSet<Int>()
+        val visited = HashSet<Int>()
         val pending = ArrayDeque<WCallSite>()
         for (site in callSites) {
-            if (nestedCallArguments(site, byCallSpan).isNotEmpty() && inScope.add(site.callEndOffset)) {
+            if (nestedCallArguments(site, byCallSpan).isNotEmpty() && visited.add(site.callEndOffset)) {
                 pending.addLast(site)
             }
         }
         while (pending.isNotEmpty()) {
             val site = pending.removeFirst()
+            if (site.parameterCount >= threshold) inScope.add(site.callEndOffset)
             for (nested in nestedCallArguments(site, byCallSpan)) {
-                if (inScope.add(nested.callEndOffset)) pending.addLast(nested)
+                if (visited.add(nested.callEndOffset)) pending.addLast(nested)
             }
         }
         return inScope
@@ -70,13 +81,18 @@ object NamedArgumentsDecision {
             classFqName.startsWith("kotlin.coroutines.SuspendFunction") ||
             classFqName.startsWith("kotlin.reflect.KFunction")
 
+    /** The argument FIR mapped inside the written span `[start, end)`, or null when none was. */
+    fun mappedArgument(
+        site: WCallSite,
+        start: Int,
+        end: Int,
+    ): WCallArgument? = site.arguments.firstOrNull { it.startOffset >= start && it.endOffset <= end }
+
     fun nameEdits(site: WCallSite, written: List<WrittenArgument>): List<WEdit> {
         var edits: MutableList<WEdit>? = null
         for (argument in written) {
             if (argument.isNamed) continue
-            val mapped = site.arguments.firstOrNull {
-                it.startOffset >= argument.startOffset && it.endOffset <= argument.endOffset
-            } ?: continue
+            val mapped = mappedArgument(site, argument.startOffset, argument.endOffset) ?: continue
             if (mapped.isVararg) continue
             if (edits == null) edits = ArrayList(written.size)
             edits.add(WEdit(argument.startOffset, argument.startOffset, "${mapped.parameterName} = "))

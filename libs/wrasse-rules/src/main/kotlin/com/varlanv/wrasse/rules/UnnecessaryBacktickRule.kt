@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.IDENTIFIER)
+
 /**
  * A backtick-quoted identifier whose escaping is provably unnecessary loses its backticks; see
  * [UnnecessaryBacktickDecision] for the exact necessity check.
@@ -27,7 +29,7 @@ class UnnecessaryBacktickRule : WUninitializedRule {
         return object : WLeafRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.IDENTIFIER)
+            override val targetTypes = TARGET_TYPES
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val text = ctx.leafText ?: return

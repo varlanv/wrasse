@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.CALL_EXPRESSION, WNodeType.FUNCTION_LITERAL, WNodeType.BLOCK)
+
 /**
  * An `also { }` call whose lambda body statements are all qualified expressions on `it`
  * (`it.foo()`, `it?.bar()`) is reported (see [AlsoCouldBeApplyDecision]) at the `also` callee's
@@ -25,7 +27,7 @@ class AlsoCouldBeApplyRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CALL_EXPRESSION, WNodeType.FUNCTION_LITERAL, WNodeType.BLOCK)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingCalls = mutableListOf<PendingCall>()
             private val pendingLiterals = mutableListOf<LiteralVerdict>()

@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.FUN)
+
 /**
  * A function's own `: Unit` return type is redundant and, where deleting it stays compile-legal,
  * autofixed to remove it entirely.
@@ -34,7 +36,7 @@ class NoUnitReturnRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.FUN)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,
@@ -60,12 +62,11 @@ class NoUnitReturnRule : WUninitializedRule {
 
                 val colonStart = children.startOffset(colonIndex)
                 val typeReferenceEnd = children.endOffset(typeReferenceIndex)
-                val edits =
-                    if (hasComment) {
-                        emptyList()
-                    } else {
-                        listOf(NoUnitReturnDeletionSpan.compute(colonStart, typeReferenceEnd))
-                    }
+                val edits = if (hasComment) {
+                    emptyList()
+                } else {
+                    listOf(NoUnitReturnDeletionSpan.compute(colonStart, typeReferenceEnd))
+                }
 
                 reporter.report(ruleId, "Redundant Unit return type", colonStart, typeReferenceEnd, this, edits = edits)
             }

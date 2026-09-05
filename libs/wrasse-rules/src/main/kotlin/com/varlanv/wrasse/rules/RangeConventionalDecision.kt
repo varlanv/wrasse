@@ -55,13 +55,12 @@ object RangeConventionalDecision {
         leftOperandText: String,
         hasComment: Boolean,
     ): RangeConventionalVerdict {
-        val edits =
-            if (hasComment) {
-                emptyList()
-            } else {
-                val untilText = (if (hasLeadingSpace) "" else " ") + "until" + (if (hasTrailingSpace) "" else " ")
-                listOf(WEdit(operatorStart, operatorEnd, untilText), WEdit(minusOneStart, minusOneEnd, leftOperandText))
-            }
+        val edits = if (hasComment) {
+            emptyList()
+        } else {
+            val untilText = (if (hasLeadingSpace) "" else " ") + "until" + (if (hasTrailingSpace) "" else " ")
+            listOf(WEdit(operatorStart, operatorEnd, untilText), WEdit(minusOneStart, minusOneEnd, leftOperandText))
+        }
         return RangeConventionalVerdict(rangeStart, rangeEnd, UNTIL_MESSAGE, edits)
     }
 }

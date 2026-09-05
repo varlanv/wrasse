@@ -7,15 +7,14 @@ fun classify(
     text: String,
     start: Int,
     end: Int,
-): Entry =
-    when (kind) {
-        "comment" -> Entry(
-            kind,
-            normalizeCommentTextWithAVeryLongHelperName(text, start, end, preserveTrailingWhitespace = false),
-        )
-        "code" -> Entry(kind, text)
-        else -> Entry(kind, text.trim())
-    }
+): Entry = when (kind) {
+    "comment" -> Entry(
+        kind,
+        normalizeCommentTextWithAVeryLongHelperName(text, start, end, preserveTrailingWhitespace = false),
+    )
+    "code" -> Entry(kind, text)
+    else -> Entry(kind, text.trim())
+}
 
 fun normalizeCommentTextWithAVeryLongHelperName(
     text: String,

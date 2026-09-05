@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT, WNodeType.KDOC)
+
 /**
  * A line comment, block comment, or KDoc containing `TODO:`, `FIXME:`, or `STOPSHIP:` is reported
  * (see [ForbiddenCommentDecision]). Matching runs directly over the comment's own raw source text,
@@ -22,7 +24,7 @@ class ForbiddenCommentRule : WUninitializedRule {
         return object : WLeafRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT, WNodeType.KDOC)
+            override val targetTypes = TARGET_TYPES
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val text = ctx.leafText ?: return

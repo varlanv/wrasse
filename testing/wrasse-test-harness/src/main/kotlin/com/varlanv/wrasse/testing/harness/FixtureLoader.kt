@@ -38,12 +38,11 @@ object FixtureLoader {
         for (ruleDir in Files.list(fixturesDir).use { it.filter { p -> p.isDirectory() }.toList() }) {
             val ruleId = ruleDir.name
             val overrideFile = ruleDir.resolve("wrasse.json")
-            val mergedConfig =
-                if (overrideFile.isRegularFile()) {
-                    deepMerge(JSONObject(baseConfig.toString()), JSONObject(overrideFile.readText())).toString()
-                } else {
-                    baseConfig.toString()
-                }
+            val mergedConfig = if (overrideFile.isRegularFile()) {
+                deepMerge(JSONObject(baseConfig.toString()), JSONObject(overrideFile.readText())).toString()
+            } else {
+                baseConfig.toString()
+            }
 
             val extraConfigs = mutableMapOf<String, String>()
             for (jsonFile in Files.list(ruleDir).use {

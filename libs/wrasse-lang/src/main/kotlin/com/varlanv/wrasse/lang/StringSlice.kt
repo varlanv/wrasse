@@ -64,36 +64,34 @@ class StringSlice(
 fun CharSequence.indexOfChar(
     ch: Char,
     from: Int = 0,
-): Int =
-    when (this) {
-        is String -> indexOf(ch, from)
-        is StringSlice -> {
-            val found = source.indexOfChar(ch, start + from)
-            if (found < 0 || found >= end) -1 else found - start
-        }
-
-        else -> {
-            var i = from
-            while (i < length) {
-                if (this[i] == ch) return i
-                i++
-            }
-            -1
-        }
+): Int = when (this) {
+    is String -> indexOf(ch, from)
+    is StringSlice -> {
+        val found = source.indexOfChar(ch, start + from)
+        if (found < 0 || found >= end) -1 else found - start
     }
 
-fun CharSequence.lastIndexOfChar(ch: Char): Int =
-    when (this) {
-        is String -> lastIndexOf(ch)
-        is StringSlice -> lastIndexOf(ch)
-        else -> {
-            var i = length - 1
-            while (i >= 0) {
-                if (this[i] == ch) return i
-                i--
-            }
-            -1
+    else -> {
+        var i = from
+        while (i < length) {
+            if (this[i] == ch) return i
+            i++
         }
+        -1
     }
+}
+
+fun CharSequence.lastIndexOfChar(ch: Char): Int = when (this) {
+    is String -> lastIndexOf(ch)
+    is StringSlice -> lastIndexOf(ch)
+    else -> {
+        var i = length - 1
+        while (i >= 0) {
+            if (this[i] == ch) return i
+            i--
+        }
+        -1
+    }
+}
 
 fun CharSequence.containsChar(ch: Char): Boolean = indexOfChar(ch) >= 0

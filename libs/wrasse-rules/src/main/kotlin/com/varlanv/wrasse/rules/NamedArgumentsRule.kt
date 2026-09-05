@@ -12,9 +12,12 @@ import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.VALUE_ARGUMENT_LIST)
+
 /**
  * Names the positional arguments of a call whose arguments include another call with arguments
- * (the whole nested tree of such calls), or of every call with `all-calls: true`. The `wrap`
+ * (the whole nested tree of such calls), or of every call with `all-calls: true`, skipping any
+ * callee that declares fewer than `threshold` (default 2) parameters. The `wrap`
  * option (default true) is read by the printer, not here: with format enabled it lays those calls
  * out one argument per line ([com.varlanv.wrasse.model.FormatStyle.wrapNestedCallArguments]). Never touches a
  * callee in an `excluded-packages` package (`java` and `javax` by default), a callee without
@@ -39,6 +42,13 @@ class NamedArgumentsRule : WUninitializedRule {
             default = WRuleOptionValue.Bool(false),
         ),
         WRuleOptionSpec.Optional(
+            name = THRESHOLD,
+            type = WRuleOptionType.INTEGER,
+            description = "Only name the arguments of callees declaring at least this many parameters",
+            default = WRuleOptionValue.Num(2),
+            minimum = 1,
+        ),
+        WRuleOptionSpec.Optional(
             name = WRAP,
             type = WRuleOptionType.BOOLEAN,
             description = "With format enabled, also lay out every call nesting another call with arguments one argument per line",
@@ -50,10 +60,11 @@ class NamedArgumentsRule : WUninitializedRule {
         val ruleId = id
         val excludedPackages = config.options.stringList(EXCLUDED_PACKAGES)
         val allCalls = config.options.boolean(ALL_CALLS)
+        val threshold = config.options.integer(THRESHOLD).toInt()
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.VALUE_ARGUMENT_LIST)
+            override val targetTypes = TARGET_TYPES
 
             private var sitesByCallEnd: Map<Int, WCallSite> = emptyMap()
             private var inScope: Set<Int> = emptySet()
@@ -62,7 +73,7 @@ class NamedArgumentsRule : WUninitializedRule {
                 val usage = ctx.resolvedUsage
                 if (usage == null || usage.hasResolutionErrors) return
                 sitesByCallEnd = usage.callSites.associateBy { it.callEndOffset }
-                inScope = NamedArgumentsDecision.callsInScope(usage.callSites, allCalls)
+                inScope = NamedArgumentsDecision.callsInScope(usage.callSites, allCalls, threshold)
             }
 
             override fun exitNode(
@@ -95,6 +106,7 @@ class NamedArgumentsRule : WUninitializedRule {
     private companion object {
         const val EXCLUDED_PACKAGES = "excluded-packages"
         const val ALL_CALLS = "all-calls"
+        const val THRESHOLD = "threshold"
         const val WRAP = "wrap"
         const val MESSAGE = "Positional arguments should be named"
     }

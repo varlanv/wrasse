@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.PROPERTY)
+
 /** Property names must be camelCase, or SCREAMING_SNAKE_CASE for `const val` (see [PropertyNamingDecision]). */
 class PropertyNamingRule : WUninitializedRule {
     override val id: String = "property-naming"
@@ -17,7 +19,7 @@ class PropertyNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.PROPERTY)
+            override val targetTypes = TARGET_TYPES
 
             override fun exitNode(
                 ctx: WContext,

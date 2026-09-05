@@ -8,6 +8,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.CLASS, WNodeType.CLASS_BODY, WNodeType.PROPERTY, WNodeType.FUN)
+
 /**
  * A class's own KDoc that links (see [KdocReferencesNonPublicPropertyDecision]) one of that
  * class's own direct member properties, when that member is `private` or `internal`, is reported
@@ -31,7 +33,7 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CLASS, WNodeType.CLASS_BODY, WNodeType.PROPERTY, WNodeType.FUN)
+            override val targetTypes = TARGET_TYPES
 
             private val completedProperties = mutableListOf<CompletedProperty>()
             private val completedFuns = mutableListOf<CompletedFun>()
@@ -118,15 +120,14 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
             ) {
                 val kdocIdx = children.firstChildOfType(WNodeType.KDOC)
                 val bodyIdx = children.firstChildOfType(WNodeType.CLASS_BODY)
-                val bodyRecord =
-                    if (bodyIdx < 0) {
-                        null
-                    } else {
-                        val idx = completedBodies.indexOfFirst {
-                            it.start == children.startOffset(bodyIdx) && it.end == children.endOffset(bodyIdx)
-                        }
-                        if (idx < 0) null else completedBodies.removeAt(idx)
+                val bodyRecord = if (bodyIdx < 0) {
+                    null
+                } else {
+                    val idx = completedBodies.indexOfFirst {
+                        it.start == children.startOffset(bodyIdx) && it.end == children.endOffset(bodyIdx)
                     }
+                    if (idx < 0) null else completedBodies.removeAt(idx)
+                }
                 if (kdocIdx < 0 || bodyRecord == null) return
                 val kdocText = children.textSpan(kdocIdx, ctx.sourceText)
                 for (property in bodyRecord.properties) {

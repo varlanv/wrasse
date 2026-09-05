@@ -42,12 +42,11 @@ class WPatchStore(private val dir: Path) {
 
     private fun loaded(): LinkedHashMap<String, FileEdits> {
         entries?.let { return it }
-        val text =
-            try {
-                Files.readString(patchFile())
-            } catch (_: NoSuchFileException) {
-                null
-            }
+        val text = try {
+            Files.readString(patchFile())
+        } catch (_: NoSuchFileException) {
+            null
+        }
         val live = LinkedHashMap<String, FileEdits>()
         if (text != null) {
             journalOnDisk = true
@@ -87,10 +86,13 @@ class WPatchStore(private val dir: Path) {
         journalOnDisk = true
     }
 
-    private fun patchFile(): Path = dir.resolve(PATCH_FILE_NAME)
+    fun patchFile(): Path = dir.resolve(PATCH_FILE_NAME)
 
     companion object {
         const val PATCH_FILE_NAME = "wrasse-fixes.txt"
+
+        /** The subdirectory of a compilation's `fixOutputDir` that holds nothing but the journal, so a build tool can declare it as the compile's output. */
+        const val PATCH_DIR_NAME = "patch"
         private const val MIN_REDUNDANT_BLOCKS = 64
     }
 }

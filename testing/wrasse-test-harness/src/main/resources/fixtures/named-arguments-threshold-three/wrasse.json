@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "named-arguments": { "level": "error", "threshold": 3 }
+    }
+}

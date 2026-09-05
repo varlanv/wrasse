@@ -20,7 +20,7 @@ class PatchPathNormalizationSpec : BaseSpec({
 
                 harness.compile(listOf(source), workDir)
 
-                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
                 Files.exists(patchFile) shouldBe true
                 val patchContent = Files.readString(patchFile)
                 val fileLine = patchContent.lines().first { it.startsWith("file:") }

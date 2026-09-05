@@ -9,6 +9,8 @@ import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
+private val TARGET_TYPES = setOf(WNodeType.RETURN, WNodeType.BLOCK)
+
 /**
  * A lambda's own `BLOCK` whose last non-whitespace statement is a labeled `return@label` carrying
  * a value, where `label` names that same immediately-enclosing lambda (not some further-out
@@ -37,7 +39,7 @@ class LambdaReturnRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.RETURN, WNodeType.BLOCK)
+            override val targetTypes = TARGET_TYPES
 
             private val completedReturns = mutableListOf<CompletedReturn>()
 
@@ -104,12 +106,12 @@ class LambdaReturnRule : WUninitializedRule {
                         ancestors.startOffsetAt(i),
                         ancestors.endOffsetAt(i),
                     )
-                    WNodeType.LAMBDA_ARGUMENT ->
-                        if (i - 1 < 0 || ancestors.typeAt(i - 1) != WNodeType.CALL_EXPRESSION) {
-                            null
-                        } else {
-                            calleeName(ctx.sourceText, ancestors.startOffsetAt(i - 1))
-                        }
+                    WNodeType.LAMBDA_ARGUMENT -> if (i - 1 < 0 ||
+                        ancestors.typeAt(i - 1) != WNodeType.CALL_EXPRESSION) {
+                        null
+                    } else {
+                        calleeName(ctx.sourceText, ancestors.startOffsetAt(i - 1))
+                    }
                     WNodeType.CALL_EXPRESSION -> calleeName(ctx.sourceText, ancestors.startOffsetAt(i))
                     else -> null
                 }

@@ -45,59 +45,56 @@ object Layout {
         style: FormatStyle,
         tail: Tail?,
         forceArguments: Boolean,
-    ): Int =
-        when (doc) {
-            is Doc.Text -> {
-                appendText(sb, doc.value)
-                val lastNewline = doc.lastNewline()
-                if (lastNewline < 0) column + doc.value.length else doc.value.length - lastNewline - 1
-            }
+    ): Int = when (doc) {
+        is Doc.Text -> {
+            appendText(sb, doc.value)
+            val lastNewline = doc.lastNewline()
+            if (lastNewline < 0) column + doc.value.length else doc.value.length - lastNewline - 1
+        }
 
-            is Doc.Concat -> {
-                var col = column
-                val parts = doc.parts
-                val last = parts.size - 1
-                val ownTail = if (last > 0) Tail(parts, 1, mode, tail) else null
-                for (i in 0..last) {
-                    val partTail =
-                        if (i < last) {
-                            ownTail!!.from = i + 1
-                            ownTail
-                        } else {
-                            tail
-                        }
-                    col = renderNode(sb, parts[i], indentDepth, col, mode, style, partTail, forceArguments)
+        is Doc.Concat -> {
+            var col = column
+            val parts = doc.parts
+            val last = parts.size - 1
+            val ownTail = if (last > 0) Tail(parts, 1, mode, tail) else null
+            for (i in 0..last) {
+                val partTail = if (i < last) {
+                    ownTail!!.from = i + 1
+                    ownTail
+                } else {
+                    tail
                 }
-                col
+                col = renderNode(sb, parts[i], indentDepth, col, mode, style, partTail, forceArguments)
             }
+            col
+        }
 
-            is Doc.Indent -> renderNode(sb, doc.body, indentDepth + 1, column, mode, style, tail, forceArguments)
+        is Doc.Indent -> renderNode(sb, doc.body, indentDepth + 1, column, mode, style, tail, forceArguments)
 
-            is Doc.Break -> renderBreak(sb, doc, indentDepth, column, mode, style)
+        is Doc.Break -> renderBreak(sb, doc, indentDepth, column, mode, style)
 
-            is Doc.TrailingComma ->
-                when (mode) {
-                    Mode.FLAT -> column
-                    Mode.BROKEN -> {
-                        sb.append(',')
-                        column + 1
-                    }
-                }
-
-            is Doc.Group -> {
-                val forced = doc.kind == GroupKind.ARGUMENTS && (doc.forceBreak || forceArguments)
-                val chosenMode =
-                    if (!forced && groupFits(doc, indentDepth, column, style, tail)) Mode.FLAT else Mode.BROKEN
-                val bodyDepth = if (doc.indentWhenBroken && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
-                val bodyForce =
-                    when (doc.kind) {
-                        GroupKind.ARGUMENTS -> forced
-                        GroupKind.LAMBDA, GroupKind.CONTINUATION, GroupKind.TEMPLATE -> false
-                        GroupKind.DEFAULT, GroupKind.FLUID -> forceArguments
-                    }
-                renderNode(sb, doc.body, bodyDepth, column, chosenMode, style, tail, bodyForce)
+        is Doc.TrailingComma -> when (mode) {
+            Mode.FLAT -> column
+            Mode.BROKEN -> {
+                sb.append(',')
+                column + 1
             }
         }
+
+        is Doc.Group -> if (doc.kind == GroupKind.BARRIER) {
+            renderNode(sb, doc.body, indentDepth, column, mode, style, tail, forceArguments = false)
+        } else {
+            val forced = doc.kind == GroupKind.ARGUMENTS && (doc.forceBreak || (forceArguments && !doc.singleArgument))
+            val chosenMode = if (!forced && groupFits(doc, indentDepth, column, style, tail)) Mode.FLAT else Mode.BROKEN
+            val bodyDepth = if (doc.indentWhenBroken && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
+            val bodyForce = when (doc.kind) {
+                GroupKind.ARGUMENTS -> forced
+                GroupKind.LAMBDA, GroupKind.CONTINUATION, GroupKind.TEMPLATE, GroupKind.BARRIER -> false
+                GroupKind.DEFAULT, GroupKind.FLUID -> forceArguments
+            }
+            renderNode(sb, doc.body, bodyDepth, column, chosenMode, style, tail, bodyForce)
+        }
+    }
 
     private fun groupFits(
         group: Doc.Group,
@@ -108,6 +105,8 @@ object Layout {
     ): Boolean {
         val max = style.maxLineLength
         return when (group.kind) {
+            GroupKind.BARRIER -> true
+
             GroupKind.LAMBDA -> {
                 val width = flatWidth(group.body)
                 width >= 0 && column + width <= max
@@ -198,13 +197,12 @@ object Layout {
         style: FormatStyle,
     ): Boolean = when (doc) {
         is Doc.Text -> measureText(doc, acc)
-        is Doc.Break ->
-            if (doc.kind == BreakKind.SOFT) {
-                acc[0] += doc.flat.length
-                true
-            } else {
-                false
-            }
+        is Doc.Break -> if (doc.kind == BreakKind.SOFT) {
+            acc[0] += doc.flat.length
+            true
+        } else {
+            false
+        }
 
         is Doc.TrailingComma -> {
             if (mode == Mode.BROKEN) acc[0] += 1
@@ -212,12 +210,12 @@ object Layout {
         }
 
         is Doc.Indent -> measureTail(doc.body, acc, mode, afterColumn, brokenEnd, style)
-        is Doc.Group ->
-            if (doc.kind == GroupKind.LAMBDA) {
-                measureLambdaInTail(doc, acc, afterColumn, brokenEnd, style)
-            } else {
-                measureTail(doc.body, acc, Mode.FLAT, afterColumn, brokenEnd, style)
-            }
+        is Doc.Group -> when {
+            doc.kind == GroupKind.LAMBDA -> measureLambdaInTail(doc, acc, afterColumn, brokenEnd, style)
+            doc.forceBreak -> measureUntilBreak(doc.body, acc)
+            doc.kind == GroupKind.BARRIER -> measureTail(doc.body, acc, mode, afterColumn, brokenEnd, style)
+            else -> measureTail(doc.body, acc, Mode.FLAT, afterColumn, brokenEnd, style)
+        }
 
         is Doc.Concat -> measureParts(doc.parts) { measureTail(it, acc, mode, afterColumn, brokenEnd, style) }
     }
@@ -289,19 +287,23 @@ object Layout {
         softHard: Boolean,
     ): Int = when (doc) {
         is Doc.Text -> if (measureText(doc, acc)) MEASURE_COMPLETE else if (softHard) MEASURE_ENDED else MEASURE_FORCED
-        is Doc.Break ->
-            if (doc.kind == BreakKind.SOFT) {
-                acc[0] += doc.flat.length
-                MEASURE_COMPLETE
-            } else if (softHard) {
-                MEASURE_ENDED
-            } else {
-                MEASURE_FORCED
-            }
+        is Doc.Break -> if (doc.kind == BreakKind.SOFT) {
+            acc[0] += doc.flat.length
+            MEASURE_COMPLETE
+        } else if (softHard) {
+            MEASURE_ENDED
+        } else {
+            MEASURE_FORCED
+        }
 
         is Doc.TrailingComma -> MEASURE_COMPLETE
         is Doc.Indent -> measureContinuation(doc.body, acc, softHard)
-        is Doc.Group -> measureContinuation(doc.body, acc, softHard || doc.kind == GroupKind.LAMBDA)
+        is Doc.Group -> when {
+            !doc.forceBreak -> measureContinuation(doc.body, acc, softHard || doc.kind == GroupKind.LAMBDA)
+            measureUntilBreak(doc.body, acc) -> MEASURE_COMPLETE
+            softHard -> MEASURE_ENDED
+            else -> MEASURE_FORCED
+        }
         is Doc.Concat -> {
             var outcome = MEASURE_COMPLETE
             val parts = doc.parts
@@ -323,17 +325,16 @@ object Layout {
         nested: Boolean,
     ): Boolean = when (doc) {
         is Doc.Text -> measureText(doc, acc)
-        is Doc.Break ->
-            if (!nested && doc.kind == BreakKind.SOFT) {
-                acc[0] += doc.flat.length
-                true
-            } else {
-                false
-            }
+        is Doc.Break -> if (!nested && doc.kind == BreakKind.SOFT) {
+            acc[0] += doc.flat.length
+            true
+        } else {
+            false
+        }
 
         is Doc.TrailingComma -> true
         is Doc.Indent -> measureFluid(doc.body, acc, nested)
-        is Doc.Group -> measureFluid(doc.body, acc, nested = true)
+        is Doc.Group -> measureFluid(doc.body, acc, nested = nested || doc.kind != GroupKind.BARRIER)
         is Doc.Concat -> measureParts(doc.parts) { measureFluid(it, acc, nested) }
     }
 
@@ -362,26 +363,24 @@ object Layout {
         column: Int,
         mode: Mode,
         style: FormatStyle,
-    ): Int =
-        when (doc.kind) {
-            BreakKind.HARD -> {
-                appendText(sb, doc.literal)
-                appendIndent(sb, indentDepth, style)
+    ): Int = when (doc.kind) {
+        BreakKind.HARD -> {
+            appendText(sb, doc.literal)
+            appendIndent(sb, indentDepth, style)
+        }
+
+        BreakKind.SOFT -> when (mode) {
+            Mode.FLAT -> {
+                sb.append(doc.flat)
+                column + doc.flat.length
             }
 
-            BreakKind.SOFT ->
-                when (mode) {
-                    Mode.FLAT -> {
-                        sb.append(doc.flat)
-                        column + doc.flat.length
-                    }
-
-                    Mode.BROKEN -> {
-                        sb.append('\n')
-                        appendIndent(sb, indentDepth, style)
-                    }
-                }
+            Mode.BROKEN -> {
+                sb.append('\n')
+                appendIndent(sb, indentDepth, style)
+            }
         }
+    }
 
     private fun appendIndent(
         sb: StringBuilder,
@@ -409,7 +408,9 @@ object Layout {
         is Doc.Break -> if (doc.kind == BreakKind.HARD) NO_FLAT_WIDTH else doc.flat.length
         is Doc.TrailingComma -> 0
         is Doc.Indent -> flatWidth(doc.body)
-        is Doc.Group -> {
+        is Doc.Group -> if (doc.forceBreak) {
+            NO_FLAT_WIDTH
+        } else {
             val cached = doc.flatWidthCache
             if (cached != WIDTH_UNSET) cached else flatWidth(doc.body).also { doc.flatWidthCache = it }
         }

@@ -1,6 +1,7 @@
 package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.model.ChildBuffer
+import com.varlanv.wrasse.model.ChildLeafHandler
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeStack
@@ -9,6 +10,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
+
+private val TARGET_TYPES = setOf(WNodeType.CLASS, WNodeType.FUN, WNodeType.BLOCK, WNodeType.RETURN)
 
 /**
  * A function whose body is exactly `= <literal>` or `{ return <literal> }` — a bare numeric,
@@ -27,10 +30,10 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
-        return object : WBufferedNodeRule {
+        return object : WBufferedNodeRule, ChildLeafHandler {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CLASS, WNodeType.FUN, WNodeType.BLOCK, WNodeType.RETURN)
+            override val targetTypes = TARGET_TYPES
 
             private val pendingClasses = mutableListOf<PendingClass>()
             private val pendingFuns = mutableListOf<PendingFun>()
@@ -50,21 +53,22 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
             override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
                 val ancestors = ctx.ancestors
                 when (ctx.type) {
-                    WNodeType.KW_INTERFACE ->
-                        if (ancestors.peekType() == WNodeType.CLASS) {
-                            pendingClasses.lastOrNull()?.isInterface = true
-                        }
+                    WNodeType.KW_INTERFACE -> if (ancestors.peekType() == WNodeType.CLASS) {
+                        pendingClasses.lastOrNull()?.isInterface = true
+                    }
 
-                    WNodeType.KW_OVERRIDE, WNodeType.KW_OPEN, WNodeType.KW_ACTUAL ->
-                        if (inOwnModifierList(ancestors, WNodeType.FUN)) {
-                            val pending = pendingFuns.lastOrNull() ?: return
-                            when (ctx.type) {
-                                WNodeType.KW_OVERRIDE -> pending.hasOverride = true
-                                WNodeType.KW_OPEN -> pending.hasOpen = true
-                                WNodeType.KW_ACTUAL -> pending.hasActual = true
-                                else -> {}
-                            }
+                    WNodeType.KW_OVERRIDE, WNodeType.KW_OPEN, WNodeType.KW_ACTUAL -> if (inOwnModifierList(
+                        ancestors,
+                        WNodeType.FUN,
+                    )) {
+                        val pending = pendingFuns.lastOrNull() ?: return
+                        when (ctx.type) {
+                            WNodeType.KW_OVERRIDE -> pending.hasOverride = true
+                            WNodeType.KW_OPEN -> pending.hasOpen = true
+                            WNodeType.KW_ACTUAL -> pending.hasActual = true
+                            else -> {}
                         }
+                    }
 
                     WNodeType.IDENTIFIER -> {
                         val pending = pendingFuns.lastOrNull()
@@ -144,20 +148,19 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
                 val inInterface = pendingClasses.lastOrNull()?.isInterface == true
 
                 val eqIdx = children.firstChildOfType(WNodeType.EQ)
-                val returnsConstant =
-                    if (eqIdx >= 0) {
-                        exprBodyIsConstant(ctx, children, eqIdx)
-                    } else {
-                        val blockIdx = children.firstChildOfType(WNodeType.BLOCK)
-                        blockIdx >=
-                            0 &&
-                            takeCompleted(
-                                completedBlocks,
-                                children.startOffset(blockIdx),
-                                children.endOffset(blockIdx),
-                            )?.isConstant ==
-                            true
-                    }
+                val returnsConstant = if (eqIdx >= 0) {
+                    exprBodyIsConstant(ctx, children, eqIdx)
+                } else {
+                    val blockIdx = children.firstChildOfType(WNodeType.BLOCK)
+                    blockIdx >=
+                        0 &&
+                        takeCompleted(
+                            completedBlocks,
+                            children.startOffset(blockIdx),
+                            children.endOffset(blockIdx),
+                        )?.isConstant ==
+                        true
+                }
 
                 val name = pending.functionName.ifEmpty { "<anonymous>" }
                 val message =

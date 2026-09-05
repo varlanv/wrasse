@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.STRING_TEMPLATE)
+
 private val ESCAPE_SEQUENCES = charArrayOf('t', '"', '\\', 'n')
 
 /**
@@ -30,7 +32,7 @@ class StringShouldBeRawStringRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.STRING_TEMPLATE)
+            override val targetTypes = TARGET_TYPES
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 val text = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset)

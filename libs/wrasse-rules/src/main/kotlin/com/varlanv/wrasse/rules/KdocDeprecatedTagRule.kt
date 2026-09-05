@@ -7,6 +7,8 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
+private val TARGET_TYPES = setOf(WNodeType.KDOC)
+
 /**
  * A KDoc containing an `@deprecated` block tag is reported (see [KdocDeprecatedTagDecision]) at
  * the KDoc's own span — matched directly over its raw text, since `@deprecated` cannot occur
@@ -20,7 +22,7 @@ class KdocDeprecatedTagRule : WUninitializedRule {
         return object : WLeafRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.KDOC)
+            override val targetTypes = TARGET_TYPES
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val text = ctx.leafText ?: return

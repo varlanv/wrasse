@@ -74,9 +74,11 @@ interface WLeafRule : WRule {
 /**
  * Fires on enter and exit of interior nodes whose type is in [targetTypes].
  *
- * [enterNode] returns true to receive [onChildLeaf] callbacks for every descendant
- * leaf inside the node, plus an [exitNode] call when the node closes. Return false
- * to skip child forwarding (optimization when the enter check alone is sufficient).
+ * [enterNode] returns true to stay active until the matching [exitNode] (and, for a
+ * [WBufferedNodeRule], to have the node's direct children buffered). A rule that also
+ * implements [ChildLeafHandler] receives every descendant leaf of an entered node while it is
+ * active; a rule that does not is never called per leaf. Return false to skip both when the
+ * enter check alone is sufficient.
  *
  * Use for rules that inspect a node's children: no-wildcard-imports (check for MUL child),
  * modifier-order (check child ordering), empty-block detection, etc.
@@ -86,10 +88,16 @@ interface WNodeRule : WRule {
 
     fun enterNode(ctx: WContext, reporter: WReporter): Boolean = true
 
-    /** Called for every descendant leaf inside an entered node. */
-    fun onChildLeaf(ctx: WContext, reporter: WReporter) {}
-
     fun exitNode(ctx: WContext, reporter: WReporter) {}
+}
+
+/**
+ * Opt-in for a [WNodeRule]: implementing it is what subscribes the rule to every descendant
+ * leaf of each node it entered with `true`, so a rule's static type says whether the walk
+ * forwards leaves to it.
+ */
+interface ChildLeafHandler {
+    fun onChildLeaf(ctx: WContext, reporter: WReporter)
 }
 
 /**

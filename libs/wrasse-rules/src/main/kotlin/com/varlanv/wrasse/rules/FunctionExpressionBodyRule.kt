@@ -1,12 +1,15 @@
 package com.varlanv.wrasse.rules
 
 import com.varlanv.wrasse.model.ChildBuffer
+import com.varlanv.wrasse.model.ChildLeafHandler
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
+
+private val TARGET_TYPES = setOf(WNodeType.BLOCK)
 
 /**
  * A function's own `BLOCK` body whose only content, ignoring braces and whitespace, is a single
@@ -19,10 +22,10 @@ class FunctionExpressionBodyRule : WUninitializedRule {
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
-        return object : WBufferedNodeRule {
+        return object : WBufferedNodeRule, ChildLeafHandler {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.BLOCK)
+            override val targetTypes = TARGET_TYPES
 
             private var returnKeywordCount = 0
 

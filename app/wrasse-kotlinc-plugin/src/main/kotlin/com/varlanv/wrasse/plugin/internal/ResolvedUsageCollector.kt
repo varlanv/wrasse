@@ -152,6 +152,7 @@ object ResolvedUsageCollector {
                     hasStableParameterNames = symbol.resolvedStatus.hasStableParameterNames,
                     arguments = arguments,
                     isConstructor = symbol is FirConstructorSymbol,
+                    parameterCount = symbol.valueParameterSymbols.size,
                 ),
             )
         }
@@ -162,12 +163,11 @@ object ResolvedUsageCollector {
             parameterName: String,
             isVararg: Boolean,
         ) {
-            val value =
-                when (expression) {
-                    is FirNamedArgumentExpression -> expression.expression
-                    is FirSpreadArgumentExpression -> expression.expression
-                    else -> expression
-                }
+            val value = when (expression) {
+                is FirNamedArgumentExpression -> expression.expression
+                is FirSpreadArgumentExpression -> expression.expression
+                else -> expression
+            }
             val source = value.source ?: expression.source ?: return
             if (source.startOffset < 0 || source.endOffset < source.startOffset) return
             out.add(WCallArgument(source.startOffset, source.endOffset, parameterName, isVararg))
