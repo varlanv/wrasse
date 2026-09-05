@@ -10,5 +10,5 @@ fun demo(): Point {
     return shift(b, 1, 2)
 }
 
-// expect-error 8:18 no-mixed-named-positional-arguments "Named and positional arguments must not be mixed in one call"
-// expect-error 9:18 no-mixed-named-positional-arguments "Named and positional arguments must not be mixed in one call"
+// expect-error 8:18 named-arguments "Positional arguments should be named"
+// expect-error 9:18 named-arguments "Positional arguments should be named"

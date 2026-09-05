@@ -117,12 +117,7 @@ object DocSplicer {
             }
 
             is Doc.Indent -> wrapIndent(doc.body, start, end, after)?.let { Doc.Indent(it) }
-            is Doc.Group -> wrapIndent(
-                doc.body,
-                start,
-                end,
-                after,
-            )?.let { Doc.Group(it, doc.kind, doc.indentWhenBroken, doc.forceBreak, doc.singleArgument) }
+            is Doc.Group -> wrapIndent(doc.body, start, end, after)?.let { doc.withBody(it) }
             else -> null
         }
     }
@@ -247,7 +242,7 @@ object DocSplicer {
                     if (node.kind == GroupKind.FLUID && lostLeadingBreak(node.body, body)) {
                         Doc.Group(body)
                     } else {
-                        Doc.Group(body, node.kind, node.indentWhenBroken, node.forceBreak, node.singleArgument)
+                        node.withBody(body)
                     }
                 }
                 is Doc.Concat -> {

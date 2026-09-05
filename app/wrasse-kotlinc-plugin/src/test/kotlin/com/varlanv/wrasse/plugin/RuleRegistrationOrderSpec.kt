@@ -29,7 +29,7 @@ class RuleRegistrationOrderSpec : BaseSpec({
         "long-numerical-values, long-parameter-list, loop-with-too-many-jump-statements, magic-number, " +
         "may-be-constant, missing-package-declaration, mixed-condition-operators, named-arguments, nested-classes-visibility, " +
         "no-consecutive-comments, no-empty-class-body, " +
-        "no-empty-parens-before-trailing-lambda, no-mixed-named-positional-arguments, " +
+        "no-empty-parens-before-trailing-lambda, " +
         "no-semicolons, no-single-line-block-comment, no-unit-return, not-implemented-declaration, package-naming, " +
         "print-stack-trace, " +
         "property-naming, range-conventional, redundant-constructor-keyword, redundant-to-string-in-template, " +
@@ -100,7 +100,6 @@ class RuleRegistrationOrderSpec : BaseSpec({
                 "no-consecutive-comments",
                 "no-empty-class-body",
                 "no-empty-parens-before-trailing-lambda",
-                "no-mixed-named-positional-arguments",
                 "no-semicolons",
                 "no-single-line-block-comment",
                 "no-unit-return",

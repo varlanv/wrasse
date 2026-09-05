@@ -16,8 +16,13 @@ private val TARGET_TYPES = setOf(WNodeType.VALUE_ARGUMENT_LIST)
 
 /**
  * Names the positional arguments of a call whose arguments include another call with arguments
- * (the whole nested tree of such calls), or of every call with `all-calls: true`, skipping any
- * callee that declares fewer than `threshold` (default 2) parameters. The `wrap`
+ * (the whole nested tree of such calls), or of every call with `all-calls: true`. A callee that
+ * declares fewer than `threshold` (default 2) parameters goes the other way: its arguments are
+ * written positionally, so a call of one loses its names when positional form means the same
+ * call ([NamedArgumentsDecision.positionalEdits]). A call mixing named and positional arguments
+ * is settled in the same pass whatever its nesting — made positional when the callee is below
+ * the threshold and that is possible, fully named otherwise — unless `allow-mixed` is true, in
+ * which case a mixed call is left exactly as written. The `wrap`
  * option (default true) is read by the printer, not here: with format enabled it lays those calls
  * out one argument per line ([com.varlanv.wrasse.model.FormatStyle.wrapNestedCallArguments]). Never touches a
  * callee in an `excluded-packages` package (`java` and `javax` by default), a callee without
@@ -44,9 +49,15 @@ class NamedArgumentsRule : WUninitializedRule {
         WRuleOptionSpec.Optional(
             name = THRESHOLD,
             type = WRuleOptionType.INTEGER,
-            description = "Only name the arguments of callees declaring at least this many parameters",
+            description = "Name the arguments of callees declaring at least this many parameters; write those of narrower callees positionally",
             default = WRuleOptionValue.Num(2),
             minimum = 1,
+        ),
+        WRuleOptionSpec.Optional(
+            name = ALLOW_MIXED,
+            type = WRuleOptionType.BOOLEAN,
+            description = "Leave a call that mixes named and positional arguments exactly as written",
+            default = WRuleOptionValue.Bool(false),
         ),
         WRuleOptionSpec.Optional(
             name = WRAP,
@@ -61,6 +72,8 @@ class NamedArgumentsRule : WUninitializedRule {
         val excludedPackages = config.options.stringList(EXCLUDED_PACKAGES)
         val allCalls = config.options.boolean(ALL_CALLS)
         val threshold = config.options.integer(THRESHOLD).toInt()
+        val allowMixed = config.options.boolean(ALLOW_MIXED)
+        val positionalMessage = "Arguments of a callee with fewer than $threshold parameters should be positional"
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
@@ -84,7 +97,6 @@ class NamedArgumentsRule : WUninitializedRule {
                 val ancestors = ctx.ancestors
                 if (ancestors.isEmpty || ancestors.typeAt(ancestors.size - 1) != WNodeType.CALL_EXPRESSION) return
                 val callEnd = ancestors.peekEndOffset()
-                if (callEnd !in inScope) return
                 val site = sitesByCallEnd[callEnd] ?: return
                 if (NamedArgumentsDecision.isExcludedCallee(site, excludedPackages)) return
                 val written = ArrayList<WrittenArgument>(children.size)
@@ -93,8 +105,20 @@ class NamedArgumentsRule : WUninitializedRule {
                     val start = children.startOffset(i)
                     val end = children.endOffset(i)
                     written.add(
-                        WrittenArgument(start, end, MixedArgumentsDecision.isNamedArgument(ctx.sourceText, start, end)),
+                        WrittenArgument(start, end, NamedArgumentsDecision.isNamedArgument(ctx.sourceText, start, end)),
                     )
+                }
+                val mixed = NamedArgumentsDecision.isMixed(site, written)
+                if (mixed && allowMixed) return
+                if (site.parameterCount < threshold) {
+                    val edits = NamedArgumentsDecision.positionalEdits(site, written)
+                    if (edits.isNotEmpty()) {
+                        reporter.report(ruleId, positionalMessage, ctx.startOffset, ctx.endOffset, this, edits = edits)
+                        return
+                    }
+                    if (!mixed) return
+                } else if (!mixed && callEnd !in inScope) {
+                    return
                 }
                 val edits = NamedArgumentsDecision.nameEdits(site, written)
                 if (edits.isEmpty()) return
@@ -107,6 +131,7 @@ class NamedArgumentsRule : WUninitializedRule {
         const val EXCLUDED_PACKAGES = "excluded-packages"
         const val ALL_CALLS = "all-calls"
         const val THRESHOLD = "threshold"
+        const val ALLOW_MIXED = "allow-mixed"
         const val WRAP = "wrap"
         const val MESSAGE = "Positional arguments should be named"
     }

@@ -52,6 +52,7 @@ class LayoutSpec : BaseSpec({
         vararg items: Doc,
         forceBreak: Boolean = false,
         singleArgument: Boolean = false,
+        forceNestedWhenBroken: Boolean = false,
     ): Doc.Group {
         val interior = ArrayList<Doc>()
         interior.add(Doc.Break(BreakKind.SOFT, flat = ""))
@@ -70,7 +71,28 @@ class LayoutSpec : BaseSpec({
                 Doc.Text(")"),
             ),
         )
-        return Doc.Group(body, GroupKind.ARGUMENTS, forceBreak = forceBreak, singleArgument = singleArgument)
+        return Doc.Group(
+            body,
+            GroupKind.ARGUMENTS,
+            forceBreak = forceBreak,
+            singleArgument = singleArgument,
+            forceNestedWhenBroken = forceNestedWhenBroken,
+        )
+    }
+
+    should("a single-argument list that nests a call forces the nested lists only once it breaks by width") {
+        val nested = Doc.Concat(listOf(Doc.Text("k"), arguments(Doc.Text("y"), Doc.Text("z"))))
+        val fits = Doc.Concat(
+            listOf(Doc.Text("g"), arguments(nested, singleArgument = true, forceNestedWhenBroken = true)),
+        )
+        Layout.render(fits, style) shouldBe "g(k(y, z))"
+        val wide = Doc.Concat(
+            listOf(
+                Doc.Text("longer.receiver.g"),
+                arguments(nested, singleArgument = true, forceNestedWhenBroken = true),
+            ),
+        )
+        Layout.render(wide, style) shouldBe "longer.receiver.g(\n    k(\n        y,\n        z\n    )\n)"
     }
 
     should("a forced ARGUMENTS group breaks every nested argument list but leaves a single-argument one flat") {

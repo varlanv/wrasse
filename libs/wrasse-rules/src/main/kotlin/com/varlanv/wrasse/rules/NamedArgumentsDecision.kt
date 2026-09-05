@@ -20,6 +20,16 @@ import com.varlanv.wrasse.model.WCallSite
  * [nameEdits] inserts `name = ` before each written argument of [site] that is not yet named and
  * whose value FIR mapped to a non-vararg parameter; empty when nothing is left to name. A trailing
  * lambda is never among the written arguments (it sits outside the parenthesized list).
+ *
+ * [positionalEdits] is the reverse, for a callee below the threshold: it drops every `name = `
+ * when the written arguments map to the callee's leading parameters in declaration order and none
+ * is a vararg — the only case in which positional form means the same call; empty when nothing is
+ * named or the order differs.
+ *
+ * [isNamedArgument] recognizes an argument written as `name = value` (an identifier, plain or
+ * backticked, then `=` that is not `==`). [isMixed] is true when a list holds both a named
+ * argument and a positional one that is not an element of a vararg parameter — such an element
+ * cannot be named, so a call naming everything else is not mixed.
  */
 object NamedArgumentsDecision {
     fun callsInScope(
@@ -87,6 +97,53 @@ object NamedArgumentsDecision {
         start: Int,
         end: Int,
     ): WCallArgument? = site.arguments.firstOrNull { it.startOffset >= start && it.endOffset <= end }
+
+    fun positionalEdits(site: WCallSite, written: List<WrittenArgument>): List<WEdit> {
+        var edits: MutableList<WEdit>? = null
+        for ((position, argument) in written.withIndex()) {
+            val mapped = mappedArgument(site, argument.startOffset, argument.endOffset) ?: return emptyList()
+            if (mapped.isVararg || mapped.parameterIndex != position) return emptyList()
+            if (!argument.isNamed) continue
+            if (edits == null) edits = ArrayList(written.size)
+            edits.add(WEdit(argument.startOffset, mapped.startOffset, ""))
+        }
+        return edits ?: emptyList()
+    }
+
+    fun isMixed(site: WCallSite, written: List<WrittenArgument>): Boolean {
+        var named = false
+        var positional = false
+        for (argument in written) {
+            if (argument.isNamed) {
+                named = true
+            } else if (mappedArgument(site, argument.startOffset, argument.endOffset)?.isVararg != true) {
+                positional = true
+            }
+        }
+        return named && positional
+    }
+
+    fun isNamedArgument(
+        sourceText: CharSequence,
+        start: Int,
+        end: Int,
+    ): Boolean {
+        var i = start
+        while (i < end && sourceText[i].isWhitespace()) i++
+        if (i >= end) return false
+        if (sourceText[i] == '`') {
+            i++
+            while (i < end && sourceText[i] != '`') i++
+            if (i >= end) return false
+            i++
+        } else {
+            if (!sourceText[i].isJavaIdentifierStart()) return false
+            while (i < end && sourceText[i].isJavaIdentifierPart()) i++
+        }
+        while (i < end && sourceText[i].isWhitespace()) i++
+        if (i >= end || sourceText[i] != '=') return false
+        return i + 1 >= end || sourceText[i + 1] != '='
+    }
 
     fun nameEdits(site: WCallSite, written: List<WrittenArgument>): List<WEdit> {
         var edits: MutableList<WEdit>? = null

@@ -28,12 +28,14 @@ class WCallSite(
 /**
  * [startOffset]/[endOffset] span the argument's value expression (never its `name = ` prefix —
  * FIR unwraps named arguments, so whether one was written named is a syntactic question left to
- * the rule). [parameterName] is the declared name of the parameter FIR mapped it to; [isVararg]
- * marks one element of a vararg parameter.
+ * the rule). [parameterName] is the declared name of the parameter FIR mapped it to and
+ * [parameterIndex] its position among the callee's parameters; [isVararg] marks one element of a
+ * vararg parameter.
  */
 class WCallArgument(
     val startOffset: Int,
     val endOffset: Int,
     val parameterName: String,
     val isVararg: Boolean,
+    val parameterIndex: Int = 0,
 )

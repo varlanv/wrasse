@@ -239,7 +239,7 @@
                 "named-arguments": {
                     "type": "object",
                     "additionalProperties": false,
-                    "description": "Name the positional arguments of calls that nest other calls with arguments (or of every call with all-calls)",
+                    "description": "Name the positional arguments of calls that nest other calls with arguments (or of every call with all-calls), write those of narrow callees positionally, and settle mixed calls",
                     "properties": {
                         "level": {
                             "$ref": "#/$defs/level"
@@ -264,33 +264,17 @@
                             "type": "integer",
                             "minimum": 1,
                             "default": 2,
-                            "description": "Only name the arguments of callees declaring at least this many parameters. Default 2."
+                            "description": "Name the arguments of callees declaring at least this many parameters; arguments of narrower callees are written positionally. Default 2."
+                        },
+                        "allow-mixed": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Leave a call that mixes named and positional arguments exactly as written. Default false: such a call is made positional or fully named in one pass."
                         },
                         "wrap": {
                             "type": "boolean",
                             "default": true,
                             "description": "With format enabled, also lay out every call nesting another call with arguments one argument per line; a call with a single argument, or one written inside an if/when/try/object expression, is never wrapped for this reason. Default true."
-                        }
-                    }
-                },
-                "no-mixed-named-positional-arguments": {
-                    "type": "object",
-                    "description": "Disallow mixing named and positional arguments in one call; the positional ones are named when the callee allows it",
-                    "additionalProperties": false,
-                    "properties": {
-                        "level": {
-                            "$ref": "#/$defs/level"
-                        },
-                        "exclude": {
-                            "$ref": "#/$defs/exclude"
-                        },
-                        "excluded-packages": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "default": ["java", "javax"],
-                            "description": "Package prefixes whose callees are reported but never autofixed. Default [\"java\", \"javax\"]."
                         }
                     }
                 },

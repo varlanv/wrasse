@@ -1521,7 +1521,6 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val argumentCount = (lparIdx + 1 until rparIdx).count { children[it].type == WNodeType.VALUE_ARGUMENT }
         val nestsCallWithArguments = style.wrapNestedCallArguments &&
             templateEntryDepth == 0 &&
-            argumentCount > 1 &&
             (lparIdx + 1 until rparIdx).any { (children[it] as? ChildEntry.Resolved)?.isCallWithArguments == true }
 
         val lparDoc = resolveEntry(children[lparIdx])
@@ -1562,8 +1561,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         return Doc.Group(
             Doc.Concat(listOf(lparDoc, Doc.Indent(interiorDoc), closingBreak, rparDoc), start, end),
             GroupKind.ARGUMENTS,
-            forceBreak = nestsCallWithArguments,
+            forceBreak = nestsCallWithArguments && argumentCount > 1,
             singleArgument = argumentCount == 1,
+            forceNestedWhenBroken = nestsCallWithArguments && argumentCount == 1,
         )
     }
 

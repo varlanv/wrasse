@@ -2088,8 +2088,17 @@ information. Statuses: Accepted · Rejected · Superseded.
   expression written as an argument is a `BARRIER` group: the forcing does not reach the calls in
   its condition or branches. Independently, every braced `then`/`else` body of an `if` chain that
   spans lines in the source is laid out multi-line, so `} else { x }` after a multi-line branch is
-  expanded instead of being left as written. `named-arguments` also gained `threshold` (default 2,
-  minimum 1): a callee declaring fewer parameters is never named, its nested calls still are.
+  expanded instead of being left as written. A single-argument list that nests a call with
+  arguments still forces those nested lists once it breaks by width, so
+  `containsKey(\n    Key(a = .., b = ..),\n)` becomes one argument per line rather than a lone
+  flat line under a broken parenthesis. `named-arguments` also gained `threshold` (default 2,
+  minimum 1): a callee declaring fewer parameters is written positionally — an all-named call of
+  one loses its names when the arguments map to its leading parameters in order and none is a
+  vararg — while its nested calls are still named. `no-mixed-named-positional-arguments` was
+  folded into `named-arguments` as `allow-mixed` (default false): with two rules, a mixed call to
+  a narrow callee needed two passes (one named it fully, the next stripped the names); one rule
+  settles it in a single pass — positional below the threshold when the order allows, fully named
+  otherwise — and `allow-mixed: true` leaves a mixed call exactly as written.
 
 ### Build & distribution
 

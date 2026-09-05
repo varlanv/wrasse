@@ -19,7 +19,10 @@ fun parse(t: String, out: Sink) {
         item = ParsedTags.AssetTag(
             asset = t,
             tag = FeedRelatedAssetTag.SpotDelisting(
-                tag = AssetDelistingTag(haltTradeTime = null, fullDelistTime = null),
+                tag = AssetDelistingTag(
+                    haltTradeTime = null,
+                    fullDelistTime = null,
+                ),
             ),
         ),
     )

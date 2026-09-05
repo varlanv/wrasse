@@ -62,7 +62,6 @@
         "no-consecutive-comments": { "level": "error" },
         "no-empty-class-body": { "level": "error" },
         "no-empty-parens-before-trailing-lambda": { "level": "error" },
-        "no-mixed-named-positional-arguments": { "level": "error" },
         "no-semicolons": { "level": "error" },
         "no-single-line-block-comment": { "level": "error" },
         "no-unit-return": { "level": "error" },

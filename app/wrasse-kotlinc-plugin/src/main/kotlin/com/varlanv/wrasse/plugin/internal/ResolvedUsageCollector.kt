@@ -38,6 +38,7 @@ import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.FirErrorTypeRef
 import org.jetbrains.kotlin.fir.types.FirResolvedTypeRef
 import org.jetbrains.kotlin.fir.types.abbreviatedType
+import org.jetbrains.kotlin.fir.types.resolvedType
 import org.jetbrains.kotlin.fir.types.type
 import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.name.CallableId
@@ -118,7 +119,14 @@ object ResolvedUsageCollector {
             if (collectCallSites) {
                 runCatching { recordCallSite(functionCall) }
             }
+            collectTypeAliasConstructorUsage(functionCall)
             visitElement(functionCall)
+        }
+
+        private fun collectTypeAliasConstructorUsage(call: FirFunctionCall) {
+            val symbol = (call.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol
+            if (symbol !is FirConstructorSymbol) return
+            call.resolvedType.abbreviatedType?.let { collectConeType(it) }
         }
 
         private fun recordCallSite(call: FirFunctionCall) {
@@ -127,18 +135,21 @@ object ResolvedUsageCollector {
             if (callSource.kind !== KtRealSourceElementKind || callSource.elementType !in CALL_SYNTAX_TYPES) return
             val symbol = (call.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirFunctionSymbol<*>
                 ?: return
+            val parameterSymbols = symbol.valueParameterSymbols
             val arguments = ArrayList<WCallArgument>()
             for ((expression, parameter) in argumentList.mapping) {
                 val parameterName = parameter.name.asString()
+                val parameterIndex = parameterSymbols.indexOf(parameter.symbol)
                 if (expression is FirVarargArgumentsExpression) {
                     for (element in expression.arguments) addArgument(
                         arguments,
                         element,
                         parameterName,
                         isVararg = true,
+                        parameterIndex,
                     )
                 } else {
-                    addArgument(arguments, expression, parameterName, parameter.isVararg)
+                    addArgument(arguments, expression, parameterName, parameter.isVararg, parameterIndex)
                 }
             }
             val callableId = symbol.callableId
@@ -152,7 +163,7 @@ object ResolvedUsageCollector {
                     hasStableParameterNames = symbol.resolvedStatus.hasStableParameterNames,
                     arguments = arguments,
                     isConstructor = symbol is FirConstructorSymbol,
-                    parameterCount = symbol.valueParameterSymbols.size,
+                    parameterCount = parameterSymbols.size,
                 ),
             )
         }
@@ -162,6 +173,7 @@ object ResolvedUsageCollector {
             expression: FirExpression,
             parameterName: String,
             isVararg: Boolean,
+            parameterIndex: Int,
         ) {
             val value = when (expression) {
                 is FirNamedArgumentExpression -> expression.expression
@@ -170,7 +182,7 @@ object ResolvedUsageCollector {
             }
             val source = value.source ?: expression.source ?: return
             if (source.startOffset < 0 || source.endOffset < source.startOffset) return
-            out.add(WCallArgument(source.startOffset, source.endOffset, parameterName, isVararg))
+            out.add(WCallArgument(source.startOffset, source.endOffset, parameterName, isVararg, parameterIndex))
         }
 
         override fun visitResolvedNamedReference(resolvedNamedReference: FirResolvedNamedReference) {

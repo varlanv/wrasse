@@ -12,7 +12,8 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         end: Int,
         name: String,
         vararg: Boolean = false,
-    ) = WCallArgument(start, end, name, vararg)
+        index: Int = 0,
+    ) = WCallArgument(start, end, name, vararg, index)
 
     fun site(
         callStart: Int,
@@ -74,6 +75,78 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             allCalls = true,
             threshold = 2,
         ) shouldBe setOf(20, 18)
+    }
+
+    should("drop the names of an all-named call to a narrow callee only when positional form means the same call") {
+        fun written(
+            vararg spans: Pair<Int, Int>,
+            named: Boolean = true,
+        ) = spans.map { (start, end) -> WrittenArgument(start, end, named) }
+        val inOrder = site(
+            0,
+            30,
+            1,
+            arguments = listOf(argument(6, 7, "a", index = 0), argument(14, 15, "b", index = 1)),
+        )
+        NamedArgumentsDecision.positionalEdits(inOrder, written(2 to 7, 10 to 15)).map {
+            Triple(it.startOffset, it.endOffset, it.replacement)
+        } shouldBe listOf(Triple(2, 6, ""), Triple(10, 14, ""))
+
+        val reordered = site(
+            0,
+            30,
+            1,
+            arguments = listOf(argument(6, 7, "b", index = 1), argument(14, 15, "a", index = 0)),
+        )
+        NamedArgumentsDecision.positionalEdits(reordered, written(2 to 7, 10 to 15)) shouldBe emptyList()
+
+        val skipsFirst = site(0, 30, 1, arguments = listOf(argument(6, 7, "b", index = 1)))
+        NamedArgumentsDecision.positionalEdits(skipsFirst, written(2 to 7)) shouldBe emptyList()
+
+        val vararg = site(0, 30, 1, arguments = listOf(argument(7, 12, "xs", vararg = true, index = 0)))
+        NamedArgumentsDecision.positionalEdits(vararg, written(2 to 12)) shouldBe emptyList()
+
+        val mixed = site(0, 30, 1, arguments = listOf(argument(2, 3, "a", index = 0), argument(10, 11, "b", index = 1)))
+        NamedArgumentsDecision
+            .positionalEdits(mixed, listOf(WrittenArgument(2, 3, false), WrittenArgument(6, 11, true)))
+            .map { Triple(it.startOffset, it.endOffset, it.replacement) } shouldBe listOf(Triple(6, 10, ""))
+
+        val allPositional = site(0, 30, 1, arguments = listOf(argument(2, 3, "a", index = 0)))
+        NamedArgumentsDecision.positionalEdits(allPositional, written(2 to 3, named = false)) shouldBe emptyList()
+    }
+
+    should("recognize plain and backticked named arguments") {
+        fun named(text: String) = NamedArgumentsDecision.isNamedArgument(text, 0, text.length)
+        named("x = 1") shouldBe true
+        named("x=1") shouldBe true
+        named("  `weird name` = f()") shouldBe true
+        named("x == 1") shouldBe false
+        named("1") shouldBe false
+        named("foo(a = 1)") shouldBe false
+        named("{ a -> a }") shouldBe false
+        named("`unterminated") shouldBe false
+    }
+
+    should("call a list mixed only when a named argument meets a positional one outside a vararg") {
+        val plain = site(0, 30, 1, arguments = listOf(argument(2, 3, "a", index = 0), argument(10, 11, "b", index = 1)))
+        NamedArgumentsDecision.isMixed(
+            plain,
+            listOf(WrittenArgument(2, 3, false), WrittenArgument(6, 11, true)),
+        ) shouldBe true
+        NamedArgumentsDecision.isMixed(
+            plain,
+            listOf(WrittenArgument(2, 3, false), WrittenArgument(10, 11, false)),
+        ) shouldBe false
+        val withVararg = site(
+            0,
+            30,
+            1,
+            arguments = listOf(argument(6, 7, "a", index = 0), argument(10, 11, "xs", vararg = true, index = 1)),
+        )
+        NamedArgumentsDecision.isMixed(
+            withVararg,
+            listOf(WrittenArgument(2, 7, true), WrittenArgument(10, 11, false)),
+        ) shouldBe false
     }
 
     should("exclude java and javax callees by package prefix, whole segments only") {

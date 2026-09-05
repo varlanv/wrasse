@@ -7,4 +7,4 @@ fun subscribe(clientId: String, kind: String, vararg subscriptions: Subscription
 
 fun demo(): Int = subscribe(clientId = "other", "spot", Subscription("a"), Subscription("b"))
 
-// expect-error 8:28 no-mixed-named-positional-arguments "Named and positional arguments must not be mixed in one call"
+// expect-error 8:28 named-arguments "Positional arguments should be named"

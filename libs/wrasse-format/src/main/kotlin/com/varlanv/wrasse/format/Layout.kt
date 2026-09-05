@@ -88,7 +88,7 @@ object Layout {
             val chosenMode = if (!forced && groupFits(doc, indentDepth, column, style, tail)) Mode.FLAT else Mode.BROKEN
             val bodyDepth = if (doc.indentWhenBroken && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
             val bodyForce = when (doc.kind) {
-                GroupKind.ARGUMENTS -> forced
+                GroupKind.ARGUMENTS -> forced || (doc.forceNestedWhenBroken && chosenMode == Mode.BROKEN)
                 GroupKind.LAMBDA, GroupKind.CONTINUATION, GroupKind.TEMPLATE, GroupKind.BARRIER -> false
                 GroupKind.DEFAULT, GroupKind.FLUID -> forceArguments
             }

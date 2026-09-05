@@ -66,7 +66,6 @@ import com.varlanv.wrasse.rules.LoopWithTooManyJumpStatementsRule
 import com.varlanv.wrasse.rules.MagicNumberRule
 import com.varlanv.wrasse.rules.MayBeConstantRule
 import com.varlanv.wrasse.rules.MissingPackageDeclarationRule
-import com.varlanv.wrasse.rules.MixedArgumentsRule
 import com.varlanv.wrasse.rules.MixedConditionOperatorsRule
 import com.varlanv.wrasse.rules.ModifierEngine
 import com.varlanv.wrasse.rules.NamedArgumentsRule
@@ -167,7 +166,6 @@ internal fun registeredRules(): List<WUninitializedRule> = listOf(
     NoConsecutiveCommentsRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
-    MixedArgumentsRule(),
     NoSemicolonsRule(),
     NoSingleLineBlockCommentRule(),
     NoUnitReturnRule(),

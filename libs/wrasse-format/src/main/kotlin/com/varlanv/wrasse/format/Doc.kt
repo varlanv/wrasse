@@ -86,8 +86,9 @@ sealed interface Doc {
      * level deeper when the group ends up broken (and at the ambient depth when flat).
      * [forceBreak] applies to [GroupKind.ARGUMENTS] only: the group renders broken regardless of
      * width — no enclosing group can render flat around it — and so does every argument list
-     * nested in it, except a [singleArgument] list, which stays a width decision and passes no
-     * forcing on to the lists inside it.
+     * nested in it, except a [singleArgument] list, which stays a width decision and passes the
+     * forcing on to the lists inside it only when it ends up broken itself and
+     * [forceNestedWhenBroken] is set (it nests a call with arguments).
      */
     class Group(
         val body: Doc,
@@ -95,7 +96,12 @@ sealed interface Doc {
         val indentWhenBroken: Boolean = false,
         val forceBreak: Boolean = false,
         val singleArgument: Boolean = false,
+        val forceNestedWhenBroken: Boolean = false,
     ) : Doc {
+        fun withBody(
+            body: Doc,
+        ): Group = Group(body, kind, indentWhenBroken, forceBreak, singleArgument, forceNestedWhenBroken)
+
         override val start: Int get() = body.start
         override val end: Int get() = body.end
         internal var flatWidthCache: Int = WIDTH_UNSET
