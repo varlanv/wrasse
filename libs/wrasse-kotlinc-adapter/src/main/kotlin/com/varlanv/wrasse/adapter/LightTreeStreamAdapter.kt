@@ -163,7 +163,7 @@ object LightTreeStreamAdapter {
         reporter: WReporter,
     ) {
         val tree = source.treeStructure
-        ctx.sourceText = tree.toString(source.lighterASTNode)
+        ctx.sourceText = tree.toString(source.lighterASTNode).toString()
 
         for (rule in dispatch.allRules) {
             rule.beforeFile(ctx = ctx)
@@ -176,13 +176,11 @@ object LightTreeStreamAdapter {
         val root = source.lighterASTNode
         val rootType = WNodeTypeMapping.map(elementType = root.tokenType)
         val rootIsLeaf = root is LighterASTTokenNode
-        val rootText = if (rootIsLeaf) root.text else null
         walkNode(
             tree = tree,
             astNode = root,
             type = rootType,
             isLeaf = rootIsLeaf,
-            leafText = rootText,
             ctx = ctx,
             dispatch = dispatch,
             reporter = reporter,
@@ -213,7 +211,6 @@ object LightTreeStreamAdapter {
         astNode: LighterASTNode,
         type: WNodeType,
         isLeaf: Boolean,
-        leafText: CharSequence?,
         ctx: WContext,
         dispatch: StreamDispatch,
         reporter: WReporter,
@@ -227,7 +224,7 @@ object LightTreeStreamAdapter {
         ctx.type = type
         ctx.startOffset = astNode.startOffset
         ctx.endOffset = astNode.endOffset
-        ctx.leafText = leafText
+        if (isLeaf) ctx.enterLeaf() else ctx.leafText = null
 
         if (isLeaf) {
             if (dispatch.hasLeafRules) {
@@ -253,7 +250,6 @@ object LightTreeStreamAdapter {
             ctx.prevLeafType = type
             ctx.prevLeafStart = astNode.startOffset
             ctx.prevLeafEnd = astNode.endOffset
-            ctx.prevLeafText = leafText
         } else {
             if (dispatch.hasStreamRules) {
                 val streamRules = dispatch.streamRules
@@ -285,14 +281,12 @@ object LightTreeStreamAdapter {
                     ctx.childIndex = i
                     val childType = WNodeTypeMapping.map(elementType = child.tokenType)
                     val childIsLeaf = child is LighterASTTokenNode
-                    val childText = if (childIsLeaf) child.text else null
 
                     walkNode(
                         tree = tree,
                         astNode = child,
                         type = childType,
                         isLeaf = childIsLeaf,
-                        leafText = childText,
                         ctx = ctx,
                         dispatch = dispatch,
                         reporter = reporter,
@@ -302,12 +296,16 @@ object LightTreeStreamAdapter {
                         activeNodeRules = activeNodeRules,
                     )
 
-                    sharedBuffer?.add(
-                        type = childType,
-                        start = child.startOffset,
-                        end = child.endOffset,
-                        text = childText,
-                    )
+                    if (sharedBuffer != null) {
+                        val start = child.startOffset
+                        val end = child.endOffset
+                        sharedBuffer.add(
+                            type = childType,
+                            start = start,
+                            end = end,
+                            text = if (childIsLeaf) ctx.sourceText.subSequence(start, end) else null,
+                        )
+                    }
                 }
                 tree.disposeChildren(liveChildren, count)
             }
@@ -338,12 +336,15 @@ object LightTreeStreamAdapter {
 
     private fun trackLastNewline(ctx: WContext) {
         if (newlineFreeByOrdinal[ctx.type.ordinal]) return
-        val lt = ctx.leafText ?: return
-        for (i in lt.length - 1 downTo 0) {
-            if (lt[i] == '\n') {
-                ctx.lastNewlineOffset = ctx.startOffset + i
+        val source = ctx.sourceText
+        val start = ctx.startOffset
+        var i = ctx.endOffset - 1
+        while (i >= start) {
+            if (source[i] == '\n') {
+                ctx.lastNewlineOffset = i
                 return
             }
+            i--
         }
     }
 

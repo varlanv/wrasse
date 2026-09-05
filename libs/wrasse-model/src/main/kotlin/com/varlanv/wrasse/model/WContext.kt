@@ -46,9 +46,27 @@ class WContext(
     var endOffset: Int = 0
         @JvmSynthetic set
 
-    /** Token text for leaf nodes; null for interior node events. Backed by the compiler's buffer. */
-    var leafText: CharSequence? = null
-        @JvmSynthetic set
+    /**
+     * Token text for leaf nodes; null for interior node events. Sliced out of [sourceText] on
+     * first read and cached for the rest of the event, so a leaf nobody looks at costs nothing.
+     */
+    var leafText: CharSequence?
+        get() {
+            if (!isLeaf) return null
+            return leafTextCache ?: sourceText.subSequence(startOffset, endOffset).also { leafTextCache = it }
+        }
+        @JvmSynthetic set(value) {
+            leafTextCache = value
+            isLeaf = value != null
+        }
+
+    private var leafTextCache: CharSequence? = null
+
+    /** Marks the current event as a leaf token whose text is [startOffset]..[endOffset] of [sourceText]. */
+    fun enterLeaf() {
+        isLeaf = true
+        leafTextCache = null
+    }
 
     /** Stack of ancestor node types from root (index 0) to immediate parent (index size-1). */
     val ancestors: WNodeStack = WNodeStack()
@@ -65,9 +83,9 @@ class WContext(
     var prevLeafEnd: Int = -1
         @JvmSynthetic set
 
-    /** Text of the previous leaf, or null at start-of-file. */
-    var prevLeafText: CharSequence? = null
-        @JvmSynthetic set
+    /** Text of the previous leaf, sliced out of [sourceText] on each read; null at start-of-file. */
+    val prevLeafText: CharSequence?
+        get() = if (prevLeafStart < 0) null else sourceText.subSequence(prevLeafStart, prevLeafEnd)
 
     /**
      * Index of the current node among its parent's direct children (0-based).
@@ -96,7 +114,8 @@ class WContext(
     fun hasAncestor(type: WNodeType): Boolean = ancestors.contains(type)
 
     /** True if the current event is a leaf token (has text), false for interior node events. */
-    val isLeaf: Boolean get() = leafText != null
+    var isLeaf: Boolean = false
+        @JvmSynthetic set
 }
 
 /** True for WHITE_SPACE, EOL_COMMENT, BLOCK_COMMENT, and KDOC node types. */
