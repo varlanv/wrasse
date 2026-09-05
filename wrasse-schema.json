@@ -231,6 +231,11 @@
                             "type": "boolean",
                             "default": false,
                             "description": "Name the positional arguments of every call, not only of calls nesting other calls. Default false."
+                        },
+                        "wrap": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "With format enabled, also lay out every call nesting another call with arguments one argument per line. Default true."
                         }
                     }
                 },

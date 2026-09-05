@@ -17,7 +17,10 @@ class WFormatConfig(
  * Style parameters for the opinionated printer — the whole configurable surface.
  * [multilineSignatureThreshold] is the parameter count at or above which a function or
  * primary-constructor signature is forced one-parameter-per-line; `null` means signatures wrap
- * only when they exceed [maxLineLength].
+ * only when they exceed [maxLineLength]. [wrapNestedCallArguments] is not a `format` key: it is
+ * on iff the `named-arguments` rule is on with its `wrap` option, and lays out every call whose
+ * arguments include another call with arguments — and every such nested call — one argument per
+ * line.
  */
 class FormatStyle(
     val indentWidth: Int = 4,
@@ -25,6 +28,7 @@ class FormatStyle(
     val trailingCommas: Boolean = true,
     val importLayout: ImportLayout = ImportLayout.ASCII,
     val multilineSignatureThreshold: Int? = 3,
+    val wrapNestedCallArguments: Boolean = false,
 )
 
 enum class ImportLayout {

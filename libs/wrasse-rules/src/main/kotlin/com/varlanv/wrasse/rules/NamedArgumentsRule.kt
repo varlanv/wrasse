@@ -14,7 +14,9 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 
 /**
  * Names the positional arguments of a call whose arguments include another call with arguments
- * (the whole nested tree of such calls), or of every call with `all-calls: true`. Never touches a
+ * (the whole nested tree of such calls), or of every call with `all-calls: true`. The `wrap`
+ * option (default true) is read by the printer, not here: with format enabled it lays those calls
+ * out one argument per line ([com.varlanv.wrasse.model.FormatStyle.wrapNestedCallArguments]). Never touches a
  * callee in an `excluded-packages` package (`java` and `javax` by default), a callee without
  * stable parameter names, a function type's `invoke`, a vararg element, or a trailing lambda.
  * Inert for a file whose resolution has errors. See [NamedArgumentsDecision].
@@ -36,6 +38,12 @@ class NamedArgumentsRule : WUninitializedRule {
                 type = WRuleOptionType.BOOLEAN,
                 description = "Name the positional arguments of every call, not only of calls nesting other calls",
                 default = WRuleOptionValue.Bool(false),
+            ),
+            WRuleOptionSpec.Optional(
+                name = WRAP,
+                type = WRuleOptionType.BOOLEAN,
+                description = "With format enabled, also lay out every call nesting another call with arguments one argument per line",
+                default = WRuleOptionValue.Bool(true),
             ),
         )
 
@@ -86,6 +94,7 @@ class NamedArgumentsRule : WUninitializedRule {
     private companion object {
         const val EXCLUDED_PACKAGES = "excluded-packages"
         const val ALL_CALLS = "all-calls"
+        const val WRAP = "wrap"
         const val MESSAGE = "Positional arguments should be named"
     }
 }

@@ -15,6 +15,8 @@ class WConfig(
 ) {
     companion object {
         private const val MAX_EXTENDS_DEPTH = 10
+        private const val NAMED_ARGUMENTS_RULE_ID = "named-arguments"
+        private const val NAMED_ARGUMENTS_WRAP_OPTION = "wrap"
 
         fun from(
             configValue: ConfigValue,
@@ -147,7 +149,7 @@ class WConfig(
             ruleOptionSpecs: Map<String, List<WRuleOptionSpec>>,
         ): Result<WConfig> {
             val globalExclude = raw.exclude.map { pathMatcher(it) }
-            val format = buildFormatConfig(raw.format, warnOnly, explicitApiActive)
+            val format = buildFormatConfig(raw.format, warnOnly, explicitApiActive, wrapNestedCallArguments(raw))
             val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
 
             for (ruleId in ruleIds) {
@@ -227,10 +229,18 @@ class WConfig(
             WRuleOptionType.STRING_LIST -> (raw as? ConfigValue.StrArr)?.let { WRuleOptionValue.StrList(it.value) }
         }
 
+        private fun wrapNestedCallArguments(raw: RawConfig): Boolean {
+            val rule = raw.rules[NAMED_ARGUMENTS_RULE_ID] ?: return false
+            if ((rule.level ?: RuleLevel.OFF) == RuleLevel.OFF) return false
+            val wrap = rule.options[NAMED_ARGUMENTS_WRAP_OPTION]
+            return wrap !is ConfigValue.Bool || wrap.value
+        }
+
         private fun buildFormatConfig(
             raw: RawFormatConfig?,
             warnOnly: Boolean,
             explicitApiActive: Boolean,
+            wrapNestedCallArguments: Boolean,
         ): WFormatConfig {
             val enabled = raw?.enabled ?: false
             val level = if (enabled) RuleLevel.ERROR else RuleLevel.OFF
@@ -243,6 +253,7 @@ class WConfig(
                     trailingCommas = raw?.trailingCommas ?: true,
                     importLayout = raw?.importLayout ?: ImportLayout.ASCII,
                     multilineSignatureThreshold = raw?.multilineSignatureThreshold ?: 3,
+                    wrapNestedCallArguments = wrapNestedCallArguments,
                 ),
                 ruleConfig = WrasseRuleConfig(
                     level = level,

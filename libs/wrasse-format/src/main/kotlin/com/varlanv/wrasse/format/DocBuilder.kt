@@ -132,6 +132,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                         frame.hugsLambdaArgument,
                         frame.wrapsCallLike,
                         frame.chainHeadIsRawString,
+                        frame.hasArguments,
+                        frame.isCallWithArguments,
+                        frame.endsWithCallWithArguments,
                     ),
                 )
         }
@@ -201,6 +204,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         WNodeType.VALUE_ARGUMENT_LIST -> resolveArgumentListFrame(frame, start, end)
 
         WNodeType.VALUE_ARGUMENT -> resolveValueArgumentFrame(frame, start, end)
+
+        WNodeType.CALL_EXPRESSION -> resolveCallExpressionFrame(frame, start, end)
 
         WNodeType.SUPER_TYPE_CALL_ENTRY -> resolveSuperTypeCallEntryFrame(frame, start, end)
 
@@ -1135,6 +1140,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val opIdx = children.indexOfFirst { it.type == WNodeType.DOT || it.type == WNodeType.SAFE_ACCESS }
         if (opIdx < 0) return Doc.Concat(children.map { resolveEntry(it) }, start, end)
         val receiverEntry = children.first { it.type != WNodeType.WHITE_SPACE }
+        frame.endsWithCallWithArguments = isCallWithArgumentsEntry(children.lastOrNull { it.type != WNodeType.WHITE_SPACE })
         frame.chainHeadIsRawString =
             receiverEntry.type == WNodeType.STRING_TEMPLATE ||
             (receiverEntry is ChildEntry.Resolved &&
@@ -1408,6 +1414,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (!hasContent) {
             return Doc.Concat(children.map { resolveEntry(it) }, start, end)
         }
+        frame.hasArguments = true
+        val nestsCallWithArguments = style.wrapNestedCallArguments &&
+            (lparIdx + 1 until rparIdx).any { (children[it] as? ChildEntry.Resolved)?.isCallWithArguments == true }
 
         val lparDoc = resolveEntry(children[lparIdx])
         val rparDoc = resolveEntry(children[rparIdx])
@@ -1444,7 +1453,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         val interiorDoc = Doc.Concat(interior, interior.first().start, interior.last().end)
         val closingBreak = wsBreakAt(children, rparIdx - 1, rparDoc.start, flat = "")
-        return Doc.Group(Doc.Concat(listOf(lparDoc, Doc.Indent(interiorDoc), closingBreak, rparDoc), start, end))
+        return Doc.Group(
+            Doc.Concat(listOf(lparDoc, Doc.Indent(interiorDoc), closingBreak, rparDoc), start, end),
+            GroupKind.ARGUMENTS,
+            forceBreak = nestsCallWithArguments,
+        )
     }
 
     private fun Int.isWs(children: List<ChildEntry>): Boolean = children[this].type == WNodeType.WHITE_SPACE
@@ -1477,6 +1490,20 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         return sole
     }
 
+    private fun resolveCallExpressionFrame(
+        frame: Frame,
+        start: Int,
+        end: Int,
+    ): Doc {
+        frame.isCallWithArguments = frame.children.any { it is ChildEntry.Resolved && it.type == WNodeType.VALUE_ARGUMENT_LIST && it.hasArguments }
+        return resolveBraceFrame(frame, start, end)
+    }
+
+    private fun isCallWithArgumentsEntry(entry: ChildEntry?): Boolean =
+        entry is ChildEntry.Resolved &&
+            ((entry.type == WNodeType.CALL_EXPRESSION && entry.isCallWithArguments) ||
+                (entry.type in CHAIN_LINK_TYPES && entry.endsWithCallWithArguments))
+
     private fun resolveValueArgumentFrame(
         frame: Frame,
         start: Int,
@@ -1485,6 +1512,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val children = frame.children
         val real = children.filter { it.type != WNodeType.WHITE_SPACE }
         frame.hugsLambdaArgument = real.size == 1 && real[0].type == WNodeType.LAMBDA_EXPRESSION
+        frame.isCallWithArguments = isCallWithArgumentsEntry(real.lastOrNull())
         val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
         if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
         return resolveInitializerFrame(children, WNodeType.VALUE_ARGUMENT, start, end, eqIdx)
@@ -2104,6 +2132,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var hugsLambdaArgument = false
         var wrapsCallLike = false
         var chainHeadIsRawString = false
+        var hasArguments = false
+        var isCallWithArguments = false
+        var endsWithCallWithArguments = false
     }
 
     private sealed interface ChildEntry {
@@ -2119,6 +2150,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val hugsLambdaArgument: Boolean = false,
             val wrapsCallLike: Boolean = false,
             val chainHeadIsRawString: Boolean = false,
+            val hasArguments: Boolean = false,
+            val isCallWithArguments: Boolean = false,
+            val endsWithCallWithArguments: Boolean = false,
         ) : ChildEntry
 
         class Ws(val rawText: String, val start: Int) : ChildEntry {

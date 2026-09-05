@@ -31,6 +31,19 @@ class WConfigSpec : BaseSpec({
             .getOrThrow()
     }
 
+    should("derive wrapNestedCallArguments from named-arguments being on with wrap left at its default") {
+        val specs = mapOf("named-arguments" to listOf(WRuleOptionSpec.Optional("wrap", WRuleOptionType.BOOLEAN, "", WRuleOptionValue.Bool(true))))
+        fun style(json: String) = WConfig
+            .from(configValue = ConfigValueJsonc.parse(json).getOrThrow(), ruleIds = setOf("named-arguments", "no-semicolons"), warnOnly = false, ruleOptionSpecs = specs)
+            .getOrThrow()
+            .format
+            .style
+        style("""{"format":{},"rules":{"named-arguments":{"level":"error"}}}""").wrapNestedCallArguments shouldBe true
+        style("""{"format":{},"rules":{"named-arguments":{"level":"error","wrap":false}}}""").wrapNestedCallArguments shouldBe false
+        style("""{"format":{},"rules":{"named-arguments":{"level":"off","wrap":true}}}""").wrapNestedCallArguments shouldBe false
+        style("""{"format":{},"rules":{"no-semicolons":{"level":"error"}}}""").wrapNestedCallArguments shouldBe false
+    }
+
     should("retain the configDir it was built with") {
         val dir = Path.of("/some/project/dir")
         val config = buildConfig("""{"rules":{"no-semicolons":{"level":"error"}}}""", configDir = dir)

@@ -58,11 +58,14 @@ sealed interface Doc {
      * independently, top-down, once the enclosing group's mode is known. [kind] selects how this
      * group measures its own fit — see [GroupKind]; [indentWhenBroken] renders [body] one indent
      * level deeper when the group ends up broken (and at the ambient depth when flat).
+     * [forceBreak] applies to [GroupKind.ARGUMENTS] only: the group renders broken regardless of
+     * width, and so does every argument list nested in it.
      */
     class Group(
         val body: Doc,
         val kind: GroupKind = GroupKind.DEFAULT,
         val indentWhenBroken: Boolean = false,
+        val forceBreak: Boolean = false,
     ) : Doc {
         override val start: Int get() = body.start
         override val end: Int get() = body.end
@@ -100,6 +103,10 @@ enum class BreakKind {
  * - [FLUID] — an assigned value whose body starts with the `SOFT` break after the operator: fits
  *   iff the content up to the first break opportunity inside it (the first break inside any
  *   nested group, or the first `HARD` break) fits.
+ * - [ARGUMENTS] — a call's parenthesized argument list: fits like [DEFAULT], but renders broken
+ *   when its own [Group.forceBreak] is set or when an enclosing [ARGUMENTS] group broke for that
+ *   reason — the forcing reaches every argument list nested through plain parts, [DEFAULT] and
+ *   [FLUID] groups, and stops at a [LAMBDA] or [CONTINUATION] group.
  * - [LAMBDA] — a lambda literal: fits iff its own flat width fits, ignoring the tail after its
  *   closing `}` — whatever follows a lambda has its own break opportunities (or none worth
  *   breaking the lambda for). Also counted specially by an enclosing [CONTINUATION] group, below.
@@ -112,6 +119,7 @@ enum class BreakKind {
  */
 enum class GroupKind {
     DEFAULT,
+    ARGUMENTS,
     FLUID,
     LAMBDA,
     CONTINUATION,
