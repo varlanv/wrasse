@@ -117,9 +117,12 @@ was skipped and no internal error was reported.
   ktfmt 12.2 s. Wrasse only recompiles the changed file; ktlint and ktfmt re-run over the source
   set. The `wrasseApply` step is a flat 0.5 s (a JVM launch), and the compile after it is the
   ordinary incremental compile.
-- **ktfmt-gradle's check task never goes up-to-date** (6.5 s / 11 s on a no-op) and its
-  parallel workers peak at 5–10 GB RSS. That is the plugin's default behavior, not a
-  configuration choice here.
+- **ktfmt-gradle's check task never goes up-to-date** (6.5 s / 11 s on a no-op) and peaks at
+  5–10 GB RSS. Measured cause: the plugin submits one Worker API item per file in process
+  isolation by default, so Gradle forks one worker JVM per `--max-workers` slot, 32 on this
+  machine, each ~250 MB with its own embedded Kotlin compiler; the no-op cost is 32 JVM starts.
+  On a 4-core machine the same run would show 4 workers and ~1.5 GB. The plugin has a
+  `useClassloaderIsolation` switch; the defaults were kept because that is what a project gets.
 - **detekt with type resolution** compiles first (its cold check is compile + 5 s at 5k,
   compile + 18 s at 50k) and re-runs fully on any change (6.6 s / 23 s).
 - **Memory.** Wrasse's check session peaks at the compiler's own footprint. The format session
@@ -127,8 +130,10 @@ was skipped and no internal error was reported.
   whole-file replacement edits held in memory, worth profiling before the 1M run.
 - **Convergence.** Wrasse's formatter output was clean on the first re-check at both sizes; the
   remaining warnings are rules without an autofix. One exception seen at 5k: on the incremental
-  step the broken file still reported `function-expression-body` after the fix pass, because that
-  rule's edit overlapped the whole-file format edit and lost; a second `wrasseFix` clears it.
+  step the broken file's one-line `{ if ... }` body needed a second fix pass, because the brace
+  frame's inline layout was decided before the bracing rule's newline-adding edit was spliced in.
+  Fixed after this run (the printer now breaks a brace frame whose body carries a collected
+  multi-line edit); covered by the `one-line-block-body-if-error` fixture's idempotence cycle.
 - **Build cache gotcha.** A `compileKotlin` restored from the build cache does not run the
   plugin, so `wrasseApply` after a cache hit has nothing to apply. Formatting a project that
   cache-hits needs a source change or `--rerun-tasks`. ktlint and ktfmt cache their own tasks the

@@ -48,7 +48,5 @@ source root exactly as under Gradle.
 
 ## Observed while writing this
 
-- A rule fix that overlaps the whole-file format edit loses; the one-line `{ if ... }` body here
-  takes two `build` + `wrasseApply` rounds to settle.
 - The toolchain renders the diagnostics with source excerpts on Kotlin 2.4 and as plain `WARN`
   lines on 2.2.

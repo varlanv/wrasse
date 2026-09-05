@@ -63,6 +63,11 @@ class EditPlan {
         entries.addAll(taken)
     }
 
+    /** Whether any collected edit lying within `[startOffset, endOffset]` inserts a line break. */
+    fun hasMultilineEditIn(startOffset: Int, endOffset: Int): Boolean = entries.any { entry ->
+        entry.edit.startOffset >= startOffset && entry.edit.endOffset <= endOffset && '\n' in entry.edit.replacement
+    }
+
     fun takeEditsIn(startOffset: Int, endOffset: Int): List<Entry> {
         if (entries.isEmpty()) return emptyList()
         val taken = mutableListOf<Entry>()

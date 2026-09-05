@@ -3,6 +3,7 @@ package com.varlanv.wrasse.format
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.lang.containsChar
 import com.varlanv.wrasse.lang.lastIndexOfChar
+import com.varlanv.wrasse.model.EditPlan
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFormatConfig
 import com.varlanv.wrasse.model.WNodeType
@@ -114,6 +115,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     private val style = formatConfig.style
     private val frames = ArrayDeque<Frame>()
+    private var editPlan: EditPlan? = null
     private var templateEntryDepth = 0
     private var rootDoc: Doc = Doc.Concat(emptyList())
 
@@ -150,6 +152,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     override fun exitNode(ctx: WContext) {
+        editPlan = ctx.editPlan
         val frame = frames.removeLast()
         if (frame.type == WNodeType.LONG_STRING_TEMPLATE_ENTRY) templateEntryDepth--
         val parentType = frames.lastOrNull()?.type
@@ -386,8 +389,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     /**
      * A [OWN_LINE_FORCE_TYPES] frame whose braced body (between its own `{` and `}` — for
      * [WNodeType.WHEN] that excludes the `when (subject)` header preceding `{`) already spans
-     * multiple lines (any child, post-semicolon-conversion, is itself forced multi-line) gets a
-     * `HARD` break right after that `{` and right before its own closing `}` when one isn't
+     * multiple lines (any child, post-semicolon-conversion, is itself forced multi-line, or a rule
+     * edit already collected inside the body inserts a line break) gets a `HARD` break right after
+     * that `{` and right before its own closing `}` when one isn't
      * already there — no code shares `{`'s line, and `}` never shares a line with the content
      * before it. A no-op for: a frame without its own `{`/`}` pair (a lambda's transparent
      * [WNodeType.BLOCK]); an entirely single-line body (this mechanism never decides fit, only
@@ -400,16 +404,17 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val lbraceIdx = children.indexOfFirst { it.type == WNodeType.LBRACE }
         if (lbraceIdx < 0 || lbraceIdx >= children.size - 1) return children
         val body = children.subList(lbraceIdx, children.size)
-        if (frameType == WNodeType.CLASS_BODY &&
-            body.any { it.type == WNodeType.ENUM_ENTRY } &&
-            body.none { isForcedMultilineChild(it) }
-        ) {
-            return children
-        }
-        if (body.none { isForcedMultilineChild(it) }) return children
+        if (body.none { isForcedMultilineChild(it) } && !pendingMultilineEditIn(body)) return children
 
         val withHeadBreak = insertBreakAfter(children, anchorIdx = lbraceIdx)
         return insertBreakBefore(withHeadBreak, anchorIdx = withHeadBreak.size - 1)
+    }
+
+    private fun pendingMultilineEditIn(body: List<ChildEntry>): Boolean {
+        val plan = editPlan ?: return false
+        val open = body.first() as? ChildEntry.Resolved ?: return false
+        val close = body.last() as? ChildEntry.Resolved ?: return false
+        return plan.hasMultilineEditIn(open.doc.end, close.doc.start)
     }
 
     private fun isForcedMultilineChild(entry: ChildEntry): Boolean = when (entry) {
