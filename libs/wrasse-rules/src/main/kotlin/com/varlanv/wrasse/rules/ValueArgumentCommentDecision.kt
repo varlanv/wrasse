@@ -9,9 +9,9 @@ import com.varlanv.wrasse.model.WNodeType
  */
 object ValueArgumentCommentDecision {
     fun decide(parent: WNodeType): String? =
-    if (parent == WNodeType.VALUE_ARGUMENT) {
-        "A comment inside or on the same line after a value argument is not allowed. Place it on a separate line above."
-    } else {
-        null
-    }
+        if (parent == WNodeType.VALUE_ARGUMENT) {
+            "A comment inside or on the same line after a value argument is not allowed. Place it on a separate line above."
+        } else {
+            null
+        }
 }

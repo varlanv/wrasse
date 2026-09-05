@@ -24,24 +24,33 @@ class EmptyFunctionBlockRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.FUN)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val blockIdx = children.firstChildOfType(WNodeType.BLOCK)
                 if (blockIdx < 0) return
-                if (!EmptyBlockCheck.isEmptySpan(ctx.sourceText, children.startOffset(blockIdx), children.endOffset(blockIdx))) return
+                if (!EmptyBlockCheck.isEmptySpan(
+                    ctx.sourceText,
+                    children.startOffset(blockIdx),
+                    children.endOffset(blockIdx),
+                )) {
+                    return
+                }
 
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
                 if (Regex("\\bopen\\b").containsMatchIn(modifierText)) return
                 if (isInterfaceMember(ctx)) return
 
-                reporter
-                    .report(
-                        ruleId,
-                        "Empty function block detected. Empty blocks of code serve no purpose and should be removed",
-                        children.startOffset(blockIdx),
-                        children.endOffset(blockIdx),
-                        this,
-                    )
+                reporter.report(
+                    ruleId,
+                    "Empty function block detected. Empty blocks of code serve no purpose and should be removed",
+                    children.startOffset(blockIdx),
+                    children.endOffset(blockIdx),
+                    this,
+                )
             }
 
             private fun isInterfaceMember(ctx: WContext): Boolean {

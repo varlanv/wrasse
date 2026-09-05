@@ -9,9 +9,12 @@ import org.jetbrains.kotlin.diagnostics.SourceElementPositioningStrategy
 
 val WrassePositioningStrategy: SourceElementPositioningStrategy = SourceElementPositioningStrategy(
     object : LightTreePositioningStrategy() {
-        override fun mark(node: LighterASTNode, startOffset: Int, endOffset: Int, tree: FlyweightCapableTreeStructure<LighterASTNode>): List<TextRange> = listOf(
-            TextRange(startOffset, endOffset),
-        )
+        override fun mark(
+            node: LighterASTNode,
+            startOffset: Int,
+            endOffset: Int,
+            tree: FlyweightCapableTreeStructure<LighterASTNode>,
+        ): List<TextRange> = listOf(TextRange(startOffset, endOffset))
     },
     PositioningStrategies.DEFAULT,
 )

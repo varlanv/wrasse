@@ -12,5 +12,5 @@ object InstanceOfCheckForExceptionDecision {
         "use multiple catch blocks."
 
     fun decide(checkedTypeText: String): String? =
-    if (checkedTypeText.endsWith("CancellationException")) null else MESSAGE
+        if (checkedTypeText.endsWith("CancellationException")) null else MESSAGE
 }

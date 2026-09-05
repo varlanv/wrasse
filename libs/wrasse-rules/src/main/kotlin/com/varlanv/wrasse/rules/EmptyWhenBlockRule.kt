@@ -25,11 +25,20 @@ class EmptyWhenBlockRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.WHEN)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (children.hasChildOfType(WNodeType.WHEN_ENTRY)) return
                 if (hasComment(children)) return
-                reporter
-                    .report(ruleId, "Empty when block detected. This when expression has no entries", ctx.startOffset, ctx.endOffset, this)
+                reporter.report(
+                    ruleId,
+                    "Empty when block detected. This when expression has no entries",
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                )
             }
 
             private fun hasComment(children: ChildBuffer): Boolean {

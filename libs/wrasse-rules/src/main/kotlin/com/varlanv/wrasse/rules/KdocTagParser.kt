@@ -10,16 +10,14 @@ package com.varlanv.wrasse.rules
 object KdocTagParser {
     private val TAG_PATTERN = Regex("""@(param|property)\s+(`[^`]+`|[^\s*]+)""")
 
-    fun parseTags(kdocText: CharSequence): List<KdocDeclaration> =
-    TAG_PATTERN
-        .findAll(kdocText)
-        .map { match ->
-            val kind = if (match.groupValues[1] == "param") KdocDeclarationKind.PARAM else KdocDeclarationKind.PROPERTY
-            KdocDeclaration(unquote(match.groupValues[2]), kind)
-        }
-        .toList()
+    fun parseTags(kdocText: CharSequence): List<KdocDeclaration> = TAG_PATTERN.findAll(kdocText).map { match ->
+        val kind = if (match.groupValues[1] == "param") KdocDeclarationKind.PARAM else KdocDeclarationKind.PROPERTY
+        KdocDeclaration(unquote(match.groupValues[2]), kind)
+    }.toList()
 
-    private fun unquote(name: String): String = if (name.startsWith("`") && name.endsWith("`")) name.substring(1, name.length - 1) else name
+    private fun unquote(
+        name: String,
+    ): String = if (name.startsWith("`") && name.endsWith("`")) name.substring(1, name.length - 1) else name
 }
 
 enum class KdocDeclarationKind {

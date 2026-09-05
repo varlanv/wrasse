@@ -32,7 +32,11 @@ class ExplicitItLambdaMultipleParametersRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.VALUE_PARAMETER -> recordParam(ctx, children)
                     WNodeType.FUNCTION_LITERAL -> finalizeLiteral(ctx, reporter)
@@ -42,7 +46,8 @@ class ExplicitItLambdaMultipleParametersRule : WUninitializedRule {
 
             private fun recordParam(ctx: WContext, children: ChildBuffer) {
                 if (ctx.ancestors.peekType() != WNodeType.VALUE_PARAMETER_LIST) return
-                if (ctx.ancestors.size < 2 || ctx.ancestors.typeAt(ctx.ancestors.size - 2) != WNodeType.FUNCTION_LITERAL) {
+                if (ctx.ancestors.size < 2 ||
+                    ctx.ancestors.typeAt(ctx.ancestors.size - 2) != WNodeType.FUNCTION_LITERAL) {
                     return
                 }
                 val pending = pendingLiterals.lastOrNull() ?: return
@@ -56,7 +61,10 @@ class ExplicitItLambdaMultipleParametersRule : WUninitializedRule {
 
             private fun finalizeLiteral(ctx: WContext, reporter: WReporter) {
                 val pending = pendingLiterals.removeAt(pendingLiterals.size - 1)
-                val message = ExplicitItLambdaMultipleParametersDecision.decide(pending.paramCount, pending.hasItParam) ?: return
+                val message = ExplicitItLambdaMultipleParametersDecision.decide(
+                    pending.paramCount,
+                    pending.hasItParam,
+                ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
         }

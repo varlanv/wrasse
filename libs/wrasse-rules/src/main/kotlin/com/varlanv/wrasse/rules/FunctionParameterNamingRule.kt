@@ -34,7 +34,11 @@ class FunctionParameterNamingRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.VALUE_PARAMETER -> collectParam(ctx, children)
                     WNodeType.FUN -> finalizeFun(ctx, children, reporter)
@@ -49,17 +53,20 @@ class FunctionParameterNamingRule : WUninitializedRule {
                 val frame = frames.lastOrNull() ?: return
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
-                frame
-                    .add(
-                        Candidate(
-                            children.startOffset(idIdx),
-                            children.endOffset(idIdx),
-                            children.textSpan(idIdx, ctx.sourceText).toString(),
-                        ),
-                    )
+                frame.add(
+                    Candidate(
+                        children.startOffset(idIdx),
+                        children.endOffset(idIdx),
+                        children.textSpan(idIdx, ctx.sourceText).toString(),
+                    ),
+                )
             }
 
-            private fun finalizeFun(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeFun(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val candidates = frames.removeAt(frames.size - 1)
                 if (candidates.isEmpty()) return
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
@@ -73,5 +80,9 @@ class FunctionParameterNamingRule : WUninitializedRule {
         }
     }
 
-    private class Candidate(val start: Int, val end: Int, val name: String)
+    private class Candidate(
+        val start: Int,
+        val end: Int,
+        val name: String,
+    )
 }

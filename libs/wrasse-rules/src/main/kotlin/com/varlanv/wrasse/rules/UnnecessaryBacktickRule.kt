@@ -33,8 +33,16 @@ class UnnecessaryBacktickRule : WUninitializedRule {
                 val text = ctx.leafText ?: return
                 val unquoted = UnnecessaryBacktickDecision.unquote(text) ?: return
                 val canFix = !ctx.hasAncestor(WNodeType.SHORT_STRING_TEMPLATE_ENTRY)
-                val edits = if (canFix) listOf(WEdit(ctx.startOffset, ctx.endOffset, unquoted.toString())) else emptyList()
-                reporter.report(ruleId, "Backticks are unnecessary", ctx.startOffset, ctx.endOffset, this, edits = edits)
+                val edits =
+                    if (canFix) listOf(WEdit(ctx.startOffset, ctx.endOffset, unquoted.toString())) else emptyList()
+                reporter.report(
+                    ruleId,
+                    "Backticks are unnecessary",
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                    edits = edits,
+                )
             }
         }
     }

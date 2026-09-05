@@ -35,7 +35,9 @@ class EmptyCatchBlockRule : WUninitializedRule {
 
                     WNodeType.VALUE_PARAMETER_LIST -> {
                         if (ctx.ancestors.peekType() == WNodeType.CATCH && pendingCatchNames.isNotEmpty()) {
-                            val facts = CatchParameterText.parse(ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset))
+                            val facts = CatchParameterText.parse(
+                                ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
+                            )
                             pendingCatchNames[pendingCatchNames.size - 1] = facts?.name
                         }
                         return false
@@ -46,7 +48,11 @@ class EmptyCatchBlockRule : WUninitializedRule {
                 }
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.CATCH -> pendingCatchNames.removeAt(pendingCatchNames.size - 1)
                     WNodeType.BLOCK -> checkBody(ctx, children, reporter)
@@ -54,18 +60,21 @@ class EmptyCatchBlockRule : WUninitializedRule {
                 }
             }
 
-            private fun checkBody(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun checkBody(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (!EmptyBlockCheck.isEmpty(children)) return
                 val name = pendingCatchNames.lastOrNull() ?: return
                 if (AllowedExceptionName.isAllowed(name)) return
-                reporter
-                    .report(
-                        ruleId,
-                        "Empty catch block detected. Empty catch blocks indicate that an exception is ignored and not handled.",
-                        ctx.startOffset,
-                        ctx.endOffset,
-                        this,
-                    )
+                reporter.report(
+                    ruleId,
+                    "Empty catch block detected. Empty catch blocks indicate that an exception is ignored and not handled.",
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                )
             }
         }
     }

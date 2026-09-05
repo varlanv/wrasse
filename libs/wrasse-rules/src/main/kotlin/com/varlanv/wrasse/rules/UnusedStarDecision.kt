@@ -49,33 +49,40 @@ object UnusedStarDecision {
 
         val explicitFqns = explicitImports.filter { it.aliasName == null }.mapTo(mutableSetOf()) { it.fqn }
         val attributed = when (StarAttribution.classify(star.packageFqName, resolvedImports, callables)) {
-                StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return UnusedStarVerdict.OutOfScope
-                StarClassification.MEMBER -> StarAttribution
-                    .attributedMembers(star.packageFqName, classifiers, callables, writtenIdentifiers)
-                StarClassification.PACKAGE -> StarAttribution
-                    .attributedSymbols(star.packageFqName, classifiers, callables, writtenIdentifiers)
-            }
-            .filterNot { it in explicitFqns }
+            StarClassification.UNRESOLVED_OR_AMBIGUOUS -> return UnusedStarVerdict.OutOfScope
+            StarClassification.MEMBER -> StarAttribution.attributedMembers(
+                star.packageFqName,
+                classifiers,
+                callables,
+                writtenIdentifiers,
+            )
+            StarClassification.PACKAGE -> StarAttribution.attributedSymbols(
+                star.packageFqName,
+                classifiers,
+                callables,
+                writtenIdentifiers,
+            )
+        }.filterNot { it in explicitFqns }
         if (attributed.isNotEmpty()) return UnusedStarVerdict.OutOfScope
 
         val coveredNames = explicitImports.mapTo(mutableSetOf()) { it.aliasName ?: it.simpleName }
         for (other in allStars) {
             if (other === star) continue
             when (StarAttribution.classify(other.packageFqName, resolvedImports, callables)) {
-                StarClassification.MEMBER ->
-                StarAttribution
+                StarClassification.MEMBER -> StarAttribution
                     .attributedMembers(other.packageFqName, classifiers, callables, writtenIdentifiers)
                     .mapTo(coveredNames) { it.substringAfterLast('.') }
 
-                StarClassification.PACKAGE ->
-                StarAttribution
+                StarClassification.PACKAGE -> StarAttribution
                     .attributedSymbols(other.packageFqName, classifiers, callables, writtenIdentifiers)
                     .mapTo(coveredNames) { it.substringAfterLast('.') }
 
                 StarClassification.UNRESOLVED_OR_AMBIGUOUS -> {}
             }
         }
-        if (StarAttribution.kdocReferencesUncovered(kdocSpans, sourceText, coveredNames)) return UnusedStarVerdict.OutOfScope
+        if (StarAttribution.kdocReferencesUncovered(kdocSpans, sourceText, coveredNames)) {
+            return UnusedStarVerdict.OutOfScope
+        }
 
         return UnusedStarVerdict.Unused(ImportRemovalSpan.compute(sourceText, star.startOffset, star.endOffset))
     }

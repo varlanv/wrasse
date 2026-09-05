@@ -19,50 +19,47 @@ import org.jetbrains.kotlin.cli.common.ExitCode
  * either way — see [com.varlanv.wrasse.rules.ModifierEngine]'s KDoc and
  * `WrasseRuleConfig.explicitApiActive`.
  */
-open class RedundantVisibilityModifierExplicitApiSpec :
-    BaseSpec(
-        {
+open class RedundantVisibilityModifierExplicitApiSpec : BaseSpec({
 
-            val wrasseConfig = """{"rules":{"redundant-visibility-modifier":{"level":"error"}}}"""
-            val source = TestSource(
-                "sample/Sample.kt",
-                """
-                    package sample
+    val wrasseConfig = """{"rules":{"redundant-visibility-modifier":{"level":"error"}}}"""
+    val source = TestSource(
+        "sample/Sample.kt",
+        """
+            package sample
 
-                    public class Foo {
-                        public fun bar(): Int = 1
-                    }
-                    """
-                    .trimIndent(),
-            )
-
-            should("flag a redundant public modifier when explicit API mode is off") {
-                useTempDir { workDir ->
-                    val harness = WrasseTestHarness(wrasseConfig = wrasseConfig)
-                    val result = harness.compile(listOf(source), workDir)
-
-                    result.wrasseDiagnostics shouldHaveSize 2
-                }
+            public class Foo {
+                public fun bar(): Int = 1
             }
-
-            should("stay silent under -Xexplicit-api=strict") {
-                useTempDir { workDir ->
-                    val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, explicitApiMode = "strict")
-                    val result = harness.compile(listOf(source), workDir)
-
-                    result.wrasseDiagnostics.shouldBeEmpty()
-                    result.exitCode shouldBe ExitCode.OK
-                }
-            }
-
-            should("stay silent under -Xexplicit-api=warning") {
-                useTempDir { workDir ->
-                    val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, explicitApiMode = "warning")
-                    val result = harness.compile(listOf(source), workDir)
-
-                    result.wrasseDiagnostics.shouldBeEmpty()
-                    result.exitCode shouldBe ExitCode.OK
-                }
-            }
-        },
+            """
+            .trimIndent(),
     )
+
+    should("flag a redundant public modifier when explicit API mode is off") {
+        useTempDir { workDir ->
+            val harness = WrasseTestHarness(wrasseConfig = wrasseConfig)
+            val result = harness.compile(listOf(source), workDir)
+
+            result.wrasseDiagnostics shouldHaveSize 2
+        }
+    }
+
+    should("stay silent under -Xexplicit-api=strict") {
+        useTempDir { workDir ->
+            val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, explicitApiMode = "strict")
+            val result = harness.compile(listOf(source), workDir)
+
+            result.wrasseDiagnostics.shouldBeEmpty()
+            result.exitCode shouldBe ExitCode.OK
+        }
+    }
+
+    should("stay silent under -Xexplicit-api=warning") {
+        useTempDir { workDir ->
+            val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, explicitApiMode = "warning")
+            val result = harness.compile(listOf(source), workDir)
+
+            result.wrasseDiagnostics.shouldBeEmpty()
+            result.exitCode shouldBe ExitCode.OK
+        }
+    }
+})

@@ -25,7 +25,11 @@ class SuppressionIndex {
         }
     }
 
-    fun addRegion(ruleIdOrWildcard: String, startOffset: Int, endOffset: Int) {
+    fun addRegion(
+        ruleIdOrWildcard: String,
+        startOffset: Int,
+        endOffset: Int,
+    ) {
         val region = Region(startOffset, endOffset)
         if (isWildcard(ruleIdOrWildcard)) {
             wildcardRegions.add(region)
@@ -34,7 +38,11 @@ class SuppressionIndex {
         }
     }
 
-    fun isSuppressed(ruleId: String, startOffset: Int, endOffset: Int): Boolean {
+    fun isSuppressed(
+        ruleId: String,
+        startOffset: Int,
+        endOffset: Int,
+    ): Boolean {
         if (fileWildcard || ruleId in fileRuleIds) return true
         if (wildcardRegions.any { it.contains(startOffset, endOffset) }) return true
         return ruleRegions[ruleId]?.any { it.contains(startOffset, endOffset) } ?: false
@@ -42,7 +50,7 @@ class SuppressionIndex {
 
     private class Region(val startOffset: Int, val endOffset: Int) {
         fun contains(otherStart: Int, otherEnd: Int): Boolean =
-        otherStart >= startOffset && otherEnd <= endOffset
+            otherStart >= startOffset && otherEnd <= endOffset
     }
 
     companion object {
@@ -50,6 +58,6 @@ class SuppressionIndex {
         private const val WILDCARD_WRASSE = "wrasse"
 
         fun isWildcard(value: String): Boolean =
-        value.equals(WILDCARD_ALL, ignoreCase = true) || value.equals(WILDCARD_WRASSE, ignoreCase = true)
+            value.equals(WILDCARD_ALL, ignoreCase = true) || value.equals(WILDCARD_WRASSE, ignoreCase = true)
     }
 }

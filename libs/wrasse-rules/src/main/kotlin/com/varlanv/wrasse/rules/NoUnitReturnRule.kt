@@ -36,7 +36,11 @@ class NoUnitReturnRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.FUN)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val colonIndex = children.firstChildOfType(WNodeType.COLON)
                 if (colonIndex < 0) return
 
@@ -48,7 +52,11 @@ class NoUnitReturnRule : WUninitializedRule {
                 if (bodyIndex < 0 || children.type(bodyIndex) != WNodeType.BLOCK) return
 
                 val hasComment =
-                hasComment(children, colonIndex + 1, typeReferenceIndex) || hasComment(children, typeReferenceIndex + 1, bodyIndex)
+                    hasComment(
+                        children,
+                        colonIndex + 1,
+                        typeReferenceIndex,
+                    ) || hasComment(children, typeReferenceIndex + 1, bodyIndex)
 
                 val colonStart = children.startOffset(colonIndex)
                 val typeReferenceEnd = children.endOffset(typeReferenceIndex)
@@ -71,7 +79,11 @@ class NoUnitReturnRule : WUninitializedRule {
                 return -1
             }
 
-            private fun hasComment(children: ChildBuffer, from: Int, until: Int): Boolean {
+            private fun hasComment(
+                children: ChildBuffer,
+                from: Int,
+                until: Int,
+            ): Boolean {
                 for (i in from until until) {
                     when (children.type(i)) {
                         WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT, WNodeType.KDOC -> return true

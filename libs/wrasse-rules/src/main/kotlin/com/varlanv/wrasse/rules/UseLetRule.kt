@@ -33,7 +33,11 @@ class UseLetRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.BINARY_EXPRESSION -> recordCondition(ctx, children)
                     WNodeType.IF -> finalizeIf(ctx, children, reporter)
@@ -65,7 +69,11 @@ class UseLetRule : WUninitializedRule {
                 pending.isNonNullCheck = isNotEq
             }
 
-            private fun finalizeIf(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeIf(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val pending = pendingIfs.removeAt(pendingIfs.size - 1)
                 if (!pending.isNullCheck && !pending.isNonNullCheck) return
 

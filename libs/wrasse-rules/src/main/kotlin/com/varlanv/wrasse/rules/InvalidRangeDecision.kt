@@ -10,7 +10,11 @@ package com.varlanv.wrasse.rules
 object InvalidRangeDecision {
     const val MESSAGE = "This loop will never be executed due to its expression"
 
-    fun decide(operatorText: CharSequence, lower: Int, upper: Int): String? {
+    fun decide(
+        operatorText: CharSequence,
+        lower: Int,
+        upper: Int,
+    ): String? {
         val isInvalid =
             when {
                 operatorText.contentEquals("..") -> lower > upper

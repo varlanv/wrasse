@@ -31,7 +31,11 @@ class SafeCastRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.IS_EXPRESSION -> recordIsExpression(ctx, children)
                     WNodeType.IF -> finalizeIf(ctx, children, reporter)
@@ -56,7 +60,11 @@ class SafeCastRule : WUninitializedRule {
                 pending.hasIsCondition = true
             }
 
-            private fun finalizeIf(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeIf(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val pending = pendingIfs.removeAt(pendingIfs.size - 1)
                 val identifier = pending.identifier
                 if (!pending.hasIsCondition || identifier == null) return

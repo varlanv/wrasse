@@ -22,10 +22,19 @@ object BooleanExpressionsDecision {
 
     fun isBooleanLiteral(text: CharSequence): Boolean = text.contentEquals("true") || text.contentEquals("false")
 
-    fun isLiteralAbsorption(leftType: WNodeType, leftText: CharSequence, rightType: WNodeType, rightText: CharSequence): Boolean =
-    (leftType == WNodeType.BOOLEAN_CONSTANT && isBooleanLiteral(leftText)) ||
-        (rightType == WNodeType.BOOLEAN_CONSTANT && isBooleanLiteral(rightText))
+    fun isLiteralAbsorption(
+        leftType: WNodeType,
+        leftText: CharSequence,
+        rightType: WNodeType,
+        rightText: CharSequence,
+    ): Boolean =
+        (leftType == WNodeType.BOOLEAN_CONSTANT &&
+            isBooleanLiteral(leftText)) || (rightType == WNodeType.BOOLEAN_CONSTANT && isBooleanLiteral(rightText))
 
-    fun decide(isAndOrOperator: Boolean, isLiteralAbsorption: Boolean, isDirectComplementPair: Boolean): String? =
-    if (isAndOrOperator && (isLiteralAbsorption || isDirectComplementPair)) MESSAGE else null
+    fun decide(
+        isAndOrOperator: Boolean,
+        isLiteralAbsorption: Boolean,
+        isDirectComplementPair: Boolean,
+    ): String? =
+        if (isAndOrOperator && (isLiteralAbsorption || isDirectComplementPair)) MESSAGE else null
 }

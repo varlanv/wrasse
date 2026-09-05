@@ -8,8 +8,12 @@ import com.varlanv.wrasse.model.WNodeType
  * batch that inspects a single expression's own node type plus its raw text.
  */
 object ConstantLiteralCheck {
-    private val NUMERIC_OR_BOOLEAN_OR_CHAR =
-    setOf(WNodeType.INTEGER_CONSTANT, WNodeType.FLOAT_CONSTANT, WNodeType.CHARACTER_CONSTANT, WNodeType.BOOLEAN_CONSTANT)
+    private val NUMERIC_OR_BOOLEAN_OR_CHAR = setOf(
+        WNodeType.INTEGER_CONSTANT,
+        WNodeType.FLOAT_CONSTANT,
+        WNodeType.CHARACTER_CONSTANT,
+        WNodeType.BOOLEAN_CONSTANT,
+    )
 
     fun isConstant(type: WNodeType, text: CharSequence): Boolean = when {
         type in NUMERIC_OR_BOOLEAN_OR_CHAR -> true

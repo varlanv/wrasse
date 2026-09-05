@@ -14,7 +14,8 @@ object CatchParameterText {
         val match = PATTERN.matchEntire(valueParameterListText.toString()) ?: return null
         val nameGroup = match.groups[1]!!
         val rawName = nameGroup.value
-        val name = if (rawName.startsWith("`") && rawName.endsWith("`")) rawName.substring(1, rawName.length - 1) else rawName
+        val name =
+            if (rawName.startsWith("`") && rawName.endsWith("`")) rawName.substring(1, rawName.length - 1) else rawName
         return CatchParameterFacts(
             name = name,
             typeText = match.groups[2]!!.value,
@@ -25,4 +26,9 @@ object CatchParameterText {
 }
 
 /** [nameStart]/[nameEnd] are relative to the parsed `VALUE_PARAMETER_LIST`'s own start offset. */
-class CatchParameterFacts(val name: String, val typeText: String, val nameStart: Int, val nameEnd: Int)
+class CatchParameterFacts(
+    val name: String,
+    val typeText: String,
+    val nameStart: Int,
+    val nameEnd: Int,
+)

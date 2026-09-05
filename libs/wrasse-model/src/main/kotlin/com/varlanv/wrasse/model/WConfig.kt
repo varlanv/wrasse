@@ -7,7 +7,12 @@ import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.nio.file.PathMatcher
 
-class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfig, val configDir: Path?, val format: WFormatConfig) {
+class WConfig(
+    val exclude: List<PathMatcher>,
+    val rulesConfigs: WrasseRulesConfig,
+    val configDir: Path?,
+    val format: WFormatConfig,
+) {
     companion object {
         private const val MAX_EXTENDS_DEPTH = 10
 
@@ -24,9 +29,15 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
             return buildConfig(raw, ruleIds, warnOnly, configDir, explicitApiActive, ruleOptionSpecs)
         }
 
-        private fun resolveRaw(configValue: ConfigValue, resolveExtends: ((String) -> Result<ConfigValue>)?, depth: Int): Result<RawConfig> {
+        private fun resolveRaw(
+            configValue: ConfigValue,
+            resolveExtends: ((String) -> Result<ConfigValue>)?,
+            depth: Int,
+        ): Result<RawConfig> {
             if (depth > MAX_EXTENDS_DEPTH) {
-                return Result.failure(Exception("'extends' chain exceeds $MAX_EXTENDS_DEPTH levels (circular reference?)"))
+                return Result.failure(
+                    Exception("'extends' chain exceeds $MAX_EXTENDS_DEPTH levels (circular reference?)"),
+                )
             }
             if (configValue !is ConfigValue.Obj) {
                 return Result.failure(Exception("Expected object at root, got ${configValue.typeName()}"))
@@ -43,7 +54,9 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                         resolveRaw(baseValue, resolveExtends, depth + 1).getOrElse { return Result.failure(it) }
                     }
                     is Property.TypeMismatch -> {
-                        return Result.failure(Exception("'extends' must be a string, got ${extendsProp.actual.typeName()}"))
+                        return Result.failure(
+                            Exception("'extends' must be a string, got ${extendsProp.actual.typeName()}"),
+                        )
                     }
                     is Property.Missing -> {
                         null
@@ -61,7 +74,9 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                         emptyList()
                     }
                     is Property.TypeMismatch -> {
-                        return Result.failure(Exception("'exclude' must be a string array, got ${prop.actual.typeName()}"))
+                        return Result.failure(
+                            Exception("'exclude' must be a string array, got ${prop.actual.typeName()}"),
+                        )
                     }
                 }
 
@@ -89,7 +104,9 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     }
                     is Property.Missing -> null
                     is Property.TypeMismatch -> {
-                        return Result.failure(Exception("'format' must be an object, got ${formatProp.actual.typeName()}"))
+                        return Result.failure(
+                            Exception("'format' must be an object, got ${formatProp.actual.typeName()}"),
+                        )
                     }
                 }
 
@@ -138,8 +155,11 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                 val level = rawRule.level ?: RuleLevel.OFF
                 if (level == RuleLevel.OFF) continue
                 val effectiveLevel = if (warnOnly && level == RuleLevel.ERROR) RuleLevel.WARN else level
-                val options = buildRuleOptions(ruleId, rawRule.options, ruleOptionSpecs[ruleId] ?: emptyList())
-                    .getOrElse { return Result.failure(it) }
+                val options = buildRuleOptions(
+                    ruleId,
+                    rawRule.options,
+                    ruleOptionSpecs[ruleId] ?: emptyList(),
+                ).getOrElse { return Result.failure(it) }
                 ruleIdToConfig[ruleId] =
                     WrasseRuleConfig(
                         level = level,
@@ -151,22 +171,26 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     )
             }
 
-            return Result
-                .success(
-                    WConfig(
-                        exclude = globalExclude,
-                        rulesConfigs = WrasseRulesConfig(idToConfig = ruleIdToConfig),
-                        configDir = configDir,
-                        format = format,
-                    ),
-                )
+            return Result.success(
+                WConfig(
+                    exclude = globalExclude,
+                    rulesConfigs = WrasseRulesConfig(idToConfig = ruleIdToConfig),
+                    configDir = configDir,
+                    format = format,
+                ),
+            )
         }
 
-        private fun buildRuleOptions(ruleId: String, raw: Map<String, ConfigValue>, specs: List<WRuleOptionSpec>): Result<WRuleOptions> {
+        private fun buildRuleOptions(
+            ruleId: String,
+            raw: Map<String, ConfigValue>,
+            specs: List<WRuleOptionSpec>,
+        ): Result<WRuleOptions> {
             val specsByName = specs.associateBy { it.name }
             for (name in raw.keys) {
                 if (name !in specsByName) {
-                    val expected = if (specs.isEmpty()) "rule accepts no options" else "expected one of ${specs.map { it.name }}"
+                    val expected =
+                        if (specs.isEmpty()) "rule accepts no options" else "expected one of ${specs.map { it.name }}"
                     return Result.failure(Exception("Unknown option '$name' for rule '$ruleId'; $expected"))
                 }
             }
@@ -175,18 +199,22 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                 val rawValue = raw[spec.name]
                 if (rawValue == null) {
                     when (spec) {
-                        is WRuleOptionSpec.Required -> return Result.failure(Exception("Missing required option '${spec.name}' for rule '$ruleId'"))
+                        is WRuleOptionSpec.Required -> return Result.failure(
+                            Exception("Missing required option '${spec.name}' for rule '$ruleId'"),
+                        )
                         is WRuleOptionSpec.Optional -> spec.default?.let { values[spec.name] = it }
                     }
                     continue
                 }
-                val value = convertOptionValue(spec.type, rawValue)
-                    ?: return Result
-                        .failure(
-                            Exception(
-                                "Option '${spec.name}' for rule '$ruleId' must be a ${spec.type.jsonName}, got ${rawValue.typeName()}",
-                            ),
-                        )
+                val value = convertOptionValue(
+                    spec.type,
+                    rawValue,
+                )
+                    ?: return Result.failure(
+                        Exception(
+                            "Option '${spec.name}' for rule '$ruleId' must be a ${spec.type.jsonName}, got ${rawValue.typeName()}",
+                        ),
+                    )
                 values[spec.name] = value
             }
             return Result.success(WRuleOptions(values))
@@ -199,7 +227,11 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
             WRuleOptionType.STRING_LIST -> (raw as? ConfigValue.StrArr)?.let { WRuleOptionValue.StrList(it.value) }
         }
 
-        private fun buildFormatConfig(raw: RawFormatConfig?, warnOnly: Boolean, explicitApiActive: Boolean): WFormatConfig {
+        private fun buildFormatConfig(
+            raw: RawFormatConfig?,
+            warnOnly: Boolean,
+            explicitApiActive: Boolean,
+        ): WFormatConfig {
             val enabled = raw?.enabled ?: false
             val level = if (enabled) RuleLevel.ERROR else RuleLevel.OFF
             val effectiveLevel = if (warnOnly && level == RuleLevel.ERROR) RuleLevel.WARN else level
@@ -228,7 +260,11 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     is Property.Val -> prop.value.value
                     is Property.Missing -> true
                     is Property.TypeMismatch -> {
-                        return Result.failure(Exception("Property 'enabled' for 'format' must be a boolean, got ${prop.actual.typeName()}"))
+                        return Result.failure(
+                            Exception(
+                                "Property 'enabled' for 'format' must be a boolean, got ${prop.actual.typeName()}",
+                            ),
+                        )
                     }
                 }
 
@@ -237,8 +273,11 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     is Property.Val -> prop.value.value.toInt()
                     is Property.Missing -> null
                     is Property.TypeMismatch -> {
-                        return Result
-                            .failure(Exception("Property 'indentWidth' for 'format' must be a number, got ${prop.actual.typeName()}"))
+                        return Result.failure(
+                            Exception(
+                                "Property 'indentWidth' for 'format' must be a number, got ${prop.actual.typeName()}",
+                            ),
+                        )
                     }
                 }
 
@@ -247,8 +286,11 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     is Property.Val -> prop.value.value.toInt()
                     is Property.Missing -> null
                     is Property.TypeMismatch -> {
-                        return Result
-                            .failure(Exception("Property 'maxLineLength' for 'format' must be a number, got ${prop.actual.typeName()}"))
+                        return Result.failure(
+                            Exception(
+                                "Property 'maxLineLength' for 'format' must be a number, got ${prop.actual.typeName()}",
+                            ),
+                        )
                     }
                 }
 
@@ -257,8 +299,11 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     is Property.Val -> prop.value.value
                     is Property.Missing -> null
                     is Property.TypeMismatch -> {
-                        return Result
-                            .failure(Exception("Property 'trailingCommas' for 'format' must be a boolean, got ${prop.actual.typeName()}"))
+                        return Result.failure(
+                            Exception(
+                                "Property 'trailingCommas' for 'format' must be a boolean, got ${prop.actual.typeName()}",
+                            ),
+                        )
                     }
                 }
 
@@ -267,13 +312,17 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     is Property.Val ->
                         when (prop.value.value) {
                             "ascii" -> ImportLayout.ASCII
-                            else -> return Result
-                                .failure(Exception("Invalid importLayout '${prop.value.value}' for 'format'; expected 'ascii'"))
+                            else -> return Result.failure(
+                                Exception("Invalid importLayout '${prop.value.value}' for 'format'; expected 'ascii'"),
+                            )
                         }
                     is Property.Missing -> null
                     is Property.TypeMismatch -> {
-                        return Result
-                            .failure(Exception("Property 'importLayout' for 'format' must be a string, got ${prop.actual.typeName()}"))
+                        return Result.failure(
+                            Exception(
+                                "Property 'importLayout' for 'format' must be a string, got ${prop.actual.typeName()}",
+                            ),
+                        )
                     }
                 }
 
@@ -284,26 +333,25 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     is Property.Val -> prop.value.value.toInt()
                     is Property.Missing -> null
                     is Property.TypeMismatch -> {
-                        return Result
-                            .failure(
-                                Exception(
-                                    "Property 'multilineSignatureThreshold' for 'format' must be a number, got " + prop.actual.typeName(),
-                                ),
-                            )
+                        return Result.failure(
+                            Exception(
+                                "Property 'multilineSignatureThreshold' for 'format' must be a number, got " +
+                                    prop.actual.typeName(),
+                            ),
+                        )
                     }
                 }
 
-            return Result
-                .success(
-                    RawFormatConfig(
-                        enabled = enabled,
-                        indentWidth = indentWidth,
-                        maxLineLength = maxLineLength,
-                        trailingCommas = trailingCommas,
-                        importLayout = importLayout,
-                        multilineSignatureThreshold = multilineSignatureThreshold,
-                    ),
-                )
+            return Result.success(
+                RawFormatConfig(
+                    enabled = enabled,
+                    indentWidth = indentWidth,
+                    maxLineLength = maxLineLength,
+                    trailingCommas = trailingCommas,
+                    importLayout = importLayout,
+                    multilineSignatureThreshold = multilineSignatureThreshold,
+                ),
+            )
         }
 
         private fun parseRawRuleConfig(rulesProps: SafeProperties, key: String): Result<RawRuleConfig> {
@@ -311,7 +359,14 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                 when (val prop = rulesProps.get(key, ConfigValue.Obj::class.java)) {
                     is Property.Val -> prop.value.value
                     is Property.Missing ->
-                        return Result.success(RawRuleConfig(level = null, exclude = emptyList(), excludeSet = false, options = emptyMap()))
+                        return Result.success(
+                            RawRuleConfig(
+                                level = null,
+                                exclude = emptyList(),
+                                excludeSet = false,
+                                options = emptyMap(),
+                            ),
+                        )
                     is Property.TypeMismatch -> {
                         return Result.failure(Exception("Rule '$key' must be an object, got ${prop.actual.typeName()}"))
                     }
@@ -324,14 +379,19 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                             "off" -> RuleLevel.OFF
                             "warn" -> RuleLevel.WARN
                             "error" -> RuleLevel.ERROR
-                            else -> return Result
-                                .failure(
-                                    Exception("Invalid level '${prop.value.value}' for rule '$key'; expected 'off', 'warn', or 'error'"),
-                                )
+                            else -> return Result.failure(
+                                Exception(
+                                    "Invalid level '${prop.value.value}' for rule '$key'; expected 'off', 'warn', or 'error'",
+                                ),
+                            )
                         }
                     is Property.Missing -> null
                     is Property.TypeMismatch -> {
-                        return Result.failure(Exception("Property 'level' for rule '$key' must be a string, got ${prop.actual.typeName()}"))
+                        return Result.failure(
+                            Exception(
+                                "Property 'level' for rule '$key' must be a string, got ${prop.actual.typeName()}",
+                            ),
+                        )
                     }
                 }
 
@@ -346,8 +406,11 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                         emptyList()
                     }
                     is Property.TypeMismatch -> {
-                        return Result
-                            .failure(Exception("Property 'exclude' for rule '$key' must be a string array, got ${prop.actual.typeName()}"))
+                        return Result.failure(
+                            Exception(
+                                "Property 'exclude' for rule '$key' must be a string array, got ${prop.actual.typeName()}",
+                            ),
+                        )
                     }
                 }
 
@@ -357,11 +420,12 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                 val prop = ruleObj.get(name, ConfigValue::class.java)
                 if (prop is Property.Val) options[name] = prop.value
             }
-            return Result.success(RawRuleConfig(level = level, exclude = exclude, excludeSet = excludeSet, options = options))
+            return Result.success(
+                RawRuleConfig(level = level, exclude = exclude, excludeSet = excludeSet, options = options),
+            )
         }
 
-        private fun pathMatcher(glob: String): PathMatcher =
-        FileSystems.getDefault().getPathMatcher("glob:$glob")
+        private fun pathMatcher(glob: String): PathMatcher = FileSystems.getDefault().getPathMatcher("glob:$glob")
     }
 }
 
@@ -373,7 +437,12 @@ private class RawConfig(
     val formatSet: Boolean,
 )
 
-private class RawRuleConfig(val level: RuleLevel?, val exclude: List<String>, val excludeSet: Boolean, val options: Map<String, ConfigValue>)
+private class RawRuleConfig(
+    val level: RuleLevel?,
+    val exclude: List<String>,
+    val excludeSet: Boolean,
+    val options: Map<String, ConfigValue>,
+)
 
 private class RawFormatConfig(
     val enabled: Boolean,

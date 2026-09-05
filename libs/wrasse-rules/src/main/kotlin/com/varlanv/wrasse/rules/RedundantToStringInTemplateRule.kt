@@ -27,7 +27,11 @@ class RedundantToStringInTemplateRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (ctx.ancestors.peekType() != WNodeType.LONG_STRING_TEMPLATE_ENTRY) return
                 val significant = (0 until children.size).filter { !children.type(it).isWhitespaceOrComment }
                 if (significant.size != 3) return
@@ -35,13 +39,11 @@ class RedundantToStringInTemplateRule : WUninitializedRule {
                 if (children.type(opIdx) != WNodeType.DOT) return
 
                 val message =
-                RedundantToStringInTemplateDecision
-                        .decide(
-                            receiverType = children.type(receiverIdx),
-                            selectorType = children.type(selectorIdx),
-                            selectorText = children.textSpan(selectorIdx, ctx.sourceText),
-                        )
-                    ?: return
+                    RedundantToStringInTemplateDecision.decide(
+                        receiverType = children.type(receiverIdx),
+                        selectorType = children.type(selectorIdx),
+                        selectorText = children.textSpan(selectorIdx, ctx.sourceText),
+                    ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
         }

@@ -9,6 +9,10 @@ object EnumEntryNamingDecision {
 
     fun decide(identifierText: CharSequence): String? {
         val unquoted = IdentifierCasing.unquote(identifierText)
-        return if (IdentifierCasing.isPascalCase(unquoted) || IdentifierCasing.isScreamingSnakeCase(unquoted)) null else MESSAGE
+        return if (IdentifierCasing.isPascalCase(unquoted) || IdentifierCasing.isScreamingSnakeCase(unquoted)) {
+            null
+        } else {
+            MESSAGE
+        }
     }
 }

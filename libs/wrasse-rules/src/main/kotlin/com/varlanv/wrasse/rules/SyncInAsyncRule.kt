@@ -64,9 +64,14 @@ class SyncInAsyncRule : WUninitializedRule {
                 if (funSuspendFrames.isNotEmpty()) funSuspendFrames[funSuspendFrames.size - 1] = true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
-                    WNodeType.FUN -> if (funSuspendFrames.isNotEmpty()) funSuspendFrames.removeAt(funSuspendFrames.size - 1)
+                    WNodeType.FUN ->
+                        if (funSuspendFrames.isNotEmpty()) funSuspendFrames.removeAt(funSuspendFrames.size - 1)
                     WNodeType.CALL_EXPRESSION -> finalizeCall(children, reporter)
                     else -> {}
                 }
@@ -78,13 +83,18 @@ class SyncInAsyncRule : WUninitializedRule {
                 if (!children.hasChildOfType(WNodeType.LAMBDA_ARGUMENT)) return
 
                 val hasGoverningContext = callFrames.any { it.isAsyncOrLaunch } || funSuspendFrames.any { it }
-                val message = SyncInAsyncDecision
-                        .decide(isRunBlockingTrailingLambdaCall = true, hasGoverningAsyncContext = hasGoverningContext)
-                    ?: return
+                val message = SyncInAsyncDecision.decide(
+                    isRunBlockingTrailingLambdaCall = true,
+                    hasGoverningAsyncContext = hasGoverningContext,
+                ) ?: return
                 reporter.report(ruleId, message, frame.runBlockingStart, frame.runBlockingEnd, this)
             }
         }
     }
 
-    private class CallFrame(var isAsyncOrLaunch: Boolean = false, var runBlockingStart: Int = -1, var runBlockingEnd: Int = -1)
+    private class CallFrame(
+        var isAsyncOrLaunch: Boolean = false,
+        var runBlockingStart: Int = -1,
+        var runBlockingEnd: Int = -1,
+    )
 }

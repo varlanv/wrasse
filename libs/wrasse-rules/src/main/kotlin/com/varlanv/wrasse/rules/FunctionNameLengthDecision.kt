@@ -9,13 +9,21 @@ object FunctionNameLengthDecision {
     const val MIN_LENGTH = 3
     const val MAX_LENGTH = 30
 
-    fun decideMin(name: String, isOverride: Boolean, isOperator: Boolean): String? {
+    fun decideMin(
+        name: String,
+        isOverride: Boolean,
+        isOperator: Boolean,
+    ): String? {
         if (isOverride || isOperator) return null
         if (name.length >= MIN_LENGTH) return null
         return "Function name '$name' is shorter than the minimum length of $MIN_LENGTH"
     }
 
-    fun decideMax(name: String, isOverride: Boolean, isOperator: Boolean): String? {
+    fun decideMax(
+        name: String,
+        isOverride: Boolean,
+        isOperator: Boolean,
+    ): String? {
         if (isOverride || isOperator) return null
         if (name.length <= MAX_LENGTH) return null
         return "Function name '$name' is longer than the maximum length of $MAX_LENGTH"

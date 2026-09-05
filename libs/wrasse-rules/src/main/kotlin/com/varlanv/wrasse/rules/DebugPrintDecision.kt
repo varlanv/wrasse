@@ -6,5 +6,5 @@ package com.varlanv.wrasse.rules
  */
 object DebugPrintDecision {
     fun message(calleeName: String): String =
-    "'$calleeName()' looks like leftover debug output; remove it or replace it with a logger."
+        "'$calleeName()' looks like leftover debug output; remove it or replace it with a logger."
 }

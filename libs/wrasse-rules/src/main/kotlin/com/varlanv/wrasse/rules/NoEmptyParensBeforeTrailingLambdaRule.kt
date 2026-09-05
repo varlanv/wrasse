@@ -42,7 +42,11 @@ class NoEmptyParensBeforeTrailingLambdaRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.CALL_EXPRESSION)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val argsIndex = children.firstChildOfType(WNodeType.VALUE_ARGUMENT_LIST)
                 if (argsIndex < 0 || !isEmptyParens(children, argsIndex, ctx.sourceText)) return
 
@@ -63,10 +67,21 @@ class NoEmptyParensBeforeTrailingLambdaRule : WUninitializedRule {
                         listOf(NoEmptyParensBeforeTrailingLambdaDeletionSpan.compute(parensStart, parensEnd))
                     }
 
-                reporter.report(ruleId, "Unnecessary empty parentheses before trailing lambda", parensStart, parensEnd, this, edits = edits)
+                reporter.report(
+                    ruleId,
+                    "Unnecessary empty parentheses before trailing lambda",
+                    parensStart,
+                    parensEnd,
+                    this,
+                    edits = edits,
+                )
             }
 
-            private fun isEmptyParens(children: ChildBuffer, i: Int, sourceText: CharSequence): Boolean {
+            private fun isEmptyParens(
+                children: ChildBuffer,
+                i: Int,
+                sourceText: CharSequence,
+            ): Boolean {
                 val span = children.textSpan(i, sourceText)
                 return span.length == 2 && span[0] == '(' && span[1] == ')'
             }
@@ -89,7 +104,12 @@ class NoEmptyParensBeforeTrailingLambdaRule : WUninitializedRule {
                 return -1
             }
 
-            private fun hasNewlineBetween(children: ChildBuffer, from: Int, until: Int, sourceText: CharSequence): Boolean {
+            private fun hasNewlineBetween(
+                children: ChildBuffer,
+                from: Int,
+                until: Int,
+                sourceText: CharSequence,
+            ): Boolean {
                 for (i in from until until) {
                     if (children.textSpan(i, sourceText).contains('\n')) return true
                 }

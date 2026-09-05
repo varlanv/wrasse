@@ -12,9 +12,9 @@ import com.varlanv.wrasse.model.WNodeType
 object TypeArgumentCommentDecision {
     fun decide(parent: WNodeType, precededByNewline: Boolean): String? = when (parent) {
         WNodeType.TYPE_PROJECTION ->
-        "A comment inside or on the same line after a type projection is not allowed. Place it on a separate line above."
+            "A comment inside or on the same line after a type projection is not allowed. Place it on a separate line above."
         WNodeType.TYPE_ARGUMENT_LIST ->
-        if (precededByNewline) null else "A comment in a type argument list is only allowed when placed on a separate line"
+            if (precededByNewline) null else "A comment in a type argument list is only allowed when placed on a separate line"
         else -> null
     }
 }

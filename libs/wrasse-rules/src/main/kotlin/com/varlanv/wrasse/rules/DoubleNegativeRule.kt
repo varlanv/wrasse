@@ -22,7 +22,11 @@ class DoubleNegativeRule : WUninitializedRule {
                 if (ctx.sourceText[ctx.startOffset] != '!') return false
                 if (isNestedInsideExclamationPrefix(ctx)) return false
 
-                val chainLength = DoubleNegativeDecision.exclamationChainLength(ctx.sourceText, ctx.startOffset, ctx.endOffset)
+                val chainLength = DoubleNegativeDecision.exclamationChainLength(
+                    ctx.sourceText,
+                    ctx.startOffset,
+                    ctx.endOffset,
+                )
                 val message = DoubleNegativeDecision.decide(chainLength) ?: return false
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
                 return false

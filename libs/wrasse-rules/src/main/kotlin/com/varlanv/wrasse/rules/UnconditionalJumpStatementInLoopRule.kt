@@ -28,7 +28,11 @@ class UnconditionalJumpStatementInLoopRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.BODY, WNodeType.BLOCK)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.BLOCK -> checkBlockBody(ctx, children, reporter)
                     WNodeType.BODY -> checkBareBody(ctx, children, reporter)
@@ -36,7 +40,11 @@ class UnconditionalJumpStatementInLoopRule : WUninitializedRule {
                 }
             }
 
-            private fun checkBlockBody(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun checkBlockBody(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (ctx.ancestors.peekType() != WNodeType.BODY || ctx.ancestors.size < 2) return
                 val soleIdx = soleStatementIndex(children) ?: return
                 report(
@@ -48,7 +56,11 @@ class UnconditionalJumpStatementInLoopRule : WUninitializedRule {
                 )
             }
 
-            private fun checkBareBody(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun checkBareBody(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val loopType = ctx.ancestors.peekType()
                 if (loopType != WNodeType.FOR && loopType != WNodeType.WHILE && loopType != WNodeType.DO_WHILE) return
                 val soleIdx = soleStatementIndex(children) ?: return
@@ -62,14 +74,19 @@ class UnconditionalJumpStatementInLoopRule : WUninitializedRule {
                 )
             }
 
-            private fun report(reporter: WReporter, soleType: WNodeType, soleText: CharSequence, loopStart: Int, loopEnd: Int) {
+            private fun report(
+                reporter: WReporter,
+                soleType: WNodeType,
+                soleText: CharSequence,
+                loopStart: Int,
+                loopEnd: Int,
+            ) {
                 val message =
-                when (soleType) {
+                    when (soleType) {
                         WNodeType.BREAK -> UnconditionalJumpDecision.decideBreak()
                         WNodeType.RETURN -> UnconditionalJumpDecision.decideReturn(soleText)
                         else -> null
-                    }
-                    ?: return
+                    } ?: return
                 reporter.report(ruleId, message, loopStart, loopEnd, this)
             }
 

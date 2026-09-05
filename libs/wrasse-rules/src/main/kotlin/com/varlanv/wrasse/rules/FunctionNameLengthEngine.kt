@@ -28,7 +28,11 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
             override val config = configs.values.first()
             override val targetTypes = setOf(WNodeType.FUN)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
                 val name = IdentifierCasing.unquote(children.textSpan(idIdx, ctx.sourceText))
@@ -39,12 +43,24 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
 
                 if (minRule != null) {
                     FunctionNameLengthDecision.decideMin(name, isOverride, isOperator)?.let {
-                        reporter.report(MIN_LENGTH_ID, it, children.startOffset(idIdx), children.endOffset(idIdx), minRule)
+                        reporter.report(
+                            MIN_LENGTH_ID,
+                            it,
+                            children.startOffset(idIdx),
+                            children.endOffset(idIdx),
+                            minRule,
+                        )
                     }
                 }
                 if (maxRule != null) {
                     FunctionNameLengthDecision.decideMax(name, isOverride, isOperator)?.let {
-                        reporter.report(MAX_LENGTH_ID, it, children.startOffset(idIdx), children.endOffset(idIdx), maxRule)
+                        reporter.report(
+                            MAX_LENGTH_ID,
+                            it,
+                            children.startOffset(idIdx),
+                            children.endOffset(idIdx),
+                            maxRule,
+                        )
                     }
                 }
             }

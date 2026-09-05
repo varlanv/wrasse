@@ -22,8 +22,10 @@ object KdocTagMismatchDecision {
             return "documented parameters $names are not present in the declaration"
         }
 
-        val orderMismatch =
-        docDeclarations.map { doc -> elementDeclarations.indexOfFirst { matches(doc, it) } }.zipWithNext().any { (a, b) -> a >= b }
+        val orderMismatch = docDeclarations
+            .map { doc -> elementDeclarations.indexOfFirst { matches(doc, it) } }
+            .zipWithNext()
+            .any { (a, b) -> a >= b }
         if (orderMismatch) {
             return "order of documented parameters does not match the declaration order"
         }
@@ -40,5 +42,5 @@ object KdocTagMismatchDecision {
     }
 
     private fun matches(doc: KdocDeclaration, element: KdocDeclaration): Boolean =
-    element.name == doc.name && (element.kind == KdocDeclarationKind.ANY || element.kind == doc.kind)
+        element.name == doc.name && (element.kind == KdocDeclarationKind.ANY || element.kind == doc.kind)
 }

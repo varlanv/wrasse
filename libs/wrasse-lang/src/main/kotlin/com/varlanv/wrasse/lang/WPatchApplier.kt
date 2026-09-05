@@ -66,11 +66,10 @@ object WPatchApplier {
             val current = sorted[i]
             val next = sorted[i + 1]
             if (next.endOffset > current.startOffset) {
-                return FileApplyResult
-                    .Failed(
-                        filePath,
-                        "overlapping edits at ${next.startOffset}..${next.endOffset} and ${current.startOffset}..${current.endOffset}",
-                    )
+                return FileApplyResult.Failed(
+                    filePath,
+                    "overlapping edits at ${next.startOffset}..${next.endOffset} and ${current.startOffset}..${current.endOffset}",
+                )
             }
         }
 

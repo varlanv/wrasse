@@ -21,7 +21,11 @@ class FileNamingRule : WUninitializedRule {
 
             private val topLevelClassLikeNames = mutableListOf<String>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.CLASS, WNodeType.OBJECT_DECLARATION -> recordTopLevelDeclaration(ctx, children)
                     WNodeType.FILE -> finalizeFile(ctx, reporter)
@@ -34,14 +38,19 @@ class FileNamingRule : WUninitializedRule {
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
-                val isPrivate = modifierIdx >= 0 && Regex("\\bprivate\\b").containsMatchIn(children.textSpan(modifierIdx, ctx.sourceText))
+                val isPrivate = modifierIdx >= 0 &&
+                    Regex("\\bprivate\\b").containsMatchIn(children.textSpan(modifierIdx, ctx.sourceText))
                 if (isPrivate) return
                 topLevelClassLikeNames.add(IdentifierCasing.unquote(children.textSpan(idIdx, ctx.sourceText)))
             }
 
             private fun finalizeFile(ctx: WContext, reporter: WReporter) {
                 val normalizedPath = ctx.filePath.replace('\\', '/')
-                if (!normalizedPath.endsWith(".kt") || normalizedPath.endsWith("/package.kt") || normalizedPath == "package.kt") return
+                if (!normalizedPath.endsWith(
+                    ".kt",
+                ) || normalizedPath.endsWith("/package.kt") || normalizedPath == "package.kt") {
+                    return
+                }
                 val fileStem = normalizedPath.substringAfterLast('/').substringBeforeLast('.')
                 val singleName = topLevelClassLikeNames.singleOrNull()
                 val message = FileNamingDecision.decide(fileStem, singleName) ?: return

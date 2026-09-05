@@ -6,7 +6,13 @@ import com.varlanv.wrasse.model.WCallableUsage
  * One explicit import directive assembled from the leaf stream: its fully-qualified
  * target, simple name, alias (if any), and the directive's own span for reporting.
  */
-class ImportRecord(val fqn: String, val simpleName: String, val aliasName: String?, val startOffset: Int, val endOffset: Int)
+class ImportRecord(
+    val fqn: String,
+    val simpleName: String,
+    val aliasName: String?,
+    val startOffset: Int,
+    val endOffset: Int,
+)
 
 /**
  * Pure verdict logic for `no-unused-imports`, compiler-free so it is unit-testable without
@@ -53,10 +59,16 @@ object UnusedImportDecision {
         }
     }
 
-    private fun mentionedInComments(name: String, sourceText: CharSequence, commentSpans: List<IntRange>): Boolean {
+    private fun mentionedInComments(
+        name: String,
+        sourceText: CharSequence,
+        commentSpans: List<IntRange>,
+    ): Boolean {
         if (commentSpans.isEmpty()) return false
         val wordPattern = Regex("\\b" + Regex.escape(name) + "\\b")
-        return commentSpans.any { span -> wordPattern.containsMatchIn(sourceText.subSequence(span.first, span.last + 1)) }
+        return commentSpans.any { span ->
+            wordPattern.containsMatchIn(sourceText.subSequence(span.first, span.last + 1))
+        }
     }
 
     private fun splitFqn(fqn: String): Pair<String, String> {

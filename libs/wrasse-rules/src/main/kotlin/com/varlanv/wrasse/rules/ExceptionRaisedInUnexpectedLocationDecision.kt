@@ -10,5 +10,5 @@ object ExceptionRaisedInUnexpectedLocationDecision {
     private val UNEXPECTED_THROWING_METHOD_NAMES = setOf("equals", "finalize", "hashCode", "toString")
 
     fun decide(functionName: String, hasThrow: Boolean): String? =
-    if (functionName in UNEXPECTED_THROWING_METHOD_NAMES && hasThrow) MESSAGE else null
+        if (functionName in UNEXPECTED_THROWING_METHOD_NAMES && hasThrow) MESSAGE else null
 }

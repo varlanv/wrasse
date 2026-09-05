@@ -20,7 +20,9 @@ class CustomLabelRule : WUninitializedRule {
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 val parent = ctx.ancestors.peekType()
-                if (parent != WNodeType.RETURN && parent != WNodeType.BREAK && parent != WNodeType.CONTINUE) return false
+                if (parent != WNodeType.RETURN && parent != WNodeType.BREAK && parent != WNodeType.CONTINUE) {
+                    return false
+                }
 
                 val labelText = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset).toString()
                 val labelName = labelText.removePrefix("@")
@@ -38,7 +40,9 @@ class CustomLabelRule : WUninitializedRule {
                     when (ancestors.typeAt(i)) {
                         WNodeType.FOR, WNodeType.WHILE, WNodeType.DO_WHILE -> count++
                         WNodeType.CALL_EXPRESSION ->
-                        if (isForEachCallee(ctx.sourceText, ancestors.startOffsetAt(i), ancestors.endOffsetAt(i))) count++
+                            if (isForEachCallee(ctx.sourceText, ancestors.startOffsetAt(i), ancestors.endOffsetAt(i))) {
+                                count++
+                            }
 
                         else -> {}
                     }
@@ -50,24 +54,35 @@ class CustomLabelRule : WUninitializedRule {
                 val ancestors = ctx.ancestors
                 for (i in 0 until ancestors.size) {
                     if (ancestors.typeAt(i) != WNodeType.CALL_EXPRESSION) continue
-                    if (calleeName(ctx.sourceText, ancestors.startOffsetAt(i), ancestors.endOffsetAt(i)) == labelName) return true
+                    if (calleeName(ctx.sourceText, ancestors.startOffsetAt(i), ancestors.endOffsetAt(i)) == labelName) {
+                        return true
+                    }
                 }
                 return false
             }
 
-            private fun calleeName(sourceText: CharSequence, start: Int, end: Int): String {
+            private fun calleeName(
+                sourceText: CharSequence,
+                start: Int,
+                end: Int,
+            ): String {
                 var i = start
                 while (i < end && (sourceText[i].isLetterOrDigit() || sourceText[i] == '_')) i++
                 return sourceText.subSequence(start, i).toString()
             }
 
-            private fun isForEachCallee(sourceText: CharSequence, start: Int, end: Int): Boolean {
+            private fun isForEachCallee(
+                sourceText: CharSequence,
+                start: Int,
+                end: Int,
+            ): Boolean {
                 val limit = minOf(end, start + FOR_EACH_INDEXED.length)
                 if (limit <= start) return false
                 val text = sourceText.subSequence(start, limit)
                 val matchesForEachIndexed = text.startsWith(FOR_EACH_INDEXED)
-                val matchesForEach = text.startsWith(FOR_EACH) &&
-                    (limit == start + FOR_EACH.length || !text[FOR_EACH.length].isLetterOrDigit())
+                val matchesForEach = text.startsWith(
+                    FOR_EACH,
+                ) && (limit == start + FOR_EACH.length || !text[FOR_EACH.length].isLetterOrDigit())
                 return matchesForEachIndexed || matchesForEach
             }
         }

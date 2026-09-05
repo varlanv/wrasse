@@ -24,16 +24,27 @@ class EqualsNullCallRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.CALL_EXPRESSION)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val calleeIdx = children.firstChildOfType(WNodeType.REFERENCE_EXPRESSION)
                 if (calleeIdx < 0) return
                 val argsIdx = children.firstChildOfType(WNodeType.VALUE_ARGUMENT_LIST)
                 val argumentText = if (argsIdx < 0) null else singleArgumentText(children, argsIdx, ctx.sourceText)
-                val message = EqualsNullCallDecision.decide(children.textSpan(calleeIdx, ctx.sourceText), argumentText) ?: return
+                val message = EqualsNullCallDecision.decide(
+                    children.textSpan(calleeIdx, ctx.sourceText),
+                    argumentText,
+                ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
 
-            private fun singleArgumentText(children: ChildBuffer, argsIdx: Int, sourceText: CharSequence): String? {
+            private fun singleArgumentText(
+                children: ChildBuffer,
+                argsIdx: Int,
+                sourceText: CharSequence,
+            ): String? {
                 val text = children.textSpan(argsIdx, sourceText).toString().trim()
                 if (!text.startsWith("(") || !text.endsWith(")")) return null
                 return text.substring(1, text.length - 1).trim()

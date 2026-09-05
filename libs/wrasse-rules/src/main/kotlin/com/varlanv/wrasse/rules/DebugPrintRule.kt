@@ -30,12 +30,20 @@ class DebugPrintRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CALL_EXPRESSION, WNodeType.VALUE_ARGUMENT_LIST, WNodeType.DOT_QUALIFIED_EXPRESSION)
+            override val targetTypes = setOf(
+                WNodeType.CALL_EXPRESSION,
+                WNodeType.VALUE_ARGUMENT_LIST,
+                WNodeType.DOT_QUALIFIED_EXPRESSION,
+            )
 
             private val argCounts = mutableMapOf<Long, Int>()
             private val selectorLambdaFlags = mutableMapOf<Long, Boolean>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.VALUE_ARGUMENT_LIST -> recordArgCount(ctx, children)
                     WNodeType.CALL_EXPRESSION -> {
@@ -55,11 +63,18 @@ class DebugPrintRule : WUninitializedRule {
 
             private fun recordSelectorLambdaFlag(ctx: WContext, children: ChildBuffer) {
                 if (ctx.ancestors.peekType() == WNodeType.DOT_QUALIFIED_EXPRESSION) {
-                    selectorLambdaFlags[key(ctx.startOffset, ctx.endOffset)] = children.hasChildOfType(WNodeType.LAMBDA_ARGUMENT)
+                    selectorLambdaFlags[key(
+                        ctx.startOffset,
+                        ctx.endOffset,
+                    )] = children.hasChildOfType(WNodeType.LAMBDA_ARGUMENT)
                 }
             }
 
-            private fun checkPrintCall(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun checkPrintCall(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val argListIdx = children.firstChildOfType(WNodeType.VALUE_ARGUMENT_LIST)
                 val argCount =
                     if (argListIdx < 0) {
@@ -75,27 +90,46 @@ class DebugPrintRule : WUninitializedRule {
                 if (ctx.ancestors.peekType() == WNodeType.DOT_QUALIFIED_EXPRESSION && ctx.childIndex != 0) return
                 if (children.hasChildOfType(WNodeType.LAMBDA_ARGUMENT)) return
                 if (argCount > 1) return
-                reporter.report(ruleId, DebugPrintDecision.message(name.toString()), ctx.startOffset, ctx.endOffset, this)
+                reporter.report(
+                    ruleId,
+                    DebugPrintDecision.message(name.toString()),
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                )
             }
 
-            private fun checkConsoleCall(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun checkConsoleCall(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val significant = (0 until children.size).filter { !children.type(it).isWhitespaceOrComment }
                 if (significant.size != 3) return
                 val (receiverIdx, dotIdx, selectorIdx) = Triple(significant[0], significant[1], significant[2])
                 if (children.type(dotIdx) != WNodeType.DOT) return
                 if (!children.textSpan(receiverIdx, ctx.sourceText).contentEquals("console")) return
-                if (selectorLambdaFlags.remove(key(children.startOffset(selectorIdx), children.endOffset(selectorIdx))) == true) return
+                if (selectorLambdaFlags.remove(
+                    key(children.startOffset(selectorIdx), children.endOffset(selectorIdx)),
+                ) == true) {
+                    return
+                }
                 val selectorText = children.textSpan(selectorIdx, ctx.sourceText)
                 val callee =
-                when {
+                    when {
                         WordBoundaryScan.startsWithWord(selectorText, "error") -> "error"
                         WordBoundaryScan.startsWithWord(selectorText, "info") -> "info"
                         WordBoundaryScan.startsWithWord(selectorText, "log") -> "log"
                         WordBoundaryScan.startsWithWord(selectorText, "warn") -> "warn"
                         else -> null
-                    }
-                    ?: return
-                reporter.report(ruleId, DebugPrintDecision.message("console.$callee"), ctx.startOffset, ctx.endOffset, this)
+                    } ?: return
+                reporter.report(
+                    ruleId,
+                    DebugPrintDecision.message("console.$callee"),
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                )
             }
 
             private fun key(start: Int, end: Int): Long = (start.toLong() shl 32) or (end.toLong() and 0xFF_FFF_FFFL)

@@ -16,83 +16,80 @@ import java.nio.file.Files
  * [com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule]'s KDoc for the invariant. This
  * spec locks both shapes, mirroring [NoUnitReturnSafetySpec].
  */
-open class NoEmptyParensBeforeTrailingLambdaSafetySpec :
-    BaseSpec(
-        {
+open class NoEmptyParensBeforeTrailingLambdaSafetySpec : BaseSpec({
 
-            val wrasseConfig = """{"rules":{"no-empty-parens-before-trailing-lambda":{"level":"error"}}}"""
+    val wrasseConfig = """{"rules":{"no-empty-parens-before-trailing-lambda":{"level":"error"}}}"""
 
-            should("leave empty parentheses followed by a newline then a trailing lambda untouched and still compiling") {
-                val source = TestSource(
-                    "sample/Sample.kt",
-                    """
-                        package sample
+    should("leave empty parentheses followed by a newline then a trailing lambda untouched and still compiling") {
+        val source = TestSource(
+            "sample/Sample.kt",
+            """
+                package sample
 
-                        fun greet(f: () -> Unit) {}
+                fun greet(f: () -> Unit) {}
 
-                        fun main() {
-                            greet()
-                            { }
-                        }
-                        """
-                        .trimIndent(),
-                )
-
-                useTempDir { workDir ->
-                    useTempDir { fixOutputDir ->
-                        val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
-                        val round1 = harness.compile(listOf(source), workDir)
-                        round1.wrasseDiagnostics shouldHaveSize 1
-
-                        val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-                        if (Files.exists(patchFile)) {
-                            WPatchApplier.apply(fixOutputDir)
-                        }
-
-                        val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-                        patchedContent shouldBe source.content
-
-                        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
-                        IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
-                    }
+                fun main() {
+                    greet()
+                    { }
                 }
-            }
+                """
+                .trimIndent(),
+        )
 
-            should("leave empty parentheses followed by a blank line then a trailing lambda untouched and still compiling") {
-                val source = TestSource(
-                    "sample/Sample.kt",
-                    """
-                        package sample
+        useTempDir { workDir ->
+            useTempDir { fixOutputDir ->
+                val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
+                val round1 = harness.compile(listOf(source), workDir)
+                round1.wrasseDiagnostics shouldHaveSize 1
 
-                        fun greet(f: () -> Unit) {}
-
-                        fun main() {
-                            greet()
-
-                            { }
-                        }
-                        """
-                        .trimIndent(),
-                )
-
-                useTempDir { workDir ->
-                    useTempDir { fixOutputDir ->
-                        val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
-                        val round1 = harness.compile(listOf(source), workDir)
-                        round1.wrasseDiagnostics shouldHaveSize 1
-
-                        val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-                        if (Files.exists(patchFile)) {
-                            WPatchApplier.apply(fixOutputDir)
-                        }
-
-                        val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-                        patchedContent shouldBe source.content
-
-                        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
-                        IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
-                    }
+                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                if (Files.exists(patchFile)) {
+                    WPatchApplier.apply(fixOutputDir)
                 }
+
+                val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+                patchedContent shouldBe source.content
+
+                val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
+                IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
             }
-        },
-    )
+        }
+    }
+
+    should("leave empty parentheses followed by a blank line then a trailing lambda untouched and still compiling") {
+        val source = TestSource(
+            "sample/Sample.kt",
+            """
+                package sample
+
+                fun greet(f: () -> Unit) {}
+
+                fun main() {
+                    greet()
+
+                    { }
+                }
+                """
+                .trimIndent(),
+        )
+
+        useTempDir { workDir ->
+            useTempDir { fixOutputDir ->
+                val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
+                val round1 = harness.compile(listOf(source), workDir)
+                round1.wrasseDiagnostics shouldHaveSize 1
+
+                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                if (Files.exists(patchFile)) {
+                    WPatchApplier.apply(fixOutputDir)
+                }
+
+                val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+                patchedContent shouldBe source.content
+
+                val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
+                IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
+            }
+        }
+    }
+})

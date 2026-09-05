@@ -34,35 +34,35 @@ import org.jetbrains.kotlin.name.ClassId
 
 object ResolvedUsageCollector {
     @OptIn(DirectDeclarationsAccess::class)
-    fun collect(file: FirFile, collectQualifiedUsages: Boolean = false): WResolvedUsage =
-    runCatching {
-            val visitor = UsageVisitor(collectQualifiedUsages)
-            for (annotation in file.annotations) {
-                annotation.accept(visitor)
-            }
-            for (declaration in file.declarations) {
-                declaration.accept(visitor)
-            }
-            WResolvedUsage(
-                classifiers = visitor.classifiers,
-                callables = visitor.callables,
-                hasResolutionErrors = visitor.hasErrors,
-                resolvedImports = collectResolvedImports(file),
-                qualifiedUsages = visitor.qualifiedUsages,
-            )
+    fun collect(
+        file: FirFile,
+        collectQualifiedUsages: Boolean = false,
+    ): WResolvedUsage = runCatching {
+        val visitor = UsageVisitor(collectQualifiedUsages)
+        for (annotation in file.annotations) {
+            annotation.accept(visitor)
         }
-        .getOrElse {
-            WResolvedUsage(
-                classifiers = emptySet(),
-                callables = emptySet(),
-                hasResolutionErrors = true,
-                resolvedImports = emptyList(),
-                qualifiedUsages = emptyList(),
-            )
+        for (declaration in file.declarations) {
+            declaration.accept(visitor)
         }
+        WResolvedUsage(
+            classifiers = visitor.classifiers,
+            callables = visitor.callables,
+            hasResolutionErrors = visitor.hasErrors,
+            resolvedImports = collectResolvedImports(file),
+            qualifiedUsages = visitor.qualifiedUsages,
+        )
+    }.getOrElse {
+        WResolvedUsage(
+            classifiers = emptySet(),
+            callables = emptySet(),
+            hasResolutionErrors = true,
+            resolvedImports = emptyList(),
+            qualifiedUsages = emptyList(),
+        )
+    }
 
-    private fun collectResolvedImports(file: FirFile): List<WResolvedImport> =
-    file.imports.mapNotNull { import ->
+    private fun collectResolvedImports(file: FirFile): List<WResolvedImport> = file.imports.mapNotNull { import ->
         val fqn = import.importedFqName?.takeUnless { it.isRoot }?.asString() ?: return@mapNotNull null
         if (import is FirResolvedImport) {
             WResolvedImport(
@@ -72,7 +72,12 @@ object ResolvedUsageCollector {
                 resolved = true,
             )
         } else {
-            WResolvedImport(fqn = fqn, isStarImport = import.isAllUnder, resolvedParentClassFqName = null, resolved = false)
+            WResolvedImport(
+                fqn = fqn,
+                isStarImport = import.isAllUnder,
+                resolvedParentClassFqName = null,
+                resolved = false,
+            )
         }
     }
 
@@ -184,7 +189,11 @@ object ResolvedUsageCollector {
             recordUsage(resolvedTypeRef.source, classId, WQualifiedUsageKind.TYPE_REF)
         }
 
-        private fun recordUsage(source: KtSourceElement?, classId: ClassId, kind: WQualifiedUsageKind) {
+        private fun recordUsage(
+            source: KtSourceElement?,
+            classId: ClassId,
+            kind: WQualifiedUsageKind,
+        ) {
             if (source == null || source.kind !== KtRealSourceElementKind) return
             val start = source.startOffset
             val end = source.endOffset

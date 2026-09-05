@@ -11,6 +11,11 @@ package com.varlanv.wrasse.rules
 object WhenMustHaveElseDecision {
     const val MESSAGE = "'when' used as a statement should have an 'else' branch"
 
-    fun decide(isExempt: Boolean, hasElse: Boolean, isEnumOnly: Boolean, isLambdaLastStatement: Boolean): String? =
-    if (!isExempt && !isLambdaLastStatement && !hasElse && !isEnumOnly) MESSAGE else null
+    fun decide(
+        isExempt: Boolean,
+        hasElse: Boolean,
+        isEnumOnly: Boolean,
+        isLambdaLastStatement: Boolean,
+    ): String? =
+        if (!isExempt && !isLambdaLastStatement && !hasElse && !isEnumOnly) MESSAGE else null
 }

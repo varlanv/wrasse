@@ -11,7 +11,11 @@ sealed interface WRuleOptionSpec {
     val type: WRuleOptionType
     val description: String
 
-    class Required(override val name: String, override val type: WRuleOptionType, override val description: String) : WRuleOptionSpec
+    class Required(
+        override val name: String,
+        override val type: WRuleOptionType,
+        override val description: String,
+    ) : WRuleOptionSpec
 
     class Optional(
         override val name: String,

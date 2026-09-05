@@ -8,7 +8,11 @@ package com.varlanv.wrasse.rules
  * nothing merges upward on pop. Pure counting logic, no kotlinc/AST dependency, so it is
  * unit-testable by simulating an event sequence directly.
  */
-class FunctionMetricsFrame(var nameStart: Int, var nameEnd: Int, var functionName: String) {
+class FunctionMetricsFrame(
+    var nameStart: Int,
+    var nameEnd: Int,
+    var functionName: String,
+) {
     var returnCount = 0
         private set
     var throwCount = 0

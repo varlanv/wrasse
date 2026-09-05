@@ -12,7 +12,11 @@ import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirFileChecker
 import org.jetbrains.kotlin.fir.declarations.FirFile
 
 class FirSyntacticChecker20(private val plugin: WrassePlugin) : FirFileChecker(MppCheckerKind.Common) {
-    override fun check(declaration: FirFile, context: CheckerContext, reporter: DiagnosticReporter) {
+    override fun check(
+        declaration: FirFile,
+        context: CheckerContext,
+        reporter: DiagnosticReporter,
+    ) {
         val source = declaration.source as? KtLightSourceElement ?: return
         val sourceFilePath = declaration.sourceFile?.path ?: declaration.name
 

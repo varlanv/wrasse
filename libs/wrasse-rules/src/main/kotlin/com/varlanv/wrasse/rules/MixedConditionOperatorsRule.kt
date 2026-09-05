@@ -35,31 +35,42 @@ class MixedConditionOperatorsRule : WUninitializedRule {
 
             private val chains = mutableMapOf<Long, ChainNode>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val significant = (0 until children.size).filter { !children.type(it).isWhitespaceOrComment }
                 if (significant.size != 3) return
                 val (leftIdx, opIdx, rightIdx) = Triple(significant[0], significant[1], significant[2])
                 if (children.type(opIdx) != WNodeType.OPERATION_REFERENCE) return
                 val opText = children.textSpan(opIdx, ctx.sourceText)
                 val isAnd =
-                when {
+                    when {
                         opText.contentEquals("&&") -> true
                         opText.contentEquals("||") -> false
                         else -> null
-                    }
-                    ?: return
+                    } ?: return
 
                 var hasAnd = isAnd
                 var hasOr = !isAnd
-                mergeChild(children, leftIdx) { and, or -> hasAnd = hasAnd || and
-                    hasOr = hasOr || or }
-                mergeChild(children, rightIdx) { and, or -> hasAnd = hasAnd || and
-                    hasOr = hasOr || or }
+                mergeChild(children, leftIdx) { and, or ->
+                    hasAnd = hasAnd || and
+                    hasOr = hasOr || or
+                }
+                mergeChild(children, rightIdx) { and, or ->
+                    hasAnd = hasAnd || and
+                    hasOr = hasOr || or
+                }
 
                 chains[key(ctx.startOffset, ctx.endOffset)] = ChainNode(ctx.startOffset, ctx.endOffset, hasAnd, hasOr)
             }
 
-            private fun mergeChild(children: ChildBuffer, idx: Int, merge: (Boolean, Boolean) -> Unit) {
+            private fun mergeChild(
+                children: ChildBuffer,
+                idx: Int,
+                merge: (Boolean, Boolean) -> Unit,
+            ) {
                 if (children.type(idx) != WNodeType.BINARY_EXPRESSION) return
                 val child = chains.remove(key(children.startOffset(idx), children.endOffset(idx))) ?: return
                 merge(child.hasAnd, child.hasOr)
@@ -76,5 +87,10 @@ class MixedConditionOperatorsRule : WUninitializedRule {
         }
     }
 
-    private class ChainNode(val start: Int, val end: Int, val hasAnd: Boolean, val hasOr: Boolean)
+    private class ChainNode(
+        val start: Int,
+        val end: Int,
+        val hasAnd: Boolean,
+        val hasOr: Boolean,
+    )
 }

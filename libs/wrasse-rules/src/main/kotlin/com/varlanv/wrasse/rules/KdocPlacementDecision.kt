@@ -9,8 +9,7 @@ import com.varlanv.wrasse.model.WNodeType
  * top-level dangling KDoc and a KDoc nested inside any other node kind are both disallowed.
  */
 object KdocPlacementDecision {
-    private val DOCUMENTABLE_PARENTS =
-    setOf(
+    private val DOCUMENTABLE_PARENTS = setOf(
         WNodeType.CLASS,
         WNodeType.ENUM_ENTRY,
         WNodeType.FUN,
@@ -22,8 +21,9 @@ object KdocPlacementDecision {
     )
 
     fun decide(parent: WNodeType, childIndex: Int): String? = when {
-        parent in DOCUMENTABLE_PARENTS ->
-        if (childIndex == 0) null else "A KDoc is allowed only at the start of a '${parent.name.lowercase()}'"
+        parent in
+            DOCUMENTABLE_PARENTS ->
+            if (childIndex == 0) null else "A KDoc is allowed only at the start of a '${parent.name.lowercase()}'"
         parent == WNodeType.FILE -> "A dangling top-level KDoc is not allowed"
         else -> "A KDoc is not allowed inside a '${parent.name.lowercase()}'"
     }

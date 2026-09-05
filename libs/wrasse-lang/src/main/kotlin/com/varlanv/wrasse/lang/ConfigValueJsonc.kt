@@ -121,26 +121,21 @@ class ConfigValueJsonc private constructor(private val input: String) {
     private fun toTypedArray(elements: List<ConfigValue>): ConfigValue {
         if (elements.isEmpty()) return ConfigValue.StrArr(emptyList())
         return when {
-            elements.all { it is ConfigValue.Str } ->
-            ConfigValue.StrArr(elements.map { (it as ConfigValue.Str).value })
+            elements.all { it is ConfigValue.Str } -> ConfigValue.StrArr(elements.map { (it as ConfigValue.Str).value })
 
-            elements.all { it is ConfigValue.Num } ->
-            ConfigValue.NumArr(elements.map { (it as ConfigValue.Num).value })
+            elements.all { it is ConfigValue.Num } -> ConfigValue.NumArr(elements.map { (it as ConfigValue.Num).value })
 
-            elements.all { it is ConfigValue.Obj } ->
-            ConfigValue.ObjArr(elements.map { (it as ConfigValue.Obj).value })
+            elements.all { it is ConfigValue.Obj } -> ConfigValue.ObjArr(elements.map { (it as ConfigValue.Obj).value })
 
-            elements.all { it is ConfigValue.Bool } ->
-            ConfigValue.BoolArr(elements.map { (it as ConfigValue.Bool).value })
+            elements.all { it is ConfigValue.Bool } -> ConfigValue.BoolArr(
+                elements.map { (it as ConfigValue.Bool).value },
+            )
 
-            elements.all { it is ConfigValue.Dbl } ->
-            ConfigValue.DblArr(elements.map { (it as ConfigValue.Dbl).value })
+            elements.all { it is ConfigValue.Dbl } -> ConfigValue.DblArr(elements.map { (it as ConfigValue.Dbl).value })
 
-            elements.all { it is ConfigValue.Null } ->
-            ConfigValue.NullArr(elements.map { it as ConfigValue.Null })
+            elements.all { it is ConfigValue.Null } -> ConfigValue.NullArr(elements.map { it as ConfigValue.Null })
 
-            else ->
-            error("Mixed array element types")
+            else -> error("Mixed array element types")
         }
     }
 

@@ -34,7 +34,11 @@ class StringConcatenationRule : WUninitializedRule {
 
             private val findings = mutableMapOf<Long, Finding>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val significant = ArrayList<Int>(children.size)
                 for (i in 0 until children.size) if (!children.type(i).isWhitespaceOrComment) significant.add(i)
                 if (significant.size != 3) return
@@ -45,12 +49,11 @@ class StringConcatenationRule : WUninitializedRule {
                     children.textSpan(opIdx, ctx.sourceText).contentEquals("+")
                 var finding: Finding? = null
                 if (isPlus &&
-                    StringConcatenationDecision
-                        .isStringConcatenationStart(
-                            leftType = children.type(leftIdx),
-                            leftText = children.textSpan(leftIdx, ctx.sourceText),
-                            rightType = children.type(rightIdx),
-                        )
+                    StringConcatenationDecision.isStringConcatenationStart(
+                        leftType = children.type(leftIdx),
+                        leftText = children.textSpan(leftIdx, ctx.sourceText),
+                        rightType = children.type(rightIdx),
+                    )
                 ) {
                     finding = Finding(ctx.startOffset, ctx.endOffset)
                 }
@@ -70,7 +73,11 @@ class StringConcatenationRule : WUninitializedRule {
                 return findings.remove(key(children.startOffset(idx), children.endOffset(idx)))
             }
 
-            private fun spansSingleLine(sourceText: CharSequence, start: Int, end: Int): Boolean {
+            private fun spansSingleLine(
+                sourceText: CharSequence,
+                start: Int,
+                end: Int,
+            ): Boolean {
                 for (i in start until end) if (sourceText[i] == '\n') return false
                 return true
             }

@@ -23,7 +23,11 @@ class IfElseBracingCandidate(
 )
 
 /** [reportStart]/[reportEnd] locate the diagnostic; [edits] is empty for a report-only bail. */
-class IfElseBracingVerdict(val reportStart: Int, val reportEnd: Int, val edits: List<WEdit>)
+class IfElseBracingVerdict(
+    val reportStart: Int,
+    val reportEnd: Int,
+    val edits: List<WEdit>,
+)
 
 /**
  * Pure verdict logic for `if-else-bracing`, compiler-free and unit-testable without kotlinc.
@@ -45,8 +49,11 @@ class IfElseBracingVerdict(val reportStart: Int, val reportEnd: Int, val edits: 
  * it's `true`.
  */
 object IfElseBracingDecision {
-    fun chainSpansMultipleLines(sourceText: CharSequence, chainStart: Int, chainEnd: Int): Boolean =
-    sourceText.subSequence(chainStart, chainEnd).contains('\n')
+    fun chainSpansMultipleLines(
+        sourceText: CharSequence,
+        chainStart: Int,
+        chainEnd: Int,
+    ): Boolean = sourceText.subSequence(chainStart, chainEnd).contains('\n')
 
     fun decideBranch(
         sourceText: CharSequence,
@@ -62,26 +69,28 @@ object IfElseBracingDecision {
 
         val edits =
             if (formatEnabled) {
-                BraceInsertion
-                    .wrapEditsMinimal(
-                        leadingGapStart = candidate.leadingGapStart,
-                        contentStart = candidate.contentStart,
-                        contentEnd = candidate.contentEnd,
-                        trailingGapEnd = candidate.trailingGapEnd,
-                        hasFollowingBranch = candidate.hasFollowingBranch,
-                    )
+                BraceInsertion.wrapEditsMinimal(
+                    leadingGapStart = candidate.leadingGapStart,
+                    contentStart = candidate.contentStart,
+                    contentEnd = candidate.contentEnd,
+                    trailingGapEnd = candidate.trailingGapEnd,
+                    hasFollowingBranch = candidate.hasFollowingBranch,
+                )
             } else {
-                BraceInsertion
-                    .wrapEdits(
-                        leadingGapStart = candidate.leadingGapStart,
-                        contentStart = candidate.contentStart,
-                        contentEnd = candidate.contentEnd,
-                        trailingGapEnd = candidate.trailingGapEnd,
-                        hasFollowingBranch = candidate.hasFollowingBranch,
-                        baseIndentColumn = baseIndentColumn,
-                        indentWidth = indentWidth,
-                    )
+                BraceInsertion.wrapEdits(
+                    leadingGapStart = candidate.leadingGapStart,
+                    contentStart = candidate.contentStart,
+                    contentEnd = candidate.contentEnd,
+                    trailingGapEnd = candidate.trailingGapEnd,
+                    hasFollowingBranch = candidate.hasFollowingBranch,
+                    baseIndentColumn = baseIndentColumn,
+                    indentWidth = indentWidth,
+                )
             }
-        return IfElseBracingVerdict(reportStart = candidate.contentStart, reportEnd = candidate.contentEnd, edits = edits)
+        return IfElseBracingVerdict(
+            reportStart = candidate.contentStart,
+            reportEnd = candidate.contentEnd,
+            edits = edits,
+        )
     }
 }

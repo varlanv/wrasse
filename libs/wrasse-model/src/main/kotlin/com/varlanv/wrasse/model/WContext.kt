@@ -97,4 +97,7 @@ class WContext(
 
 /** True for WHITE_SPACE, EOL_COMMENT, BLOCK_COMMENT, and KDOC node types. */
 val WNodeType.isWhitespaceOrComment: Boolean
-    get() = this == WNodeType.WHITE_SPACE || this == WNodeType.EOL_COMMENT || this == WNodeType.BLOCK_COMMENT || this == WNodeType.KDOC
+    get() = this == WNodeType.WHITE_SPACE ||
+        this == WNodeType.EOL_COMMENT ||
+        this == WNodeType.BLOCK_COMMENT ||
+        this == WNodeType.KDOC

@@ -21,8 +21,13 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * [WContext] for every leaf dispatch, so no buffering is needed anywhere in this engine.
  */
 class CommentPositionEngine : WUninitializedRuleGroup {
-    override val ids: Set<String> =
-    setOf(KDOC_PLACEMENT_ID, TYPE_ARGUMENT_COMMENT_ID, TYPE_PARAMETER_COMMENT_ID, VALUE_ARGUMENT_COMMENT_ID, VALUE_PARAMETER_COMMENT_ID)
+    override val ids: Set<String> = setOf(
+        KDOC_PLACEMENT_ID,
+        TYPE_ARGUMENT_COMMENT_ID,
+        TYPE_PARAMETER_COMMENT_ID,
+        VALUE_ARGUMENT_COMMENT_ID,
+        VALUE_PARAMETER_COMMENT_ID,
+    )
 
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val rules = configs.mapValues { (ruleId, ruleConfig) -> ReportFacade(ruleId, ruleConfig) }
@@ -41,34 +46,54 @@ class CommentPositionEngine : WUninitializedRuleGroup {
                 checkValueParameterComment(ctx, parent, reporter)
             }
 
-            private fun checkKdocPlacement(ctx: WContext, parent: WNodeType, reporter: WReporter) {
+            private fun checkKdocPlacement(
+                ctx: WContext,
+                parent: WNodeType,
+                reporter: WReporter,
+            ) {
                 if (ctx.type != WNodeType.KDOC) return
                 val rule = rules[KDOC_PLACEMENT_ID] ?: return
                 val message = KdocPlacementDecision.decide(parent, ctx.childIndex) ?: return
                 reporter.report(KDOC_PLACEMENT_ID, message, ctx.startOffset, ctx.endOffset, rule)
             }
 
-            private fun checkTypeArgumentComment(ctx: WContext, parent: WNodeType, reporter: WReporter) {
+            private fun checkTypeArgumentComment(
+                ctx: WContext,
+                parent: WNodeType,
+                reporter: WReporter,
+            ) {
                 if (ctx.type == WNodeType.KDOC) return
                 val rule = rules[TYPE_ARGUMENT_COMMENT_ID] ?: return
                 val message = TypeArgumentCommentDecision.decide(parent, precededByNewline(ctx)) ?: return
                 reporter.report(TYPE_ARGUMENT_COMMENT_ID, message, ctx.startOffset, ctx.endOffset, rule)
             }
 
-            private fun checkTypeParameterComment(ctx: WContext, parent: WNodeType, reporter: WReporter) {
+            private fun checkTypeParameterComment(
+                ctx: WContext,
+                parent: WNodeType,
+                reporter: WReporter,
+            ) {
                 if (ctx.type == WNodeType.KDOC) return
                 val rule = rules[TYPE_PARAMETER_COMMENT_ID] ?: return
                 val message = TypeParameterCommentDecision.decide(parent, precededByNewline(ctx)) ?: return
                 reporter.report(TYPE_PARAMETER_COMMENT_ID, message, ctx.startOffset, ctx.endOffset, rule)
             }
 
-            private fun checkValueArgumentComment(ctx: WContext, parent: WNodeType, reporter: WReporter) {
+            private fun checkValueArgumentComment(
+                ctx: WContext,
+                parent: WNodeType,
+                reporter: WReporter,
+            ) {
                 val rule = rules[VALUE_ARGUMENT_COMMENT_ID] ?: return
                 val message = ValueArgumentCommentDecision.decide(parent) ?: return
                 reporter.report(VALUE_ARGUMENT_COMMENT_ID, message, ctx.startOffset, ctx.endOffset, rule)
             }
 
-            private fun checkValueParameterComment(ctx: WContext, parent: WNodeType, reporter: WReporter) {
+            private fun checkValueParameterComment(
+                ctx: WContext,
+                parent: WNodeType,
+                reporter: WReporter,
+            ) {
                 val rule = rules[VALUE_PARAMETER_COMMENT_ID] ?: return
                 val isKdocFirstChild = ctx.type == WNodeType.KDOC && ctx.childIndex == 0
                 val message = ValueParameterCommentDecision.decide(parent, isKdocFirstChild) ?: return
@@ -76,7 +101,7 @@ class CommentPositionEngine : WUninitializedRuleGroup {
             }
 
             private fun precededByNewline(ctx: WContext): Boolean =
-            ctx.prevLeafType == WNodeType.WHITE_SPACE && ctx.prevLeafText?.contains('\n') == true
+                ctx.prevLeafType == WNodeType.WHITE_SPACE && ctx.prevLeafText?.contains('\n') == true
         }
     }
 

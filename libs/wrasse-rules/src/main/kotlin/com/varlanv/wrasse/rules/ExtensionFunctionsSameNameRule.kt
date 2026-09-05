@@ -26,7 +26,12 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CLASS, WNodeType.SUPER_TYPE_LIST, WNodeType.FUN, WNodeType.VALUE_PARAMETER_LIST)
+            override val targetTypes = setOf(
+                WNodeType.CLASS,
+                WNodeType.SUPER_TYPE_LIST,
+                WNodeType.FUN,
+                WNodeType.VALUE_PARAMETER_LIST,
+            )
 
             private val classFrames = mutableListOf<ClassFrame>()
             private val paramListFrames = mutableListOf<MutableList<String>>()
@@ -54,17 +59,23 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
                         }
                     }
 
-                    ctx.type == WNodeType.KW_INTERFACE && ancestors.peekType() == WNodeType.CLASS -> classFrames.lastOrNull()?.isInterface =
-                        true
+                    ctx.type == WNodeType.KW_INTERFACE &&
+                        ancestors.peekType() == WNodeType.CLASS -> classFrames.lastOrNull()?.isInterface = true
 
-                    ctx.type == WNodeType.IDENTIFIER && ancestors.peekType() == WNodeType.VALUE_PARAMETER ->
-                    paramListFrames.lastOrNull()?.add(IdentifierCasing.unquote(ctx.leafText ?: ""))
+                    ctx.type == WNodeType.IDENTIFIER &&
+                        ancestors.peekType() == WNodeType.VALUE_PARAMETER -> paramListFrames
+                        .lastOrNull()
+                        ?.add(IdentifierCasing.unquote(ctx.leafText ?: ""))
 
                     else -> {}
                 }
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.CLASS -> if (classFrames.isNotEmpty()) classFrames.removeAt(classFrames.size - 1)
                     WNodeType.SUPER_TYPE_LIST -> finalizeSuperTypeList(ctx, children)
@@ -89,7 +100,9 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
             }
 
             private fun finalizeFun(ctx: WContext, children: ChildBuffer) {
-                if (!children.hasChildOfType(WNodeType.TYPE_REFERENCE) || !children.hasChildOfType(WNodeType.DOT)) return
+                if (!children.hasChildOfType(WNodeType.TYPE_REFERENCE) || !children.hasChildOfType(WNodeType.DOT)) {
+                    return
+                }
                 val nameIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (nameIdx < 0) return
                 val functionName = children.leafText(nameIdx)?.let { IdentifierCasing.unquote(it) } ?: return
@@ -99,7 +112,11 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
 
                 val paramListIdx = children.firstChildOfType(WNodeType.VALUE_PARAMETER_LIST)
                 val paramNames =
-                if (paramListIdx >= 0) paramNamesByListStart.remove(children.startOffset(paramListIdx)) ?: emptyList() else emptyList()
+                    if (paramListIdx >= 0) {
+                        paramNamesByListStart.remove(children.startOffset(paramListIdx)) ?: emptyList()
+                    } else {
+                        emptyList()
+                    }
 
                 var returnType: String? = null
                 val colonIdx = children.firstChildOfType(WNodeType.COLON)
@@ -112,7 +129,12 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
                     }
                 }
 
-                val candidate = ExtensionFunctionsSameNameDecision.Candidate(receiverClassName, functionName, paramNames, returnType)
+                val candidate = ExtensionFunctionsSameNameDecision.Candidate(
+                    receiverClassName,
+                    functionName,
+                    paramNames,
+                    returnType,
+                )
                 extCandidates.add(ExtCandidateSpan(candidate, ctx.startOffset, ctx.endOffset))
             }
 
@@ -128,16 +150,26 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
                 for ((index, otherIndex) in pairedIndex) {
                     val span = extCandidates[index]
                     val other = extCandidates[otherIndex].candidate
-                    val message =
-                    ExtensionFunctionsSameNameDecision
-                        .message(span.candidate.functionName, span.candidate.receiverClassName, other.receiverClassName)
+                    val message = ExtensionFunctionsSameNameDecision.message(
+                        span.candidate.functionName,
+                        span.candidate.receiverClassName,
+                        other.receiverClassName,
+                    )
                     reporter.report(ruleId, message, span.start, span.end, this)
                 }
             }
         }
     }
 
-    private class ClassFrame(var nameCaptured: Boolean = false, var name: String = "", var isInterface: Boolean = false)
+    private class ClassFrame(
+        var nameCaptured: Boolean = false,
+        var name: String = "",
+        var isInterface: Boolean = false,
+    )
 
-    private class ExtCandidateSpan(val candidate: ExtensionFunctionsSameNameDecision.Candidate, val start: Int, val end: Int)
+    private class ExtCandidateSpan(
+        val candidate: ExtensionFunctionsSameNameDecision.Candidate,
+        val start: Int,
+        val end: Int,
+    )
 }

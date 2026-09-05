@@ -20,40 +20,38 @@ import java.nio.file.Files
  * `IdempotenceCycle` (apply-and-recompile on the same content) expresses this two-round,
  * edited-between-rounds sequence, hence a dedicated spec.
  */
-open class SuppressionEditsDroppedSpec :
-    BaseSpec(
-        {
+open class SuppressionEditsDroppedSpec : BaseSpec({
 
-            val wrasseConfig = """{"rules":{"no-unused-imports":{"level":"error"}}}"""
+    val wrasseConfig = """{"rules":{"no-unused-imports":{"level":"error"}}}"""
 
-            should("drop a previously-emitted patch entry once the violation is suppressed and the file recompiles") {
-                useTempDir { workDir ->
-                    useTempDir { fixOutputDir ->
-                        val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
-                        val unsuppressed = TestSource(
-                            "sample/test.kt",
-                            """
-                                package sample
+    should("drop a previously-emitted patch entry once the violation is suppressed and the file recompiles") {
+        useTempDir { workDir ->
+            useTempDir { fixOutputDir ->
+                val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
+                val unsuppressed = TestSource(
+                    "sample/test.kt",
+                    """
+                        package sample
 
-                                import kotlin.text.Regex
+                        import kotlin.text.Regex
 
-                                val x = 1
-                                """
-                                .trimIndent(),
-                        )
+                        val x = 1
+                        """
+                        .trimIndent(),
+                )
 
-                        val round1 = harness.compile(listOf(unsuppressed), workDir)
-                        round1.wrasseDiagnostics shouldHaveSize 1
+                val round1 = harness.compile(listOf(unsuppressed), workDir)
+                round1.wrasseDiagnostics shouldHaveSize 1
 
-                        val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-                        Files.exists(patchFile) shouldBe true
-                        val round1Entries = WPatchReader.read(Files.readString(patchFile))
-                        val round1Entry = round1Entries.firstOrNull { it.filePath.endsWith("test.kt") }
-                        (round1Entry != null && round1Entry.edits.isNotEmpty()) shouldBe true
+                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                Files.exists(patchFile) shouldBe true
+                val round1Entries = WPatchReader.read(Files.readString(patchFile))
+                val round1Entry = round1Entries.firstOrNull { it.filePath.endsWith("test.kt") }
+                (round1Entry != null && round1Entry.edits.isNotEmpty()) shouldBe true
 
-                        val suppressed = TestSource(
-                            "sample/test.kt",
-                            """
+                val suppressed = TestSource(
+                    "sample/test.kt",
+                    """
                     @file:Suppress("no-unused-imports")
 
                     package sample
@@ -62,17 +60,16 @@ open class SuppressionEditsDroppedSpec :
 
                     val x = 1
                     """
-                                .trimIndent(),
-                        )
+                        .trimIndent(),
+                )
 
-                        val round2 = harness.compile(listOf(suppressed), workDir)
-                        round2.wrasseDiagnostics.shouldBeEmpty()
+                val round2 = harness.compile(listOf(suppressed), workDir)
+                round2.wrasseDiagnostics.shouldBeEmpty()
 
-                        val round2Entries = WPatchReader.read(Files.readString(patchFile))
-                        val round2Entry = round2Entries.firstOrNull { it.filePath.endsWith("test.kt") }
-                        (round2Entry == null || round2Entry.edits.isEmpty()) shouldBe true
-                    }
-                }
+                val round2Entries = WPatchReader.read(Files.readString(patchFile))
+                val round2Entry = round2Entries.firstOrNull { it.filePath.endsWith("test.kt") }
+                (round2Entry == null || round2Entry.edits.isEmpty()) shouldBe true
             }
-        },
-    )
+        }
+    }
+})

@@ -12,9 +12,14 @@ import com.varlanv.wrasse.model.WNodeType
 object StringConcatenationDecision {
     const val MESSAGE = "String concatenation via '+'; prefer a string template"
 
-    fun isStringConcatenationStart(leftType: WNodeType, leftText: CharSequence, rightType: WNodeType): Boolean = when {
+    fun isStringConcatenationStart(
+        leftType: WNodeType,
+        leftText: CharSequence,
+        rightType: WNodeType,
+    ): Boolean = when {
         leftType == WNodeType.STRING_TEMPLATE -> true
-        leftType == WNodeType.DOT_QUALIFIED_EXPRESSION && rightType == WNodeType.STRING_TEMPLATE -> leftText.endsWith("toString()")
+        leftType == WNodeType.DOT_QUALIFIED_EXPRESSION &&
+            rightType == WNodeType.STRING_TEMPLATE -> leftText.endsWith("toString()")
         else -> false
     }
 }

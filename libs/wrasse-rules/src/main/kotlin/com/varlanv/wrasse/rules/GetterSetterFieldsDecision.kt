@@ -13,6 +13,15 @@ package com.varlanv.wrasse.rules
 object GetterSetterFieldsDecision {
     const val MESSAGE = "Property accessor references its own property's name; use 'field' instead to avoid infinite recursion"
 
-    fun decide(foundSelfReference: Boolean, isCallExpressionCallee: Boolean, shadowedByLocalVar: Boolean, isExtensionProperty: Boolean): String? =
-    if (foundSelfReference && !isCallExpressionCallee && !shadowedByLocalVar && !isExtensionProperty) MESSAGE else null
+    fun decide(
+        foundSelfReference: Boolean,
+        isCallExpressionCallee: Boolean,
+        shadowedByLocalVar: Boolean,
+        isExtensionProperty: Boolean,
+    ): String? =
+        if (foundSelfReference && !isCallExpressionCallee && !shadowedByLocalVar && !isExtensionProperty) {
+            MESSAGE
+        } else {
+            null
+        }
 }

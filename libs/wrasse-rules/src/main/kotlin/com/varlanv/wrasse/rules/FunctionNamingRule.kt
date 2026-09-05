@@ -29,11 +29,18 @@ class FunctionNamingRule : WUninitializedRule {
 
             private var isTestLibraryImported = false
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.IMPORT_DIRECTIVE -> {
                         if (!isTestLibraryImported &&
-                            TestImportHeuristic.matches(ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset), TEST_LIBRARIES)
+                            TestImportHeuristic.matches(
+                                ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
+                                TEST_LIBRARIES,
+                            )
                         ) {
                             isTestLibraryImported = true
                         }
@@ -44,14 +51,23 @@ class FunctionNamingRule : WUninitializedRule {
                 }
             }
 
-            private fun visitFun(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun visitFun(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
                 val identifierText = children.textSpan(idIdx, ctx.sourceText)
                 val name = IdentifierCasing.unquote(identifierText)
                 val isOverride = hasOverrideModifier(ctx, children)
                 val isFactory = isFactoryFunction(ctx, children, name)
-                val message = FunctionNamingDecision.decide(identifierText, isOverride, isFactory, isTestLibraryImported) ?: return
+                val message = FunctionNamingDecision.decide(
+                    identifierText,
+                    isOverride,
+                    isFactory,
+                    isTestLibraryImported,
+                ) ?: return
                 reporter.report(ruleId, message, children.startOffset(idIdx), children.endOffset(idIdx), this)
             }
 
@@ -60,12 +76,19 @@ class FunctionNamingRule : WUninitializedRule {
                 return idx >= 0 && Regex("\\boverride\\b").containsMatchIn(children.textSpan(idx, ctx.sourceText))
             }
 
-            private fun isFactoryFunction(ctx: WContext, children: ChildBuffer, name: String): Boolean {
+            private fun isFactoryFunction(
+                ctx: WContext,
+                children: ChildBuffer,
+                name: String,
+            ): Boolean {
                 val colonIdx = children.firstChildOfType(WNodeType.COLON)
                 if (colonIdx >= 0) {
                     val typeIdx = nextNonTrivia(children, colonIdx)
                     if (typeIdx >= 0 && children.type(typeIdx) == WNodeType.TYPE_REFERENCE) {
-                        val declaredReturnType = children.textSpan(typeIdx, ctx.sourceText).toString().substringBefore('<')
+                        val declaredReturnType = children
+                            .textSpan(typeIdx, ctx.sourceText)
+                            .toString()
+                            .substringBefore('<')
                         return declaredReturnType == name
                     }
                     return false

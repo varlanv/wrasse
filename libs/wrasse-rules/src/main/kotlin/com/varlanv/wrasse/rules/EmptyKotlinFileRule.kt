@@ -22,7 +22,11 @@ class EmptyKotlinFileRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.FILE)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 for (i in 0 until children.size) {
                     if (children.type(i) == WNodeType.PACKAGE_DIRECTIVE) continue
                     if (children.textSpan(i, ctx.sourceText).isNotBlank()) return

@@ -22,8 +22,7 @@ class EmptyDefaultConstructorRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes =
-            setOf(
+            override val targetTypes = setOf(
                 WNodeType.CLASS,
                 WNodeType.PRIMARY_CONSTRUCTOR,
                 WNodeType.MODIFIER_LIST,
@@ -50,13 +49,20 @@ class EmptyDefaultConstructorRule : WUninitializedRule {
                 val insideArgs = ctx.hasAncestor(WNodeType.VALUE_ARGUMENT_LIST)
                 if (!insideArgs && ctx.type == WNodeType.KW_THIS) {
                     delegation.sawThis = true
-                } else if (insideArgs && ctx.type != WNodeType.LPAR && ctx.type != WNodeType.RPAR && !ctx.type.isWhitespaceOrComment
+                } else if (insideArgs &&
+                    ctx.type != WNodeType.LPAR &&
+                    ctx.type != WNodeType.RPAR &&
+                    !ctx.type.isWhitespaceOrComment
                 ) {
                     delegation.hasArg = true
                 }
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.MODIFIER_LIST -> recordModifierList(ctx, children)
                     WNodeType.VALUE_PARAMETER_LIST -> recordValueParameterList(ctx, children)
@@ -71,7 +77,9 @@ class EmptyDefaultConstructorRule : WUninitializedRule {
                 when (ctx.ancestors.peekType()) {
                     WNodeType.CLASS -> {
                         val cls = classes.lastOrNull() ?: return
-                        if (children.hasChildOfType(WNodeType.KW_EXPECT) || children.hasChildOfType(WNodeType.KW_ACTUAL)) {
+                        if (children.hasChildOfType(
+                            WNodeType.KW_EXPECT,
+                        ) || children.hasChildOfType(WNodeType.KW_ACTUAL)) {
                             cls.isExpectOrActual = true
                         }
                     }
@@ -135,21 +143,25 @@ class EmptyDefaultConstructorRule : WUninitializedRule {
                 val ctor = cls.constructor ?: return
                 if (ctor.vpStart < 0) return
                 val verdict =
-                EmptyDefaultConstructorDecision
-                        .decide(
-                            hasValueParameter = ctor.hasValueParameter,
-                            hasAnnotation = ctor.hasAnnotation,
-                            visibility = ctor.visibility,
-                            isExpectOrActual = cls.isExpectOrActual,
-                            calledWithEmptyThis = cls.calledWithEmptyThis,
-                            hasKeyword = ctor.hasKeyword,
-                            hasCommentInParens = ctor.hasCommentInParens,
-                            vpStart = ctor.vpStart,
-                            vpEnd = ctor.vpEnd,
-                        )
-                    ?: return
-                reporter
-                    .report(ruleId, EmptyDefaultConstructorDecision.MESSAGE, ctor.reportStart, ctor.reportEnd, this, edits = verdict.edits)
+                    EmptyDefaultConstructorDecision.decide(
+                        hasValueParameter = ctor.hasValueParameter,
+                        hasAnnotation = ctor.hasAnnotation,
+                        visibility = ctor.visibility,
+                        isExpectOrActual = cls.isExpectOrActual,
+                        calledWithEmptyThis = cls.calledWithEmptyThis,
+                        hasKeyword = ctor.hasKeyword,
+                        hasCommentInParens = ctor.hasCommentInParens,
+                        vpStart = ctor.vpStart,
+                        vpEnd = ctor.vpEnd,
+                    ) ?: return
+                reporter.report(
+                    ruleId,
+                    EmptyDefaultConstructorDecision.MESSAGE,
+                    ctor.reportStart,
+                    ctor.reportEnd,
+                    this,
+                    edits = verdict.edits,
+                )
             }
         }
     }

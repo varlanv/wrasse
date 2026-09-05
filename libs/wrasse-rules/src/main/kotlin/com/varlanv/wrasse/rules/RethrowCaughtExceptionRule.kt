@@ -29,7 +29,12 @@ class RethrowCaughtExceptionRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.TRY, WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST, WNodeType.BLOCK)
+            override val targetTypes = setOf(
+                WNodeType.TRY,
+                WNodeType.CATCH,
+                WNodeType.VALUE_PARAMETER_LIST,
+                WNodeType.BLOCK,
+            )
 
             private val pendingCatchNames = mutableListOf<String?>()
             private val pendingTryOutcomes = mutableListOf<MutableList<CatchOutcome>>()
@@ -48,7 +53,9 @@ class RethrowCaughtExceptionRule : WUninitializedRule {
 
                     WNodeType.VALUE_PARAMETER_LIST -> {
                         if (ctx.ancestors.peekType() == WNodeType.CATCH && pendingCatchNames.isNotEmpty()) {
-                            val facts = CatchParameterText.parse(ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset))
+                            val facts = CatchParameterText.parse(
+                                ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
+                            )
                             pendingCatchNames[pendingCatchNames.size - 1] = facts?.name
                         }
                         return false
@@ -59,7 +66,11 @@ class RethrowCaughtExceptionRule : WUninitializedRule {
                 }
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.CATCH -> pendingCatchNames.removeAt(pendingCatchNames.size - 1)
                     WNodeType.BLOCK -> recordOutcome(ctx, children)
@@ -79,21 +90,20 @@ class RethrowCaughtExceptionRule : WUninitializedRule {
                     break
                 }
                 val isTrivial =
-                firstIdx >=
-                    0 &&
-                    children.type(firstIdx) ==
-                    WNodeType.THROW &&
-                    name !=
-                    null &&
-                    isBareRethrow(children.textSpan(firstIdx, ctx.sourceText), name)
-                outcomes
-                    .add(
-                        CatchOutcome(
-                            isTrivial,
-                            if (firstIdx >= 0) children.startOffset(firstIdx) else -1,
-                            if (firstIdx >= 0) children.endOffset(firstIdx) else -1,
-                        ),
-                    )
+                    firstIdx >=
+                        0 &&
+                        children.type(firstIdx) ==
+                        WNodeType.THROW &&
+                        name !=
+                        null &&
+                        isBareRethrow(children.textSpan(firstIdx, ctx.sourceText), name)
+                outcomes.add(
+                    CatchOutcome(
+                        isTrivial,
+                        if (firstIdx >= 0) children.startOffset(firstIdx) else -1,
+                        if (firstIdx >= 0) children.endOffset(firstIdx) else -1,
+                    ),
+                )
             }
 
             private fun isBareRethrow(throwText: CharSequence, name: String): Boolean {
@@ -113,5 +123,9 @@ class RethrowCaughtExceptionRule : WUninitializedRule {
         }
     }
 
-    private class CatchOutcome(val isTrivial: Boolean, val start: Int, val end: Int)
+    private class CatchOutcome(
+        val isTrivial: Boolean,
+        val start: Int,
+        val end: Int,
+    )
 }

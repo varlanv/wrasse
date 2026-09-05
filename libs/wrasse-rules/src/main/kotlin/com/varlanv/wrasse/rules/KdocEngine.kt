@@ -29,7 +29,12 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * parameter list, reported against the enclosing class's name at the `constructor` keyword's span.
  */
 class KdocEngine : WUninitializedRuleGroup {
-    override val ids: Set<String> = setOf(UNDOCUMENTED_CLASS_ID, UNDOCUMENTED_FUNCTION_ID, UNDOCUMENTED_PROPERTY_ID, KDOC_TAG_MISMATCH_ID)
+    override val ids: Set<String> = setOf(
+        UNDOCUMENTED_CLASS_ID,
+        UNDOCUMENTED_FUNCTION_ID,
+        UNDOCUMENTED_PROPERTY_ID,
+        KDOC_TAG_MISMATCH_ID,
+    )
 
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val classConfig = configs[UNDOCUMENTED_CLASS_ID]
@@ -37,18 +42,30 @@ class KdocEngine : WUninitializedRuleGroup {
         val propertyConfig = configs[UNDOCUMENTED_PROPERTY_ID]
         val mismatchConfig = configs[KDOC_TAG_MISMATCH_ID]
 
-        val classRule = if (classConfig != null && classConfig.explicitApiActive) ReportFacade(UNDOCUMENTED_CLASS_ID, classConfig) else null
+        val classRule =
+            if (classConfig != null && classConfig.explicitApiActive) {
+                ReportFacade(UNDOCUMENTED_CLASS_ID, classConfig)
+            } else {
+                null
+            }
         val functionRule =
-        if (functionConfig != null && functionConfig.explicitApiActive) ReportFacade(UNDOCUMENTED_FUNCTION_ID, functionConfig) else null
+            if (functionConfig != null && functionConfig.explicitApiActive) {
+                ReportFacade(UNDOCUMENTED_FUNCTION_ID, functionConfig)
+            } else {
+                null
+            }
         val propertyRule =
-        if (propertyConfig != null && propertyConfig.explicitApiActive) ReportFacade(UNDOCUMENTED_PROPERTY_ID, propertyConfig) else null
+            if (propertyConfig != null && propertyConfig.explicitApiActive) {
+                ReportFacade(UNDOCUMENTED_PROPERTY_ID, propertyConfig)
+            } else {
+                null
+            }
         val mismatchRule = mismatchConfig?.let { ReportFacade(KDOC_TAG_MISMATCH_ID, it) }
 
         return object : WBufferedNodeRule {
             override val id = ENGINE_ID
             override val config = (classConfig ?: functionConfig ?: propertyConfig ?: mismatchConfig)!!
-            override val targetTypes =
-            setOf(
+            override val targetTypes = setOf(
                 WNodeType.CLASS,
                 WNodeType.OBJECT_DECLARATION,
                 WNodeType.FUN,
@@ -84,11 +101,20 @@ class KdocEngine : WUninitializedRuleGroup {
                 }
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.VALUE_PARAMETER -> recordParameter(ctx, children)
-                    WNodeType.VALUE_PARAMETER_LIST -> completedParamLists
-                        .add(CompletedParams(ctx.startOffset, ctx.endOffset, pendingParamLists.removeAt(pendingParamLists.size - 1)))
+                    WNodeType.VALUE_PARAMETER_LIST -> completedParamLists.add(
+                        CompletedParams(
+                            ctx.startOffset,
+                            ctx.endOffset,
+                            pendingParamLists.removeAt(pendingParamLists.size - 1),
+                        ),
+                    )
                     WNodeType.PRIMARY_CONSTRUCTOR -> recordConstructor(ctx, children)
                     WNodeType.SECONDARY_CONSTRUCTOR -> handleSecondaryConstructor(ctx, children, reporter)
                     WNodeType.CLASS -> {
@@ -108,20 +134,29 @@ class KdocEngine : WUninitializedRuleGroup {
                 val name = IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
                 val isValOrVar = children.hasChildOfType(WNodeType.KW_VAL) || children.hasChildOfType(WNodeType.KW_VAR)
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
-                val isPrivate = modifierIdx >= 0 && WordBoundaryScan.containsWord(children.textSpan(modifierIdx, ctx.sourceText), "private")
+                val isPrivate = modifierIdx >= 0 &&
+                    WordBoundaryScan.containsWord(children.textSpan(modifierIdx, ctx.sourceText), "private")
                 val isProperty = isValOrVar && !isPrivate
                 pendingParamLists
                     .lastOrNull()
-                    ?.add(KdocDeclaration(name, if (isProperty) KdocDeclarationKind.PROPERTY else KdocDeclarationKind.PARAM))
+                    ?.add(
+                        KdocDeclaration(
+                            name,
+                            if (isProperty) KdocDeclarationKind.PROPERTY else KdocDeclarationKind.PARAM,
+                        ),
+                    )
             }
 
-            private fun handleSecondaryConstructor(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun handleSecondaryConstructor(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (mismatchRule == null) return
                 val keywordIdx = children.firstChildOfType(WNodeType.KW_CONSTRUCTOR)
                 if (keywordIdx < 0) return
                 val className = pendingClassNames.lastOrNull() ?: return
-                val facts =
-                DeclarationFacts(
+                val facts = DeclarationFacts(
                     name = className,
                     nameStart = children.startOffset(keywordIdx),
                     nameEnd = children.endOffset(keywordIdx),
@@ -139,54 +174,104 @@ class KdocEngine : WUninitializedRuleGroup {
                 completedConstructors.add(CompletedParams(ctx.startOffset, ctx.endOffset, params))
             }
 
-            private fun takeCompletedForChild(children: ChildBuffer, childType: WNodeType, list: MutableList<CompletedParams>): List<KdocDeclaration> {
+            private fun takeCompletedForChild(
+                children: ChildBuffer,
+                childType: WNodeType,
+                list: MutableList<CompletedParams>,
+            ): List<KdocDeclaration> {
                 val idx = children.firstChildOfType(childType)
                 if (idx < 0) return emptyList()
                 return takeCompleted(list, children.startOffset(idx), children.endOffset(idx))
             }
 
-            private fun takeCompleted(list: MutableList<CompletedParams>, start: Int, end: Int): List<KdocDeclaration> {
+            private fun takeCompleted(
+                list: MutableList<CompletedParams>,
+                start: Int,
+                end: Int,
+            ): List<KdocDeclaration> {
                 val idx = list.indexOfFirst { it.start == start && it.end == end }
                 if (idx < 0) return emptyList()
                 return list.removeAt(idx).params
             }
 
-            private fun handleClass(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun handleClass(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val facts = declarationFacts(ctx, children) ?: return
                 if (classRule != null && ctx.ancestors.peekType() == WNodeType.FILE) {
                     val message = UndocumentedPublicApiDecision.decideClass(facts.name, facts.hasKdoc, facts.isPublic)
-                    if (message != null) reporter.report(UNDOCUMENTED_CLASS_ID, message, facts.nameStart, facts.nameEnd, classRule)
+                    if (message != null) {
+                        reporter.report(UNDOCUMENTED_CLASS_ID, message, facts.nameStart, facts.nameEnd, classRule)
+                    }
                 }
                 if (mismatchRule != null && facts.hasKdoc) {
-                    val elementParams = takeCompletedForChild(children, WNodeType.PRIMARY_CONSTRUCTOR, completedConstructors)
+                    val elementParams = takeCompletedForChild(
+                        children,
+                        WNodeType.PRIMARY_CONSTRUCTOR,
+                        completedConstructors,
+                    )
                     reportMismatch(ctx, children, facts, elementParams, reporter)
                 }
             }
 
-            private fun handleObject(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun handleObject(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (classRule == null || ctx.ancestors.peekType() != WNodeType.FILE) return
                 val facts = declarationFacts(ctx, children) ?: return
                 val message = UndocumentedPublicApiDecision.decideClass(facts.name, facts.hasKdoc, facts.isPublic)
-                if (message != null) reporter.report(UNDOCUMENTED_CLASS_ID, message, facts.nameStart, facts.nameEnd, classRule)
+                if (message != null) {
+                    reporter.report(UNDOCUMENTED_CLASS_ID, message, facts.nameStart, facts.nameEnd, classRule)
+                }
             }
 
-            private fun handleFun(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun handleFun(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val facts = declarationFacts(ctx, children) ?: return
                 if (functionRule != null && ctx.ancestors.peekType() == WNodeType.FILE) {
-                    val message = UndocumentedPublicApiDecision.decideFunction(facts.name, facts.hasKdoc, facts.isPublic, facts.isOverride)
-                    if (message != null) reporter.report(UNDOCUMENTED_FUNCTION_ID, message, facts.nameStart, facts.nameEnd, functionRule)
+                    val message = UndocumentedPublicApiDecision.decideFunction(
+                        facts.name,
+                        facts.hasKdoc,
+                        facts.isPublic,
+                        facts.isOverride,
+                    )
+                    if (message != null) {
+                        reporter.report(UNDOCUMENTED_FUNCTION_ID, message, facts.nameStart, facts.nameEnd, functionRule)
+                    }
                 }
                 if (mismatchRule != null && facts.hasKdoc) {
-                    val elementParams = takeCompletedForChild(children, WNodeType.VALUE_PARAMETER_LIST, completedParamLists)
+                    val elementParams = takeCompletedForChild(
+                        children,
+                        WNodeType.VALUE_PARAMETER_LIST,
+                        completedParamLists,
+                    )
                     reportMismatch(ctx, children, facts, elementParams, reporter)
                 }
             }
 
-            private fun handleProperty(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun handleProperty(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (propertyRule == null || ctx.ancestors.peekType() != WNodeType.FILE) return
                 val facts = declarationFacts(ctx, children) ?: return
-                val message = UndocumentedPublicApiDecision.decideProperty(facts.name, facts.hasKdoc, facts.isPublic, facts.isOverride)
-                if (message != null) reporter.report(UNDOCUMENTED_PROPERTY_ID, message, facts.nameStart, facts.nameEnd, propertyRule)
+                val message = UndocumentedPublicApiDecision.decideProperty(
+                    facts.name,
+                    facts.hasKdoc,
+                    facts.isPublic,
+                    facts.isOverride,
+                )
+                if (message != null) {
+                    reporter.report(UNDOCUMENTED_PROPERTY_ID, message, facts.nameStart, facts.nameEnd, propertyRule)
+                }
             }
 
             private fun reportMismatch(
@@ -200,14 +285,13 @@ class KdocEngine : WUninitializedRuleGroup {
                 if (kdocIdx < 0) return
                 val docTags = KdocTagParser.parseTags(children.textSpan(kdocIdx, ctx.sourceText))
                 val message = KdocTagMismatchDecision.decide(docTags, elementParams) ?: return
-                reporter
-                    .report(
-                        KDOC_TAG_MISMATCH_ID,
-                        "Documentation of ${facts.name} is outdated: $message",
-                        facts.nameStart,
-                        facts.nameEnd,
-                        mismatchRule!!,
-                    )
+                reporter.report(
+                    KDOC_TAG_MISMATCH_ID,
+                    "Documentation of ${facts.name} is outdated: $message",
+                    facts.nameStart,
+                    facts.nameEnd,
+                    mismatchRule!!,
+                )
             }
 
             private fun declarationFacts(ctx: WContext, children: ChildBuffer): DeclarationFacts? {
@@ -216,8 +300,10 @@ class KdocEngine : WUninitializedRuleGroup {
                 val name = IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx < 0) "" else children.textSpan(modifierIdx, ctx.sourceText)
-                val isPublic = !WordBoundaryScan.containsWord(modifierText, "private") &&
-                    !WordBoundaryScan.containsWord(modifierText, "internal")
+                val isPublic = !WordBoundaryScan.containsWord(
+                    modifierText,
+                    "private",
+                ) && !WordBoundaryScan.containsWord(modifierText, "internal")
                 val isOverride = WordBoundaryScan.containsWord(modifierText, "override")
                 return DeclarationFacts(
                     name = name,
@@ -240,7 +326,11 @@ class KdocEngine : WUninitializedRuleGroup {
         val isOverride: Boolean,
     )
 
-    private class CompletedParams(val start: Int, val end: Int, val params: List<KdocDeclaration>)
+    private class CompletedParams(
+        val start: Int,
+        val end: Int,
+        val params: List<KdocDeclaration>,
+    )
 
     private class ReportFacade(override val id: String, override val config: WrasseRuleConfig) : WFileRule {
         override fun visit(ctx: WContext, reporter: WReporter) {}

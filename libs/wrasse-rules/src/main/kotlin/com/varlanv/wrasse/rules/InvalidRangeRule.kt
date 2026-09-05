@@ -27,12 +27,18 @@ class InvalidRangeRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.BINARY_EXPRESSION)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val significant = (0 until children.size).filter { !children.type(it).isWhitespaceOrComment }
                 if (significant.size != 3) return
                 val (leftIdx, opIdx, rightIdx) = significant
                 if (children.type(opIdx) != WNodeType.OPERATION_REFERENCE) return
-                if (children.type(leftIdx) != WNodeType.INTEGER_CONSTANT || children.type(rightIdx) != WNodeType.INTEGER_CONSTANT) {
+                if (children.type(
+                    leftIdx,
+                ) != WNodeType.INTEGER_CONSTANT || children.type(rightIdx) != WNodeType.INTEGER_CONSTANT) {
                     return
                 }
                 val lower = children.textSpan(leftIdx, ctx.sourceText).toString().toIntOrNull() ?: return

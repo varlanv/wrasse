@@ -32,7 +32,11 @@ class BooleanExpressionsRule : WUninitializedRule {
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean = ctx.hasAncestor(WNodeType.CONDITION)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.PREFIX_EXPRESSION -> finalizePrefix(ctx, children)
                     WNodeType.BINARY_EXPRESSION -> finalizeBinary(ctx, children, reporter)
@@ -46,10 +50,17 @@ class BooleanExpressionsRule : WUninitializedRule {
                 if (significant.size != 2) return
                 val (opIdx, operandIdx) = significant[0] to significant[1]
                 if (!children.textSpan(opIdx, ctx.sourceText).contentEquals("!")) return
-                negationFacts[key(ctx.startOffset, ctx.endOffset)] = children.textSpan(operandIdx, ctx.sourceText).toString()
+                negationFacts[key(
+                    ctx.startOffset,
+                    ctx.endOffset,
+                )] = children.textSpan(operandIdx, ctx.sourceText).toString()
             }
 
-            private fun finalizeBinary(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeBinary(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val significant = ArrayList<Int>(children.size)
                 for (i in 0 until children.size) if (!children.type(i).isWhitespaceOrComment) significant.add(i)
                 if (significant.size != 3) return
@@ -62,14 +73,21 @@ class BooleanExpressionsRule : WUninitializedRule {
 
                 val leftText = children.textSpan(leftIdx, ctx.sourceText)
                 val rightText = children.textSpan(rightIdx, ctx.sourceText)
-                val isLiteralAbsorption =
-                BooleanExpressionsDecision.isLiteralAbsorption(children.type(leftIdx), leftText, children.type(rightIdx), rightText)
+                val isLiteralAbsorption = BooleanExpressionsDecision.isLiteralAbsorption(
+                    children.type(leftIdx),
+                    leftText,
+                    children.type(rightIdx),
+                    rightText,
+                )
 
                 val leftNegatesRight = negationOf(children, leftIdx)?.contentEquals(rightText) == true
                 val rightNegatesLeft = negationOf(children, rightIdx)?.contentEquals(leftText) == true
 
-                val message = BooleanExpressionsDecision.decide(isAndOr, isLiteralAbsorption, leftNegatesRight || rightNegatesLeft)
-                    ?: return
+                val message = BooleanExpressionsDecision.decide(
+                    isAndOr,
+                    isLiteralAbsorption,
+                    leftNegatesRight || rightNegatesLeft,
+                ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
 

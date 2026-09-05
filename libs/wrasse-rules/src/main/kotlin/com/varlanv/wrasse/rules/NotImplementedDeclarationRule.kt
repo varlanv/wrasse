@@ -34,7 +34,12 @@ class NotImplementedDeclarationRule : WUninitializedRule {
             }
 
             private fun checkThrow(ctx: WContext, reporter: WReporter) {
-                val body = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset).toString().trim().removePrefix("throw").trim()
+                val body = ctx.sourceText
+                    .subSequence(ctx.startOffset, ctx.endOffset)
+                    .toString()
+                    .trim()
+                    .removePrefix("throw")
+                    .trim()
                 val facts = CallShapeText.parse(body) ?: return
                 val message = NotImplementedDeclarationDecision.decideThrow(facts.simpleName) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
@@ -43,7 +48,10 @@ class NotImplementedDeclarationRule : WUninitializedRule {
             private fun checkCall(ctx: WContext, reporter: WReporter) {
                 val text = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset).toString()
                 val facts = CallShapeText.parse(text) ?: return
-                val message = NotImplementedDeclarationDecision.decideTodoCall(facts.simpleName, facts.argumentCount) ?: return
+                val message = NotImplementedDeclarationDecision.decideTodoCall(
+                    facts.simpleName,
+                    facts.argumentCount,
+                ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
         }

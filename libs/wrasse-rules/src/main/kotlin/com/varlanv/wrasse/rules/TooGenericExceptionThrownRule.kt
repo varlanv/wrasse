@@ -26,7 +26,12 @@ class TooGenericExceptionThrownRule : WUninitializedRule {
             override val targetTypes = setOf(WNodeType.THROW)
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
-                val body = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset).toString().trim().removePrefix("throw").trim()
+                val body = ctx.sourceText
+                    .subSequence(ctx.startOffset, ctx.endOffset)
+                    .toString()
+                    .trim()
+                    .removePrefix("throw")
+                    .trim()
                 val facts = CallShapeText.parse(body) ?: return false
                 val message = TooGenericExceptionThrownDecision.decide(facts.simpleName) ?: return false
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)

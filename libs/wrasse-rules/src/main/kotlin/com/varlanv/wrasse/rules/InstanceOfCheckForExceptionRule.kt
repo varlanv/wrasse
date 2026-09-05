@@ -41,7 +41,9 @@ class InstanceOfCheckForExceptionRule : WUninitializedRule {
 
                     WNodeType.VALUE_PARAMETER_LIST -> {
                         if (ctx.ancestors.peekType() == WNodeType.CATCH && pendingCatchNames.isNotEmpty()) {
-                            val facts = CatchParameterText.parse(ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset))
+                            val facts = CatchParameterText.parse(
+                                ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
+                            )
                             pendingCatchNames[pendingCatchNames.size - 1] = facts?.name
                         }
                         return false
@@ -64,17 +66,17 @@ class InstanceOfCheckForExceptionRule : WUninitializedRule {
                 val name = pendingCatchNames.lastOrNull() ?: return
                 val text = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset).toString()
                 val checkedType = when (ctx.type) {
-                        WNodeType.IS_EXPRESSION ->
-                            when {
-                                text.startsWith("$name is ") -> text.removePrefix("$name is ")
-                                text.startsWith("$name !is ") -> text.removePrefix("$name !is ")
-                                else -> null
-                            }
+                    WNodeType.IS_EXPRESSION ->
+                        when {
+                            text.startsWith("$name is ") -> text.removePrefix("$name is ")
+                            text.startsWith("$name !is ") -> text.removePrefix("$name !is ")
+                            else -> null
+                        }
 
-                        WNodeType.AS_EXPRESSION -> if (text.startsWith("$name as ")) text.removePrefix("$name as ") else null
-                        else -> null
-                    }
-                    ?: return
+                    WNodeType.AS_EXPRESSION ->
+                        if (text.startsWith("$name as ")) text.removePrefix("$name as ") else null
+                    else -> null
+                } ?: return
 
                 val message = InstanceOfCheckForExceptionDecision.decide(checkedType.trim()) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)

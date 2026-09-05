@@ -9,7 +9,14 @@ package com.varlanv.wrasse.rules
 object ThrowingExceptionInMainDecision {
     const val MESSAGE = "The main function should not throw an exception"
 
-    fun decide(name: String, isTopLevel: Boolean, isOverride: Boolean, hasNonPublicVisibility: Boolean, paramCount: Int, hasThrow: Boolean): String? {
+    fun decide(
+        name: String,
+        isTopLevel: Boolean,
+        isOverride: Boolean,
+        hasNonPublicVisibility: Boolean,
+        paramCount: Int,
+        hasThrow: Boolean,
+    ): String? {
         if (name != "main" || !isTopLevel || isOverride || hasNonPublicVisibility) return null
         if (paramCount > 1) return null
         if (!hasThrow) return null

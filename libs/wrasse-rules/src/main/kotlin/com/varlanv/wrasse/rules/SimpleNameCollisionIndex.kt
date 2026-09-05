@@ -17,7 +17,9 @@ object SimpleNameCollisionIndex {
         for (callable in callables) {
             val classFqName = callable.classFqName
             if (classFqName == null) {
-                fqnsBySimpleName.getOrPut(callable.name) { mutableSetOf() }.add("${callable.packageFqName}.${callable.name}")
+                fqnsBySimpleName
+                    .getOrPut(callable.name) { mutableSetOf() }
+                    .add("${callable.packageFqName}.${callable.name}")
             } else {
                 fqnsBySimpleName.getOrPut(classFqName.substringAfterLast('.')) { mutableSetOf() }.add(classFqName)
             }
@@ -25,6 +27,9 @@ object SimpleNameCollisionIndex {
         return fqnsBySimpleName
     }
 
-    fun collidesWithOtherFqn(fqn: String, simpleName: String, index: Map<String, Set<String>>): Boolean =
-    index[simpleName].orEmpty().any { it != fqn }
+    fun collidesWithOtherFqn(
+        fqn: String,
+        simpleName: String,
+        index: Map<String, Set<String>>,
+    ): Boolean = index[simpleName].orEmpty().any { it != fqn }
 }

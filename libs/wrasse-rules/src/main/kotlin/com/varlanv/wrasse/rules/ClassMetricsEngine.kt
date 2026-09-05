@@ -68,12 +68,18 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
                 frames.lastOrNull()?.recordCodeLine(currentLine)
 
                 when (ctx.type) {
-                    WNodeType.KW_INTERFACE -> frames.lastOrNull()?.let { if (it.kindLabel == "Class") it.kindLabel = "Interface" }
-                    WNodeType.KW_ENUM -> frames.lastOrNull()?.let { if (it.kindLabel == "Class") it.kindLabel = "Enum class" }
+                    WNodeType.KW_INTERFACE -> frames
+                        .lastOrNull()
+                        ?.let { if (it.kindLabel == "Class") it.kindLabel = "Interface" }
+                    WNodeType.KW_ENUM -> frames
+                        .lastOrNull()
+                        ?.let { if (it.kindLabel == "Class") it.kindLabel = "Enum class" }
                     WNodeType.IDENTIFIER -> {
                         val frame = frames.lastOrNull()
                         val parent = ctx.ancestors.peekType()
-                        if (frame != null && frame.nameStart < 0 && (parent == WNodeType.CLASS || parent == WNodeType.OBJECT_DECLARATION)) {
+                        if (frame != null &&
+                            frame.nameStart < 0 &&
+                            (parent == WNodeType.CLASS || parent == WNodeType.OBJECT_DECLARATION)) {
                             frame.nameStart = ctx.startOffset
                             frame.nameEnd = ctx.endOffset
                             frame.declarationName = IdentifierCasing.unquote(text ?: "")

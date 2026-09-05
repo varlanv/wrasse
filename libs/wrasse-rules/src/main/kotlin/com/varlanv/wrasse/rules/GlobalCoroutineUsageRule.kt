@@ -26,11 +26,17 @@ class GlobalCoroutineUsageRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
-                val receiverIdx = (0 until children.size).firstOrNull { !children.type(it).isWhitespaceOrComment } ?: return
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
+                val receiverIdx = (0 until
+                    children.size).firstOrNull { !children.type(it).isWhitespaceOrComment } ?: return
                 val dotIdx = children.firstChildOfType(WNodeType.DOT)
                 if (dotIdx < 0) return
-                val selectorIdx = (dotIdx + 1 until children.size).firstOrNull { !children.type(it).isWhitespaceOrComment } ?: return
+                val selectorIdx = (dotIdx + 1 until
+                    children.size).firstOrNull { !children.type(it).isWhitespaceOrComment } ?: return
 
                 val receiverText = children.textSpan(receiverIdx, ctx.sourceText)
                 val selectorText = children.textSpan(selectorIdx, ctx.sourceText)

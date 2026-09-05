@@ -25,7 +25,15 @@ object MayBeConstantDecision {
         initializerIsConstant: Boolean,
         propertyName: String,
     ): String? {
-        if (!eligibleScope || isVar || isAlreadyConst || isActual || isOverride || hasGetter || hasNonJvmFieldAnnotation) return null
+        if (!eligibleScope ||
+            isVar ||
+            isAlreadyConst ||
+            isActual ||
+            isOverride ||
+            hasGetter ||
+            hasNonJvmFieldAnnotation) {
+            return null
+        }
         if (!initializerIsConstant) return null
         return "Property '$propertyName' can be a 'const val'"
     }

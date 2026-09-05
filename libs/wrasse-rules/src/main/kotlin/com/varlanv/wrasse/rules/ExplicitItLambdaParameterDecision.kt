@@ -3,7 +3,12 @@ package com.varlanv.wrasse.rules
 import com.varlanv.wrasse.lang.WEdit
 
 /** [reportStart]/[reportEnd] locate the diagnostic; [edits] is empty for a report-only bail. */
-class ExplicitItLambdaParameterVerdict(val reportStart: Int, val reportEnd: Int, val message: String, val edits: List<WEdit>)
+class ExplicitItLambdaParameterVerdict(
+    val reportStart: Int,
+    val reportEnd: Int,
+    val message: String,
+    val edits: List<WEdit>,
+)
 
 /**
  * Verdict logic for a lambda's own single value parameter explicitly named `it`, compiler-free so
@@ -30,7 +35,13 @@ object ExplicitItLambdaParameterDecision {
     const val UNTYPED_MESSAGE = "Explicit 'it' lambda parameter is redundant"
     const val TYPED_MESSAGE = "Explicit 'it' lambda parameter with a declared type may not be safely inferred if removed"
 
-    fun decide(vpListStart: Int, lbraceEnd: Int, arrowEnd: Int, hasType: Boolean, hasComment: Boolean): ExplicitItLambdaParameterVerdict {
+    fun decide(
+        vpListStart: Int,
+        lbraceEnd: Int,
+        arrowEnd: Int,
+        hasType: Boolean,
+        hasComment: Boolean,
+    ): ExplicitItLambdaParameterVerdict {
         if (hasType) {
             return ExplicitItLambdaParameterVerdict(vpListStart, arrowEnd, TYPED_MESSAGE, emptyList())
         }

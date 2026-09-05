@@ -17,7 +17,11 @@ import com.varlanv.wrasse.lang.WEdit
  * effect this function deliberately bails on rather than guessing.
  */
 object ImportRemovalSpan {
-    fun compute(sourceText: CharSequence, startOffset: Int, endOffset: Int): WEdit? {
+    fun compute(
+        sourceText: CharSequence,
+        startOffset: Int,
+        endOffset: Int,
+    ): WEdit? {
         if (!ImportLineSpan.isAloneOnLine(sourceText, startOffset, endOffset)) return null
         val lineStart = ImportLineSpan.lineStartBefore(sourceText, startOffset)
         val newlineAtOrAfterEnd = ImportLineSpan.indexOfNewlineFrom(sourceText, endOffset)

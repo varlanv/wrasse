@@ -32,7 +32,11 @@ class BackingPropertyNamingRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.PROPERTY -> recordMember(ctx, children, isProperty = true)
                     WNodeType.FUN -> recordMember(ctx, children, isProperty = false)
@@ -41,7 +45,11 @@ class BackingPropertyNamingRule : WUninitializedRule {
                 }
             }
 
-            private fun recordMember(ctx: WContext, children: ChildBuffer, isProperty: Boolean) {
+            private fun recordMember(
+                ctx: WContext,
+                children: ChildBuffer,
+                isProperty: Boolean,
+            ) {
                 if (classBodyStack.isEmpty() || ctx.ancestors.peekType() != WNodeType.CLASS_BODY) return
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
@@ -57,7 +65,8 @@ class BackingPropertyNamingRule : WUninitializedRule {
                         false
                     } else {
                         val paramListIdx = children.firstChildOfType(WNodeType.VALUE_PARAMETER_LIST)
-                        paramListIdx >= 0 && children.textSpan(paramListIdx, ctx.sourceText).toString().replace(Regex("\\s"), "") == "()"
+                        paramListIdx >= 0 &&
+                            children.textSpan(paramListIdx, ctx.sourceText).toString().replace(Regex("\\s"), "") == "()"
                     }
 
                 classBodyStack
@@ -83,7 +92,8 @@ class BackingPropertyNamingRule : WUninitializedRule {
                     val correlated = members.firstOrNull { candidate ->
                         candidate !==
                             member &&
-                            ((candidate.isProperty && candidate.name == strippedName) ||
+                            ((candidate.isProperty &&
+                                candidate.name == strippedName) ||
                                 (!candidate.isProperty &&
                                     candidate.emptyParamList &&
                                     candidate.name ==
@@ -91,7 +101,11 @@ class BackingPropertyNamingRule : WUninitializedRule {
                                     strippedName.replaceFirstChar { it.uppercaseChar() }))
                     }
                     val message =
-                    BackingPropertyNamingDecision.decide(member.name, member.hasOverride, correlated?.isPublic) ?: continue
+                        BackingPropertyNamingDecision.decide(
+                            member.name,
+                            member.hasOverride,
+                            correlated?.isPublic,
+                        ) ?: continue
                     reporter.report(ruleId, message, member.identifierStart, member.identifierEnd, this)
                 }
             }

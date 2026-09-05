@@ -19,7 +19,11 @@ class PropertyNamingRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.PROPERTY)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
                 val identifierText = children.textSpan(idIdx, ctx.sourceText)
@@ -42,10 +46,18 @@ class PropertyNamingRule : WUninitializedRule {
 
                 val isTopLevelVal = hasValKeyword && immediateParent == WNodeType.FILE
                 val isObjectMemberVal =
-                hasValKeyword && !hasOverride && immediateParent == WNodeType.CLASS_BODY && grandparent == WNodeType.OBJECT_DECLARATION
+                    hasValKeyword &&
+                        !hasOverride &&
+                        immediateParent == WNodeType.CLASS_BODY &&
+                        grandparent == WNodeType.OBJECT_DECLARATION
 
-                val message = PropertyNamingDecision.decide(identifierText, hasConst, hasCustomGetter, isTopLevelVal, isObjectMemberVal)
-                    ?: return
+                val message = PropertyNamingDecision.decide(
+                    identifierText,
+                    hasConst,
+                    hasCustomGetter,
+                    isTopLevelVal,
+                    isObjectMemberVal,
+                ) ?: return
                 reporter.report(ruleId, message, children.startOffset(idIdx), children.endOffset(idIdx), this)
             }
         }

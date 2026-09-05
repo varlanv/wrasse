@@ -29,8 +29,7 @@ class RangeConventionalRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes =
-            setOf(
+            override val targetTypes = setOf(
                 WNodeType.DOT_QUALIFIED_EXPRESSION,
                 WNodeType.CALL_EXPRESSION,
                 WNodeType.VALUE_ARGUMENT_LIST,
@@ -43,7 +42,11 @@ class RangeConventionalRule : WUninitializedRule {
             private val minusOneExpressions = mutableMapOf<Int, MinusOneMatch>()
             private val parenUnwraps = mutableMapOf<Int, ParenUnwrap>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.VALUE_ARGUMENT_LIST -> recordValueArgumentList(ctx, children)
                     WNodeType.CALL_EXPRESSION -> recordCallExpression(ctx, children)
@@ -68,7 +71,8 @@ class RangeConventionalRule : WUninitializedRule {
                     }
                 }
                 if (argCount != 1) return
-                singleArgumentLists[ctx.startOffset] = ArgSpan(children.startOffset(argIdx), children.endOffset(argIdx), hasComment)
+                singleArgumentLists[ctx.startOffset] =
+                    ArgSpan(children.startOffset(argIdx), children.endOffset(argIdx), hasComment)
             }
 
             private fun recordCallExpression(ctx: WContext, children: ChildBuffer) {
@@ -86,7 +90,11 @@ class RangeConventionalRule : WUninitializedRule {
                 rangeToCalls[ctx.startOffset] = ArgSpan(match.start, match.end, hasComment)
             }
 
-            private fun finalizeRangeToCall(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeRangeToCall(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val selectorIdx = children.firstChildOfType(WNodeType.CALL_EXPRESSION)
                 if (selectorIdx < 0) return
                 val match = rangeToCalls[children.startOffset(selectorIdx)] ?: return
@@ -97,9 +105,21 @@ class RangeConventionalRule : WUninitializedRule {
                 }
                 val receiverText = children.textSpan(0, ctx.sourceText).toString()
                 val argumentText = ctx.sourceText.subSequence(match.start, match.end).toString()
-                val verdict =
-                RangeConventionalDecision.decideRangeToCall(ctx.startOffset, ctx.endOffset, receiverText, argumentText, hasComment)
-                reporter.report(ruleId, verdict.message, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
+                val verdict = RangeConventionalDecision.decideRangeToCall(
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    receiverText,
+                    argumentText,
+                    hasComment,
+                )
+                reporter.report(
+                    ruleId,
+                    verdict.message,
+                    verdict.reportStart,
+                    verdict.reportEnd,
+                    this,
+                    edits = verdict.edits,
+                )
             }
 
             private fun recordParenthesized(ctx: WContext, children: ChildBuffer) {
@@ -119,7 +139,11 @@ class RangeConventionalRule : WUninitializedRule {
                 parenUnwraps[ctx.startOffset] = ParenUnwrap(children.startOffset(innerIdx), hasComment)
             }
 
-            private fun handleBinaryExpression(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun handleBinaryExpression(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val sig = significantIndices(children)
                 if (sig.size != 3) return
                 val leftIdx = sig[0]
@@ -141,8 +165,16 @@ class RangeConventionalRule : WUninitializedRule {
                 }
             }
 
-            private fun recordMinusOne(ctx: WContext, children: ChildBuffer, leftIdx: Int, rightIdx: Int, hasComment: Boolean) {
-                if (children.type(rightIdx) != WNodeType.INTEGER_CONSTANT || !children.textSpan(rightIdx, ctx.sourceText).contentEquals("1")) {
+            private fun recordMinusOne(
+                ctx: WContext,
+                children: ChildBuffer,
+                leftIdx: Int,
+                rightIdx: Int,
+                hasComment: Boolean,
+            ) {
+                if (children.type(
+                    rightIdx,
+                ) != WNodeType.INTEGER_CONSTANT || !children.textSpan(rightIdx, ctx.sourceText).contentEquals("1")) {
                     return
                 }
                 minusOneExpressions[ctx.startOffset] =
@@ -172,21 +204,26 @@ class RangeConventionalRule : WUninitializedRule {
                 val hasTrailingSpace = opIdx < children.size - 1 && children.type(opIdx + 1) == WNodeType.WHITE_SPACE
                 val leftOperandText = ctx.sourceText.subSequence(minusOne.leftStart, minusOne.leftEnd).toString()
 
-                val verdict =
-                RangeConventionalDecision
-                    .decideUntil(
-                        rangeStart = ctx.startOffset,
-                        rangeEnd = ctx.endOffset,
-                        operatorStart = children.startOffset(opIdx),
-                        operatorEnd = children.endOffset(opIdx),
-                        hasLeadingSpace = hasLeadingSpace,
-                        hasTrailingSpace = hasTrailingSpace,
-                        minusOneStart = candidateStart,
-                        minusOneEnd = minusOne.wholeEnd,
-                        leftOperandText = leftOperandText,
-                        hasComment = hasComment || minusOne.hasComment || (parenUnwrap?.hasComment == true),
-                    )
-                reporter.report(ruleId, verdict.message, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
+                val verdict = RangeConventionalDecision.decideUntil(
+                    rangeStart = ctx.startOffset,
+                    rangeEnd = ctx.endOffset,
+                    operatorStart = children.startOffset(opIdx),
+                    operatorEnd = children.endOffset(opIdx),
+                    hasLeadingSpace = hasLeadingSpace,
+                    hasTrailingSpace = hasTrailingSpace,
+                    minusOneStart = candidateStart,
+                    minusOneEnd = minusOne.wholeEnd,
+                    leftOperandText = leftOperandText,
+                    hasComment = hasComment || minusOne.hasComment || (parenUnwrap?.hasComment == true),
+                )
+                reporter.report(
+                    ruleId,
+                    verdict.message,
+                    verdict.reportStart,
+                    verdict.reportEnd,
+                    this,
+                    edits = verdict.edits,
+                )
             }
 
             private fun significantIndices(children: ChildBuffer): List<Int> {
@@ -197,9 +234,18 @@ class RangeConventionalRule : WUninitializedRule {
         }
     }
 
-    private class ArgSpan(val start: Int, val end: Int, val hasComment: Boolean)
+    private class ArgSpan(
+        val start: Int,
+        val end: Int,
+        val hasComment: Boolean,
+    )
 
-    private class MinusOneMatch(val wholeEnd: Int, val leftStart: Int, val leftEnd: Int, val hasComment: Boolean)
+    private class MinusOneMatch(
+        val wholeEnd: Int,
+        val leftStart: Int,
+        val leftEnd: Int,
+        val hasComment: Boolean,
+    )
 
     private class ParenUnwrap(val innerStart: Int, val hasComment: Boolean)
 }

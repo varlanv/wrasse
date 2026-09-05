@@ -16,12 +16,24 @@ package com.varlanv.wrasse.rules
  * pairwise behavior.
  */
 object ExtensionFunctionsSameNameDecision {
-    data class Candidate(val receiverClassName: String, val functionName: String, val paramNames: List<String>, val returnType: String?)
+    data class Candidate(
+        val receiverClassName: String,
+        val functionName: String,
+        val paramNames: List<String>,
+        val returnType: String?,
+    )
 
-    fun message(functionName: String, receiverClassName: String, otherReceiverClassName: String): String =
-    "Extension function '$functionName' on '$receiverClassName' has the same signature as one on related class '$otherReceiverClassName'"
+    fun message(
+        functionName: String,
+        receiverClassName: String,
+        otherReceiverClassName: String,
+    ): String =
+        "Extension function '$functionName' on '$receiverClassName' has the same signature as one on related class '$otherReceiverClassName'"
 
-    fun indicesToReport(candidates: List<Candidate>, relatedClassPairs: List<Pair<String, String>>): List<Pair<Int, Int>> {
+    fun indicesToReport(
+        candidates: List<Candidate>,
+        relatedClassPairs: List<Pair<String, String>>,
+    ): List<Pair<Int, Int>> {
         val indicesBySignature = LinkedHashMap<List<Any?>, MutableList<Int>>()
         val result = mutableListOf<Pair<Int, Int>>()
         for ((index, candidate) in candidates.withIndex()) {
@@ -39,6 +51,11 @@ object ExtensionFunctionsSameNameDecision {
         return result
     }
 
-    private fun areRelated(relatedClassPairs: List<Pair<String, String>>, classA: String, classB: String): Boolean =
-    relatedClassPairs.any { (it.first == classA && it.second == classB) || (it.first == classB && it.second == classA) }
+    private fun areRelated(
+        relatedClassPairs: List<Pair<String, String>>,
+        classA: String,
+        classB: String,
+    ): Boolean = relatedClassPairs.any {
+        (it.first == classA && it.second == classB) || (it.first == classB && it.second == classA)
+    }
 }

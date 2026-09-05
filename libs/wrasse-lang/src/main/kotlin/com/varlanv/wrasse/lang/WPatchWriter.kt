@@ -42,6 +42,5 @@ object WPatchWriter {
         }
     }
 
-    private fun escapeReplacement(s: String): String =
-    s.replace("\\", "\\\\").replace("\n", "\\n")
+    private fun escapeReplacement(s: String): String = s.replace("\\", "\\\\").replace("\n", "\\n")
 }

@@ -36,7 +36,7 @@ class NoSemicolonsRule : WUninitializedRule {
                 if (ctx.startOffset == ctx.endOffset && !ctx.ancestors.isEmpty) {
                     val parent = ctx.ancestors.peekType()
                     val isEmptyLoopBody =
-                    ctx.type == WNodeType.BODY && (parent == WNodeType.FOR || parent == WNodeType.WHILE)
+                        ctx.type == WNodeType.BODY && (parent == WNodeType.FOR || parent == WNodeType.WHILE)
                     val isEmptyThen = ctx.type == WNodeType.THEN && parent == WNodeType.IF
                     if (isEmptyLoopBody || isEmptyThen) {
                         pendingBareConstructBody = true
@@ -78,7 +78,8 @@ class NoSemicolonsRule : WUninitializedRule {
                 if (pendingBareConstructBody) return
                 val parentType = if (ctx.ancestors.isEmpty) null else ctx.ancestors.peekType()
 
-                val isEnumTail = (parentType == WNodeType.CLASS_BODY || parentType == WNodeType.ENUM_ENTRY) &&
+                val isEnumTail = (parentType == WNodeType.CLASS_BODY ||
+                    parentType == WNodeType.ENUM_ENTRY) &&
                     classBodyOwnerEnumStack.lastOrNull() ==
                     true
                 val unnecessary =
@@ -88,15 +89,14 @@ class NoSemicolonsRule : WUninitializedRule {
                         SemicolonNecessityScan.genericIsUnnecessary(ctx.sourceText, ctx.endOffset)
                     }
                 if (unnecessary) {
-                    reporter
-                        .report(
-                            ruleId,
-                            "Unnecessary semicolon",
-                            ctx.startOffset,
-                            ctx.endOffset,
-                            this,
-                            edits = listOf(WEdit(ctx.startOffset, ctx.endOffset, "")),
-                        )
+                    reporter.report(
+                        ruleId,
+                        "Unnecessary semicolon",
+                        ctx.startOffset,
+                        ctx.endOffset,
+                        this,
+                        edits = listOf(WEdit(ctx.startOffset, ctx.endOffset, "")),
+                    )
                 }
             }
         }

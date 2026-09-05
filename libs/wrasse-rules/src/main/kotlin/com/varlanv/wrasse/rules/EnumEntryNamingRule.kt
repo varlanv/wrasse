@@ -19,7 +19,11 @@ class EnumEntryNamingRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.ENUM_ENTRY)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
                 val identifierText = children.textSpan(idIdx, ctx.sourceText)

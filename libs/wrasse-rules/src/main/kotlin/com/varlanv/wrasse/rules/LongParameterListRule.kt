@@ -23,8 +23,7 @@ class LongParameterListRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes =
-            setOf(
+            override val targetTypes = setOf(
                 WNodeType.CLASS,
                 WNodeType.MODIFIER_LIST,
                 WNodeType.FUN,
@@ -39,12 +38,22 @@ class LongParameterListRule : WUninitializedRule {
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 when (ctx.type) {
                     WNodeType.CLASS -> classes.add(PendingClass())
-                    WNodeType.FUN -> owners.add(PendingOwner(ParameterListOwner.FUNCTION, isDataClassConstructor = false))
-                    WNodeType.PRIMARY_CONSTRUCTOR ->
-                    owners.add(PendingOwner(ParameterListOwner.PRIMARY_CONSTRUCTOR, isDataClassConstructor = currentClassIsData()))
+                    WNodeType.FUN -> owners.add(
+                        PendingOwner(ParameterListOwner.FUNCTION, isDataClassConstructor = false),
+                    )
+                    WNodeType.PRIMARY_CONSTRUCTOR -> owners.add(
+                        PendingOwner(
+                            ParameterListOwner.PRIMARY_CONSTRUCTOR,
+                            isDataClassConstructor = currentClassIsData(),
+                        ),
+                    )
 
-                    WNodeType.SECONDARY_CONSTRUCTOR ->
-                    owners.add(PendingOwner(ParameterListOwner.SECONDARY_CONSTRUCTOR, isDataClassConstructor = currentClassIsData()))
+                    WNodeType.SECONDARY_CONSTRUCTOR -> owners.add(
+                        PendingOwner(
+                            ParameterListOwner.SECONDARY_CONSTRUCTOR,
+                            isDataClassConstructor = currentClassIsData(),
+                        ),
+                    )
 
                     else -> {}
                 }
@@ -53,12 +62,16 @@ class LongParameterListRule : WUninitializedRule {
 
             private fun currentClassIsData(): Boolean = classes.lastOrNull()?.isDataClass ?: false
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.MODIFIER_LIST -> recordModifierList(ctx, children)
                     WNodeType.VALUE_PARAMETER_LIST -> recordValueParameterList(ctx, children, reporter)
                     WNodeType.FUN, WNodeType.PRIMARY_CONSTRUCTOR, WNodeType.SECONDARY_CONSTRUCTOR ->
-                    if (owners.isNotEmpty()) owners.removeAt(owners.size - 1)
+                        if (owners.isNotEmpty()) owners.removeAt(owners.size - 1)
 
                     WNodeType.CLASS -> if (classes.isNotEmpty()) classes.removeAt(classes.size - 1)
                     else -> {}
@@ -67,13 +80,21 @@ class LongParameterListRule : WUninitializedRule {
 
             private fun recordModifierList(ctx: WContext, children: ChildBuffer) {
                 when (ctx.ancestors.peekType()) {
-                    WNodeType.CLASS -> classes.lastOrNull()?.let { it.isDataClass = children.hasChildOfType(WNodeType.KW_DATA) }
-                    WNodeType.FUN -> owners.lastOrNull()?.let { it.isOverride = children.hasChildOfType(WNodeType.KW_OVERRIDE) }
+                    WNodeType.CLASS -> classes
+                        .lastOrNull()
+                        ?.let { it.isDataClass = children.hasChildOfType(WNodeType.KW_DATA) }
+                    WNodeType.FUN -> owners
+                        .lastOrNull()
+                        ?.let { it.isOverride = children.hasChildOfType(WNodeType.KW_OVERRIDE) }
                     else -> {}
                 }
             }
 
-            private fun recordValueParameterList(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun recordValueParameterList(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val parent = ctx.ancestors.peekType()
                 val owner = owners.lastOrNull() ?: return
                 val expectedType =
@@ -87,7 +108,12 @@ class LongParameterListRule : WUninitializedRule {
                 for (i in 0 until children.size) {
                     if (children.type(i) == WNodeType.VALUE_PARAMETER) count++
                 }
-                val message = LongParameterListDecision.decide(owner.kind, count, owner.isOverride, owner.isDataClassConstructor) ?: return
+                val message = LongParameterListDecision.decide(
+                    owner.kind,
+                    count,
+                    owner.isOverride,
+                    owner.isDataClassConstructor,
+                ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
         }

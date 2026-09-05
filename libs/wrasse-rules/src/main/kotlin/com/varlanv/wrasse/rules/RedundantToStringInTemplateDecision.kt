@@ -12,7 +12,11 @@ import com.varlanv.wrasse.model.WNodeType
 object RedundantToStringInTemplateDecision {
     const val MESSAGE = "Redundant '.toString()' call in string template"
 
-    fun decide(receiverType: WNodeType, selectorType: WNodeType, selectorText: CharSequence): String? {
+    fun decide(
+        receiverType: WNodeType,
+        selectorType: WNodeType,
+        selectorText: CharSequence,
+    ): String? {
         if (receiverType == WNodeType.SUPER_EXPRESSION) return null
         if (selectorType != WNodeType.CALL_EXPRESSION) return null
         if (!selectorText.contentEquals("toString()")) return null

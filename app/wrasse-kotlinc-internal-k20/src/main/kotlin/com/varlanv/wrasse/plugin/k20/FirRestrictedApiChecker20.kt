@@ -11,7 +11,11 @@ import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 
 class FirRestrictedApiChecker20(private val plugin: WrassePlugin) : FirFunctionCallChecker(MppCheckerKind.Common) {
-    override fun check(expression: FirFunctionCall, context: CheckerContext, reporter: DiagnosticReporter) {
+    override fun check(
+        expression: FirFunctionCall,
+        context: CheckerContext,
+        reporter: DiagnosticReporter,
+    ) {
         val ref = expression.calleeReference as? FirResolvedNamedReference ?: return
         val symbol = ref.resolvedSymbol as? FirNamedFunctionSymbol ?: return
         val callableId = symbol.callableId

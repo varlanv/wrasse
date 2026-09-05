@@ -8,7 +8,11 @@ package com.varlanv.wrasse.rules
 object TooManyFunctionsDecision {
     const val MAX = 11
 
-    fun decide(count: Int, kindLabel: String, name: String): String? {
+    fun decide(
+        count: Int,
+        kindLabel: String,
+        name: String,
+    ): String? {
         if (count <= MAX) return null
         return "$kindLabel '$name' has $count functions; the maximum allowed is $MAX"
     }

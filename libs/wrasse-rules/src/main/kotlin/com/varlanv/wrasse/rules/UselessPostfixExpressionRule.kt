@@ -38,7 +38,11 @@ class UselessPostfixExpressionRule : WUninitializedRule {
             private val postfixFacts = mutableMapOf<Long, PostfixFact>()
             private val binaryPostfixChildren = mutableMapOf<Long, MutableList<PostfixHit>>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.POSTFIX_EXPRESSION -> finalizePostfix(ctx, children)
                     WNodeType.BINARY_EXPRESSION -> finalizeBinary(ctx, children, reporter)
@@ -51,7 +55,10 @@ class UselessPostfixExpressionRule : WUninitializedRule {
                 if (significant.size != 2) return
                 val (operandIdx, opIdx) = significant[0] to significant[1]
                 val opText = children.textSpan(opIdx, ctx.sourceText)
-                postfixFacts[key(ctx.startOffset, ctx.endOffset)] =
+                postfixFacts[key(
+                    ctx.startOffset,
+                    ctx.endOffset,
+                )] =
                     PostfixFact(
                         baseText = children.textSpan(operandIdx, ctx.sourceText).toString(),
                         isIncrementOrDecrement = UselessPostfixExpressionDecision.isIncrementOrDecrement(opText),
@@ -59,7 +66,11 @@ class UselessPostfixExpressionRule : WUninitializedRule {
                     )
             }
 
-            private fun finalizeBinary(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeBinary(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val significant = significantIndices(children)
                 if (significant.size != 3) return
                 val (leftIdx, _, rightIdx) = Triple(significant[0], significant[1], significant[2])
@@ -74,15 +85,29 @@ class UselessPostfixExpressionRule : WUninitializedRule {
                         end = children.endOffset(rightIdx),
                     )
                 } else if (children.type(rightIdx) == WNodeType.BINARY_EXPRESSION) {
-                    binaryPostfixChildren[key(children.startOffset(rightIdx), children.endOffset(rightIdx))]?.forEach { hit ->
-                        reportIfMatch(reporter = reporter, fact = hit.fact, otherOperandText = leftText, start = hit.start, end = hit.end)
+                    binaryPostfixChildren[key(
+                        children.startOffset(rightIdx),
+                        children.endOffset(rightIdx),
+                    )]?.forEach { hit ->
+                        reportIfMatch(
+                            reporter = reporter,
+                            fact = hit.fact,
+                            otherOperandText = leftText,
+                            start = hit.start,
+                            end = hit.end,
+                        )
                     }
                 }
 
                 recordOwnPostfixChildren(ctx, children, leftIdx, rightIdx)
             }
 
-            private fun recordOwnPostfixChildren(ctx: WContext, children: ChildBuffer, leftIdx: Int, rightIdx: Int) {
+            private fun recordOwnPostfixChildren(
+                ctx: WContext,
+                children: ChildBuffer,
+                leftIdx: Int,
+                rightIdx: Int,
+            ) {
                 val hits = mutableListOf<PostfixHit>()
                 for (idx in intArrayOf(leftIdx, rightIdx)) {
                     if (children.type(idx) != WNodeType.POSTFIX_EXPRESSION) continue
@@ -92,11 +117,21 @@ class UselessPostfixExpressionRule : WUninitializedRule {
                 if (hits.isNotEmpty()) binaryPostfixChildren[key(ctx.startOffset, ctx.endOffset)] = hits
             }
 
-            private fun reportIfMatch(reporter: WReporter, fact: PostfixFact?, otherOperandText: CharSequence, start: Int, end: Int) {
+            private fun reportIfMatch(
+                reporter: WReporter,
+                fact: PostfixFact?,
+                otherOperandText: CharSequence,
+                start: Int,
+                end: Int,
+            ) {
                 if (fact == null) return
                 val message =
-                UselessPostfixExpressionDecision.decide(fact.isIncrementOrDecrement, fact.baseText, otherOperandText, fact.postfixText)
-                    ?: return
+                    UselessPostfixExpressionDecision.decide(
+                        fact.isIncrementOrDecrement,
+                        fact.baseText,
+                        otherOperandText,
+                        fact.postfixText,
+                    ) ?: return
                 reporter.report(ruleId, message, start, end, this)
             }
 
@@ -110,7 +145,15 @@ class UselessPostfixExpressionRule : WUninitializedRule {
         }
     }
 
-    private class PostfixFact(val baseText: String, val isIncrementOrDecrement: Boolean, val postfixText: String)
+    private class PostfixFact(
+        val baseText: String,
+        val isIncrementOrDecrement: Boolean,
+        val postfixText: String,
+    )
 
-    private class PostfixHit(val fact: PostfixFact, val start: Int, val end: Int)
+    private class PostfixHit(
+        val fact: PostfixFact,
+        val start: Int,
+        val end: Int,
+    )
 }

@@ -14,7 +14,11 @@ package com.varlanv.wrasse.rules
 object CustomLabelDecision {
     private const val LOOP_LABEL = "@loop"
 
-    fun decide(labelText: String, matchesEnclosingCallName: Boolean, enclosingLoopOrForEachCount: Int): String? {
+    fun decide(
+        labelText: String,
+        matchesEnclosingCallName: Boolean,
+        enclosingLoopOrForEachCount: Int,
+    ): String? {
         if (labelText == LOOP_LABEL || matchesEnclosingCallName) return null
         if (enclosingLoopOrForEachCount != 1) return null
         return "Custom label $labelText is unnecessary; there is no nested loop or forEach for it to disambiguate"

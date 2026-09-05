@@ -1,7 +1,9 @@
 package com.varlanv.wrasse.testing.harness
 
 object FixtureParser {
-    private val EXPECT_DIAGNOSTIC_PATTERN = Regex("""^//\s*expect-(error|warning)\s+(\d+):(\d+)\s+([\w-]+)\s+"([^"]*)"$""")
+    private val EXPECT_DIAGNOSTIC_PATTERN = Regex(
+        """^//\s*expect-(error|warning)\s+(\d+):(\d+)\s+([\w-]+)\s+"([^"]*)"$""",
+    )
     private const val EXPECT_CLEAN = "// expect-clean"
     private const val OPTION_TRAILING_NEWLINE = "// fixture-option: trailing-newline"
     private const val OPTION_WARN_ONLY = "// fixture-option: warn-only"
@@ -39,10 +41,11 @@ object FixtureParser {
             if (match != null) {
                 expectations.add(
                     ExpectedDiagnostic(
-                        severity = when (match.groupValues[1]) {
-                            "warning" -> ExpectedSeverity.WARNING
-                            else -> ExpectedSeverity.ERROR
-                        },
+                        severity =
+                            when (match.groupValues[1]) {
+                                "warning" -> ExpectedSeverity.WARNING
+                                else -> ExpectedSeverity.ERROR
+                            },
                         line = match.groupValues[2].toInt(),
                         column = match.groupValues[3].toInt(),
                         ruleId = match.groupValues[4],
@@ -93,4 +96,10 @@ enum class ExpectedSeverity {
     WARNING,
 }
 
-class ExpectedDiagnostic(val severity: ExpectedSeverity, val line: Int, val column: Int, val ruleId: String, val message: String)
+class ExpectedDiagnostic(
+    val severity: ExpectedSeverity,
+    val line: Int,
+    val column: Int,
+    val ruleId: String,
+    val message: String,
+)

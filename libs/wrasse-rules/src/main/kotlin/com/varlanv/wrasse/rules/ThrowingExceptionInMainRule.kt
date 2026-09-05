@@ -41,7 +41,11 @@ class ThrowingExceptionInMainRule : WUninitializedRule {
                 }
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.VALUE_PARAMETER -> countParam(ctx)
                     WNodeType.FUN -> finalizeFun(ctx, children, reporter)
@@ -56,7 +60,11 @@ class ThrowingExceptionInMainRule : WUninitializedRule {
                 frames.lastOrNull()?.let { it.paramCount++ }
             }
 
-            private fun finalizeFun(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeFun(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val frame = frames.removeAt(frames.size - 1)
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 val name = if (idIdx < 0) "" else IdentifierCasing.unquote(children.textSpan(idIdx, ctx.sourceText))
@@ -65,20 +73,21 @@ class ThrowingExceptionInMainRule : WUninitializedRule {
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
                 val isOverride = WordBoundaryScan.containsWord(modifierText, "override")
                 val hasNonPublicVisibility =
-                WordBoundaryScan.containsWord(modifierText, "private") ||
-                    WordBoundaryScan.containsWord(modifierText, "protected") ||
-                    WordBoundaryScan.containsWord(modifierText, "internal")
+                    WordBoundaryScan.containsWord(
+                        modifierText,
+                        "private",
+                    ) ||
+                        WordBoundaryScan.containsWord(modifierText, "protected") ||
+                        WordBoundaryScan.containsWord(modifierText, "internal")
 
-                val message = ThrowingExceptionInMainDecision
-                        .decide(
-                            name = name,
-                            isTopLevel = isTopLevel,
-                            isOverride = isOverride,
-                            hasNonPublicVisibility = hasNonPublicVisibility,
-                            paramCount = frame.paramCount,
-                            hasThrow = frame.hasThrow,
-                        )
-                    ?: return
+                val message = ThrowingExceptionInMainDecision.decide(
+                    name = name,
+                    isTopLevel = isTopLevel,
+                    isOverride = isOverride,
+                    hasNonPublicVisibility = hasNonPublicVisibility,
+                    paramCount = frame.paramCount,
+                    hasThrow = frame.hasThrow,
+                ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
         }

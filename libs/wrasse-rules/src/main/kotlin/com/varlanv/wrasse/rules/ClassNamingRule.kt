@@ -28,11 +28,18 @@ class ClassNamingRule : WUninitializedRule {
 
             private var isJUnitJupiterImported = false
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.IMPORT_DIRECTIVE -> {
                         if (!isJUnitJupiterImported &&
-                            TestImportHeuristic.matches(ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset), JUNIT_JUPITER)
+                            TestImportHeuristic.matches(
+                                ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
+                                JUNIT_JUPITER,
+                            )
                         ) {
                             isJUnitJupiterImported = true
                         }

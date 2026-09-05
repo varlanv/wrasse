@@ -4,40 +4,54 @@ import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 
-class ClassMetricsDecisionsSpec :
-    BaseSpec(
-        {
+class ClassMetricsDecisionsSpec : BaseSpec({
 
-            should("not report too-many-functions for a class at the threshold") {
-                TooManyFunctionsDecision.decide(11, "Class", "Foo") shouldBe null
-            }
+    should("not report too-many-functions for a class at the threshold") {
+        TooManyFunctionsDecision.decide(11, "Class", "Foo") shouldBe null
+    }
 
-            should("report too-many-functions for a class just above the threshold") {
-                TooManyFunctionsDecision.decide(12, "Class", "Foo") shouldBe "Class 'Foo' has 12 functions; the maximum allowed is 11"
-            }
+    should("report too-many-functions for a class just above the threshold") {
+        TooManyFunctionsDecision.decide(
+            12,
+            "Class",
+            "Foo",
+        ) shouldBe "Class 'Foo' has 12 functions; the maximum allowed is 11"
+    }
 
-            should("use the given kind label verbatim in the message") {
-                TooManyFunctionsDecision.decide(12, "Interface", "Bar") shouldBe
-                    "Interface 'Bar' has 12 functions; the maximum allowed is 11"
-                TooManyFunctionsDecision.decide(12, "Enum class", "Baz") shouldBe
-                    "Enum class 'Baz' has 12 functions; the maximum allowed is 11"
-                TooManyFunctionsDecision.decide(12, "Object", "Qux") shouldBe "Object 'Qux' has 12 functions; the maximum allowed is 11"
-            }
+    should("use the given kind label verbatim in the message") {
+        TooManyFunctionsDecision.decide(
+            12,
+            "Interface",
+            "Bar",
+        ) shouldBe "Interface 'Bar' has 12 functions; the maximum allowed is 11"
+        TooManyFunctionsDecision.decide(
+            12,
+            "Enum class",
+            "Baz",
+        ) shouldBe "Enum class 'Baz' has 12 functions; the maximum allowed is 11"
+        TooManyFunctionsDecision.decide(
+            12,
+            "Object",
+            "Qux",
+        ) shouldBe "Object 'Qux' has 12 functions; the maximum allowed is 11"
+    }
 
-            should("not report too-many-functions for a file at the threshold") {
-                TooManyFunctionsDecision.decideFile(11) shouldBe null
-            }
+    should("not report too-many-functions for a file at the threshold") {
+        TooManyFunctionsDecision.decideFile(11) shouldBe null
+    }
 
-            should("report too-many-functions for a file just above the threshold") {
-                TooManyFunctionsDecision.decideFile(12) shouldNotBe null
-            }
+    should("report too-many-functions for a file just above the threshold") {
+        TooManyFunctionsDecision.decideFile(12) shouldNotBe null
+    }
 
-            should("not report large-class at the threshold") {
-                LargeClassDecision.decide(600, "Foo") shouldBe null
-            }
+    should("not report large-class at the threshold") {
+        LargeClassDecision.decide(600, "Foo") shouldBe null
+    }
 
-            should("report large-class just above the threshold") {
-                LargeClassDecision.decide(601, "Foo") shouldBe "Class 'Foo' is too large (601 lines); the maximum allowed is 600"
-            }
-        },
-    )
+    should("report large-class just above the threshold") {
+        LargeClassDecision.decide(
+            601,
+            "Foo",
+        ) shouldBe "Class 'Foo' is too large (601 lines); the maximum allowed is 600"
+    }
+})

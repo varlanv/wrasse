@@ -39,8 +39,8 @@ interface WUninitializedRuleGroup {
      */
     val canAutofix: Boolean get() = false
 
-    /** Mirrors [WUninitializedRule.options] per backed id. Default: no options for any id. */
-    fun optionSpecs(ruleId: String): List<WRuleOptionSpec> = emptyList()
+    /** Mirrors [WUninitializedRule.options], keyed by backed id. Default: no options for any id. */
+    val optionSpecs: Map<String, List<WRuleOptionSpec>> get() = emptyMap()
 
     /**
      * Produces a fresh, fused [WRule] instance for one file, configured with exactly the

@@ -156,67 +156,67 @@ fun main() {
 }
 """
 
-open class WNodeTypeMappingCompletenessSpec :
-    BaseSpec(
-        {
-            should("map every node type encountered walking a representative Kotlin source") {
-                val disposable = Disposer.newDisposable()
-                try {
-                    setupIdeaStandaloneExecution()
-                    val environment = KotlinCoreEnvironment
-                        .createForParallelTests(disposable, CompilerConfiguration(), EnvironmentConfigFiles.JVM_CONFIG_FILES)
-                    val psiFactory = KtPsiFactory(environment.project)
-                    val ktFile = psiFactory.createFile(REPRESENTATIVE_SOURCE)
-                    val psiSource = ktFile.toKtPsiSourceElement()
-                    val lightSource = KtLightSourceElement(
-                        psiSource.lighterASTNode,
-                        psiSource.startOffset,
-                        psiSource.endOffset,
-                        psiSource.treeStructure,
-                    )
+open class WNodeTypeMappingCompletenessSpec : BaseSpec({
+    should("map every node type encountered walking a representative Kotlin source") {
+        val disposable = Disposer.newDisposable()
+        try {
+            setupIdeaStandaloneExecution()
+            val environment = KotlinCoreEnvironment.createForParallelTests(
+                disposable,
+                CompilerConfiguration(),
+                EnvironmentConfigFiles.JVM_CONFIG_FILES,
+            )
+            val psiFactory = KtPsiFactory(environment.project)
+            val ktFile = psiFactory.createFile(REPRESENTATIVE_SOURCE)
+            val psiSource = ktFile.toKtPsiSourceElement()
+            val lightSource = KtLightSourceElement(
+                psiSource.lighterASTNode,
+                psiSource.startOffset,
+                psiSource.endOffset,
+                psiSource.treeStructure,
+            )
 
-                    val unknownOffsets = mutableListOf<Int>()
-                    val collector = UnknownCollectorRule(unknownOffsets)
-                    val dispatch = StreamDispatch(listOf(collector))
-                    val reporter = object : WReporter {
-                        override val reports = mutableListOf<ViolationReport>()
+            val unknownOffsets = mutableListOf<Int>()
+            val collector = UnknownCollectorRule(unknownOffsets)
+            val dispatch = StreamDispatch(listOf(collector))
+            val reporter = object : WReporter {
+                override val reports = mutableListOf<ViolationReport>()
 
-                        override fun report(
-                            ruleId: String,
-                            message: String,
-                            startOffset: Int,
-                            endOffset: Int,
-                            rule: WRule,
-                            edits: List<WEdit>,
-                        ) {
-                        }
-                    }
-
-                    LightTreeStreamAdapter
-                        .walk(
-                            source = lightSource,
-                            ctx = WContext(filePath = "representative.kt"),
-                            dispatch = dispatch,
-                            reporter = reporter,
-                        )
-
-                    val kdocMarkdownInternalsAllowlistStart = REPRESENTATIVE_SOURCE.indexOf("/**")
-                    val kdocMarkdownInternalsAllowlistEnd = REPRESENTATIVE_SOURCE.indexOf("*/") + 2
-                    val kdocMarkdownInternalsAllowlist = kdocMarkdownInternalsAllowlistStart until kdocMarkdownInternalsAllowlistEnd
-                    val unexpectedUnknownOffsets = unknownOffsets.filterNot { it in kdocMarkdownInternalsAllowlist }
-
-                    unexpectedUnknownOffsets.shouldBeEmpty()
-                } finally {
-                    val application = ApplicationManager.getApplication()
-                    if (application != null) {
-                        application.runWriteAction { Disposer.dispose(disposable) }
-                    } else {
-                        Disposer.dispose(disposable)
-                    }
+                override fun report(
+                    ruleId: String,
+                    message: String,
+                    startOffset: Int,
+                    endOffset: Int,
+                    rule: WRule,
+                    edits: List<WEdit>,
+                ) {
                 }
             }
-        },
-    )
+
+            LightTreeStreamAdapter.walk(
+                source = lightSource,
+                ctx = WContext(filePath = "representative.kt"),
+                dispatch = dispatch,
+                reporter = reporter,
+            )
+
+            val kdocMarkdownInternalsAllowlistStart = REPRESENTATIVE_SOURCE.indexOf("/**")
+            val kdocMarkdownInternalsAllowlistEnd = REPRESENTATIVE_SOURCE.indexOf("*/") + 2
+            val kdocMarkdownInternalsAllowlist = kdocMarkdownInternalsAllowlistStart until
+                kdocMarkdownInternalsAllowlistEnd
+            val unexpectedUnknownOffsets = unknownOffsets.filterNot { it in kdocMarkdownInternalsAllowlist }
+
+            unexpectedUnknownOffsets.shouldBeEmpty()
+        } finally {
+            val application = ApplicationManager.getApplication()
+            if (application != null) {
+                application.runWriteAction { Disposer.dispose(disposable) }
+            } else {
+                Disposer.dispose(disposable)
+            }
+        }
+    }
+})
 
 private class UnknownCollectorRule(private val unknownOffsets: MutableList<Int>) : WStreamRule {
     override val id = "mapping-completeness-collector"

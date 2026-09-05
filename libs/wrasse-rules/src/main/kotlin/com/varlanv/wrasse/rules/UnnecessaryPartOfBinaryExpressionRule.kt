@@ -37,24 +37,30 @@ class UnnecessaryPartOfBinaryExpressionRule : WUninitializedRule {
 
             private val chains = mutableMapOf<Long, ChainNode>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val significant = (0 until children.size).filter { !children.type(it).isWhitespaceOrComment }
                 if (significant.size != 3) return
                 val (leftIdx, opIdx, rightIdx) = Triple(significant[0], significant[1], significant[2])
                 if (children.type(opIdx) != WNodeType.OPERATION_REFERENCE) return
                 val opText = children.textSpan(opIdx, ctx.sourceText)
                 val operator = when {
-                        opText.contentEquals("&&") -> "&&"
-                        opText.contentEquals("||") -> "||"
-                        else -> null
-                    }
-                    ?: return
+                    opText.contentEquals("&&") -> "&&"
+                    opText.contentEquals("||") -> "||"
+                    else -> null
+                } ?: return
 
                 val operands = mutableListOf<String>()
                 collectOperand(children, leftIdx, operator, ctx.sourceText, operands)
                 collectOperand(children, rightIdx, operator, ctx.sourceText, operands)
 
-                chains[key(ctx.startOffset, ctx.endOffset)] = ChainNode(ctx.startOffset, ctx.endOffset, operator, operands)
+                chains[key(
+                    ctx.startOffset,
+                    ctx.endOffset,
+                )] = ChainNode(ctx.startOffset, ctx.endOffset, operator, operands)
             }
 
             private fun collectOperand(
@@ -93,5 +99,10 @@ class UnnecessaryPartOfBinaryExpressionRule : WUninitializedRule {
         }
     }
 
-    private class ChainNode(val start: Int, val end: Int, val operator: String, val operands: List<String>)
+    private class ChainNode(
+        val start: Int,
+        val end: Int,
+        val operator: String,
+        val operands: List<String>,
+    )
 }

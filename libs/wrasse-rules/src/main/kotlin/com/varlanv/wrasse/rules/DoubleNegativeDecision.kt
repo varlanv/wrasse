@@ -10,7 +10,11 @@ package com.varlanv.wrasse.rules
 object DoubleNegativeDecision {
     const val MESSAGE = "Expression negated more than once; this can be simplified"
 
-    fun exclamationChainLength(sourceText: CharSequence, start: Int, end: Int): Int {
+    fun exclamationChainLength(
+        sourceText: CharSequence,
+        start: Int,
+        end: Int,
+    ): Int {
         var i = start
         var count = 0
         while (i < end) {

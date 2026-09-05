@@ -23,7 +23,11 @@ class PrintStackTraceRule : WUninitializedRule {
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST, WNodeType.DOT_QUALIFIED_EXPRESSION)
+            override val targetTypes = setOf(
+                WNodeType.CATCH,
+                WNodeType.VALUE_PARAMETER_LIST,
+                WNodeType.DOT_QUALIFIED_EXPRESSION,
+            )
 
             private val pendingCatchNames = mutableListOf<String?>()
 
@@ -36,7 +40,9 @@ class PrintStackTraceRule : WUninitializedRule {
 
                     WNodeType.VALUE_PARAMETER_LIST -> {
                         if (ctx.ancestors.peekType() == WNodeType.CATCH && pendingCatchNames.isNotEmpty()) {
-                            val facts = CatchParameterText.parse(ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset))
+                            val facts = CatchParameterText.parse(
+                                ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
+                            )
                             pendingCatchNames[pendingCatchNames.size - 1] = facts?.name
                         }
                         return false
@@ -63,7 +69,13 @@ class PrintStackTraceRule : WUninitializedRule {
                 }
                 val name = pendingCatchNames.lastOrNull() ?: return
                 if (text == "$name.printStackTrace()") {
-                    reporter.report(ruleId, PrintStackTraceDecision.MESSAGE, ctx.startOffset, ctx.startOffset + name.length, this)
+                    reporter.report(
+                        ruleId,
+                        PrintStackTraceDecision.MESSAGE,
+                        ctx.startOffset,
+                        ctx.startOffset + name.length,
+                        this,
+                    )
                 }
             }
         }

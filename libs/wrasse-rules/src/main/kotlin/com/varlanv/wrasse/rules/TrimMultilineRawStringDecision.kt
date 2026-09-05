@@ -9,7 +9,11 @@ package com.varlanv.wrasse.rules
 object TrimMultilineRawStringDecision {
     const val MESSAGE = "Multiline raw strings should be followed by trimIndent() or trimMargin()"
 
-    fun decide(isRawWithLineBreak: Boolean, isTrimmed: Boolean, isExpectedAsConstant: Boolean): String? {
+    fun decide(
+        isRawWithLineBreak: Boolean,
+        isTrimmed: Boolean,
+        isExpectedAsConstant: Boolean,
+    ): String? {
         if (!isRawWithLineBreak || isTrimmed || isExpectedAsConstant) return null
         return MESSAGE
     }

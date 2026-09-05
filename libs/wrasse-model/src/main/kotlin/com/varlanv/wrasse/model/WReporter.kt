@@ -11,5 +11,12 @@ import com.varlanv.wrasse.lang.WEdit
 interface WReporter {
     val reports: List<ViolationReport>
 
-    fun report(ruleId: String, message: String, startOffset: Int, endOffset: Int, rule: WRule, edits: List<WEdit> = emptyList())
+    fun report(
+        ruleId: String,
+        message: String,
+        startOffset: Int,
+        endOffset: Int,
+        rule: WRule,
+        edits: List<WEdit> = emptyList(),
+    )
 }

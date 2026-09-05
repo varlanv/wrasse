@@ -36,7 +36,12 @@ class WhenMustHaveElseRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.WHEN, WNodeType.WHEN_ENTRY, WNodeType.WHEN_CONDITION_EXPRESSION, WNodeType.BLOCK)
+            override val targetTypes = setOf(
+                WNodeType.WHEN,
+                WNodeType.WHEN_ENTRY,
+                WNodeType.WHEN_CONDITION_EXPRESSION,
+                WNodeType.BLOCK,
+            )
 
             private val whenFrames = mutableListOf<WhenFrame>()
             private val candidates = mutableListOf<WhenCandidate>()
@@ -46,15 +51,15 @@ class WhenMustHaveElseRule : WUninitializedRule {
                 WNodeType.WHEN -> {
                     val ancestors = ctx.ancestors
                     val isExempt =
-                    ctx.hasAncestor(WNodeType.RETURN) ||
-                        ancestors.peekType() ==
-                        WNodeType.WHEN_ENTRY ||
-                        ancestors.peekType() ==
-                        WNodeType.PROPERTY ||
-                        ancestors.peekType() ==
-                        WNodeType.FUN ||
-                        ancestors.peekType() ==
-                        WNodeType.BINARY_EXPRESSION
+                        ctx.hasAncestor(WNodeType.RETURN) ||
+                            ancestors.peekType() ==
+                            WNodeType.WHEN_ENTRY ||
+                            ancestors.peekType() ==
+                            WNodeType.PROPERTY ||
+                            ancestors.peekType() ==
+                            WNodeType.FUN ||
+                            ancestors.peekType() ==
+                            WNodeType.BINARY_EXPRESSION
                     whenFrames.add(WhenFrame(isExempt))
                     true
                 }
@@ -64,7 +69,11 @@ class WhenMustHaveElseRule : WUninitializedRule {
                 else -> false
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.WHEN -> finalizeWhen(ctx)
                     WNodeType.WHEN_ENTRY -> finalizeEntry(children)
@@ -122,8 +131,12 @@ class WhenMustHaveElseRule : WUninitializedRule {
                 for (candidate in candidates) {
                     val isLambdaLastStatement = candidate.start in lambdaLastStatementWhenStarts
                     val message =
-                    WhenMustHaveElseDecision.decide(candidate.isExempt, candidate.hasElse, candidate.isEnumOnly, isLambdaLastStatement)
-                        ?: continue
+                        WhenMustHaveElseDecision.decide(
+                            candidate.isExempt,
+                            candidate.hasElse,
+                            candidate.isEnumOnly,
+                            isLambdaLastStatement,
+                        ) ?: continue
                     reporter.report(ruleId, message, candidate.start, candidate.end, this)
                 }
             }
@@ -137,5 +150,11 @@ class WhenMustHaveElseRule : WUninitializedRule {
         var allExpressionConditionsEnumLike: Boolean = true,
     )
 
-    private class WhenCandidate(val start: Int, val end: Int, val isExempt: Boolean, val hasElse: Boolean, val isEnumOnly: Boolean)
+    private class WhenCandidate(
+        val start: Int,
+        val end: Int,
+        val isExempt: Boolean,
+        val hasElse: Boolean,
+        val isEnumOnly: Boolean,
+    )
 }

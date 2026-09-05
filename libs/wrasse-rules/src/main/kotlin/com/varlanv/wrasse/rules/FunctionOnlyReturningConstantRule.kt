@@ -84,7 +84,11 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
                 return ancestors.typeAt(ancestors.size - 2) == ownerType
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.CLASS -> pendingClasses.removeAt(pendingClasses.size - 1)
                     WNodeType.RETURN -> finalizeReturn(ctx, children)
@@ -102,9 +106,12 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
                     significant.add(i)
                 }
                 val isConstant =
-                significant.size ==
-                    1 &&
-                    ConstantLiteralCheck.isConstant(children.type(significant[0]), children.textSpan(significant[0], ctx.sourceText))
+                    significant.size ==
+                        1 &&
+                        ConstantLiteralCheck.isConstant(
+                            children.type(significant[0]),
+                            children.textSpan(significant[0], ctx.sourceText),
+                        )
                 completedReturns.add(CompletedSpan(ctx.startOffset, ctx.endOffset, isConstant))
             }
 
@@ -118,12 +125,21 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
                 var isConstant = false
                 if (significant.size == 1 && children.type(significant[0]) == WNodeType.RETURN) {
                     val idx = significant[0]
-                    isConstant = takeCompleted(completedReturns, children.startOffset(idx), children.endOffset(idx))?.isConstant == true
+                    isConstant =
+                        takeCompleted(
+                            completedReturns,
+                            children.startOffset(idx),
+                            children.endOffset(idx),
+                        )?.isConstant == true
                 }
                 completedBlocks.add(CompletedSpan(ctx.startOffset, ctx.endOffset, isConstant))
             }
 
-            private fun finalizeFun(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeFun(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val pending = pendingFuns.removeAt(pendingFuns.size - 1)
                 val inInterface = pendingClasses.lastOrNull()?.isInterface == true
 
@@ -135,28 +151,45 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
                         val blockIdx = children.firstChildOfType(WNodeType.BLOCK)
                         blockIdx >=
                             0 &&
-                            takeCompleted(completedBlocks, children.startOffset(blockIdx), children.endOffset(blockIdx))?.isConstant ==
+                            takeCompleted(
+                                completedBlocks,
+                                children.startOffset(blockIdx),
+                                children.endOffset(blockIdx),
+                            )?.isConstant ==
                             true
                     }
 
                 val name = pending.functionName.ifEmpty { "<anonymous>" }
                 val message =
-                FunctionOnlyReturningConstantDecision
-                        .decide(pending.hasOverride, pending.hasOpen, pending.hasActual, inInterface, returnsConstant, name)
-                    ?: return
+                    FunctionOnlyReturningConstantDecision.decide(
+                        pending.hasOverride,
+                        pending.hasOpen,
+                        pending.hasActual,
+                        inInterface,
+                        returnsConstant,
+                        name,
+                    ) ?: return
                 val reportStart = if (pending.nameStart >= 0) pending.nameStart else ctx.startOffset
                 val reportEnd = if (pending.nameStart >= 0) pending.nameEnd else ctx.endOffset
                 reporter.report(ruleId, message, reportStart, reportEnd, this)
             }
 
-            private fun exprBodyIsConstant(ctx: WContext, children: ChildBuffer, eqIdx: Int): Boolean {
+            private fun exprBodyIsConstant(
+                ctx: WContext,
+                children: ChildBuffer,
+                eqIdx: Int,
+            ): Boolean {
                 var i = eqIdx + 1
                 while (i < children.size && children.type(i).isWhitespaceOrComment) i++
                 if (i >= children.size) return false
                 return ConstantLiteralCheck.isConstant(children.type(i), children.textSpan(i, ctx.sourceText))
             }
 
-            private fun takeCompleted(list: MutableList<CompletedSpan>, start: Int, end: Int): CompletedSpan? {
+            private fun takeCompleted(
+                list: MutableList<CompletedSpan>,
+                start: Int,
+                end: Int,
+            ): CompletedSpan? {
                 val idx = list.indexOfFirst { it.start == start && it.end == end }
                 if (idx < 0) return null
                 return list.removeAt(idx)
@@ -177,5 +210,9 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
         var functionName = ""
     }
 
-    private class CompletedSpan(val start: Int, val end: Int, val isConstant: Boolean)
+    private class CompletedSpan(
+        val start: Int,
+        val end: Int,
+        val isConstant: Boolean,
+    )
 }

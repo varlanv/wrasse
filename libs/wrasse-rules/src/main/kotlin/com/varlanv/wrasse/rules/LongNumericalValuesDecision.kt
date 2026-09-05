@@ -43,15 +43,14 @@ object LongNumericalValuesDecision {
         val fractionalPart = text.substring(dotIdx + 1, text.length - suffix.length)
         if (realPart.length <= MAX_LENGTH && fractionalPart.length <= MAX_LENGTH) return null
         val groupedReal = if (realPart.length > MAX_LENGTH) groupFromRight(realPart) else realPart
-        val groupedFractional = if (fractionalPart.length > MAX_LENGTH) groupFromLeft(fractionalPart) else fractionalPart
+        val groupedFractional =
+            if (fractionalPart.length > MAX_LENGTH) groupFromLeft(fractionalPart) else fractionalPart
         return WEdit(startOffset, startOffset + text.length, "$groupedReal.$groupedFractional$suffix")
     }
 
-    private fun groupFromRight(digits: String): String = digits
-        .reversed()
-        .chunked(MAX_LENGTH)
-        .reversed()
-        .joinToString("_") { it.reversed() }
+    private fun groupFromRight(
+        digits: String,
+    ): String = digits.reversed().chunked(MAX_LENGTH).reversed().joinToString("_") { it.reversed() }
 
     private fun groupFromLeft(digits: String): String = digits.chunked(MAX_LENGTH).joinToString("_")
 }

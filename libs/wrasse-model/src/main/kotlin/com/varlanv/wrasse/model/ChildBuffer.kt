@@ -31,8 +31,10 @@ class ChildBuffer {
     fun length(i: Int): Int = endOffsets[i] - startOffsets[i]
 
     /** Child i's full source span, read from [sourceText] (e.g. [WContext.sourceText]). */
-    fun textSpan(i: Int, sourceText: CharSequence): CharSequence =
-    sourceText.subSequence(startOffsets[i], endOffsets[i])
+    fun textSpan(
+        i: Int,
+        sourceText: CharSequence,
+    ): CharSequence = sourceText.subSequence(startOffsets[i], endOffsets[i])
 
     fun hasChildOfType(type: WNodeType): Boolean {
         val ord = type.ordinal
@@ -51,7 +53,12 @@ class ChildBuffer {
         _size = 0
     }
 
-    fun add(type: WNodeType, start: Int, end: Int, text: CharSequence?) {
+    fun add(
+        type: WNodeType,
+        start: Int,
+        end: Int,
+        text: CharSequence?,
+    ) {
         if (_size == types.size) {
             grow()
         }

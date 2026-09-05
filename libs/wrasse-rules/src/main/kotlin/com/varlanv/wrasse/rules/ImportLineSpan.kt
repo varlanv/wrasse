@@ -7,7 +7,11 @@ package com.varlanv.wrasse.rules
  * Compiler-free, unit-testable without kotlinc.
  */
 object ImportLineSpan {
-    fun isAloneOnLine(sourceText: CharSequence, startOffset: Int, endOffset: Int): Boolean {
+    fun isAloneOnLine(
+        sourceText: CharSequence,
+        startOffset: Int,
+        endOffset: Int,
+    ): Boolean {
         val lineStart = lineStartBefore(sourceText, startOffset)
         val lineEnd = lineEndAfter(sourceText, endOffset)
         return isBlank(sourceText, lineStart, startOffset) && isBlank(sourceText, endOffset, lineEnd)
@@ -33,7 +37,11 @@ object ImportLineSpan {
         return -1
     }
 
-    private fun isBlank(sourceText: CharSequence, start: Int, end: Int): Boolean {
+    private fun isBlank(
+        sourceText: CharSequence,
+        start: Int,
+        end: Int,
+    ): Boolean {
         for (i in start until end) {
             if (!sourceText[i].isWhitespace()) return false
         }

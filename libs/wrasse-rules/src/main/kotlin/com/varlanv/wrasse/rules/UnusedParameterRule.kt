@@ -72,12 +72,16 @@ class UnusedParameterRule : WUninitializedRule {
 
                     WNodeType.KW_EXPECT, WNodeType.KW_EXTERNAL -> {
                         if (inOwnModifierList(ancestors, WNodeType.FUN)) markFunModifier(ctx.type)
-                        if (inOwnModifierList(ancestors, WNodeType.CLASS) || inOwnModifierList(ancestors, WNodeType.OBJECT_DECLARATION)) {
+                        if (inOwnModifierList(
+                            ancestors,
+                            WNodeType.CLASS,
+                        ) || inOwnModifierList(ancestors, WNodeType.OBJECT_DECLARATION)) {
                             markClassModifier(ctx.type)
                         }
                     }
 
-                    WNodeType.KW_INTERFACE -> if (ancestors.peekType() == WNodeType.CLASS) pendingClasses.lastOrNull()?.isInterface = true
+                    WNodeType.KW_INTERFACE ->
+                        if (ancestors.peekType() == WNodeType.CLASS) pendingClasses.lastOrNull()?.isInterface = true
 
                     WNodeType.IDENTIFIER -> handleIdentifier(ctx)
                     else -> {}
@@ -88,7 +92,9 @@ class UnusedParameterRule : WUninitializedRule {
                 val ancestors = ctx.ancestors
                 if (ancestors.peekType() == WNodeType.FUN && pendingFuns.isNotEmpty()) {
                     val pending = pendingFuns.last()
-                    if (pending.functionName == null) pending.functionName = IdentifierCasing.unquote(ctx.leafText ?: "")
+                    if (pending.functionName == null) {
+                        pending.functionName = IdentifierCasing.unquote(ctx.leafText ?: "")
+                    }
                     return
                 }
                 if (ancestors.peekType() ==
@@ -151,22 +157,22 @@ class UnusedParameterRule : WUninitializedRule {
                 for (pending in completedFuns) {
                     val containingClass = pending.containingClass
                     val functionExempt =
-                    pending.hasAbstract ||
-                        pending.hasOpen ||
-                        pending.hasOverride ||
-                        pending.hasOperator ||
-                        pending.hasExternal ||
-                        pending.hasExpect ||
-                        pending.hasActual ||
-                        pending.hasProtected ||
-                        pending.functionName ==
-                        "main" ||
-                        containingClass?.isExpect ==
-                        true ||
-                        containingClass?.isExternal ==
-                        true ||
-                        containingClass?.isInterface ==
-                        true
+                        pending.hasAbstract ||
+                            pending.hasOpen ||
+                            pending.hasOverride ||
+                            pending.hasOperator ||
+                            pending.hasExternal ||
+                            pending.hasExpect ||
+                            pending.hasActual ||
+                            pending.hasProtected ||
+                            pending.functionName ==
+                            "main" ||
+                            containingClass?.isExpect ==
+                            true ||
+                            containingClass?.isExternal ==
+                            true ||
+                            containingClass?.isInterface ==
+                            true
                     for ((name, span) in pending.params) {
                         val message = UnusedParameterDecision.decide(functionExempt, name, wasUsed = false) ?: continue
                         reporter.report(ruleId, message, span[0], span[1], this)

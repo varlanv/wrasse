@@ -48,9 +48,13 @@ object IdempotenceCycle {
     }
 
     fun diagnosticKey(diagnostic: TestDiagnostic): String =
-    "${diagnostic.severity} ${diagnostic.message}"
+        "${diagnostic.severity} ${diagnostic.message}"
 
-    fun lineColToOffset(sourceText: String, line: Int, column: Int): Int {
+    fun lineColToOffset(
+        sourceText: String,
+        line: Int,
+        column: Int,
+    ): Int {
         var offset = 0
         var currentLine = 1
         while (currentLine < line) {
@@ -76,7 +80,11 @@ object IdempotenceCycle {
         return if (start <= end) start..end else end..start
     }
 
-    fun expectedSurvivorKeys(sourceText: String, diagnostics: List<TestDiagnostic>, edits: List<WEdit>): List<String> {
+    fun expectedSurvivorKeys(
+        sourceText: String,
+        diagnostics: List<TestDiagnostic>,
+        edits: List<WEdit>,
+    ): List<String> {
         val editRanges = edits.map { it.startOffset..it.endOffset }
         return diagnostics.mapNotNull { diagnostic ->
             val range = diagnosticOffsetRange(sourceText, diagnostic.location)
@@ -100,10 +108,11 @@ object IdempotenceCycle {
      * is removed, but the patch file itself may still exist (header-only) after a clean recompile.
      */
     fun assertNoResidualEdits(patchFile: Path) {
-        val residualEntries = if (Files.exists(patchFile)) WPatchReader.read(Files.readString(patchFile)) else emptyList()
+        val residualEntries =
+            if (Files.exists(patchFile)) WPatchReader.read(Files.readString(patchFile)) else emptyList()
         withClue(
             "fix(fix(x)) == fix(x) violated: a second fix pass emitted further edits, expected merge-on-write " +
-                "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
+            "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
                 "exist, header-only, since emission now rides check mode unconditionally.\n" +
                 "Residual patch entries at $patchFile:\n${describeResidualEntries(residualEntries)}",
         ) {
@@ -111,13 +120,10 @@ object IdempotenceCycle {
         }
     }
 
-    private fun describeResidualEntries(entries: List<FileEdits>): String =
-    entries
-        .joinToString("\n") { file ->
-            "  ${file.filePath} (${file.edits.size} edits)" +
-                file.edits.joinToString("") { "\n    [${it.startOffset}, ${it.endOffset}) -> ${it.replacement.take(400)}" }
-        }
-        .ifEmpty { "  (none)" }
+    private fun describeResidualEntries(entries: List<FileEdits>): String = entries.joinToString("\n") { file ->
+        "  ${file.filePath} (${file.edits.size} edits)" +
+            file.edits.joinToString("") { "\n    [${it.startOffset}, ${it.endOffset}) -> ${it.replacement.take(400)}" }
+    }.ifEmpty { "  (none)" }
 
     /**
      * Fails if applying the fix introduced a non-wrasse `e:`-severity diagnostic message present in
@@ -132,8 +138,8 @@ object IdempotenceCycle {
         val newDiagnostics = round2.filter { it.message in newMessages }.distinctBy { it.message }
         withClue(
             "Autofix broke the compile: round 2 (after applying round 1's emitted edits and " +
-                "recompiling) introduced non-wrasse compiler error(s) that round 1 did not have. " +
-                "A fix must never turn compiling code into code that no longer compiles.\n" +
+            "recompiling) introduced non-wrasse compiler error(s) that round 1 did not have. " +
+            "A fix must never turn compiling code into code that no longer compiles.\n" +
                 "New errors introduced by the fix:\n${formatDiagnostics(newDiagnostics)}\n" +
                 "Round 1 non-wrasse errors:\n${formatDiagnostics(round1.filter { it.message in round1Messages })}",
         ) {
@@ -141,8 +147,12 @@ object IdempotenceCycle {
         }
     }
 
-    private fun nonWrasseErrorMessages(diagnostics: List<TestDiagnostic>): Set<String> =
-    diagnostics.filter { it.severity.isError && !it.message.startsWith("wrasse:") }.map { it.message }.toSet()
+    private fun nonWrasseErrorMessages(
+        diagnostics: List<TestDiagnostic>,
+    ): Set<String> = diagnostics
+        .filter { it.severity.isError && !it.message.startsWith("wrasse:") }
+        .map { it.message }
+        .toSet()
 
     /**
      * Stronger check than [assertNoNewCompileErrors]: fails on any non-wrasse compiler error,
@@ -165,7 +175,7 @@ object IdempotenceCycle {
         val actualSorted = actualD2Keys.sorted()
         withClue(
             "Idempotence invariant (D19) violated: after applying autofix, D2 must equal exactly " +
-                "the D1 diagnostics that carried no edits.\n" +
+            "the D1 diagnostics that carried no edits.\n" +
                 "Expected D2 (D1 minus fixed violations):\n${formatKeys(expectedSorted)}\n" +
                 "Actual D2 (after fix(fix(x))):\n${formatKeys(actualSorted)}",
         ) {
@@ -174,18 +184,20 @@ object IdempotenceCycle {
     }
 
     private fun IntRange.overlapsInclusive(other: IntRange): Boolean =
-    first <= other.last && other.first <= last
+        first <= other.last && other.first <= last
 
     private fun describeApplyResult(result: FileApplyResult): String =
-    when (result) {
-        is FileApplyResult.Applied -> "  Applied: ${result.filePath} (${result.editCount} edits)"
-        is FileApplyResult.Skipped -> "  Skipped: ${result.filePath} - ${result.reason}"
-        is FileApplyResult.Failed -> "  Failed: ${result.filePath} - ${result.reason}"
-    }
+        when (result) {
+            is FileApplyResult.Applied -> "  Applied: ${result.filePath} (${result.editCount} edits)"
+            is FileApplyResult.Skipped -> "  Skipped: ${result.filePath} - ${result.reason}"
+            is FileApplyResult.Failed -> "  Failed: ${result.filePath} - ${result.reason}"
+        }
 
-    private fun formatKeys(keys: List<String>): String =
-    keys.joinToString("\n") { "  $it" }.ifEmpty { "  (none)" }
+    private fun formatKeys(keys: List<String>): String = keys.joinToString("\n") { "  $it" }.ifEmpty { "  (none)" }
 
-    private fun formatDiagnostics(diagnostics: List<TestDiagnostic>): String =
-    diagnostics.joinToString("\n") { "  ${it.severity} ${it.location?.line}:${it.location?.column} ${it.message}" }.ifEmpty { "  (none)" }
+    private fun formatDiagnostics(
+        diagnostics: List<TestDiagnostic>,
+    ): String = diagnostics
+        .joinToString("\n") { "  ${it.severity} ${it.location?.line}:${it.location?.column} ${it.message}" }
+        .ifEmpty { "  (none)" }
 }

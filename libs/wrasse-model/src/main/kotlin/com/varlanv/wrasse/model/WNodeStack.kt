@@ -17,7 +17,11 @@ class WNodeStack {
     val size: Int get() = _size
     val isEmpty: Boolean get() = _size == 0
 
-    fun push(type: WNodeType, startOffset: Int, endOffset: Int) {
+    fun push(
+        type: WNodeType,
+        startOffset: Int,
+        endOffset: Int,
+    ) {
         if (_size == types.size) {
             grow()
         }

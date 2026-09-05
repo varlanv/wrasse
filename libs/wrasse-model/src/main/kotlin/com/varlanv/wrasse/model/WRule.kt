@@ -97,7 +97,11 @@ interface WNodeRule : WRule {
  * provides them as a [ChildBuffer] in the buffered [exitNode] overload.
  */
 interface WBufferedNodeRule : WNodeRule {
-    fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter)
+    fun exitNode(
+        ctx: WContext,
+        children: ChildBuffer,
+        reporter: WReporter,
+    )
 
     override fun exitNode(ctx: WContext, reporter: WReporter) {}
 }

@@ -23,6 +23,8 @@ object WPatchMerge {
         return if (replaced) result else result + entry
     }
 
-    fun remove(existing: List<FileEdits>, filePath: String): List<FileEdits> =
-    existing.filterNot { it.filePath == filePath }
+    fun remove(
+        existing: List<FileEdits>,
+        filePath: String,
+    ): List<FileEdits> = existing.filterNot { it.filePath == filePath }
 }

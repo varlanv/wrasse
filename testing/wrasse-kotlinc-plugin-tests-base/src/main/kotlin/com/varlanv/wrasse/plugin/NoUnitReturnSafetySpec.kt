@@ -18,42 +18,39 @@ import java.nio.file.Files
  * [com.varlanv.wrasse.rules.NoUnitReturnRule]'s KDoc — but this spec locks the one shape where
  * getting it wrong would have broken the compile, mirroring [EmptyClassBodySafetySpec].
  */
-open class NoUnitReturnSafetySpec :
-    BaseSpec(
-        {
+open class NoUnitReturnSafetySpec : BaseSpec({
 
-            val wrasseConfig = """{"rules":{"no-unit-return":{"level":"error"}}}"""
+    val wrasseConfig = """{"rules":{"no-unit-return":{"level":"error"}}}"""
 
-            should("leave a Unit return type followed by an EOL comment untouched and still compiling") {
-                val source = TestSource(
-                    "sample/Sample.kt",
-                    """
-                        package sample
+    should("leave a Unit return type followed by an EOL comment untouched and still compiling") {
+        val source = TestSource(
+            "sample/Sample.kt",
+            """
+                package sample
 
-                        fun foo(): // trailing comment
-                            Unit {}
-                        """
-                        .trimIndent(),
-                )
+                fun foo(): // trailing comment
+                    Unit {}
+                """
+                .trimIndent(),
+        )
 
-                useTempDir { workDir ->
-                    useTempDir { fixOutputDir ->
-                        val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
-                        val round1 = harness.compile(listOf(source), workDir)
-                        round1.wrasseDiagnostics shouldHaveSize 1
+        useTempDir { workDir ->
+            useTempDir { fixOutputDir ->
+                val harness = WrasseTestHarness(wrasseConfig = wrasseConfig, fixOutputDir = fixOutputDir)
+                val round1 = harness.compile(listOf(source), workDir)
+                round1.wrasseDiagnostics shouldHaveSize 1
 
-                        val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
-                        if (Files.exists(patchFile)) {
-                            WPatchApplier.apply(fixOutputDir)
-                        }
-
-                        val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-                        patchedContent shouldBe source.content
-
-                        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
-                        IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
-                    }
+                val patchFile = fixOutputDir.resolve("wrasse-fixes.txt")
+                if (Files.exists(patchFile)) {
+                    WPatchApplier.apply(fixOutputDir)
                 }
+
+                val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+                patchedContent shouldBe source.content
+
+                val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)), workDir)
+                IdempotenceCycle.assertPatchedFileCompiles(round2.diagnostics)
             }
-        },
-    )
+        }
+    }
+})

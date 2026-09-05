@@ -12,9 +12,9 @@ import com.varlanv.wrasse.model.WNodeType
 object TypeParameterCommentDecision {
     fun decide(parent: WNodeType, precededByNewline: Boolean): String? = when (parent) {
         WNodeType.TYPE_PARAMETER ->
-        "A comment inside or on the same line after a type parameter is not allowed. Place it on a separate line above."
+            "A comment inside or on the same line after a type parameter is not allowed. Place it on a separate line above."
         WNodeType.TYPE_PARAMETER_LIST ->
-        if (precededByNewline) null else "A comment in a type parameter list is only allowed when placed on a separate line"
+            if (precededByNewline) null else "A comment in a type parameter list is only allowed when placed on a separate line"
         else -> null
     }
 }

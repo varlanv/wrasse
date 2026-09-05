@@ -22,8 +22,17 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * ancestors without extra text-slicing this engine avoids.
  */
 class EmptyBlockEngine : WUninitializedRuleGroup {
-    override val ids: Set<String> =
-    setOf(IF_ID, ELSE_ID, FOR_ID, WHILE_ID, DO_WHILE_ID, FINALLY_ID, TRY_ID, INIT_ID, SECONDARY_CONSTRUCTOR_ID)
+    override val ids: Set<String> = setOf(
+        IF_ID,
+        ELSE_ID,
+        FOR_ID,
+        WHILE_ID,
+        DO_WHILE_ID,
+        FINALLY_ID,
+        TRY_ID,
+        INIT_ID,
+        SECONDARY_CONSTRUCTOR_ID,
+    )
 
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val rules = configs.mapValues { (id, config) -> ReportFacade(id, config) }
@@ -33,7 +42,11 @@ class EmptyBlockEngine : WUninitializedRuleGroup {
             override val config = configs.values.first()
             override val targetTypes = setOf(WNodeType.BLOCK)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (ctx.ancestors.isEmpty) return
                 val (targetId, message) = routeFor(ctx) ?: return
                 val rule = rules[targetId] ?: return
@@ -92,6 +105,6 @@ class EmptyBlockEngine : WUninitializedRuleGroup {
         const val TRY_MESSAGE = "Empty try block detected. Empty blocks of code serve no purpose and should be removed"
         const val INIT_MESSAGE = "Empty init block detected. Empty blocks of code serve no purpose and should be removed"
         const val SECONDARY_CONSTRUCTOR_MESSAGE =
-        "Empty secondary constructor detected. Empty blocks of code serve no purpose and should be removed"
+            "Empty secondary constructor detected. Empty blocks of code serve no purpose and should be removed"
     }
 }

@@ -37,8 +37,9 @@ class GetterSetterFieldsRule : WUninitializedRule {
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 when (ctx.type) {
                     WNodeType.PROPERTY -> propertyFrames.add(PropertyFrame())
-                    WNodeType.PROPERTY_ACCESSOR ->
-                    accessorFrames.add(AccessorFrame(propertyFrames.lastOrNull()?.name ?: ""))
+                    WNodeType.PROPERTY_ACCESSOR -> accessorFrames.add(
+                        AccessorFrame(propertyFrames.lastOrNull()?.name ?: ""),
+                    )
 
                     else -> {}
                 }
@@ -80,38 +81,46 @@ class GetterSetterFieldsRule : WUninitializedRule {
                 val accessor = accessorFrames.lastOrNull() ?: return
                 if (accessor.foundChosen) return
                 if (parentType != WNodeType.REFERENCE_EXPRESSION || text != accessor.propertyName) return
-                if (ancestors.size >= 2 && ancestors.typeAt(ancestors.size - 2) == WNodeType.DOT_QUALIFIED_EXPRESSION) return
+                if (ancestors.size >= 2 && ancestors.typeAt(ancestors.size - 2) == WNodeType.DOT_QUALIFIED_EXPRESSION) {
+                    return
+                }
 
                 accessor.foundChosen = true
-                accessor.rejectedAsCall = ancestors.size >= 2 && ancestors.typeAt(ancestors.size - 2) == WNodeType.CALL_EXPRESSION
+                accessor.rejectedAsCall =
+                    ancestors.size >= 2 &&
+                    ancestors.typeAt(ancestors.size - 2) == WNodeType.CALL_EXPRESSION
             }
 
             override fun exitNode(ctx: WContext, reporter: WReporter) {
                 when (ctx.type) {
-                    WNodeType.PROPERTY -> if (propertyFrames.isNotEmpty()) propertyFrames.removeAt(propertyFrames.size - 1)
+                    WNodeType.PROPERTY ->
+                        if (propertyFrames.isNotEmpty()) propertyFrames.removeAt(propertyFrames.size - 1)
                     WNodeType.PROPERTY_ACCESSOR -> finalizeAccessor(ctx, reporter)
                     else -> {}
                 }
             }
 
             private fun finalizeAccessor(ctx: WContext, reporter: WReporter) {
-                val accessor = if (accessorFrames.isNotEmpty()) accessorFrames.removeAt(accessorFrames.size - 1) else return
+                val accessor =
+                    if (accessorFrames.isNotEmpty()) accessorFrames.removeAt(accessorFrames.size - 1) else return
                 val isExtension = propertyFrames.lastOrNull()?.isExtension == true
                 val message =
-                GetterSetterFieldsDecision
-                        .decide(
-                            foundSelfReference = accessor.foundChosen,
-                            isCallExpressionCallee = accessor.rejectedAsCall,
-                            shadowedByLocalVar = accessor.sawLocalVarBefore,
-                            isExtensionProperty = isExtension,
-                        )
-                    ?: return
+                    GetterSetterFieldsDecision.decide(
+                        foundSelfReference = accessor.foundChosen,
+                        isCallExpressionCallee = accessor.rejectedAsCall,
+                        shadowedByLocalVar = accessor.sawLocalVarBefore,
+                        isExtensionProperty = isExtension,
+                    ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
         }
     }
 
-    private class PropertyFrame(var nameCaptured: Boolean = false, var name: String = "", var isExtension: Boolean = false)
+    private class PropertyFrame(
+        var nameCaptured: Boolean = false,
+        var name: String = "",
+        var isExtension: Boolean = false,
+    )
 
     private class AccessorFrame(
         val propertyName: String,

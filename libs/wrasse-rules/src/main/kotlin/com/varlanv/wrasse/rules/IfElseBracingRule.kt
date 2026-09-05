@@ -45,8 +45,7 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
 class IfElseBracingRule : WUninitializedRule {
     override val id: String = "if-else-bracing"
     override val canAutofix: Boolean = true
-    override val options: List<WRuleOptionSpec> =
-    listOf(
+    override val options: List<WRuleOptionSpec> = listOf(
         WRuleOptionSpec.Optional(
             name = ALLOW_INLINE,
             type = WRuleOptionType.BOOLEAN,
@@ -64,7 +63,11 @@ class IfElseBracingRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.IF)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 var rparIdx = -1
                 var thenIdx = -1
                 var elseKwIdx = -1
@@ -81,7 +84,10 @@ class IfElseBracingRule : WUninitializedRule {
                 if (rparIdx < 0 || thenIdx < 0) return
 
                 val (chainStart, chainEnd) = chainHeadSpan(ctx)
-                if (allowInline && !IfElseBracingDecision.chainSpansMultipleLines(ctx.sourceText, chainStart, chainEnd)) return
+                if (allowInline &&
+                    !IfElseBracingDecision.chainSpansMultipleLines(ctx.sourceText, chainStart, chainEnd)) {
+                    return
+                }
 
                 val baseIndentColumn =
                     if (config.formatEnabled) {
@@ -181,13 +187,27 @@ class IfElseBracingRule : WUninitializedRule {
                 )
             }
 
-            private fun report(ctx: WContext, reporter: WReporter, baseIndentColumn: Int, candidate: IfElseBracingCandidate) {
-                val verdict = IfElseBracingDecision
-                    .decideBranch(ctx.sourceText, candidate, baseIndentColumn, INDENT_WIDTH, config.formatEnabled)
+            private fun report(
+                ctx: WContext,
+                reporter: WReporter,
+                baseIndentColumn: Int,
+                candidate: IfElseBracingCandidate,
+            ) {
+                val verdict = IfElseBracingDecision.decideBranch(
+                    ctx.sourceText,
+                    candidate,
+                    baseIndentColumn,
+                    INDENT_WIDTH,
+                    config.formatEnabled,
+                )
                 reporter.report(ruleId, message, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
             }
 
-            private fun hasCommentBetween(children: ChildBuffer, from: Int, until: Int): Boolean {
+            private fun hasCommentBetween(
+                children: ChildBuffer,
+                from: Int,
+                until: Int,
+            ): Boolean {
                 for (i in from until until) {
                     val type = children.type(i)
                     if (type.isWhitespaceOrComment && type != WNodeType.WHITE_SPACE) return true
@@ -213,7 +233,9 @@ class IfElseBracingRule : WUninitializedRule {
             var headStart = ctx.startOffset
             var headEnd = ctx.endOffset
             var idx = ctx.ancestors.size - 1
-            while (idx >= 1 && ctx.ancestors.typeAt(idx) == WNodeType.ELSE && ctx.ancestors.typeAt(idx - 1) == WNodeType.IF) {
+            while (idx >= 1 &&
+                ctx.ancestors.typeAt(idx) == WNodeType.ELSE &&
+                ctx.ancestors.typeAt(idx - 1) == WNodeType.IF) {
                 headStart = ctx.ancestors.startOffsetAt(idx - 1)
                 headEnd = ctx.ancestors.endOffsetAt(idx - 1)
                 idx -= 2
@@ -221,7 +243,11 @@ class IfElseBracingRule : WUninitializedRule {
             return headStart to headEnd
         }
 
-        fun looksLikeBareIf(sourceText: CharSequence, start: Int, end: Int): Boolean {
+        fun looksLikeBareIf(
+            sourceText: CharSequence,
+            start: Int,
+            end: Int,
+        ): Boolean {
             if (end - start < 2 || sourceText[start] != 'i' || sourceText[start + 1] != 'f') return false
             if (end - start == 2) return true
             val next = sourceText[start + 2]

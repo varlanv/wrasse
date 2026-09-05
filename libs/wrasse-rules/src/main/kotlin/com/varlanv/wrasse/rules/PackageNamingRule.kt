@@ -19,11 +19,16 @@ class PackageNamingRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.PACKAGE_DIRECTIVE)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val nameIdx = (0 until children.size).firstOrNull {
-                        children.type(it) == WNodeType.DOT_QUALIFIED_EXPRESSION || children.type(it) == WNodeType.REFERENCE_EXPRESSION
-                    }
-                    ?: return
+                    children.type(
+                        it,
+                    ) == WNodeType.DOT_QUALIFIED_EXPRESSION || children.type(it) == WNodeType.REFERENCE_EXPRESSION
+                } ?: return
                 val fqName = children.textSpan(nameIdx, ctx.sourceText).toString()
                 val message = PackageNamingDecision.decide(fqName) ?: return
                 reporter.report(ruleId, message, children.startOffset(nameIdx), children.endOffset(nameIdx), this)

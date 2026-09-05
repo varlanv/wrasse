@@ -41,14 +41,10 @@ private fun ExpectedSeverity.toCompilerSeverity(): CompilerMessageSeverity = whe
     ExpectedSeverity.WARNING -> CompilerMessageSeverity.WARNING
 }
 
-private fun formatDiagnostics(diagnostics: List<TestDiagnostic>): String =
-diagnostics
-    .joinToString("\n") { d ->
-        "  ${d.severity} ${d.location?.line}:${d.location?.column} ${d.message}"
-    }
-    .ifEmpty { "  (none)" }
+private fun formatDiagnostics(diagnostics: List<TestDiagnostic>): String = diagnostics.joinToString("\n") { d ->
+    "  ${d.severity} ${d.location?.line}:${d.location?.column} ${d.message}"
+}.ifEmpty { "  (none)" }
 
-private fun formatExpectations(expectations: List<ExpectedDiagnostic>): String =
-expectations.joinToString("\n") { e ->
+private fun formatExpectations(expectations: List<ExpectedDiagnostic>): String = expectations.joinToString("\n") { e ->
     "  ${e.severity} ${e.line}:${e.column} ${e.ruleId} \"${e.message}\""
 }

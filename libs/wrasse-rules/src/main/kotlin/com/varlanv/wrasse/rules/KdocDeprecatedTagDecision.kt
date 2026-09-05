@@ -7,7 +7,7 @@ package com.varlanv.wrasse.rules
  */
 object KdocDeprecatedTagDecision {
     const val MESSAGE =
-    "The @deprecated tag block does not properly report deprecation in Kotlin, use @Deprecated annotation instead"
+        "The @deprecated tag block does not properly report deprecation in Kotlin, use @Deprecated annotation instead"
 
     private val TAG_PATTERN = Regex("""@deprecated\b""")
 

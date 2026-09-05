@@ -37,7 +37,11 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
             private val completedFuns = mutableListOf<CompletedFun>()
             private val completedBodies = mutableListOf<CompletedBody>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.PROPERTY -> recordProperty(ctx, children)
                     WNodeType.FUN -> recordFun(ctx, children)
@@ -54,18 +58,17 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
                 val modifierText = modifierText(children, ctx)
                 val isPrivate = WordBoundaryScan.containsWord(modifierText, "private")
                 val isNonPublic = isPrivate || WordBoundaryScan.containsWord(modifierText, "internal")
-                completedProperties
-                    .add(
-                        CompletedProperty(
-                            start = ctx.startOffset,
-                            end = ctx.endOffset,
-                            name = name,
-                            nameStart = children.startOffset(nameIdx),
-                            nameEnd = children.endOffset(nameIdx),
-                            isNonPublic = isNonPublic,
-                            isPrivate = isPrivate,
-                        ),
-                    )
+                completedProperties.add(
+                    CompletedProperty(
+                        start = ctx.startOffset,
+                        end = ctx.endOffset,
+                        name = name,
+                        nameStart = children.startOffset(nameIdx),
+                        nameEnd = children.endOffset(nameIdx),
+                        isNonPublic = isNonPublic,
+                        isPrivate = isPrivate,
+                    ),
+                )
             }
 
             private fun recordFun(ctx: WContext, children: ChildBuffer) {
@@ -73,7 +76,9 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
                 if (nameIdx < 0) return
                 val name = IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
                 val isPrivate = WordBoundaryScan.containsWord(modifierText(children, ctx), "private")
-                completedFuns.add(CompletedFun(start = ctx.startOffset, end = ctx.endOffset, name = name, isPrivate = isPrivate))
+                completedFuns.add(
+                    CompletedFun(start = ctx.startOffset, end = ctx.endOffset, name = name, isPrivate = isPrivate),
+                )
             }
 
             private fun modifierText(children: ChildBuffer, ctx: WContext): CharSequence {
@@ -87,13 +92,16 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
                 for (i in 0 until children.size) {
                     when (children.type(i)) {
                         WNodeType.PROPERTY -> {
-                            val idx =
-                            completedProperties.indexOfFirst { it.start == children.startOffset(i) && it.end == children.endOffset(i) }
+                            val idx = completedProperties.indexOfFirst {
+                                it.start == children.startOffset(i) && it.end == children.endOffset(i)
+                            }
                             if (idx >= 0) properties.add(completedProperties.removeAt(idx))
                         }
 
                         WNodeType.FUN -> {
-                            val idx = completedFuns.indexOfFirst { it.start == children.startOffset(i) && it.end == children.endOffset(i) }
+                            val idx = completedFuns.indexOfFirst {
+                                it.start == children.startOffset(i) && it.end == children.endOffset(i)
+                            }
                             if (idx >= 0) funs.add(completedFuns.removeAt(idx))
                         }
 
@@ -103,15 +111,20 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
                 completedBodies.add(CompletedBody(ctx.startOffset, ctx.endOffset, properties, funs))
             }
 
-            private fun handleClass(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun handleClass(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val kdocIdx = children.firstChildOfType(WNodeType.KDOC)
                 val bodyIdx = children.firstChildOfType(WNodeType.CLASS_BODY)
                 val bodyRecord =
                     if (bodyIdx < 0) {
                         null
                     } else {
-                        val idx =
-                        completedBodies.indexOfFirst { it.start == children.startOffset(bodyIdx) && it.end == children.endOffset(bodyIdx) }
+                        val idx = completedBodies.indexOfFirst {
+                            it.start == children.startOffset(bodyIdx) && it.end == children.endOffset(bodyIdx)
+                        }
                         if (idx < 0) null else completedBodies.removeAt(idx)
                     }
                 if (kdocIdx < 0 || bodyRecord == null) return
@@ -120,19 +133,26 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
                     if (!property.isNonPublic) continue
                     if (!KdocReferencesNonPublicPropertyDecision.isReferenced(kdocText, property.name)) continue
                     val otherMembers = otherMemberNames(bodyRecord, property)
-                    if (KdocReferencesNonPublicPropertyDecision.hasNonPrivateSameNameMember(property.name, otherMembers)) continue
-                    reporter
-                        .report(
-                            ruleId,
-                            KdocReferencesNonPublicPropertyDecision.message(property.name),
-                            property.nameStart,
-                            property.nameEnd,
-                            this,
-                        )
+                    if (KdocReferencesNonPublicPropertyDecision.hasNonPrivateSameNameMember(
+                        property.name,
+                        otherMembers,
+                    )) {
+                        continue
+                    }
+                    reporter.report(
+                        ruleId,
+                        KdocReferencesNonPublicPropertyDecision.message(property.name),
+                        property.nameStart,
+                        property.nameEnd,
+                        this,
+                    )
                 }
             }
 
-            private fun otherMemberNames(body: CompletedBody, property: CompletedProperty): List<Pair<String, Boolean>> {
+            private fun otherMemberNames(
+                body: CompletedBody,
+                property: CompletedProperty,
+            ): List<Pair<String, Boolean>> {
                 val result = mutableListOf<Pair<String, Boolean>>()
                 for (fn in body.funs) result.add(fn.name to fn.isPrivate)
                 for (other in body.properties) if (other !== property) result.add(other.name to other.isPrivate)
@@ -151,7 +171,17 @@ class KdocReferencesNonPublicPropertyRule : WUninitializedRule {
         val isPrivate: Boolean,
     )
 
-    private class CompletedFun(val start: Int, val end: Int, val name: String, val isPrivate: Boolean)
+    private class CompletedFun(
+        val start: Int,
+        val end: Int,
+        val name: String,
+        val isPrivate: Boolean,
+    )
 
-    private class CompletedBody(val start: Int, val end: Int, val properties: List<CompletedProperty>, val funs: List<CompletedFun>)
+    private class CompletedBody(
+        val start: Int,
+        val end: Int,
+        val properties: List<CompletedProperty>,
+        val funs: List<CompletedFun>,
+    )
 }

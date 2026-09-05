@@ -33,7 +33,7 @@ class NoConsecutiveCommentsRule : WUninitializedRule {
                     val previous = lastSignificantLeafType
                     if (previous != null && isCommentType(previous)) {
                         val separatedByBlankLine =
-                        ctx.prevLeafType == WNodeType.WHITE_SPACE && countNewlines(ctx.prevLeafText) > 1
+                            ctx.prevLeafType == WNodeType.WHITE_SPACE && countNewlines(ctx.prevLeafText) > 1
                         val message = NoConsecutiveCommentsDecision.decide(previous, ctx.type, separatedByBlankLine)
                         if (message != null) reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
                     }
@@ -43,7 +43,7 @@ class NoConsecutiveCommentsRule : WUninitializedRule {
             }
 
             private fun isCommentType(type: WNodeType): Boolean =
-            type == WNodeType.EOL_COMMENT || type == WNodeType.BLOCK_COMMENT || type == WNodeType.KDOC
+                type == WNodeType.EOL_COMMENT || type == WNodeType.BLOCK_COMMENT || type == WNodeType.KDOC
 
             private fun countNewlines(text: CharSequence?): Int {
                 if (text == null) return 0

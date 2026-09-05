@@ -11,13 +11,25 @@ package com.varlanv.wrasse.rules
 object SwallowedExceptionDecision {
     const val MESSAGE = "The caught exception is swallowed. The original exception could be lost."
 
-    private val IGNORED_TYPES = listOf("InterruptedException", "MalformedURLException", "NumberFormatException", "ParseException")
+    private val IGNORED_TYPES = listOf(
+        "InterruptedException",
+        "MalformedURLException",
+        "NumberFormatException",
+        "ParseException",
+    )
 
-    fun decide(typeText: String, catchParameterName: String, isReferenced: Boolean): String? {
+    fun decide(
+        typeText: String,
+        catchParameterName: String,
+        isReferenced: Boolean,
+    ): String? {
         if (IGNORED_TYPES.any { typeText.contains(it, ignoreCase = true) }) return null
         if (AllowedExceptionName.isAllowed(catchParameterName)) return null
         return if (isReferenced) null else MESSAGE
     }
 
-    fun isUsageText(text: String, catchParameterName: String): Boolean = text == catchParameterName || text in IGNORED_TYPES
+    fun isUsageText(
+        text: String,
+        catchParameterName: String,
+    ): Boolean = text == catchParameterName || text in IGNORED_TYPES
 }

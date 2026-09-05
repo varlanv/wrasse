@@ -35,16 +35,20 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * [com.varlanv.wrasse.model.EditPlan] as an inter-rule bus.
  */
 class ImportEngine : WUninitializedRuleGroup {
-    override val ids: Set<String> =
-    setOf(NO_UNUSED_IMPORTS_ID, NO_WILDCARD_IMPORTS_ID, IMPORT_ORDERING_ID, NO_UNNECESSARY_FQN_ID)
+    override val ids: Set<String> = setOf(
+        NO_UNUSED_IMPORTS_ID,
+        NO_WILDCARD_IMPORTS_ID,
+        IMPORT_ORDERING_ID,
+        NO_UNNECESSARY_FQN_ID,
+    )
 
     override val canAutofix: Boolean = true
 
     override fun requiresResolution(enabledIds: Set<String>): Boolean =
-    NO_UNUSED_IMPORTS_ID in enabledIds || NO_WILDCARD_IMPORTS_ID in enabledIds
+        NO_UNUSED_IMPORTS_ID in enabledIds || NO_WILDCARD_IMPORTS_ID in enabledIds
 
     override fun requiresQualifiedUsages(enabledIds: Set<String>): Boolean =
-    NO_UNNECESSARY_FQN_ID in enabledIds
+        NO_UNNECESSARY_FQN_ID in enabledIds
 
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val unusedRule = configs[NO_UNUSED_IMPORTS_ID]?.let { ReportFacade(NO_UNUSED_IMPORTS_ID, it) }
@@ -90,16 +94,15 @@ class ImportEngine : WUninitializedRuleGroup {
                             if (raw.isStar) {
                                 starImports.add(StarImportRecord(fqn, raw.startOffset, raw.endOffset))
                             } else {
-                                directives
-                                    .add(
-                                        ImportRecord(
-                                            fqn = fqn,
-                                            simpleName = raw.pathParts.last(),
-                                            aliasName = raw.aliasName,
-                                            startOffset = raw.startOffset,
-                                            endOffset = raw.endOffset,
-                                        ),
-                                    )
+                                directives.add(
+                                    ImportRecord(
+                                        fqn = fqn,
+                                        simpleName = raw.pathParts.last(),
+                                        aliasName = raw.aliasName,
+                                        startOffset = raw.startOffset,
+                                        endOffset = raw.endOffset,
+                                    ),
+                                )
                             }
                         }
                     }
@@ -137,7 +140,9 @@ class ImportEngine : WUninitializedRuleGroup {
                     packagePathParts.add(text)
                 } else {
                     writtenIdentifiers.add(text)
-                    if (collectIdentifierPositions) identifierOccurrences.add(IdentifierOccurrence(text, ctx.startOffset))
+                    if (collectIdentifierPositions) {
+                        identifierOccurrences.add(IdentifierOccurrence(text, ctx.startOffset))
+                    }
                 }
             }
 
@@ -169,7 +174,14 @@ class ImportEngine : WUninitializedRuleGroup {
                             else -> unnecessaryFqnRule
                         }
                     if (rule == null) continue
-                    reporter.report(p.ruleId, p.message, p.reportStart, p.reportEnd, rule, edits = listOfNotNull(p.edit, p.extraEdit))
+                    reporter.report(
+                        p.ruleId,
+                        p.message,
+                        p.reportStart,
+                        p.reportEnd,
+                        rule,
+                        edits = listOfNotNull(p.edit, p.extraEdit),
+                    )
                 }
             }
 
@@ -179,16 +191,15 @@ class ImportEngine : WUninitializedRuleGroup {
                 pending: MutableList<PendingImportReport>,
                 importInsertions: MutableList<Pair<String, PendingImportReport>>,
             ) {
-                val reports = QualifiedUsageDecision
-                    .decideAll(
-                        qualifiedUsages = usage.qualifiedUsages,
-                        sourceText = sourceText,
-                        filePackageFqName = filePackageFqName,
-                        classifiers = usage.classifiers,
-                        callables = usage.callables,
-                        explicitImports = directives,
-                        identifierOccurrences = identifierOccurrences,
-                    )
+                val reports = QualifiedUsageDecision.decideAll(
+                    qualifiedUsages = usage.qualifiedUsages,
+                    sourceText = sourceText,
+                    filePackageFqName = filePackageFqName,
+                    classifiers = usage.classifiers,
+                    callables = usage.callables,
+                    explicitImports = directives,
+                    identifierOccurrences = identifierOccurrences,
+                )
                 for (r in reports) {
                     val report = PendingImportReport(
                         NO_UNNECESSARY_FQN_ID,
@@ -211,60 +222,88 @@ class ImportEngine : WUninitializedRuleGroup {
                 pending: MutableList<PendingImportReport>,
             ) {
                 if (starImports.isEmpty()) return
-                val duplicatePackages = starImports.groupingBy { it.packageFqName }.eachCount().filterValues { it > 1 }.keys
+                val duplicatePackages = starImports
+                    .groupingBy { it.packageFqName }
+                    .eachCount()
+                    .filterValues { it > 1 }
+                    .keys
                 for (star in starImports) {
                     val edit = usableUsage?.let {
-                        WildcardExpansionDecision
-                            .decide(
-                                star = star,
-                                allStars = starImports,
-                                duplicatePackages = duplicatePackages,
-                                explicitImports = directives,
-                                filePackageFqName = filePackageFqName,
-                                classifiers = it.classifiers,
-                                callables = it.callables,
-                                writtenIdentifiers = writtenIdentifiers,
-                                kdocSpans = kdocSpans,
-                                sourceText = sourceText,
-                                resolvedImports = it.resolvedImports,
-                            )
-                    }
-                    pending.add(PendingImportReport(NO_WILDCARD_IMPORTS_ID, WILDCARD_MESSAGE, star.startOffset, star.endOffset, edit))
-                }
-            }
-
-            private fun collectUnusedImports(sourceText: CharSequence, usage: WResolvedUsage, pending: MutableList<PendingImportReport>) {
-                for (import in directives) {
-                    val unused = UnusedImportDecision
-                        .isUnused(
-                            import = import,
-                            classifiers = usage.classifiers,
-                            callables = usage.callables,
-                            sourceText = sourceText,
-                            commentSpans = commentSpans,
-                        )
-                    if (unused) {
-                        val edit = ImportRemovalSpan.compute(sourceText, import.startOffset, import.endOffset)
-                        pending.add(PendingImportReport(NO_UNUSED_IMPORTS_ID, UNUSED_MESSAGE, import.startOffset, import.endOffset, edit))
-                    }
-                }
-                for (star in starImports) {
-                    val verdict = UnusedStarDecision
-                        .decide(
+                        WildcardExpansionDecision.decide(
                             star = star,
                             allStars = starImports,
+                            duplicatePackages = duplicatePackages,
                             explicitImports = directives,
                             filePackageFqName = filePackageFqName,
-                            classifiers = usage.classifiers,
-                            callables = usage.callables,
+                            classifiers = it.classifiers,
+                            callables = it.callables,
                             writtenIdentifiers = writtenIdentifiers,
                             kdocSpans = kdocSpans,
                             sourceText = sourceText,
-                            resolvedImports = usage.resolvedImports,
+                            resolvedImports = it.resolvedImports,
                         )
+                    }
+                    pending.add(
+                        PendingImportReport(
+                            NO_WILDCARD_IMPORTS_ID,
+                            WILDCARD_MESSAGE,
+                            star.startOffset,
+                            star.endOffset,
+                            edit,
+                        ),
+                    )
+                }
+            }
+
+            private fun collectUnusedImports(
+                sourceText: CharSequence,
+                usage: WResolvedUsage,
+                pending: MutableList<PendingImportReport>,
+            ) {
+                for (import in directives) {
+                    val unused = UnusedImportDecision.isUnused(
+                        import = import,
+                        classifiers = usage.classifiers,
+                        callables = usage.callables,
+                        sourceText = sourceText,
+                        commentSpans = commentSpans,
+                    )
+                    if (unused) {
+                        val edit = ImportRemovalSpan.compute(sourceText, import.startOffset, import.endOffset)
+                        pending.add(
+                            PendingImportReport(
+                                NO_UNUSED_IMPORTS_ID,
+                                UNUSED_MESSAGE,
+                                import.startOffset,
+                                import.endOffset,
+                                edit,
+                            ),
+                        )
+                    }
+                }
+                for (star in starImports) {
+                    val verdict = UnusedStarDecision.decide(
+                        star = star,
+                        allStars = starImports,
+                        explicitImports = directives,
+                        filePackageFqName = filePackageFqName,
+                        classifiers = usage.classifiers,
+                        callables = usage.callables,
+                        writtenIdentifiers = writtenIdentifiers,
+                        kdocSpans = kdocSpans,
+                        sourceText = sourceText,
+                        resolvedImports = usage.resolvedImports,
+                    )
                     if (verdict is UnusedStarVerdict.Unused) {
-                        pending
-                            .add(PendingImportReport(NO_UNUSED_IMPORTS_ID, UNUSED_MESSAGE, star.startOffset, star.endOffset, verdict.edit))
+                        pending.add(
+                            PendingImportReport(
+                                NO_UNUSED_IMPORTS_ID,
+                                UNUSED_MESSAGE,
+                                star.startOffset,
+                                star.endOffset,
+                                verdict.edit,
+                            ),
+                        )
                     }
                 }
             }
@@ -291,12 +330,15 @@ class ImportEngine : WUninitializedRuleGroup {
                 if (listStart < 0) return
                 val newFqns = importInsertions.map { it.first }.distinct().sorted()
                 val anchorsByFqn = importInsertions.toMap()
-                val records = directiveSpans.map { (start, end) -> ImportOrderingRecord(start, end, sourceText.substring(start, end)) }
+                val records = directiveSpans.map { (start, end) ->
+                    ImportOrderingRecord(start, end, sourceText.substring(start, end))
+                }
 
                 if (directiveSpans.isEmpty()) {
                     if (newFqns.isNotEmpty()) {
-                        anchorsByFqn.getValue(newFqns.first()).extraEdit =
-                            ImportInsertionDecision.emptyListInsertion(sourceText, listStart, newFqns)
+                        anchorsByFqn
+                            .getValue(newFqns.first())
+                            .extraEdit = ImportInsertionDecision.emptyListInsertion(sourceText, listStart, newFqns)
                     }
                     return
                 }
@@ -306,30 +348,42 @@ class ImportEngine : WUninitializedRuleGroup {
                     return
                 }
 
-                if (!ImportOrderingDecision.isCleanList(sourceText, listStart, listEnd, directiveSpans, hasCommentInList)) {
+                if (!ImportOrderingDecision.isCleanList(
+                    sourceText,
+                    listStart,
+                    listEnd,
+                    directiveSpans,
+                    hasCommentInList,
+                )) {
                     attachStandaloneInsertions(sourceText, pending, records, newFqns, anchorsByFqn)
                     reportOrderingIfOutOfOrder(records, reporter)
                     return
                 }
 
                 val probeEnd = probeEnd(sourceText, listEnd)
-                val taken = pending.filter { p -> p.edit != null && p.edit!!.startOffset >= listStart && p.edit!!.endOffset <= probeEnd }
+                val taken = pending.filter { p ->
+                    p.edit != null && p.edit!!.startOffset >= listStart && p.edit!!.endOffset <= probeEnd
+                }
                 if (taken.isEmpty() && newFqns.isEmpty()) {
                     val firstBad = ImportOrderingDecision.firstOutOfOrder(records) ?: return
-                    reporter
-                        .report(
-                            IMPORT_ORDERING_ID,
-                            ORDERING_MESSAGE,
-                            firstBad.startOffset,
-                            firstBad.endOffset,
-                            orderingRule,
-                            edits = listOf(WEdit(listStart, listEnd, ImportOrderingDecision.sortedReplacement(records))),
-                        )
+                    reporter.report(
+                        IMPORT_ORDERING_ID,
+                        ORDERING_MESSAGE,
+                        firstBad.startOffset,
+                        firstBad.endOffset,
+                        orderingRule,
+                        edits = listOf(WEdit(listStart, listEnd, ImportOrderingDecision.sortedReplacement(records))),
+                    )
                     return
                 }
 
-                val composed = ImportOrderingDecision
-                    .composeRegion(sourceText, listStart, probeEnd, taken.map { it.edit!! }, newFqns.map { "import $it" })
+                val composed = ImportOrderingDecision.composeRegion(
+                    sourceText,
+                    listStart,
+                    probeEnd,
+                    taken.map { it.edit!! },
+                    newFqns.map { "import $it" },
+                )
                 if (composed == null) {
                     attachStandaloneInsertions(sourceText, pending, records, newFqns, anchorsByFqn)
                     reportOrderingIfOutOfOrder(records, reporter)
@@ -338,7 +392,14 @@ class ImportEngine : WUninitializedRuleGroup {
                 for (p in taken) p.edit = null
                 val composedEdit = WEdit(listStart, probeEnd, composed)
                 if (ImportOrderingDecision.firstOutOfOrder(records) != null) {
-                    reporter.report(IMPORT_ORDERING_ID, ORDERING_MESSAGE, listStart, probeEnd, orderingRule, edits = listOf(composedEdit))
+                    reporter.report(
+                        IMPORT_ORDERING_ID,
+                        ORDERING_MESSAGE,
+                        listStart,
+                        probeEnd,
+                        orderingRule,
+                        edits = listOf(composedEdit),
+                    )
                 } else {
                     carrierFor(taken, newFqns, anchorsByFqn).extraEdit = composedEdit
                 }
@@ -351,12 +412,16 @@ class ImportEngine : WUninitializedRuleGroup {
              * otherwise any report in [taken] already has a true message of its own
              * (`no-unused-imports`/`no-wildcard-imports`), so the choice among them is arbitrary.
              */
-            private fun carrierFor(taken: List<PendingImportReport>, newFqns: List<String>, anchorsByFqn: Map<String, PendingImportReport>): PendingImportReport =
-            if (newFqns.isNotEmpty()) {
-                anchorsByFqn.getValue(newFqns.first())
-            } else {
-                taken.minWith(compareBy({ it.reportStart }, { it.reportEnd }))
-            }
+            private fun carrierFor(
+                taken: List<PendingImportReport>,
+                newFqns: List<String>,
+                anchorsByFqn: Map<String, PendingImportReport>,
+            ): PendingImportReport =
+                if (newFqns.isNotEmpty()) {
+                    anchorsByFqn.getValue(newFqns.first())
+                } else {
+                    taken.minWith(compareBy({ it.reportStart }, { it.reportEnd }))
+                }
 
             /**
              * Used whenever a new import can't ride `import-ordering`'s composed rewrite (ordering
@@ -378,7 +443,13 @@ class ImportEngine : WUninitializedRuleGroup {
                 anchorsByFqn: Map<String, PendingImportReport>,
             ) {
                 if (newFqns.isEmpty()) return
-                for (group in ImportInsertionDecision.standaloneEdits(sourceText, listStart, listEnd, records, newFqns)) {
+                for (group in ImportInsertionDecision.standaloneEdits(
+                    sourceText,
+                    listStart,
+                    listEnd,
+                    records,
+                    newFqns,
+                )) {
                     anchorsByFqn.getValue(group.fqns.first()).extraEdit = adjustForSwallowingEdit(group.edit, pending)
                 }
             }
@@ -386,17 +457,22 @@ class ImportEngine : WUninitializedRuleGroup {
             private fun adjustForSwallowingEdit(edit: WEdit, pending: List<PendingImportReport>): WEdit {
                 if (edit.startOffset != listEnd) return edit
                 val swallowingEnd = pending
-                        .mapNotNull { it.edit }
-                        .filter { it.startOffset <= listEnd && it.endOffset > listEnd }
-                        .maxOfOrNull { it.endOffset }
-                    ?: return edit
+                    .mapNotNull { it.edit }
+                    .filter { it.startOffset <= listEnd && it.endOffset > listEnd }
+                    .maxOfOrNull { it.endOffset } ?: return edit
                 return WEdit(swallowingEnd, swallowingEnd, edit.replacement.removePrefix("\n") + "\n")
             }
 
             private fun reportOrderingIfOutOfOrder(records: List<ImportOrderingRecord>, reporter: WReporter) {
                 if (orderingRule == null) return
                 val firstBad = ImportOrderingDecision.firstOutOfOrder(records) ?: return
-                reporter.report(IMPORT_ORDERING_ID, ORDERING_MESSAGE, firstBad.startOffset, firstBad.endOffset, orderingRule)
+                reporter.report(
+                    IMPORT_ORDERING_ID,
+                    ORDERING_MESSAGE,
+                    firstBad.startOffset,
+                    firstBad.endOffset,
+                    orderingRule,
+                )
             }
 
             private fun probeEnd(sourceText: CharSequence, listEnd: Int): Int {

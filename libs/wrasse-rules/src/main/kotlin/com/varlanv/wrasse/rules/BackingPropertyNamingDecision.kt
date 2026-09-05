@@ -11,7 +11,11 @@ object BackingPropertyNamingDecision {
     const val SHAPE_MESSAGE = "Backing property should start with underscore followed by lower camel case"
     const val VISIBILITY_MESSAGE = "Backing property is only allowed when the matching property or function is public"
 
-    fun decide(identifierText: CharSequence, hasOverride: Boolean, correlatedMemberIsPublic: Boolean?): String? {
+    fun decide(
+        identifierText: CharSequence,
+        hasOverride: Boolean,
+        correlatedMemberIsPublic: Boolean?,
+    ): String? {
         if (hasOverride) return null
         val unquoted = IdentifierCasing.unquote(identifierText)
         if (!unquoted.startsWith("_") || unquoted == "_") return null

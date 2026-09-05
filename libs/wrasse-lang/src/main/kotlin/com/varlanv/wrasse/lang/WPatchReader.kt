@@ -39,7 +39,12 @@ object WPatchReader {
         return result
     }
 
-    private fun flushCurrent(result: MutableList<FileEdits>, path: String?, hash: String?, edits: MutableList<WEdit>) {
+    private fun flushCurrent(
+        result: MutableList<FileEdits>,
+        path: String?,
+        hash: String?,
+        edits: MutableList<WEdit>,
+    ) {
         if (path != null && hash != null && edits.isNotEmpty()) {
             result.add(FileEdits(path, hash, edits.toList()))
         }

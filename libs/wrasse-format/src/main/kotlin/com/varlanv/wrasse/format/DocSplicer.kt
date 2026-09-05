@@ -62,13 +62,14 @@ object DocSplicer {
                 IndentScope.OPEN -> opens.addLast(edit)
                 IndentScope.CLOSE -> {
                     val open = opens.removeLastOrNull() ?: return null
-                    current = if (edit.startOffset == edit.endOffset) {
-                        consumed.add(edit)
-                        wrapIndent(current, open.startOffset, edit.startOffset, replacementDoc(edit))
-                    } else {
-                        wrapIndent(current, open.startOffset, edit.startOffset, after = null)
-                    }
-                    ?: return null
+                    current =
+                        if (edit.startOffset == edit.endOffset) {
+                            consumed.add(edit)
+                            wrapIndent(current, open.startOffset, edit.startOffset, replacementDoc(edit))
+                        } else {
+                            wrapIndent(current, open.startOffset, edit.startOffset, after = null)
+                        }
+                        ?: return null
                 }
 
                 IndentScope.NONE -> {}
@@ -83,7 +84,12 @@ object DocSplicer {
      * following the wrapped `Indent`, at the same structural level. Returns `null` if no
      * node/contiguous run of `Doc.Concat` parts has those bounds.
      */
-    private fun wrapIndent(doc: Doc, start: Int, end: Int, after: Doc?): Doc? {
+    private fun wrapIndent(
+        doc: Doc,
+        start: Int,
+        end: Int,
+        after: Doc?,
+    ): Doc? {
         if (doc.start == start && doc.end == end) {
             val wrapped = Doc.Indent(doc)
             return if (after == null) wrapped else Doc.Concat(listOf(wrapped, after), doc.start, after.end)
@@ -111,7 +117,12 @@ object DocSplicer {
             }
 
             is Doc.Indent -> wrapIndent(doc.body, start, end, after)?.let { Doc.Indent(it) }
-            is Doc.Group -> wrapIndent(doc.body, start, end, after)?.let { Doc.Group(it, doc.kind, doc.indentWhenBroken) }
+            is Doc.Group -> wrapIndent(
+                doc.body,
+                start,
+                end,
+                after,
+            )?.let { Doc.Group(it, doc.kind, doc.indentWhenBroken) }
             else -> null
         }
     }
@@ -135,7 +146,9 @@ object DocSplicer {
                 if (from < text.length) parts.add(Doc.Text(text.substring(from), edit.startOffset, edit.endOffset))
                 break
             }
-            if (newlineIdx > from) parts.add(Doc.Text(text.substring(from, newlineIdx), edit.startOffset, edit.endOffset))
+            if (newlineIdx > from) {
+                parts.add(Doc.Text(text.substring(from, newlineIdx), edit.startOffset, edit.endOffset))
+            }
             parts.add(Doc.Break(BreakKind.HARD, "\n", start = edit.startOffset, end = edit.endOffset))
             from = newlineIdx + 1
         }
@@ -150,19 +163,21 @@ object DocSplicer {
         var emitted = false
 
         fun emitReplacementOnce(): Doc? =
-        if (!emitted) {
-            emitted = true
-            replacementDoc(edit)
-        } else {
-            null
-        }
+            if (!emitted) {
+                emitted = true
+                replacementDoc(edit)
+            } else {
+                null
+            }
 
         fun splitText(node: Doc.Text): Doc {
             val len = node.value.length
             val localStart = (edit.startOffset - node.start).coerceIn(0, len)
             val localEnd = (edit.endOffset - node.start).coerceIn(0, len)
             val parts = mutableListOf<Doc>()
-            if (localStart > 0) parts.add(Doc.Text(node.value.substring(0, localStart), node.start, node.start + localStart))
+            if (localStart > 0) {
+                parts.add(Doc.Text(node.value.substring(0, localStart), node.start, node.start + localStart))
+            }
             emitReplacementOnce()?.let { parts.add(it) }
             if (localEnd < len) parts.add(Doc.Text(node.value.substring(localEnd), node.start + localEnd, node.end))
             return Doc.Concat(parts, node.start, node.end)

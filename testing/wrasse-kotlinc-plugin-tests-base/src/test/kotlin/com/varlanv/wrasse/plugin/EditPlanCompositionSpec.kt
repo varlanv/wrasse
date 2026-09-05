@@ -35,12 +35,20 @@ private fun offRuleConfig() = WrasseRuleConfig(RuleLevel.OFF, emptyList(), RuleL
 
 private fun parseToLightSource(source: String, disposable: Disposable): KtLightSourceElement {
     setupIdeaStandaloneExecution()
-    val environment = KotlinCoreEnvironment
-        .createForParallelTests(disposable, CompilerConfiguration(), EnvironmentConfigFiles.JVM_CONFIG_FILES)
+    val environment = KotlinCoreEnvironment.createForParallelTests(
+        disposable,
+        CompilerConfiguration(),
+        EnvironmentConfigFiles.JVM_CONFIG_FILES,
+    )
     val psiFactory = KtPsiFactory(environment.project)
     val ktFile = psiFactory.createFile(source)
     val psiSource = ktFile.toKtPsiSourceElement()
-    return KtLightSourceElement(psiSource.lighterASTNode, psiSource.startOffset, psiSource.endOffset, psiSource.treeStructure)
+    return KtLightSourceElement(
+        psiSource.lighterASTNode,
+        psiSource.startOffset,
+        psiSource.endOffset,
+        psiSource.treeStructure,
+    )
 }
 
 private val environmentLock = Any()
@@ -64,7 +72,14 @@ private fun runWalkOnce(source: String, rules: List<WRule>): WContext = synchron
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
 
-            override fun report(ruleId: String, message: String, startOffset: Int, endOffset: Int, rule: WRule, edits: List<WEdit>) {
+            override fun report(
+                ruleId: String,
+                message: String,
+                startOffset: Int,
+                endOffset: Int,
+                rule: WRule,
+                edits: List<WEdit>,
+            ) {
                 reports.add(ViolationReport(message, startOffset, endOffset, rule.config.effectiveLevel))
                 for (edit in edits) {
                     ctx.editPlan.add(ruleId, edit)
@@ -90,8 +105,14 @@ private class DoubleFirstIntegerLiteralRule : WLeafRule {
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
         if (ctx.leafText.toString() == "1") {
-            reporter
-                .report(id, "doubled", ctx.startOffset, ctx.endOffset, this, edits = listOf(WEdit(ctx.startOffset, ctx.endOffset, "42")))
+            reporter.report(
+                id,
+                "doubled",
+                ctx.startOffset,
+                ctx.endOffset,
+                this,
+                edits = listOf(WEdit(ctx.startOffset, ctx.endOffset, "42")),
+            )
         }
     }
 }
@@ -105,7 +126,11 @@ private class PadArgumentListRule : WBufferedNodeRule {
     var composedStart = -1
     var composedEnd = -1
 
-    override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+    override fun exitNode(
+        ctx: WContext,
+        children: ChildBuffer,
+        reporter: WReporter,
+    ) {
         val spanStart = ctx.startOffset
         val spanEnd = ctx.endOffset
         val innerEdits = ctx.editPlan.takeEditsIn(spanStart, spanEnd)
@@ -122,7 +147,14 @@ private class PadArgumentListRule : WBufferedNodeRule {
         composedReplacement = sb.toString()
         composedStart = spanStart
         composedEnd = spanEnd
-        reporter.report(id, "padded", spanStart, spanEnd, this, edits = listOf(WEdit(spanStart, spanEnd, sb.toString())))
+        reporter.report(
+            id,
+            "padded",
+            spanStart,
+            spanEnd,
+            this,
+            edits = listOf(WEdit(spanStart, spanEnd, sb.toString())),
+        )
     }
 }
 
@@ -136,48 +168,52 @@ private class FixedSpanLeafRule(
     override val targetTypes: Set<WNodeType> = setOf(WNodeType.INTEGER_LITERAL)
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
-        reporter.report(id, "overlap", startOffset, endOffset, this, edits = listOf(WEdit(startOffset, endOffset, replacement)))
+        reporter.report(
+            id,
+            "overlap",
+            startOffset,
+            endOffset,
+            this,
+            edits = listOf(WEdit(startOffset, endOffset, replacement)),
+        )
     }
 }
 
-class EditPlanCompositionSpec :
-    BaseSpec(
-        {
+class EditPlanCompositionSpec : BaseSpec({
 
-            should("compose an outer edit from an already-consumed inner edit via the EditPlan") {
-                val source = "fun main() {\n    foo(1, 2)\n}\n"
-                val inner = DoubleFirstIntegerLiteralRule()
-                val outer = PadArgumentListRule()
+    should("compose an outer edit from an already-consumed inner edit via the EditPlan") {
+        val source = "fun main() {\n    foo(1, 2)\n}\n"
+        val inner = DoubleFirstIntegerLiteralRule()
+        val outer = PadArgumentListRule()
 
-                val ctx = runWalk(source, listOf(inner, outer))
+        val ctx = runWalk(source, listOf(inner, outer))
 
-                val finalEdits = ctx.editPlan.finalEdits()
-                finalEdits shouldHaveSize 1
-                finalEdits[0].startOffset shouldBe outer.composedStart
-                finalEdits[0].endOffset shouldBe outer.composedEnd
-                finalEdits[0].replacement shouldBe "( 42, 2 )"
+        val finalEdits = ctx.editPlan.finalEdits()
+        finalEdits shouldHaveSize 1
+        finalEdits[0].startOffset shouldBe outer.composedStart
+        finalEdits[0].endOffset shouldBe outer.composedEnd
+        finalEdits[0].replacement shouldBe "( 42, 2 )"
 
-                val patched = source.substring(0, finalEdits[0].startOffset) +
-                    finalEdits[0].replacement +
-                    source.substring(finalEdits[0].endOffset)
-                patched shouldBe "fun main() {\n    foo( 42, 2 )\n}\n"
-                source.substring(outer.composedStart, outer.composedEnd) shouldBe "(1, 2)"
-            }
+        val patched = source.substring(0, finalEdits[0].startOffset) +
+            finalEdits[0].replacement +
+            source.substring(finalEdits[0].endOffset)
+        patched shouldBe "fun main() {\n    foo( 42, 2 )\n}\n"
+        source.substring(outer.composedStart, outer.composedEnd) shouldBe "(1, 2)"
+    }
 
-            should("fail loudly with full rule attribution when two independent rules emit overlapping edits") {
-                val source = "val x = 123456"
-                val ruleA = FixedSpanLeafRule("overlap-rule-a", 8, 12, "AAAA")
-                val ruleB = FixedSpanLeafRule("overlap-rule-b", 10, 14, "BBBB")
+    should("fail loudly with full rule attribution when two independent rules emit overlapping edits") {
+        val source = "val x = 123456"
+        val ruleA = FixedSpanLeafRule("overlap-rule-a", 8, 12, "AAAA")
+        val ruleB = FixedSpanLeafRule("overlap-rule-b", 10, 14, "BBBB")
 
-                val ctx = runWalk(source, listOf(ruleA, ruleB))
+        val ctx = runWalk(source, listOf(ruleA, ruleB))
 
-                val exception = shouldThrow<IllegalStateException> {
-                    ctx.editPlan.finalEdits()
-                }
+        val exception = shouldThrow<IllegalStateException> {
+            ctx.editPlan.finalEdits()
+        }
 
-                exception.message shouldBe
-                    "EditPlan: overlapping edits from rule 'overlap-rule-a' (8..12 -> \"AAAA\") " +
-                    "and rule 'overlap-rule-b' (10..14 -> \"BBBB\")"
-            }
-        },
-    )
+        exception.message shouldBe
+            "EditPlan: overlapping edits from rule 'overlap-rule-a' (8..12 -> \"AAAA\") " +
+            "and rule 'overlap-rule-b' (10..14 -> \"BBBB\")"
+    }
+})

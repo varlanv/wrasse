@@ -6,7 +6,11 @@ package com.varlanv.wrasse.rules
  * this rule leaves to the author.
  */
 object UnusedPrivateClassDecision {
-    fun decide(isPrivate: Boolean, isUsed: Boolean, className: String): String? {
+    fun decide(
+        isPrivate: Boolean,
+        isUsed: Boolean,
+        className: String,
+    ): String? {
         if (!isPrivate || isUsed) return null
         return "Private class '$className' is unused"
     }

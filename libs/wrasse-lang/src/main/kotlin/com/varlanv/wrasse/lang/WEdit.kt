@@ -15,7 +15,12 @@ package com.varlanv.wrasse.lang
  * [IndentScope.CLOSE] marks the matching edit that ends it. A rule that computes its own
  * indentation (the [IndentScope.NONE] default, every existing edit) never sets this.
  */
-class WEdit(val startOffset: Int, val endOffset: Int, val replacement: String, val indentScope: IndentScope = IndentScope.NONE)
+class WEdit(
+    val startOffset: Int,
+    val endOffset: Int,
+    val replacement: String,
+    val indentScope: IndentScope = IndentScope.NONE,
+)
 
 enum class IndentScope {
     NONE,

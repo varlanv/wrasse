@@ -22,7 +22,11 @@ class CommentOverPrivateDeclarationRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.FUN, WNodeType.PROPERTY)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val hasKdoc = children.hasChildOfType(WNodeType.KDOC)
                 if (!hasKdoc) return
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
@@ -30,14 +34,18 @@ class CommentOverPrivateDeclarationRule : WUninitializedRule {
                 val isPrivate = WordBoundaryScan.containsWord(modifierText, "private")
 
                 val message =
-                if (ctx.type == WNodeType.FUN) {
+                    if (ctx.type == WNodeType.FUN) {
                         val nameIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
-                        val name = if (nameIdx < 0) "<anonymous>" else IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
+                        val name =
+                            if (nameIdx < 0) {
+                                "<anonymous>"
+                            } else {
+                                IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
+                            }
                         CommentOverPrivateDeclarationDecision.decideFunction(hasKdoc, isPrivate, name)
                     } else {
                         CommentOverPrivateDeclarationDecision.decideProperty(hasKdoc, isPrivate)
-                    }
-                    ?: return
+                    } ?: return
 
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }

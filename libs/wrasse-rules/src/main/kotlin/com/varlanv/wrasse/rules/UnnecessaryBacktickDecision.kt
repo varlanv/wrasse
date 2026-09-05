@@ -14,8 +14,7 @@ package com.varlanv.wrasse.rules
  * quoted modifier keyword used as a plain name is reported same as any other identifier.
  */
 object UnnecessaryBacktickDecision {
-    private val HARD_KEYWORDS =
-    setOf(
+    private val HARD_KEYWORDS = setOf(
         "package",
         "as",
         "typealias",
@@ -59,7 +58,9 @@ object UnnecessaryBacktickDecision {
         var index = 0
         while (index < text.length) {
             val codePoint = Character.codePointAt(text, index)
-            val valid = codePoint == '_'.code || Character.isLetter(codePoint) || (index > 0 && Character.isDigit(codePoint))
+            val valid = codePoint == '_'.code ||
+                Character.isLetter(codePoint) ||
+                (index > 0 && Character.isDigit(codePoint))
             if (!valid) return false
             index += Character.charCount(codePoint)
         }

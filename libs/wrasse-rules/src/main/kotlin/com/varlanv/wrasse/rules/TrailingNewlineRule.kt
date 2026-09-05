@@ -21,15 +21,14 @@ class TrailingNewlineRule : WUninitializedRule {
                 val lastText = ctx.prevLeafText ?: return
                 if (lastText.isEmpty() || lastText[lastText.length - 1] != '\n') {
                     val endOffset = ctx.prevLeafEnd
-                    reporter
-                        .report(
-                            ruleId,
-                            "File must end with a newline",
-                            0,
-                            maxOf(endOffset, 1),
-                            this,
-                            edits = listOf(WEdit(endOffset, endOffset, "\n")),
-                        )
+                    reporter.report(
+                        ruleId,
+                        "File must end with a newline",
+                        0,
+                        maxOf(endOffset, 1),
+                        this,
+                        edits = listOf(WEdit(endOffset, endOffset, "\n")),
+                    )
                 }
             }
         }

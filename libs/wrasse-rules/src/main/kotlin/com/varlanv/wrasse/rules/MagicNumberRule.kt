@@ -75,7 +75,8 @@ class MagicNumberRule : WUninitializedRule {
                             namedArgumentFrames[namedArgumentFrames.size - 1] = true
                         }
 
-                    WNodeType.KW_OVERRIDE -> if (isOwnFunModifier(ctx)) funFrames.lastOrNull()?.let { it.hasOverride = true }
+                    WNodeType.KW_OVERRIDE ->
+                        if (isOwnFunModifier(ctx)) funFrames.lastOrNull()?.let { it.hasOverride = true }
                     WNodeType.IDENTIFIER ->
                         if (ctx.ancestors.peekType() == WNodeType.FUN) {
                             funFrames.lastOrNull()?.let { it.name = ctx.leafText?.toString() }
@@ -114,23 +115,26 @@ class MagicNumberRule : WUninitializedRule {
             private fun checkLiteral(ctx: WContext) {
                 val text = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset)
                 val ancestors = ctx.ancestors
-                val isNegative = ancestors.peekType() == WNodeType.PREFIX_EXPRESSION && ctx.prevLeafType == WNodeType.MINUS
+                val isNegative = ancestors.peekType() == WNodeType.PREFIX_EXPRESSION &&
+                    ctx.prevLeafType == WNodeType.MINUS
                 val value = NumericLiteralValue.parse(if (isNegative) "-$text" else text)
 
                 val fun_ = funFrames.lastOrNull()
-                val isHashCodeFunction = fun_ != null && fun_.name == "hashCode" && fun_.paramCount == 0 && fun_.hasOverride
+                val isHashCodeFunction = fun_ != null &&
+                    fun_.name == "hashCode" &&
+                    fun_.paramCount == 0 &&
+                    fun_.hasOverride
 
-                val message = MagicNumberDecision
-                        .decide(
-                            value = value,
-                            isInsideProperty = propertyDepth > 0,
-                            isParameterDefaultValue = parameterDefaultDepth > 0,
-                            isNamedArgument = namedArgumentFrames.lastOrNull() == true,
-                            isHashCodeFunction = isHashCodeFunction,
-                            isCallReceiver = ancestors.peekType() == WNodeType.DOT_QUALIFIED_EXPRESSION,
-                            isBareFunctionReturnValue = ancestors.peekType() == WNodeType.FUN || ancestors.peekType() == WNodeType.RETURN,
-                        )
-                    ?: return
+                val message = MagicNumberDecision.decide(
+                    value = value,
+                    isInsideProperty = propertyDepth > 0,
+                    isParameterDefaultValue = parameterDefaultDepth > 0,
+                    isNamedArgument = namedArgumentFrames.lastOrNull() == true,
+                    isHashCodeFunction = isHashCodeFunction,
+                    isCallReceiver = ancestors.peekType() == WNodeType.DOT_QUALIFIED_EXPRESSION,
+                    isBareFunctionReturnValue = ancestors.peekType() == WNodeType.FUN ||
+                        ancestors.peekType() == WNodeType.RETURN,
+                ) ?: return
                 pendingReports.add(PendingReport(ctx.startOffset, ctx.endOffset, message))
             }
         }
@@ -142,5 +146,9 @@ class MagicNumberRule : WUninitializedRule {
         var hasOverride: Boolean = false
     }
 
-    private class PendingReport(val start: Int, val end: Int, val message: String)
+    private class PendingReport(
+        val start: Int,
+        val end: Int,
+        val message: String,
+    )
 }

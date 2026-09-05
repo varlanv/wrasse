@@ -28,8 +28,9 @@ class LoopWithTooManyJumpStatementsRule : WUninitializedRule {
 
             override fun enterNode(ctx: WContext) {
                 when (ctx.type) {
-                    WNodeType.FOR, WNodeType.WHILE, WNodeType.DO_WHILE ->
-                    frames.add(LoopJumpFrame(ctx.startOffset, ctx.startOffset + keywordLength(ctx.type)))
+                    WNodeType.FOR, WNodeType.WHILE, WNodeType.DO_WHILE -> frames.add(
+                        LoopJumpFrame(ctx.startOffset, ctx.startOffset + keywordLength(ctx.type)),
+                    )
 
                     WNodeType.BREAK, WNodeType.CONTINUE -> frames.lastOrNull()?.recordJump()
                     else -> {}
@@ -56,11 +57,11 @@ class LoopWithTooManyJumpStatementsRule : WUninitializedRule {
             }
 
             private fun keywordLength(type: WNodeType): Int =
-            when (type) {
-                WNodeType.FOR -> 3
-                WNodeType.WHILE -> 5
-                else -> 2
-            }
+                when (type) {
+                    WNodeType.FOR -> 3
+                    WNodeType.WHILE -> 5
+                    else -> 2
+                }
         }
     }
 }

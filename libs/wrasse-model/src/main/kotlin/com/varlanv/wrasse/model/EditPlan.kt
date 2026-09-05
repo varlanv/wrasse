@@ -22,7 +22,11 @@ import com.varlanv.wrasse.lang.WEdit
  */
 class EditPlan {
     /** One collected edit, attributed to the rule that reported it and its arrival order. */
-    class Entry(val ruleId: String, val edit: WEdit, val sequence: Int)
+    class Entry(
+        val ruleId: String,
+        val edit: WEdit,
+        val sequence: Int,
+    )
 
     private val entries = mutableListOf<Entry>()
     private var nextSequence = 0

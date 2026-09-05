@@ -12,8 +12,14 @@ package com.varlanv.wrasse.rules
 object SafeCastDecision {
     const val MESSAGE = "This if/else can be replaced with a safe cast (as?)"
 
-    fun decide(identifier: String, negated: Boolean, thenText: String, elseText: String): String? {
-        val matches = if (negated) elseText == identifier && thenText == "null" else thenText == identifier && elseText == "null"
+    fun decide(
+        identifier: String,
+        negated: Boolean,
+        thenText: String,
+        elseText: String,
+    ): String? {
+        val matches =
+            if (negated) elseText == identifier && thenText == "null" else thenText == identifier && elseText == "null"
         return if (matches) MESSAGE else null
     }
 }

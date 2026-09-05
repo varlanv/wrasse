@@ -44,7 +44,11 @@ class NoEmptyClassBodyRule : WUninitializedRule {
                 }
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (ctx.type == WNodeType.OBJECT_DECLARATION) {
                     companionStack.removeAt(companionStack.size - 1)
                     return
@@ -54,15 +58,14 @@ class NoEmptyClassBodyRule : WUninitializedRule {
                 if (isAnonymousObjectBody(ctx)) return
                 if (!isEmptyBody(children)) return
 
-                reporter
-                    .report(
-                        ruleId,
-                        "Empty class body",
-                        ctx.startOffset,
-                        ctx.endOffset,
-                        this,
-                        edits = listOf(EmptyClassBodyDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset)),
-                    )
+                reporter.report(
+                    ruleId,
+                    "Empty class body",
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                    edits = listOf(EmptyClassBodyDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset)),
+                )
             }
 
             private fun isEmptyBody(children: ChildBuffer): Boolean {
@@ -76,7 +79,9 @@ class NoEmptyClassBodyRule : WUninitializedRule {
             }
 
             private fun isCompanionObjectBody(ctx: WContext): Boolean =
-            ctx.ancestors.peekType() == WNodeType.OBJECT_DECLARATION && companionStack.isNotEmpty() && companionStack.last()
+                ctx.ancestors.peekType() == WNodeType.OBJECT_DECLARATION &&
+                    companionStack.isNotEmpty() &&
+                    companionStack.last()
 
             private fun isAnonymousObjectBody(ctx: WContext): Boolean {
                 val ancestors = ctx.ancestors

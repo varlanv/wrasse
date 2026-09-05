@@ -12,7 +12,12 @@ package com.varlanv.wrasse.rules
 object NestedClassesVisibilityDecision {
     const val MESSAGE = "The explicit 'public' modifier still results in an internal nested class"
 
-    fun decide(ownerQualifies: Boolean, hasPublic: Boolean, hasEnum: Boolean, hasCompanion: Boolean): String? {
+    fun decide(
+        ownerQualifies: Boolean,
+        hasPublic: Boolean,
+        hasEnum: Boolean,
+        hasCompanion: Boolean,
+    ): String? {
         if (!ownerQualifies || !hasPublic || hasEnum || hasCompanion) return null
         return MESSAGE
     }

@@ -10,9 +10,16 @@ package com.varlanv.wrasse.rules
  * upstream check fires for any binary operator, not only `=`).
  */
 object UselessPostfixExpressionDecision {
-    fun isIncrementOrDecrement(operatorText: CharSequence): Boolean = operatorText.contentEquals("++") || operatorText.contentEquals("--")
+    fun isIncrementOrDecrement(
+        operatorText: CharSequence,
+    ): Boolean = operatorText.contentEquals("++") || operatorText.contentEquals("--")
 
-    fun decide(isIncrementOrDecrement: Boolean, baseText: CharSequence, otherOperandText: CharSequence, postfixText: CharSequence): String? {
+    fun decide(
+        isIncrementOrDecrement: Boolean,
+        baseText: CharSequence,
+        otherOperandText: CharSequence,
+        postfixText: CharSequence,
+    ): String? {
         if (!isIncrementOrDecrement) return null
         if (!baseText.contentEquals(otherOperandText)) return null
         return "The result of the postfix expression '$postfixText' will not be used and is therefore useless"

@@ -11,5 +11,5 @@ object SyncInAsyncDecision {
     const val MESSAGE = "runBlocking() called from inside asynchronous code (async/launch/suspend); this blocks the thread"
 
     fun decide(isRunBlockingTrailingLambdaCall: Boolean, hasGoverningAsyncContext: Boolean): String? =
-    if (isRunBlockingTrailingLambdaCall && hasGoverningAsyncContext) MESSAGE else null
+        if (isRunBlockingTrailingLambdaCall && hasGoverningAsyncContext) MESSAGE else null
 }

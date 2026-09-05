@@ -9,5 +9,8 @@ package com.varlanv.wrasse.rules
 object CollapseIfDecision {
     const val MESSAGE = "Nested if-statement could be collapsed into its own enclosing condition"
 
-    fun decide(outerHasElse: Boolean, innerHasElse: Boolean): String? = if (!outerHasElse && !innerHasElse) MESSAGE else null
+    fun decide(
+        outerHasElse: Boolean,
+        innerHasElse: Boolean,
+    ): String? = if (!outerHasElse && !innerHasElse) MESSAGE else null
 }

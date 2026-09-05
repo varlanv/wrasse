@@ -9,14 +9,20 @@ import com.varlanv.wrasse.model.WNodeType
  * mismatched pair is allowed only when separated by a blank line.
  */
 object NoConsecutiveCommentsDecision {
-    fun decide(previous: WNodeType, current: WNodeType, separatedByBlankLine: Boolean): String? = when {
+    fun decide(
+        previous: WNodeType,
+        current: WNodeType,
+        separatedByBlankLine: Boolean,
+    ): String? = when {
         previous == WNodeType.KDOC && current == WNodeType.KDOC ->
-        "${describe(current)} may not be preceded by ${describe(previous)}"
+            "${describe(current)} may not be preceded by ${describe(previous)}"
         previous == WNodeType.KDOC ->
-        "${describe(current)} may not be preceded by ${describe(previous)}. Reversed order is allowed though when " +
-            "separated by a newline."
+            "${describe(
+                    current,
+                )} may not be preceded by ${describe(previous)}. Reversed order is allowed though when " +
+                "separated by a newline."
         previous == WNodeType.BLOCK_COMMENT && current == WNodeType.BLOCK_COMMENT ->
-        "${describe(current)} may not be preceded by ${describe(previous)}"
+            "${describe(current)} may not be preceded by ${describe(previous)}"
         previous == WNodeType.EOL_COMMENT && current == WNodeType.EOL_COMMENT -> null
         previous != current && separatedByBlankLine -> null
         else -> "${describe(current)} may not be preceded by ${describe(previous)} unless separated by a blank line"

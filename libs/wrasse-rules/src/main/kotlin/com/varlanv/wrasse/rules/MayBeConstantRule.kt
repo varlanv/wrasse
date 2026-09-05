@@ -27,16 +27,20 @@ class MayBeConstantRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.PROPERTY)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val ancestors = ctx.ancestors
                 val isTopLevel = ancestors.peekType() == WNodeType.FILE
                 val isObjectMember =
-                ancestors.peekType() ==
-                    WNodeType.CLASS_BODY &&
-                    ancestors.size >=
-                    2 &&
-                    ancestors.typeAt(ancestors.size - 2) ==
-                    WNodeType.OBJECT_DECLARATION
+                    ancestors.peekType() ==
+                        WNodeType.CLASS_BODY &&
+                        ancestors.size >=
+                        2 &&
+                        ancestors.typeAt(ancestors.size - 2) ==
+                        WNodeType.OBJECT_DECLARATION
                 val eligibleScope = isTopLevel || isObjectMember
 
                 val modifierListIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
@@ -47,22 +51,25 @@ class MayBeConstantRule : WUninitializedRule {
                 val hasNonJvmFieldAnnotation = hasNonJvmFieldAnnotation(modifierText)
 
                 val nameIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
-                val name = if (nameIdx < 0) "<anonymous>" else IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
+                val name =
+                    if (nameIdx < 0) {
+                        "<anonymous>"
+                    } else {
+                        IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
+                    }
 
                 val message =
-                MayBeConstantDecision
-                        .decide(
-                            eligibleScope = eligibleScope,
-                            isVar = children.hasChildOfType(WNodeType.KW_VAR),
-                            isAlreadyConst = isAlreadyConst,
-                            isActual = isActual,
-                            isOverride = isOverride,
-                            hasGetter = children.hasChildOfType(WNodeType.PROPERTY_ACCESSOR),
-                            hasNonJvmFieldAnnotation = hasNonJvmFieldAnnotation,
-                            initializerIsConstant = initializerIsConstant(ctx, children),
-                            propertyName = name,
-                        )
-                    ?: return
+                    MayBeConstantDecision.decide(
+                        eligibleScope = eligibleScope,
+                        isVar = children.hasChildOfType(WNodeType.KW_VAR),
+                        isAlreadyConst = isAlreadyConst,
+                        isActual = isActual,
+                        isOverride = isOverride,
+                        hasGetter = children.hasChildOfType(WNodeType.PROPERTY_ACCESSOR),
+                        hasNonJvmFieldAnnotation = hasNonJvmFieldAnnotation,
+                        initializerIsConstant = initializerIsConstant(ctx, children),
+                        propertyName = name,
+                    ) ?: return
                 val reportStart = if (nameIdx < 0) ctx.startOffset else children.startOffset(nameIdx)
                 val reportEnd = if (nameIdx < 0) ctx.endOffset else children.endOffset(nameIdx)
                 reporter.report(ruleId, message, reportStart, reportEnd, this)

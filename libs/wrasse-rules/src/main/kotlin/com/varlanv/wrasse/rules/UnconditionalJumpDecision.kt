@@ -10,12 +10,12 @@ package com.varlanv.wrasse.rules
  */
 object UnconditionalJumpDecision {
     const val MESSAGE =
-    "This loop contains an unconditional break or return; the loop body will only ever execute once"
+        "This loop contains an unconditional break or return; the loop body will only ever execute once"
 
     private val ELVIS_JUMP_SUFFIX = Regex("""\?:\s*(break|continue)\s*$""")
 
     fun decideBreak(): String = MESSAGE
 
     fun decideReturn(returnText: CharSequence): String? =
-    if (ELVIS_JUMP_SUFFIX.containsMatchIn(returnText)) null else MESSAGE
+        if (ELVIS_JUMP_SUFFIX.containsMatchIn(returnText)) null else MESSAGE
 }

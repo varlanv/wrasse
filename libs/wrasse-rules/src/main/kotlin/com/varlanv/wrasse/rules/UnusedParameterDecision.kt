@@ -9,7 +9,11 @@ package com.varlanv.wrasse.rules
 object UnusedParameterDecision {
     private val ALLOWED_NAMES = Regex("ignored|expected")
 
-    fun decide(functionExempt: Boolean, parameterName: String, wasUsed: Boolean): String? {
+    fun decide(
+        functionExempt: Boolean,
+        parameterName: String,
+        wasUsed: Boolean,
+    ): String? {
         if (functionExempt || wasUsed) return null
         if (ALLOWED_NAMES.matches(parameterName)) return null
         return "Function parameter '$parameterName' is unused"

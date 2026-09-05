@@ -41,7 +41,11 @@ class ExplicitItLambdaParameterRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.VALUE_PARAMETER -> recordParam(ctx, children)
                     WNodeType.FUNCTION_LITERAL -> finalizeLiteral(children, reporter)
@@ -51,7 +55,8 @@ class ExplicitItLambdaParameterRule : WUninitializedRule {
 
             private fun recordParam(ctx: WContext, children: ChildBuffer) {
                 if (ctx.ancestors.peekType() != WNodeType.VALUE_PARAMETER_LIST) return
-                if (ctx.ancestors.size < 2 || ctx.ancestors.typeAt(ctx.ancestors.size - 2) != WNodeType.FUNCTION_LITERAL) {
+                if (ctx.ancestors.size < 2 ||
+                    ctx.ancestors.typeAt(ctx.ancestors.size - 2) != WNodeType.FUNCTION_LITERAL) {
                     return
                 }
                 val pending = pendingLiterals.lastOrNull() ?: return
@@ -72,19 +77,28 @@ class ExplicitItLambdaParameterRule : WUninitializedRule {
                 if (lbraceIdx < 0 || vpListIdx < 0 || arrowIdx < 0) return
 
                 val hasComment = hasCommentBetween(children, lbraceIdx + 1, arrowIdx)
-                val verdict =
-                ExplicitItLambdaParameterDecision
-                    .decide(
-                        vpListStart = children.startOffset(vpListIdx),
-                        lbraceEnd = children.endOffset(lbraceIdx),
-                        arrowEnd = children.endOffset(arrowIdx),
-                        hasType = pending.itParamHasType,
-                        hasComment = hasComment,
-                    )
-                reporter.report(ruleId, verdict.message, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
+                val verdict = ExplicitItLambdaParameterDecision.decide(
+                    vpListStart = children.startOffset(vpListIdx),
+                    lbraceEnd = children.endOffset(lbraceIdx),
+                    arrowEnd = children.endOffset(arrowIdx),
+                    hasType = pending.itParamHasType,
+                    hasComment = hasComment,
+                )
+                reporter.report(
+                    ruleId,
+                    verdict.message,
+                    verdict.reportStart,
+                    verdict.reportEnd,
+                    this,
+                    edits = verdict.edits,
+                )
             }
 
-            private fun hasCommentBetween(children: ChildBuffer, from: Int, until: Int): Boolean {
+            private fun hasCommentBetween(
+                children: ChildBuffer,
+                from: Int,
+                until: Int,
+            ): Boolean {
                 for (i in from until until) {
                     val type = children.type(i)
                     if (type.isWhitespaceOrComment && type != WNodeType.WHITE_SPACE) return true

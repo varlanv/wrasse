@@ -39,17 +39,17 @@ class ThrowingTestRule : WUninitializedRule {
     override val id: String = "throwing-test-rule"
 
     override fun initRule(config: WrasseRuleConfig): WLeafRule =
-    object : WLeafRule {
-        override val id: String = "throwing-test-rule"
-        override val config: WrasseRuleConfig = config
-        override val targetTypes: Set<WNodeType> = setOf(WNodeType.IDENTIFIER)
+        object : WLeafRule {
+            override val id: String = "throwing-test-rule"
+            override val config: WrasseRuleConfig = config
+            override val targetTypes: Set<WNodeType> = setOf(WNodeType.IDENTIFIER)
 
-        override fun visitLeaf(ctx: WContext, reporter: WReporter) {
-            if (ctx.leafText?.toString() == THROWING_TEST_RULE_CRASH_MARKER) {
-                throw IllegalStateException(THROWING_TEST_RULE_CRASH_MESSAGE)
+            override fun visitLeaf(ctx: WContext, reporter: WReporter) {
+                if (ctx.leafText?.toString() == THROWING_TEST_RULE_CRASH_MARKER) {
+                    throw IllegalStateException(THROWING_TEST_RULE_CRASH_MESSAGE)
+                }
             }
         }
-    }
 }
 
 /**
@@ -91,8 +91,11 @@ class ThrowingRuleTestRegistrar : CompilerPluginRegistrar() {
      * the same level sidesteps that entirely, so the test stays about wrasse's own crash-isolation
      * behavior.
      */
-    private fun warnConfig(): WrasseRuleConfig =
-    WrasseRuleConfig(level = RuleLevel.WARN, exclude = emptyList(), effectiveLevel = RuleLevel.WARN)
+    private fun warnConfig(): WrasseRuleConfig = WrasseRuleConfig(
+        level = RuleLevel.WARN,
+        exclude = emptyList(),
+        effectiveLevel = RuleLevel.WARN,
+    )
 }
 
 /** Routes [ThrowingRuleTestRegistrar]'s own plugin options into this compile's [CompilerConfiguration]. */
@@ -105,7 +108,11 @@ class ThrowingRuleTestCommandLineProcessor : CommandLineProcessor {
         CliOption(WITH_EDITING_RULE_OPTION, "<true|false>", "Whether to also enable no-semicolons", required = false),
     )
 
-    override fun processOption(option: AbstractCliOption, value: String, configuration: CompilerConfiguration) {
+    override fun processOption(
+        option: AbstractCliOption,
+        value: String,
+        configuration: CompilerConfiguration,
+    ) {
         when (option.optionName) {
             FIX_OUTPUT_DIR_OPTION -> configuration.put(KEY_FIX_OUTPUT_DIR, value)
             WITH_EDITING_RULE_OPTION -> configuration.put(KEY_WITH_EDITING_RULE, value.toBoolean())

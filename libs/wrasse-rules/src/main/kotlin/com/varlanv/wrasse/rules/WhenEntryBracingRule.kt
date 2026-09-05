@@ -58,14 +58,21 @@ class WhenEntryBracingRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (ctx.type == WNodeType.WHEN_ENTRY) {
                     recordEntry(ctx, children)
                     return
                 }
 
                 val pending = pendingWhens.removeAt(pendingWhens.size - 1)
-                if (!WhenEntryBracingDecision.shouldBraceEntries(pending.anyEntryHasBlockBody, pending.anyEntryHasMultilineBody)) {
+                if (!WhenEntryBracingDecision.shouldBraceEntries(
+                    pending.anyEntryHasBlockBody,
+                    pending.anyEntryHasMultilineBody,
+                )) {
                     return
                 }
                 val baseIndentColumn =
@@ -85,7 +92,8 @@ class WhenEntryBracingRule : WUninitializedRule {
                     ) {
                         siblingIdx++
                     }
-                    val hasTrailingComment = siblingIdx < children.size && hasCommentImmediatelyAfter(ctx, children, siblingIdx)
+                    val hasTrailingComment = siblingIdx < children.size &&
+                        hasCommentImmediatelyAfter(ctx, children, siblingIdx)
                     report(ctx, reporter, candidate, hasTrailingComment, baseIndentColumn)
                 }
             }
@@ -112,17 +120,15 @@ class WhenEntryBracingRule : WUninitializedRule {
                     return
                 }
 
-                pending
-                    .candidates
-                    .add(
-                        PendingCandidate(
-                            entryStartOffset = ctx.startOffset,
-                            leadingGapStart = arrowEnd,
-                            contentStart = contentStart,
-                            contentEnd = contentEnd,
-                            hasAdjacentComment = hasCommentBetween(children, arrowIdx + 1, bodyIdx),
-                        ),
-                    )
+                pending.candidates.add(
+                    PendingCandidate(
+                        entryStartOffset = ctx.startOffset,
+                        leadingGapStart = arrowEnd,
+                        contentStart = contentStart,
+                        contentEnd = contentEnd,
+                        hasAdjacentComment = hasCommentBetween(children, arrowIdx + 1, bodyIdx),
+                    ),
+                )
             }
 
             private fun report(
@@ -132,23 +138,26 @@ class WhenEntryBracingRule : WUninitializedRule {
                 hasTrailingComment: Boolean,
                 baseIndentColumn: Int,
             ) {
-                val verdict = WhenEntryBracingDecision
-                    .decideEntry(
-                        ctx.sourceText,
-                        WhenEntryBracingCandidate(
-                            leadingGapStart = candidate.leadingGapStart,
-                            contentStart = candidate.contentStart,
-                            contentEnd = candidate.contentEnd,
-                            hasAdjacentComment = candidate.hasAdjacentComment || hasTrailingComment,
-                        ),
-                        baseIndentColumn,
-                        INDENT_WIDTH,
-                        config.formatEnabled,
-                    )
+                val verdict = WhenEntryBracingDecision.decideEntry(
+                    ctx.sourceText,
+                    WhenEntryBracingCandidate(
+                        leadingGapStart = candidate.leadingGapStart,
+                        contentStart = candidate.contentStart,
+                        contentEnd = candidate.contentEnd,
+                        hasAdjacentComment = candidate.hasAdjacentComment || hasTrailingComment,
+                    ),
+                    baseIndentColumn,
+                    INDENT_WIDTH,
+                    config.formatEnabled,
+                )
                 reporter.report(ruleId, MESSAGE, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
             }
 
-            private fun hasCommentImmediatelyAfter(ctx: WContext, children: ChildBuffer, entryIdx: Int): Boolean {
+            private fun hasCommentImmediatelyAfter(
+                ctx: WContext,
+                children: ChildBuffer,
+                entryIdx: Int,
+            ): Boolean {
                 var i = entryIdx + 1
                 while (i < children.size) {
                     val type = children.type(i)
@@ -169,7 +178,11 @@ class WhenEntryBracingRule : WUninitializedRule {
                 return -1
             }
 
-            private fun hasCommentBetween(children: ChildBuffer, from: Int, until: Int): Boolean {
+            private fun hasCommentBetween(
+                children: ChildBuffer,
+                from: Int,
+                until: Int,
+            ): Boolean {
                 for (i in from until until) {
                     val type = children.type(i)
                     if (type.isWhitespaceOrComment && type != WNodeType.WHITE_SPACE) return true
@@ -177,8 +190,11 @@ class WhenEntryBracingRule : WUninitializedRule {
                 return false
             }
 
-            private fun isEmptyBlock(sourceText: CharSequence, contentStart: Int, contentEnd: Int): Boolean =
-            sourceText.subSequence(contentStart + 1, contentEnd - 1).isBlank()
+            private fun isEmptyBlock(
+                sourceText: CharSequence,
+                contentStart: Int,
+                contentEnd: Int,
+            ): Boolean = sourceText.subSequence(contentStart + 1, contentEnd - 1).isBlank()
         }
     }
 

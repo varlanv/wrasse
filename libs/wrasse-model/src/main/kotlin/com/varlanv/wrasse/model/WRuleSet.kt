@@ -21,16 +21,16 @@ class WRuleSet(
      * once from the compile-wide enabled set, before per-file exclusion.
      */
     val requiresResolution: Boolean =
-    activeRules.any { (uninitialized, _) -> uninitialized.requiresResolution } ||
-        activeGroups.any { (group, configs) -> group.requiresResolution(configs.keys) }
+        activeRules.any { (uninitialized, _) -> uninitialized.requiresResolution } ||
+            activeGroups.any { (group, configs) -> group.requiresResolution(configs.keys) }
 
     /**
      * True if any active rule or group opts into requiring [WResolvedUsage.qualifiedUsages].
      * Computed once, not per file, mirroring [requiresResolution].
      */
     val requiresQualifiedUsages: Boolean =
-    activeRules.any { (uninitialized, _) -> uninitialized.requiresQualifiedUsages } ||
-        activeGroups.any { (group, configs) -> group.requiresQualifiedUsages(configs.keys) }
+        activeRules.any { (uninitialized, _) -> uninitialized.requiresQualifiedUsages } ||
+            activeGroups.any { (group, configs) -> group.requiresQualifiedUsages(configs.keys) }
 
     /**
      * Every rule id that is capable of autofixing at least some of its own occurrences
@@ -39,15 +39,20 @@ class WRuleSet(
      * gets the "declined this occurrence" marker appended to its message.
      */
     val autofixCapableIds: Set<String> =
-    activeRules.filter { (uninitialized, _) -> uninitialized.canAutofix }.map { (uninitialized, _) -> uninitialized.id }.toSet() +
-        activeGroups.filter { (group, _) -> group.canAutofix }.flatMap { (_, configs) -> configs.keys }
+        activeRules
+            .filter { (uninitialized, _) -> uninitialized.canAutofix }
+            .map { (uninitialized, _) -> uninitialized.id }
+            .toSet() + activeGroups.filter { (group, _) -> group.canAutofix }.flatMap { (_, configs) -> configs.keys }
 
     /**
      * [alwaysOn] carries framework-owned rules that ride the same walk as every user-configured
      * rule but are never part of the user's rule set (no id in `wrasse.json`, never excluded) —
      * e.g. the `@Suppress` region collector. Appended after the user's own rules.
      */
-    fun dispatchForFile(alwaysOn: List<WRule> = emptyList(), isExcluded: (WrasseRuleConfig) -> Boolean): StreamDispatch {
+    fun dispatchForFile(
+        alwaysOn: List<WRule> = emptyList(),
+        isExcluded: (WrasseRuleConfig) -> Boolean,
+    ): StreamDispatch {
         val rules = ArrayList<WRule>(activeRules.size + activeGroups.size + alwaysOn.size)
         for ((uninitialized, config) in activeRules) {
             if (isExcluded(config)) continue

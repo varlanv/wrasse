@@ -45,7 +45,11 @@ class CollapseIfRule : WUninitializedRule {
                 return ctx.ancestors.peekType() == WNodeType.THEN
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.IF -> finalizeIf(ctx, children, reporter)
                     WNodeType.BLOCK -> finalizeBlock(ctx, children)
@@ -53,7 +57,11 @@ class CollapseIfRule : WUninitializedRule {
                 }
             }
 
-            private fun finalizeIf(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeIf(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val hasElse = children.hasChildOfType(WNodeType.KW_ELSE)
                 hasElseByStart[ctx.startOffset] = hasElse
                 val frame = if (ifFrames.isNotEmpty()) ifFrames.removeAt(ifFrames.size - 1) else IfFrame()
@@ -99,10 +107,19 @@ class CollapseIfRule : WUninitializedRule {
         }
     }
 
-    private class IfFrame(var pendingNestedStart: Int = -1, var pendingNestedEnd: Int = -1, var pendingNestedHasElse: Boolean = false)
+    private class IfFrame(
+        var pendingNestedStart: Int = -1,
+        var pendingNestedEnd: Int = -1,
+        var pendingNestedHasElse: Boolean = false,
+    )
 
     private companion object {
-        val TRIVIAL_TYPES =
-        setOf(WNodeType.LBRACE, WNodeType.RBRACE, WNodeType.WHITE_SPACE, WNodeType.BLOCK_COMMENT, WNodeType.EOL_COMMENT)
+        val TRIVIAL_TYPES = setOf(
+            WNodeType.LBRACE,
+            WNodeType.RBRACE,
+            WNodeType.WHITE_SPACE,
+            WNodeType.BLOCK_COMMENT,
+            WNodeType.EOL_COMMENT,
+        )
     }
 }

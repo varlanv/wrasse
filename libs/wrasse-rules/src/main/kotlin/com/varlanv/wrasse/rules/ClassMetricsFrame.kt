@@ -6,7 +6,12 @@ package com.varlanv.wrasse.rules
  * exit; a nested class/object/interface/enum gets its own independent frame and never contributes
  * to an enclosing one. Pure counting logic, no kotlinc/AST dependency, unit-testable directly.
  */
-class ClassMetricsFrame(var nameStart: Int, var nameEnd: Int, var declarationName: String, var kindLabel: String) {
+class ClassMetricsFrame(
+    var nameStart: Int,
+    var nameEnd: Int,
+    var declarationName: String,
+    var kindLabel: String,
+) {
     var functionCount = 0
         private set
     var distinctCodeLines = 0

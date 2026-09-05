@@ -26,13 +26,19 @@ class LongNumericalValuesRule : WUninitializedRule {
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val text = ctx.leafText?.toString() ?: return
                 val edit =
-                if (ctx.type == WNodeType.INTEGER_LITERAL) {
+                    if (ctx.type == WNodeType.INTEGER_LITERAL) {
                         LongNumericalValuesDecision.decideInteger(text, ctx.startOffset)
                     } else {
                         LongNumericalValuesDecision.decideFloat(text, ctx.startOffset)
-                    }
-                    ?: return
-                reporter.report(ruleId, LongNumericalValuesDecision.MESSAGE, ctx.startOffset, ctx.endOffset, this, edits = listOf(edit))
+                    } ?: return
+                reporter.report(
+                    ruleId,
+                    LongNumericalValuesDecision.MESSAGE,
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                    edits = listOf(edit),
+                )
             }
         }
     }

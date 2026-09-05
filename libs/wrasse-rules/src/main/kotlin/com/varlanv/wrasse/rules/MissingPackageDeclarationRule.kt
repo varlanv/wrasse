@@ -24,9 +24,15 @@ class MissingPackageDeclarationRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.PACKAGE_DIRECTIVE)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val hasName = (0 until children.size).any {
-                    children.type(it) == WNodeType.DOT_QUALIFIED_EXPRESSION || children.type(it) == WNodeType.REFERENCE_EXPRESSION
+                    children.type(
+                        it,
+                    ) == WNodeType.DOT_QUALIFIED_EXPRESSION || children.type(it) == WNodeType.REFERENCE_EXPRESSION
                 }
                 val message = MissingPackageDeclarationDecision.decide(hasName) ?: return
                 reporter.report(ruleId, message, 0, 0, this)

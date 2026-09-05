@@ -21,7 +21,12 @@ object LongParameterListDecision {
     const val MAX_FUNCTION_PARAMETERS = 5
     const val MAX_CONSTRUCTOR_PARAMETERS = 6
 
-    fun decide(owner: ParameterListOwner, parameterCount: Int, isOverride: Boolean, isDataClassConstructor: Boolean): String? {
+    fun decide(
+        owner: ParameterListOwner,
+        parameterCount: Int,
+        isOverride: Boolean,
+        isDataClassConstructor: Boolean,
+    ): String? {
         if (owner == ParameterListOwner.FUNCTION && isOverride) return null
         if (owner != ParameterListOwner.FUNCTION && isDataClassConstructor) return null
         val max = if (owner == ParameterListOwner.FUNCTION) MAX_FUNCTION_PARAMETERS else MAX_CONSTRUCTOR_PARAMETERS

@@ -41,7 +41,11 @@ class LambdaReturnRule : WUninitializedRule {
 
             private val completedReturns = mutableListOf<CompletedReturn>()
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.RETURN -> recordReturn(ctx, children)
                     WNodeType.BLOCK -> checkBlock(ctx, children, reporter)
@@ -51,12 +55,18 @@ class LambdaReturnRule : WUninitializedRule {
 
             private fun recordReturn(ctx: WContext, children: ChildBuffer) {
                 val labelIdx = children.firstChildOfType(WNodeType.LABEL_QUALIFIER)
-                val hasValue = labelIdx >= 0 && (labelIdx + 1 until children.size).any { !children.type(it).isWhitespaceOrComment }
-                val labelName = if (hasValue) children.textSpan(labelIdx, ctx.sourceText).toString().removePrefix("@") else null
+                val hasValue = labelIdx >= 0 &&
+                    (labelIdx + 1 until children.size).any { !children.type(it).isWhitespaceOrComment }
+                val labelName =
+                    if (hasValue) children.textSpan(labelIdx, ctx.sourceText).toString().removePrefix("@") else null
                 completedReturns.add(CompletedReturn(ctx.startOffset, ctx.endOffset, labelName))
             }
 
-            private fun checkBlock(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun checkBlock(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val lastIdx = (children.size - 1 downTo 0).firstOrNull { !children.type(it).isWhitespaceOrComment }
                 if (lastIdx != null && children.type(lastIdx) == WNodeType.RETURN) {
                     val start = children.startOffset(lastIdx)
@@ -76,15 +86,24 @@ class LambdaReturnRule : WUninitializedRule {
 
             private fun ownLambdaLabel(ctx: WContext): String? {
                 val ancestors = ctx.ancestors
-                if (ancestors.size < 2 || ancestors.typeAt(ancestors.size - 2) != WNodeType.LAMBDA_EXPRESSION) return null
+                if (ancestors.size < 2 || ancestors.typeAt(ancestors.size - 2) != WNodeType.LAMBDA_EXPRESSION) {
+                    return null
+                }
                 var i = ancestors.size - 3
-                while (i >= 0 && (ancestors.typeAt(i) == WNodeType.VALUE_ARGUMENT || ancestors.typeAt(i) == WNodeType.VALUE_ARGUMENT_LIST)
+                while (i >= 0 &&
+                    (ancestors.typeAt(
+                        i,
+                    ) == WNodeType.VALUE_ARGUMENT || ancestors.typeAt(i) == WNodeType.VALUE_ARGUMENT_LIST)
                 ) {
                     i--
                 }
                 if (i < 0) return null
                 return when (ancestors.typeAt(i)) {
-                    WNodeType.LABELED_EXPRESSION -> explicitLabel(ctx.sourceText, ancestors.startOffsetAt(i), ancestors.endOffsetAt(i))
+                    WNodeType.LABELED_EXPRESSION -> explicitLabel(
+                        ctx.sourceText,
+                        ancestors.startOffsetAt(i),
+                        ancestors.endOffsetAt(i),
+                    )
                     WNodeType.LAMBDA_ARGUMENT ->
                         if (i - 1 < 0 || ancestors.typeAt(i - 1) != WNodeType.CALL_EXPRESSION) {
                             null
@@ -96,7 +115,11 @@ class LambdaReturnRule : WUninitializedRule {
                 }
             }
 
-            private fun explicitLabel(sourceText: CharSequence, start: Int, end: Int): String? {
+            private fun explicitLabel(
+                sourceText: CharSequence,
+                start: Int,
+                end: Int,
+            ): String? {
                 var i = start
                 while (i < end && (sourceText[i].isLetterOrDigit() || sourceText[i] == '_')) i++
                 if (i >= end || sourceText[i] != '@') return null
@@ -111,5 +134,9 @@ class LambdaReturnRule : WUninitializedRule {
         }
     }
 
-    private class CompletedReturn(val start: Int, val end: Int, val labelName: String?)
+    private class CompletedReturn(
+        val start: Int,
+        val end: Int,
+        val labelName: String?,
+    )
 }

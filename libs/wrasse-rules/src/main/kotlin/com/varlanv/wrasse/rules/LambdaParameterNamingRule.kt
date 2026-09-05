@@ -25,7 +25,11 @@ class LambdaParameterNamingRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.VALUE_PARAMETER, WNodeType.DESTRUCTURING_DECLARATION_ENTRY)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.VALUE_PARAMETER -> checkPlainParameter(ctx, children, reporter)
                     WNodeType.DESTRUCTURING_DECLARATION_ENTRY -> checkDestructuredEntry(ctx, children, reporter)
@@ -33,14 +37,27 @@ class LambdaParameterNamingRule : WUninitializedRule {
                 }
             }
 
-            private fun checkPlainParameter(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun checkPlainParameter(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (!isOwnedByLambda(ctx.ancestors)) return
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
-                report(children.textSpan(idIdx, ctx.sourceText), children.startOffset(idIdx), children.endOffset(idIdx), reporter)
+                report(
+                    children.textSpan(idIdx, ctx.sourceText),
+                    children.startOffset(idIdx),
+                    children.endOffset(idIdx),
+                    reporter,
+                )
             }
 
-            private fun checkDestructuredEntry(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun checkDestructuredEntry(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val ancestors = ctx.ancestors
                 if (ancestors.size < 4) return
                 if (ancestors.peekType() != WNodeType.DESTRUCTURING_DECLARATION) return
@@ -49,7 +66,12 @@ class LambdaParameterNamingRule : WUninitializedRule {
                 if (ancestors.typeAt(ancestors.size - 4) != WNodeType.FUNCTION_LITERAL) return
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
-                report(children.textSpan(idIdx, ctx.sourceText), children.startOffset(idIdx), children.endOffset(idIdx), reporter)
+                report(
+                    children.textSpan(idIdx, ctx.sourceText),
+                    children.startOffset(idIdx),
+                    children.endOffset(idIdx),
+                    reporter,
+                )
             }
 
             private fun isOwnedByLambda(ancestors: WNodeStack): Boolean {
@@ -57,7 +79,12 @@ class LambdaParameterNamingRule : WUninitializedRule {
                 return ancestors.typeAt(ancestors.size - 2) == WNodeType.FUNCTION_LITERAL
             }
 
-            private fun report(name: CharSequence, start: Int, end: Int, reporter: WReporter) {
+            private fun report(
+                name: CharSequence,
+                start: Int,
+                end: Int,
+                reporter: WReporter,
+            ) {
                 val message = LambdaParameterNamingDecision.decide(name) ?: return
                 reporter.report(ruleId, message, start, end, this)
             }

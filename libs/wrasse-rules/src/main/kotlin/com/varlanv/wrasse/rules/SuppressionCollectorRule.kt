@@ -56,7 +56,9 @@ class SuppressionCollectorRule : WStreamRule {
             calleeSegments.add(text)
             return
         }
-        if (trackingTemplate && ctx.type == WNodeType.REGULAR_STRING_PART && parent == WNodeType.LITERAL_STRING_TEMPLATE_ENTRY) {
+        if (trackingTemplate &&
+            ctx.type == WNodeType.REGULAR_STRING_PART &&
+            parent == WNodeType.LITERAL_STRING_TEMPLATE_ENTRY) {
             argLiteralText?.append(ctx.leafText)
         }
     }
@@ -95,7 +97,9 @@ class SuppressionCollectorRule : WStreamRule {
         if (!entryActive) return
         if (ctx.type == WNodeType.STRING_TEMPLATE && trackingTemplate) {
             trackingTemplate = false
-            argIsPlainStringLiteral = templateChildTypes.isEmpty() || templateChildTypes == listOf(WNodeType.LITERAL_STRING_TEMPLATE_ENTRY)
+            argIsPlainStringLiteral =
+                templateChildTypes.isEmpty() ||
+                templateChildTypes == listOf(WNodeType.LITERAL_STRING_TEMPLATE_ENTRY)
             return
         }
         if (ctx.type == WNodeType.VALUE_ARGUMENT) {
@@ -131,8 +135,10 @@ class SuppressionCollectorRule : WStreamRule {
         if (ancestors.isEmpty) return AnnotationScope.None
         return when (ancestors.peekType()) {
             WNodeType.FILE_ANNOTATION_LIST -> AnnotationScope.File
-            WNodeType.ANNOTATED_EXPRESSION ->
-            AnnotationScope.Region(ancestors.peekStartOffset(), ancestors.peekEndOffset())
+            WNodeType.ANNOTATED_EXPRESSION -> AnnotationScope.Region(
+                ancestors.peekStartOffset(),
+                ancestors.peekEndOffset(),
+            )
 
             WNodeType.MODIFIER_LIST -> {
                 if (ancestors.size < 2) {

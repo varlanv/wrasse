@@ -33,15 +33,24 @@ class UnnecessaryInheritanceRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.SUPER_TYPE_LIST)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 for (i in 0 until children.size) {
                     val type = children.type(i)
                     if (type == WNodeType.COMMA || type.isWhitespaceOrComment) continue
                     if (type != WNodeType.SUPER_TYPE_CALL_ENTRY) continue
                     val targetName = redundantTargetName(children.textSpan(i, ctx.sourceText)) ?: continue
 
-                    reporter
-                        .report(ruleId, "Unnecessary inheritance of '$targetName'", children.startOffset(i), children.endOffset(i), this)
+                    reporter.report(
+                        ruleId,
+                        "Unnecessary inheritance of '$targetName'",
+                        children.startOffset(i),
+                        children.endOffset(i),
+                        this,
+                    )
                 }
             }
 

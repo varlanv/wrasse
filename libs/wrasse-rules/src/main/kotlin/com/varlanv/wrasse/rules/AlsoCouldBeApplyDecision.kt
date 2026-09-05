@@ -9,7 +9,12 @@ package com.varlanv.wrasse.rules
 object AlsoCouldBeApplyDecision {
     const val MESSAGE = "This 'also' block contains only 'it'-qualified statements; consider 'apply' instead"
 
-    fun decide(calleeText: CharSequence, lambdaCount: Int, statementCount: Int, allItQualified: Boolean): String? {
+    fun decide(
+        calleeText: CharSequence,
+        lambdaCount: Int,
+        statementCount: Int,
+        allItQualified: Boolean,
+    ): String? {
         if (!calleeText.contentEquals("also")) return null
         if (lambdaCount != 1) return null
         if (statementCount == 0 || !allItQualified) return null

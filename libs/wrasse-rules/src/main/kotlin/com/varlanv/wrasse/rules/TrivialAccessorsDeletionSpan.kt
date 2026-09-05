@@ -12,7 +12,11 @@ import com.varlanv.wrasse.lang.WEdit
  * completely untouched.
  */
 object TrivialAccessorsDeletionSpan {
-    fun compute(sourceText: CharSequence, accessorStart: Int, accessorEnd: Int): WEdit {
+    fun compute(
+        sourceText: CharSequence,
+        accessorStart: Int,
+        accessorEnd: Int,
+    ): WEdit {
         var start = accessorStart
         while (start > 0 && sourceText[start - 1].isWhitespace()) {
             start--

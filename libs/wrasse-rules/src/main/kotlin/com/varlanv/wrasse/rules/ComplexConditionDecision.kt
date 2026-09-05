@@ -25,7 +25,11 @@ object ComplexConditionDecision {
         return count
     }
 
-    private fun indexOf(source: CharSequence, part: String, from: Int): Int {
+    private fun indexOf(
+        source: CharSequence,
+        part: String,
+        from: Int,
+    ): Int {
         val last = source.length - part.length
         outer@ for (i in from..last) {
             for (j in part.indices) {

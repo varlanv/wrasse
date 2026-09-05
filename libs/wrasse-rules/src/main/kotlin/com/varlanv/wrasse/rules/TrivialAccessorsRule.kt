@@ -34,8 +34,12 @@ class TrivialAccessorsRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes =
-            setOf(WNodeType.PROPERTY_ACCESSOR, WNodeType.BLOCK, WNodeType.RETURN, WNodeType.BINARY_EXPRESSION)
+            override val targetTypes = setOf(
+                WNodeType.PROPERTY_ACCESSOR,
+                WNodeType.BLOCK,
+                WNodeType.RETURN,
+                WNodeType.BINARY_EXPRESSION,
+            )
 
             private val pendingAccessors = mutableListOf<PendingAccessor>()
 
@@ -64,13 +68,19 @@ class TrivialAccessorsRule : WUninitializedRule {
                 when {
                     ctx.type == WNodeType.KW_GET && pending.isGetter == null -> pending.isGetter = true
                     ctx.type == WNodeType.KW_SET && pending.isGetter == null -> pending.isGetter = false
-                    ctx.type == WNodeType.IDENTIFIER && pending.paramName == null && ctx.ancestors.peekType() == WNodeType.VALUE_PARAMETER ->
-                    pending.paramName = ctx.leafText?.toString()
+                    ctx.type == WNodeType.IDENTIFIER &&
+                        pending.paramName == null &&
+                        ctx.ancestors.peekType() == WNodeType.VALUE_PARAMETER ->
+                        pending.paramName = ctx.leafText?.toString()
                     else -> {}
                 }
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.RETURN -> recordReturn(ctx, children)
                     WNodeType.BINARY_EXPRESSION -> recordAssignment(ctx, children)
@@ -83,8 +93,12 @@ class TrivialAccessorsRule : WUninitializedRule {
             private fun recordReturn(ctx: WContext, children: ChildBuffer) {
                 val pending = pendingAccessors.lastOrNull() ?: return
                 if (pending.isGetter != true) return
-                val idx = singleSignificant(children) { it.isWhitespaceOrComment || it == WNodeType.KW_RETURN } ?: return
-                if (children.type(idx) == WNodeType.REFERENCE_EXPRESSION && children.textSpan(idx, ctx.sourceText).contentEquals("field")) {
+                val idx = singleSignificant(
+                    children,
+                ) { it.isWhitespaceOrComment || it == WNodeType.KW_RETURN } ?: return
+                if (children.type(
+                    idx,
+                ) == WNodeType.REFERENCE_EXPRESSION && children.textSpan(idx, ctx.sourceText).contentEquals("field")) {
                     pending.blockMatched = true
                 }
             }
@@ -103,7 +117,9 @@ class TrivialAccessorsRule : WUninitializedRule {
                     !children.textSpan(leftIdx, ctx.sourceText).contentEquals("field")) {
                     return
                 }
-                if (children.type(opIdx) != WNodeType.OPERATION_REFERENCE || !children.textSpan(opIdx, ctx.sourceText).contentEquals("=")) {
+                if (children.type(
+                    opIdx,
+                ) != WNodeType.OPERATION_REFERENCE || !children.textSpan(opIdx, ctx.sourceText).contentEquals("=")) {
                     return
                 }
                 if (children.type(rightIdx) !=
@@ -117,32 +133,45 @@ class TrivialAccessorsRule : WUninitializedRule {
 
             private fun recordBlock(children: ChildBuffer) {
                 val pending = pendingAccessors.lastOrNull() ?: return
-                val idx =
-                singleSignificant(children) {
+                val idx = singleSignificant(children) {
                     it.isWhitespaceOrComment || it == WNodeType.LBRACE || it == WNodeType.RBRACE
                 }
                 if (idx == null) pending.blockMatched = false
             }
 
-            private fun finalizeAccessor(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeAccessor(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val pending = pendingAccessors.removeAt(pendingAccessors.size - 1)
                 val hasModifierList = children.hasChildOfType(WNodeType.MODIFIER_LIST)
                 val hasParameterList =
-                children.hasChildOfType(WNodeType.LPAR) || children.hasChildOfType(WNodeType.VALUE_PARAMETER_LIST)
+                    children.hasChildOfType(WNodeType.LPAR) || children.hasChildOfType(WNodeType.VALUE_PARAMETER_LIST)
                 val isGetter = pending.isGetter == true
 
                 val isBareTrivial = isGetter && !hasParameterList && !hasModifierList
                 val isExprFieldTrivial = isGetter && matchesExprField(children, ctx.sourceText)
                 val isTrivialBody = isBareTrivial || isExprFieldTrivial || pending.blockMatched
 
-                val verdict = TrivialAccessorsDecision.decide(isTrivialBody = isTrivialBody, hasModifierList = hasModifierList) ?: return
+                val verdict = TrivialAccessorsDecision.decide(
+                    isTrivialBody = isTrivialBody,
+                    hasModifierList = hasModifierList,
+                ) ?: return
                 val edits =
                     if (verdict.fixable) {
                         listOf(TrivialAccessorsDeletionSpan.compute(ctx.sourceText, ctx.startOffset, ctx.endOffset))
                     } else {
                         emptyList()
                     }
-                reporter.report(ruleId, TrivialAccessorsDecision.MESSAGE, ctx.startOffset, ctx.endOffset, this, edits = edits)
+                reporter.report(
+                    ruleId,
+                    TrivialAccessorsDecision.MESSAGE,
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                    edits = edits,
+                )
             }
 
             private fun matchesExprField(children: ChildBuffer, sourceText: CharSequence): Boolean {
@@ -151,7 +180,9 @@ class TrivialAccessorsRule : WUninitializedRule {
                 var i = eqIdx + 1
                 while (i < children.size && children.type(i).isWhitespaceOrComment) i++
                 if (i >= children.size) return false
-                return children.type(i) == WNodeType.REFERENCE_EXPRESSION && children.textSpan(i, sourceText).contentEquals("field")
+                return children.type(
+                    i,
+                ) == WNodeType.REFERENCE_EXPRESSION && children.textSpan(i, sourceText).contentEquals("field")
             }
 
             private fun singleSignificant(children: ChildBuffer, ignore: (WNodeType) -> Boolean): Int? {

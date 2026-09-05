@@ -15,7 +15,11 @@ sealed interface Doc {
     val end: Int
 
     /** A run of literal text with no embedded line-break decision — a token, verbatim. */
-    class Text(val value: String, override val start: Int = 0, override val end: Int = 0) : Doc
+    class Text(
+        val value: String,
+        override val start: Int = 0,
+        override val end: Int = 0,
+    ) : Doc
 
     /**
      * A point where a line break may go. [kind] decides whether [Layout] ever has a choice:
@@ -55,13 +59,21 @@ sealed interface Doc {
      * group measures its own fit — see [GroupKind]; [indentWhenBroken] renders [body] one indent
      * level deeper when the group ends up broken (and at the ambient depth when flat).
      */
-    class Group(val body: Doc, val kind: GroupKind = GroupKind.DEFAULT, val indentWhenBroken: Boolean = false) : Doc {
+    class Group(
+        val body: Doc,
+        val kind: GroupKind = GroupKind.DEFAULT,
+        val indentWhenBroken: Boolean = false,
+    ) : Doc {
         override val start: Int get() = body.start
         override val end: Int get() = body.end
     }
 
     /** Sequences [parts] with no layout decision of its own. */
-    class Concat(val parts: List<Doc>, override val start: Int = 0, override val end: Int = 0) : Doc
+    class Concat(
+        val parts: List<Doc>,
+        override val start: Int = 0,
+        override val end: Int = 0,
+    ) : Doc
 
     /**
      * A trailing comma candidate: renders `,` when the enclosing [Group] chooses broken mode,
@@ -70,7 +82,10 @@ sealed interface Doc {
      * otherwise; contributes zero width to [Layout]'s flat-fit measurement either way, since a
      * flat render never emits it.
      */
-    class TrailingComma(override val start: Int = 0, override val end: Int = 0) : Doc
+    class TrailingComma(
+        override val start: Int = 0,
+        override val end: Int = 0,
+    ) : Doc
 }
 
 enum class BreakKind {

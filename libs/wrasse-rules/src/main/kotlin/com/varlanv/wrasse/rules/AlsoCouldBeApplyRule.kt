@@ -40,7 +40,11 @@ class AlsoCouldBeApplyRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.BLOCK -> recordBlock(ctx, children)
                     WNodeType.FUNCTION_LITERAL -> finalizeLiteral()
@@ -55,7 +59,10 @@ class AlsoCouldBeApplyRule : WUninitializedRule {
                 var allQualified = true
                 for (i in 0 until children.size) {
                     val type = children.type(i)
-                    if (type.isWhitespaceOrComment || type == WNodeType.LBRACE || type == WNodeType.RBRACE || type == WNodeType.SEMICOLON) {
+                    if (type.isWhitespaceOrComment ||
+                        type == WNodeType.LBRACE ||
+                        type == WNodeType.RBRACE ||
+                        type == WNodeType.SEMICOLON) {
                         continue
                     }
                     statementCount++
@@ -68,7 +75,9 @@ class AlsoCouldBeApplyRule : WUninitializedRule {
 
             private fun startsWithItQualifier(text: CharSequence): Boolean {
                 val prefix = "it"
-                if (text.length < prefix.length + 1 || !text.subSequence(0, prefix.length).contentEquals(prefix)) return false
+                if (text.length < prefix.length + 1 || !text.subSequence(0, prefix.length).contentEquals(prefix)) {
+                    return false
+                }
                 val next = text[prefix.length]
                 return next == '.' || (next == '?' && text.length > prefix.length + 1 && text[prefix.length + 1] == '.')
             }
@@ -80,14 +89,22 @@ class AlsoCouldBeApplyRule : WUninitializedRule {
                 call.lastVerdict = verdict
             }
 
-            private fun finalizeCall(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            private fun finalizeCall(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 val call = pendingCalls.removeAt(pendingCalls.size - 1)
                 val calleeIdx = children.firstChildOfType(WNodeType.REFERENCE_EXPRESSION)
                 if (calleeIdx < 0) return
                 val verdict = call.lastVerdict ?: return
                 val calleeText = children.textSpan(calleeIdx, ctx.sourceText)
-                val message = AlsoCouldBeApplyDecision.decide(calleeText, call.lambdaCount, verdict.statementCount, verdict.allItQualified)
-                    ?: return
+                val message = AlsoCouldBeApplyDecision.decide(
+                    calleeText,
+                    call.lambdaCount,
+                    verdict.statementCount,
+                    verdict.allItQualified,
+                ) ?: return
                 reporter.report(ruleId, message, children.startOffset(calleeIdx), children.endOffset(calleeIdx), this)
             }
         }

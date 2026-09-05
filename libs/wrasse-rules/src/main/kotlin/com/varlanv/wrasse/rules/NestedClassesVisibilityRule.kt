@@ -37,7 +37,9 @@ class NestedClassesVisibilityRule : WUninitializedRule {
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 if (ctx.type == WNodeType.CLASS || ctx.type == WNodeType.OBJECT_DECLARATION) {
-                    pendingClasses.add(PendingClass(nodeType = ctx.type, isTopLevel = ctx.ancestors.peekType() == WNodeType.FILE))
+                    pendingClasses.add(
+                        PendingClass(nodeType = ctx.type, isTopLevel = ctx.ancestors.peekType() == WNodeType.FILE),
+                    )
                 }
                 return true
             }
@@ -45,7 +47,8 @@ class NestedClassesVisibilityRule : WUninitializedRule {
             override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
                 val pending = pendingClasses.lastOrNull() ?: return
                 when (ctx.type) {
-                    WNodeType.KW_INTERFACE -> if (ctx.ancestors.peekType() == WNodeType.CLASS) pending.isInterface = true
+                    WNodeType.KW_INTERFACE ->
+                        if (ctx.ancestors.peekType() == WNodeType.CLASS) pending.isInterface = true
                     WNodeType.KW_PUBLIC -> if (inOwnModifierList(ctx)) pending.hasPublic = true
                     WNodeType.KW_INTERNAL -> if (inOwnModifierList(ctx)) pending.hasInternal = true
                     WNodeType.KW_ENUM -> if (inOwnModifierList(ctx)) pending.hasEnum = true
@@ -61,7 +64,11 @@ class NestedClassesVisibilityRule : WUninitializedRule {
                 return ownerType == WNodeType.CLASS || ownerType == WNodeType.OBJECT_DECLARATION
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.CLASS, WNodeType.OBJECT_DECLARATION -> finalizeClass(ctx)
                     WNodeType.CLASS_BODY -> finalizeBody(children, reporter)
@@ -71,19 +78,35 @@ class NestedClassesVisibilityRule : WUninitializedRule {
 
             private fun finalizeClass(ctx: WContext) {
                 val pending = pendingClasses.removeAt(pendingClasses.size - 1)
-                completedDecls.add(CompletedDecl(ctx.startOffset, ctx.endOffset, pending.hasPublic, pending.hasEnum, pending.hasCompanion))
+                completedDecls.add(
+                    CompletedDecl(
+                        ctx.startOffset,
+                        ctx.endOffset,
+                        pending.hasPublic,
+                        pending.hasEnum,
+                        pending.hasCompanion,
+                    ),
+                )
             }
 
             private fun finalizeBody(children: ChildBuffer, reporter: WReporter) {
                 val owner = pendingClasses.lastOrNull()
                 val ownerQualifies =
-                owner != null && owner.nodeType == WNodeType.CLASS && owner.isTopLevel && owner.hasInternal && !owner.isInterface
+                    owner != null &&
+                        owner.nodeType == WNodeType.CLASS &&
+                        owner.isTopLevel &&
+                        owner.hasInternal &&
+                        !owner.isInterface
                 for (i in 0 until children.size) {
                     val type = children.type(i)
                     if (type != WNodeType.CLASS && type != WNodeType.OBJECT_DECLARATION) continue
                     val decl = takeCompletedDecl(children.startOffset(i), children.endOffset(i)) ?: continue
-                    val message = NestedClassesVisibilityDecision.decide(ownerQualifies, decl.hasPublic, decl.hasEnum, decl.hasCompanion)
-                        ?: continue
+                    val message = NestedClassesVisibilityDecision.decide(
+                        ownerQualifies,
+                        decl.hasPublic,
+                        decl.hasEnum,
+                        decl.hasCompanion,
+                    ) ?: continue
                     reporter.report(ruleId, message, children.startOffset(i), children.endOffset(i), this)
                 }
             }
@@ -104,5 +127,11 @@ class NestedClassesVisibilityRule : WUninitializedRule {
         var isInterface = false
     }
 
-    private class CompletedDecl(val start: Int, val end: Int, val hasPublic: Boolean, val hasEnum: Boolean, val hasCompanion: Boolean)
+    private class CompletedDecl(
+        val start: Int,
+        val end: Int,
+        val hasPublic: Boolean,
+        val hasEnum: Boolean,
+        val hasCompanion: Boolean,
+    )
 }

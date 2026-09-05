@@ -7,7 +7,11 @@ package com.varlanv.wrasse.model
  * [WrasseRuleConfig] built once alongside every real rule's config (same `warnOnly` downgrade,
  * see [WConfig]) so the printer can report through the same [WReporter] path as any [WRule].
  */
-class WFormatConfig(val enabled: Boolean, val style: FormatStyle, val ruleConfig: WrasseRuleConfig)
+class WFormatConfig(
+    val enabled: Boolean,
+    val style: FormatStyle,
+    val ruleConfig: WrasseRuleConfig,
+)
 
 /**
  * Style parameters for the opinionated printer — the whole configurable surface.

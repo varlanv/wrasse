@@ -38,7 +38,11 @@ class RedundantConstructorKeywordRule : WUninitializedRule {
                 return true
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 when (ctx.type) {
                     WNodeType.PRIMARY_CONSTRUCTOR -> recordConstructor(children)
                     WNodeType.CLASS -> finalizeClass(children, reporter)
@@ -50,7 +54,8 @@ class RedundantConstructorKeywordRule : WUninitializedRule {
                 if (pendingKeywords.isEmpty() || children.hasChildOfType(WNodeType.MODIFIER_LIST)) return
                 val kwIdx = children.firstChildOfType(WNodeType.KW_CONSTRUCTOR)
                 if (kwIdx < 0) return
-                pendingKeywords[pendingKeywords.size - 1] = PendingKeyword(children.startOffset(kwIdx), children.endOffset(kwIdx))
+                pendingKeywords[pendingKeywords.size -
+                    1] = PendingKeyword(children.startOffset(kwIdx), children.endOffset(kwIdx))
             }
 
             private fun finalizeClass(children: ChildBuffer, reporter: WReporter) {
@@ -67,15 +72,14 @@ class RedundantConstructorKeywordRule : WUninitializedRule {
                 if (hasComment) return
 
                 val deletionStart = if (i >= 0) children.endOffset(i) else pending.keywordStart
-                reporter
-                    .report(
-                        ruleId,
-                        RedundantConstructorKeywordDecision.MESSAGE,
-                        pending.keywordStart,
-                        pending.keywordEnd,
-                        this,
-                        edits = RedundantConstructorKeywordDecision.decide(deletionStart, pending.keywordEnd),
-                    )
+                reporter.report(
+                    ruleId,
+                    RedundantConstructorKeywordDecision.MESSAGE,
+                    pending.keywordStart,
+                    pending.keywordEnd,
+                    this,
+                    edits = RedundantConstructorKeywordDecision.decide(deletionStart, pending.keywordEnd),
+                )
             }
         }
     }

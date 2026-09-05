@@ -36,7 +36,11 @@ class FunctionExpressionBodyRule : WUninitializedRule {
                 if (ctx.type == WNodeType.KW_RETURN) returnKeywordCount++
             }
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 var soleType: WNodeType? = null
                 var significantCount = 0
                 for (i in 0 until children.size) {

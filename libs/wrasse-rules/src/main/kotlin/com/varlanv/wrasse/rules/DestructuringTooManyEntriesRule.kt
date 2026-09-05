@@ -23,7 +23,11 @@ class DestructuringTooManyEntriesRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.DESTRUCTURING_DECLARATION)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 var count = 0
                 for (i in 0 until children.size) {
                     if (children.type(i) == WNodeType.DESTRUCTURING_DECLARATION_ENTRY) count++

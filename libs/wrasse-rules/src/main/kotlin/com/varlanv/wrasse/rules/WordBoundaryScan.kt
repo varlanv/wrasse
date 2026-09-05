@@ -27,7 +27,11 @@ object WordBoundaryScan {
 
     private fun isWordChar(c: Char): Boolean = c.isLetterOrDigit() || c == '_'
 
-    fun indexOf(source: CharSequence, part: String, from: Int): Int {
+    fun indexOf(
+        source: CharSequence,
+        part: String,
+        from: Int,
+    ): Int {
         val last = source.length - part.length
         outer@ for (i in from..last) {
             for (j in part.indices) {
@@ -38,7 +42,11 @@ object WordBoundaryScan {
         return -1
     }
 
-    fun indexOfChar(text: CharSequence, target: Char, from: Int = 0): Int {
+    fun indexOfChar(
+        text: CharSequence,
+        target: Char,
+        from: Int = 0,
+    ): Int {
         for (i in from until text.length) if (text[i] == target) return i
         return -1
     }

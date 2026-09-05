@@ -47,11 +47,9 @@ class WrasseTestHarness(
         }
     }
 
-    fun compile(sources: List<TestSource>, workDir: Path): CompilationResult =
-    doCompile(workDir, sources)
+    fun compile(sources: List<TestSource>, workDir: Path): CompilationResult = doCompile(workDir, sources)
 
-    fun sourcePath(workDir: Path, source: TestSource): Path =
-    workDir.resolve("src").resolve(source.path)
+    fun sourcePath(workDir: Path, source: TestSource): Path = workDir.resolve("src").resolve(source.path)
 
     private fun doCompile(workDir: Path, sources: List<TestSource>): CompilationResult {
         val srcDir = Files.createDirectories(workDir.resolve("src"))
@@ -117,7 +115,11 @@ class CompilationResult(val exitCode: ExitCode, val diagnostics: List<TestDiagno
         get() = diagnostics.filter { it.message.startsWith("wrasse:") }
 }
 
-class TestDiagnostic(val severity: CompilerMessageSeverity, val message: String, val location: CompilerMessageSourceLocation?)
+class TestDiagnostic(
+    val severity: CompilerMessageSeverity,
+    val message: String,
+    val location: CompilerMessageSourceLocation?,
+)
 
 private class DiagnosticCollector : MessageCollector {
     val diagnostics = mutableListOf<TestDiagnostic>()
@@ -126,10 +128,13 @@ private class DiagnosticCollector : MessageCollector {
         diagnostics.clear()
     }
 
-    override fun hasErrors(): Boolean =
-    diagnostics.any { it.severity.isError }
+    override fun hasErrors(): Boolean = diagnostics.any { it.severity.isError }
 
-    override fun report(severity: CompilerMessageSeverity, message: String, location: CompilerMessageSourceLocation?) {
+    override fun report(
+        severity: CompilerMessageSeverity,
+        message: String,
+        location: CompilerMessageSourceLocation?,
+    ) {
         diagnostics.add(TestDiagnostic(severity, message, location))
     }
 }

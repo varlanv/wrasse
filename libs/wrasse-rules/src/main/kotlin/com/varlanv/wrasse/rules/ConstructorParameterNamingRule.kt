@@ -19,7 +19,11 @@ class ConstructorParameterNamingRule : WUninitializedRule {
             override val config = config
             override val targetTypes = setOf(WNodeType.VALUE_PARAMETER)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 if (!isConstructorParameter(ctx)) return
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
@@ -28,7 +32,10 @@ class ConstructorParameterNamingRule : WUninitializedRule {
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
                 val hasOverride = Regex("\\boverride\\b").containsMatchIn(modifierText)
 
-                val message = ConstructorParameterNamingDecision.decide(children.textSpan(idIdx, ctx.sourceText), hasOverride) ?: return
+                val message = ConstructorParameterNamingDecision.decide(
+                    children.textSpan(idIdx, ctx.sourceText),
+                    hasOverride,
+                ) ?: return
                 reporter.report(ruleId, message, children.startOffset(idIdx), children.endOffset(idIdx), this)
             }
 

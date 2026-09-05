@@ -11,7 +11,12 @@ package com.varlanv.wrasse.rules
 object FunctionNamingDecision {
     const val MESSAGE = "Function name should start with a lowercase letter (except factory methods) and use camel case"
 
-    fun decide(identifierText: CharSequence, isOverride: Boolean, isFactory: Boolean, isTestLibraryImported: Boolean): String? {
+    fun decide(
+        identifierText: CharSequence,
+        isOverride: Boolean,
+        isFactory: Boolean,
+        isTestLibraryImported: Boolean,
+    ): String? {
         if (isOverride || isFactory) return null
         if (IdentifierCasing.isBacktickKeyword(identifierText)) return null
         if (isTestLibraryImported) {

@@ -3,7 +3,12 @@ package com.varlanv.wrasse.rules
 import com.varlanv.wrasse.lang.WEdit
 
 /** [edits] is empty for a report-only bail (a comment sits inside the matched span). */
-class RangeConventionalVerdict(val reportStart: Int, val reportEnd: Int, val message: String, val edits: List<WEdit>)
+class RangeConventionalVerdict(
+    val reportStart: Int,
+    val reportEnd: Int,
+    val message: String,
+    val edits: List<WEdit>,
+)
 
 /**
  * Verdict logic for wrasse's two conventional-range rewrites, compiler-free so it is
@@ -27,7 +32,13 @@ object RangeConventionalDecision {
     const val RANGE_TO_MESSAGE = "Replace rangeTo call with the .. operator"
     const val UNTIL_MESSAGE = "Replace .. with until"
 
-    fun decideRangeToCall(callStart: Int, callEnd: Int, receiverText: String, argumentText: String, hasComment: Boolean): RangeConventionalVerdict {
+    fun decideRangeToCall(
+        callStart: Int,
+        callEnd: Int,
+        receiverText: String,
+        argumentText: String,
+        hasComment: Boolean,
+    ): RangeConventionalVerdict {
         val edits = if (hasComment) emptyList() else listOf(WEdit(callStart, callEnd, "$receiverText..$argumentText"))
         return RangeConventionalVerdict(callStart, callEnd, RANGE_TO_MESSAGE, edits)
     }

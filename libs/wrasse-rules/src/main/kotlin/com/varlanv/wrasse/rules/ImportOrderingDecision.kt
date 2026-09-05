@@ -11,7 +11,11 @@ import com.varlanv.wrasse.lang.WEdit
  * `a.b.*`, `` import a.b.`when` `` sorts by `a.b.when` — a backtick-quoted identifier sorts by its
  * plain letters, not by the backtick's own ASCII value, which sorts before every letter.
  */
-class ImportOrderingRecord(val startOffset: Int, val endOffset: Int, val text: String) {
+class ImportOrderingRecord(
+    val startOffset: Int,
+    val endOffset: Int,
+    val text: String,
+) {
     val sortKey: String = ImportOrderingDecision.sortKeyOf(text)
 }
 
@@ -33,8 +37,9 @@ object ImportOrderingDecision {
         return null
     }
 
-    fun sortedReplacement(records: List<ImportOrderingRecord>): String =
-    records.sortedBy { it.sortKey }.joinToString("\n") { it.text }
+    fun sortedReplacement(
+        records: List<ImportOrderingRecord>,
+    ): String = records.sortedBy { it.sortKey }.joinToString("\n") { it.text }
 
     /**
      * True iff `[listStart, listEnd)` is exactly a sequence of import directives (`directiveSpans`,
@@ -44,7 +49,13 @@ object ImportOrderingDecision {
      * line — means reordering could sever a comment from the directive it documents or otherwise
      * change something other than order, so the caller must not attempt a fix.
      */
-    fun isCleanList(sourceText: CharSequence, listStart: Int, listEnd: Int, directiveSpans: List<Pair<Int, Int>>, hasCommentInList: Boolean): Boolean {
+    fun isCleanList(
+        sourceText: CharSequence,
+        listStart: Int,
+        listEnd: Int,
+        directiveSpans: List<Pair<Int, Int>>,
+        hasCommentInList: Boolean,
+    ): Boolean {
         if (hasCommentInList) return false
         if (directiveSpans.isEmpty()) return false
         if (directiveSpans.first().first != listStart) return false
@@ -74,7 +85,9 @@ object ImportOrderingDecision {
         edits: List<WEdit>,
         extraLines: List<String> = emptyList(),
     ): String? {
-        val descending = edits.sortedWith(compareByDescending<WEdit> { it.startOffset }.thenByDescending { it.endOffset })
+        val descending = edits.sortedWith(
+            compareByDescending<WEdit> { it.startOffset }.thenByDescending { it.endOffset },
+        )
         for (i in 0 until descending.size - 1) {
             if (descending[i + 1].endOffset > descending[i].startOffset) return null
         }

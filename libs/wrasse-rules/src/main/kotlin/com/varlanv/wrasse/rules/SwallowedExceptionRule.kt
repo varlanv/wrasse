@@ -36,7 +36,9 @@ class SwallowedExceptionRule : WUninitializedRule {
 
                     WNodeType.VALUE_PARAMETER_LIST -> {
                         if (ctx.ancestors.peekType() == WNodeType.CATCH && pendingCatches.isNotEmpty()) {
-                            val facts = CatchParameterText.parse(ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset))
+                            val facts = CatchParameterText.parse(
+                                ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
+                            )
                             if (facts != null) {
                                 val pending = pendingCatches.last()
                                 pending.name = facts.name
@@ -53,7 +55,9 @@ class SwallowedExceptionRule : WUninitializedRule {
             }
 
             override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
-                if (ctx.type != WNodeType.IDENTIFIER || ctx.ancestors.peekType() != WNodeType.REFERENCE_EXPRESSION) return
+                if (ctx.type != WNodeType.IDENTIFIER || ctx.ancestors.peekType() != WNodeType.REFERENCE_EXPRESSION) {
+                    return
+                }
                 val pending = pendingCatches.lastOrNull() ?: return
                 val name = pending.name ?: return
                 val text = IdentifierCasing.unquote(ctx.leafText ?: "")

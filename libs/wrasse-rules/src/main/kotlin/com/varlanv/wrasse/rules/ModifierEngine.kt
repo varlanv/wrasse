@@ -51,7 +51,11 @@ class ModifierEngine : WUninitializedRuleGroup {
             override val config = (orderConfig ?: visibilityConfig)!!
             override val targetTypes = setOf(WNodeType.MODIFIER_LIST)
 
-            override fun exitNode(ctx: WContext, children: ChildBuffer, reporter: WReporter) {
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
                 var hasComment = false
                 var hasOverride = false
                 var publicIndex = -1
@@ -67,7 +71,9 @@ class ModifierEngine : WUninitializedRuleGroup {
                     val canonicalIndex = ORDERED_MODIFIER_TYPES.indexOf(type)
                     if (canonicalIndex >= 0) {
                         if (type == WNodeType.KW_PUBLIC) publicIndex = keywords.size
-                        keywords.add(ModifierKeywordOccurrence(canonicalIndex, children.startOffset(i), children.endOffset(i)))
+                        keywords.add(
+                            ModifierKeywordOccurrence(canonicalIndex, children.startOffset(i), children.endOffset(i)),
+                        )
                     }
                 }
 
@@ -82,17 +88,17 @@ class ModifierEngine : WUninitializedRuleGroup {
                 )
 
                 if (orderRule == null) return
-                val orderKeywords = if (visibilityFired) keywords.filterIndexed { i, _ -> i != publicIndex } else keywords
+                val orderKeywords =
+                    if (visibilityFired) keywords.filterIndexed { i, _ -> i != publicIndex } else keywords
                 val verdict = ModifierOrderDecision.decide(orderKeywords, ctx.sourceText, hasComment) ?: return
-                reporter
-                    .report(
-                        MODIFIER_ORDER_ID,
-                        "Modifiers out of order, expected: ${verdict.expectedOrder}",
-                        verdict.reportStart,
-                        verdict.reportEnd,
-                        orderRule,
-                        edits = verdict.edits,
-                    )
+                reporter.report(
+                    MODIFIER_ORDER_ID,
+                    "Modifiers out of order, expected: ${verdict.expectedOrder}",
+                    verdict.reportStart,
+                    verdict.reportEnd,
+                    orderRule,
+                    edits = verdict.edits,
+                )
             }
 
             private fun reportRedundantVisibility(
@@ -110,17 +116,20 @@ class ModifierEngine : WUninitializedRuleGroup {
                     return false
                 }
                 val publicOccurrence = keywords[publicIndex]
-                val edit = RedundantVisibilityModifierDeletionSpan
-                    .compute(ctx.sourceText, publicOccurrence.startOffset, publicOccurrence.endOffset, hasComment)
-                reporter
-                    .report(
-                        REDUNDANT_VISIBILITY_MODIFIER_ID,
-                        "Redundant public visibility modifier",
-                        publicOccurrence.startOffset,
-                        publicOccurrence.endOffset,
-                        visibilityRule,
-                        edits = edit?.let { listOf(it) } ?: emptyList(),
-                    )
+                val edit = RedundantVisibilityModifierDeletionSpan.compute(
+                    ctx.sourceText,
+                    publicOccurrence.startOffset,
+                    publicOccurrence.endOffset,
+                    hasComment,
+                )
+                reporter.report(
+                    REDUNDANT_VISIBILITY_MODIFIER_ID,
+                    "Redundant public visibility modifier",
+                    publicOccurrence.startOffset,
+                    publicOccurrence.endOffset,
+                    visibilityRule,
+                    edits = edit?.let { listOf(it) } ?: emptyList(),
+                )
                 return true
             }
         }
@@ -135,8 +144,7 @@ class ModifierEngine : WUninitializedRuleGroup {
         const val REDUNDANT_VISIBILITY_MODIFIER_ID = "redundant-visibility-modifier"
         private const val ENGINE_ID = "modifier-engine"
 
-        private val ORDERED_MODIFIER_TYPES =
-        listOf(
+        private val ORDERED_MODIFIER_TYPES = listOf(
             WNodeType.KW_PUBLIC,
             WNodeType.KW_PROTECTED,
             WNodeType.KW_PRIVATE,

@@ -22,13 +22,21 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  * enclosing `FUN`, exactly like any other control-flow construct.
  */
 class FunctionMetricsEngine : WUninitializedRuleGroup {
-    override val ids: Set<String> = setOf(RETURN_COUNT_ID, THROWS_COUNT_ID, NESTED_BLOCK_DEPTH_ID, CYCLOMATIC_COMPLEXITY_ID, LONG_METHOD_ID)
+    override val ids: Set<String> = setOf(
+        RETURN_COUNT_ID,
+        THROWS_COUNT_ID,
+        NESTED_BLOCK_DEPTH_ID,
+        CYCLOMATIC_COMPLEXITY_ID,
+        LONG_METHOD_ID,
+    )
 
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val returnCountRule = configs[RETURN_COUNT_ID]?.let { ReportFacade(RETURN_COUNT_ID, it) }
         val throwsCountRule = configs[THROWS_COUNT_ID]?.let { ReportFacade(THROWS_COUNT_ID, it) }
         val nestedBlockDepthRule = configs[NESTED_BLOCK_DEPTH_ID]?.let { ReportFacade(NESTED_BLOCK_DEPTH_ID, it) }
-        val cyclomaticComplexityRule = configs[CYCLOMATIC_COMPLEXITY_ID]?.let { ReportFacade(CYCLOMATIC_COMPLEXITY_ID, it) }
+        val cyclomaticComplexityRule = configs[CYCLOMATIC_COMPLEXITY_ID]?.let {
+            ReportFacade(CYCLOMATIC_COMPLEXITY_ID, it)
+        }
         val longMethodRule = configs[LONG_METHOD_ID]?.let { ReportFacade(LONG_METHOD_ID, it) }
 
         return object : WStreamRule {
@@ -44,12 +52,16 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     WNodeType.FUN -> frames.add(PendingFrame(ctx.startOffset, ctx.endOffset))
                     WNodeType.RETURN -> frames.lastOrNull()?.frame?.recordReturn()
                     WNodeType.THROW -> frames.lastOrNull()?.frame?.recordThrow()
-                    WNodeType.CONTINUE, WNodeType.BREAK, WNodeType.CATCH, WNodeType.WHEN_ENTRY ->
-                    frames.lastOrNull()?.frame?.addComplexity(1)
+                    WNodeType.CONTINUE, WNodeType.BREAK, WNodeType.CATCH, WNodeType.WHEN_ENTRY -> frames
+                        .lastOrNull()
+                        ?.frame
+                        ?.addComplexity(1)
 
                     WNodeType.IF -> {
                         frames.lastOrNull()?.frame?.addComplexity(1)
-                        if (ctx.ancestors.peekType() != WNodeType.ELSE) frames.lastOrNull()?.frame?.enterNestingConstruct()
+                        if (ctx.ancestors.peekType() != WNodeType.ELSE) {
+                            frames.lastOrNull()?.frame?.enterNestingConstruct()
+                        }
                     }
 
                     WNodeType.WHEN, WNodeType.TRY -> frames.lastOrNull()?.frame?.enterNestingConstruct()
@@ -65,9 +77,14 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
 
             override fun exitNode(ctx: WContext) {
                 when (ctx.type) {
-                    WNodeType.IF -> if (ctx.ancestors.peekType() != WNodeType.ELSE) frames.lastOrNull()?.frame?.exitNestingConstruct()
-                    WNodeType.WHEN, WNodeType.TRY, WNodeType.FOR, WNodeType.WHILE, WNodeType.DO_WHILE ->
-                    frames.lastOrNull()?.frame?.exitNestingConstruct()
+                    WNodeType.IF ->
+                        if (ctx.ancestors.peekType() != WNodeType.ELSE) {
+                            frames.lastOrNull()?.frame?.exitNestingConstruct()
+                        }
+                    WNodeType.WHEN, WNodeType.TRY, WNodeType.FOR, WNodeType.WHILE, WNodeType.DO_WHILE -> frames
+                        .lastOrNull()
+                        ?.frame
+                        ?.exitNestingConstruct()
 
                     WNodeType.FUN -> if (frames.isNotEmpty()) completed.add(frames.removeAt(frames.size - 1))
                     else -> {}
@@ -87,7 +104,9 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     WNodeType.ANDAND, WNodeType.OROR, WNodeType.ELVIS -> frames.lastOrNull()?.frame?.addComplexity(1)
                     WNodeType.IDENTIFIER -> {
                         val pending = frames.lastOrNull()
-                        if (pending != null && ctx.ancestors.peekType() == WNodeType.FUN && pending.frame.nameStart < 0) {
+                        if (pending != null &&
+                            ctx.ancestors.peekType() == WNodeType.FUN &&
+                            pending.frame.nameStart < 0) {
                             pending.frame.nameStart = ctx.startOffset
                             pending.frame.nameEnd = ctx.endOffset
                             pending.frame.functionName = IdentifierCasing.unquote(text ?: "")
@@ -124,7 +143,13 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     }
                     if (cyclomaticComplexityRule != null) {
                         CyclomaticComplexityDecision.decide(f.complexity, name)?.let {
-                            reporter.report(CYCLOMATIC_COMPLEXITY_ID, it, reportStart, reportEnd, cyclomaticComplexityRule)
+                            reporter.report(
+                                CYCLOMATIC_COMPLEXITY_ID,
+                                it,
+                                reportStart,
+                                reportEnd,
+                                cyclomaticComplexityRule,
+                            )
                         }
                     }
                     if (longMethodRule != null) {

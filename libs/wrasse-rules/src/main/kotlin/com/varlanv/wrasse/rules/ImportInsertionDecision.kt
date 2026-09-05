@@ -39,7 +39,9 @@ object ImportInsertionDecision {
 
         val bySeam = LinkedHashMap<Int, MutableList<String>>()
         for (fqn in newImportFqns) {
-            val insertionIndex = directiveRecords.indexOfFirst { it.sortKey > fqn }.let { if (it < 0) directiveRecords.size else it }
+            val insertionIndex = directiveRecords
+                .indexOfFirst { it.sortKey > fqn }
+                .let { if (it < 0) directiveRecords.size else it }
             val seam = seamOffsetFor(sourceText, listStart, listEnd, directiveRecords, insertionIndex)
             bySeam.getOrPut(seam) { mutableListOf() }.add(fqn)
         }
@@ -62,7 +64,11 @@ object ImportInsertionDecision {
      * something (a package directive and/or file annotations) precedes it, a blank line after
      * when something follows, neither when there is nothing on that side.
      */
-    fun emptyListInsertion(sourceText: CharSequence, listStart: Int, newImportFqns: List<String>): WEdit {
+    fun emptyListInsertion(
+        sourceText: CharSequence,
+        listStart: Int,
+        newImportFqns: List<String>,
+    ): WEdit {
         var contentStart = listStart
         while (contentStart < sourceText.length && sourceText[contentStart].isWhitespace()) contentStart++
         val hasPrecedingContent = listStart > 0

@@ -36,13 +36,11 @@ class TrimMultilineRawStringRule : WUninitializedRule {
                 val text = ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset)
                 val isRawWithLineBreak = text.startsWith("\"\"\"") && text.endsWith("\"\"\"") && text.contains('\n')
                 val message =
-                TrimMultilineRawStringDecision
-                        .decide(
-                            isRawWithLineBreak = isRawWithLineBreak,
-                            isTrimmed = isRawWithLineBreak && isTrimmed(ctx),
-                            isExpectedAsConstant = isRawWithLineBreak && isExpectedAsConstant(ctx),
-                        )
-                    ?: return false
+                    TrimMultilineRawStringDecision.decide(
+                        isRawWithLineBreak = isRawWithLineBreak,
+                        isTrimmed = isRawWithLineBreak && isTrimmed(ctx),
+                        isExpectedAsConstant = isRawWithLineBreak && isExpectedAsConstant(ctx),
+                    ) ?: return false
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
                 return false
             }
@@ -62,16 +60,24 @@ class TrimMultilineRawStringRule : WUninitializedRule {
                 val ancestors = ctx.ancestors
                 if (ancestors.isEmpty || ancestors.peekType() != WNodeType.PROPERTY) return false
                 val propertyStart = ancestors.peekStartOffset()
-                return WordBoundaryScan.containsWord(ctx.sourceText.subSequence(propertyStart, ctx.startOffset), "const")
+                return WordBoundaryScan.containsWord(
+                    ctx.sourceText.subSequence(propertyStart, ctx.startOffset),
+                    "const",
+                )
             }
 
             private fun isAnnotationClassConstructorParamDefault(ctx: WContext): Boolean {
                 val ancestors = ctx.ancestors
                 for (i in ancestors.size - 1 downTo 1) {
-                    if (ancestors.typeAt(i) == WNodeType.PRIMARY_CONSTRUCTOR && ancestors.typeAt(i - 1) == WNodeType.CLASS) {
+                    if (ancestors.typeAt(
+                        i,
+                    ) == WNodeType.PRIMARY_CONSTRUCTOR && ancestors.typeAt(i - 1) == WNodeType.CLASS) {
                         val classStart = ancestors.startOffsetAt(i - 1)
                         val constructorStart = ancestors.startOffsetAt(i)
-                        return WordBoundaryScan.containsWord(ctx.sourceText.subSequence(classStart, constructorStart), "annotation")
+                        return WordBoundaryScan.containsWord(
+                            ctx.sourceText.subSequence(classStart, constructorStart),
+                            "annotation",
+                        )
                     }
                 }
                 return false
