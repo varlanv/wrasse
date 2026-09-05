@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.model
 
+import com.varlanv.wrasse.lang.StringSlice
 import java.nio.file.Path
 
 /**
@@ -47,13 +48,13 @@ class WContext(
         @JvmSynthetic set
 
     /**
-     * Token text for leaf nodes; null for interior node events. Sliced out of [sourceText] on
-     * first read and cached for the rest of the event, so a leaf nobody looks at costs nothing.
+     * Token text for leaf nodes; null for interior node events. A zero-copy [StringSlice] of
+     * [sourceText], made on first read and cached for the rest of the event.
      */
     var leafText: CharSequence?
         get() {
             if (!isLeaf) return null
-            return leafTextCache ?: sourceText.subSequence(startOffset, endOffset).also { leafTextCache = it }
+            return leafTextCache ?: StringSlice(sourceText, startOffset, endOffset).also { leafTextCache = it }
         }
 
         @JvmSynthetic set(value) {
@@ -86,7 +87,7 @@ class WContext(
 
     /** Text of the previous leaf, sliced out of [sourceText] on each read; null at start-of-file. */
     val prevLeafText: CharSequence?
-        get() = if (prevLeafStart < 0) null else sourceText.subSequence(prevLeafStart, prevLeafEnd)
+        get() = if (prevLeafStart < 0) null else StringSlice(sourceText, prevLeafStart, prevLeafEnd)
 
     /**
      * Index of the current node among its parent's direct children (0-based).

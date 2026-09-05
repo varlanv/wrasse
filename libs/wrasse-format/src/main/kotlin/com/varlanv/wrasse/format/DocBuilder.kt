@@ -1,6 +1,8 @@
 package com.varlanv.wrasse.format
 
 import com.varlanv.wrasse.lang.WEdit
+import com.varlanv.wrasse.lang.containsChar
+import com.varlanv.wrasse.lang.lastIndexOfChar
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFormatConfig
 import com.varlanv.wrasse.model.WNodeType
@@ -81,10 +83,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     private var rootDoc: Doc = Doc.Concat(emptyList())
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
-        val text = ctx.leafText?.toString() ?: ""
+        val text: CharSequence = ctx.leafText ?: ""
         val entry =
             when (ctx.type) {
-                WNodeType.WHITE_SPACE if text.contains('\n') -> ChildEntry.Ws(text, ctx.startOffset)
+                WNodeType.WHITE_SPACE if text.containsChar('\n') -> ChildEntry.Ws(text, ctx.startOffset)
                 WNodeType.EOL_COMMENT -> ChildEntry.Resolved(
                     ctx.type,
                     Doc.Text(normalizeEolCommentText(text), ctx.startOffset, ctx.endOffset),
@@ -100,7 +102,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * with `// `, or starts with `//noinspection`/`//region`/`//endregion`/`//language=` — otherwise
      * a space is inserted right after `//`. Block comments and KDoc are never touched.
      */
-    private fun normalizeEolCommentText(text: String): String = when {
+    private fun normalizeEolCommentText(text: CharSequence): CharSequence = when {
         text.length == 2 -> text
         text.startsWith("// ") -> text
         EOL_COMMENT_EXEMPT_PREFIXES.any { text.startsWith(it) } -> text
@@ -375,7 +377,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     private fun isForcedMultilineChild(entry: ChildEntry): Boolean = when (entry) {
-        is ChildEntry.Ws -> entry.rawText.contains('\n')
+        is ChildEntry.Ws -> entry.rawText.containsChar('\n')
         is ChildEntry.Resolved -> spansMultipleLines(entry.doc)
     }
 
@@ -1030,7 +1032,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val actual = entry.rawText.count { it == '\n' }
         val literal =
             if (newlineCount == actual) {
-                entry.rawText.substring(0, entry.rawText.lastIndexOf('\n') + 1)
+                entry.rawText.subSequence(0, entry.rawText.lastIndexOfChar('\n') + 1)
             } else {
                 "\n".repeat(newlineCount)
             }
@@ -1832,7 +1834,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     private fun containsParen(doc: Doc): Boolean = when (doc) {
-        is Doc.Text -> doc.value.contains('(')
+        is Doc.Text -> doc.value.containsChar('(')
         is Doc.Concat -> doc.parts.any { containsParen(it) }
         is Doc.Indent -> containsParen(doc.body)
         is Doc.Group -> containsParen(doc.body)
@@ -2033,7 +2035,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     ): List<ChildEntry> = children.toMutableList().also { it.removeAt(existingIdx) }
 
     private fun spansMultipleLines(doc: Doc): Boolean = when (doc) {
-        is Doc.Text -> doc.value.contains('\n')
+        is Doc.Text -> doc.value.containsChar('\n')
         is Doc.Break -> doc.kind == BreakKind.HARD
         is Doc.TrailingComma -> false
         is Doc.Indent -> spansMultipleLines(doc.body)
@@ -2113,7 +2115,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     private fun flatText(doc: Doc): String = when (doc) {
-        is Doc.Text -> doc.value
+        is Doc.Text -> doc.value.toString()
         is Doc.Concat -> doc.parts.joinToString("") { flatText(it) }
         else -> ""
     }
@@ -2163,7 +2165,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val endsWithCallWithArguments: Boolean = false,
         ) : ChildEntry
 
-        class Ws(val rawText: String, val start: Int) : ChildEntry {
+        class Ws(val rawText: CharSequence, val start: Int) : ChildEntry {
             override val type: WNodeType = WNodeType.WHITE_SPACE
         }
     }

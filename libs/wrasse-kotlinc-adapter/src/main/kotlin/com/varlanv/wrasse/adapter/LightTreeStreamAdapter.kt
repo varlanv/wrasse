@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.adapter
 
+import com.varlanv.wrasse.lang.StringSlice
 import com.varlanv.wrasse.model.ChildBuffer
 import com.varlanv.wrasse.model.StreamDispatch
 import com.varlanv.wrasse.model.WBufferedNodeRule
@@ -303,7 +304,7 @@ object LightTreeStreamAdapter {
                             type = childType,
                             start = start,
                             end = end,
-                            text = if (childIsLeaf) ctx.sourceText.subSequence(start, end) else null,
+                            text = if (childIsLeaf) StringSlice(ctx.sourceText, start, end) else null,
                         )
                     }
                 }

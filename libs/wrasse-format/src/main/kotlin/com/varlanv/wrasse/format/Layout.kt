@@ -1,5 +1,8 @@
 package com.varlanv.wrasse.format
 
+import com.varlanv.wrasse.lang.StringSlice
+import com.varlanv.wrasse.lang.indexOfChar
+import com.varlanv.wrasse.lang.lastIndexOfChar
 import com.varlanv.wrasse.model.FormatStyle
 
 object Layout {
@@ -47,7 +50,7 @@ object Layout {
     ): Int =
         when (doc) {
             is Doc.Text -> {
-                sb.append(doc.value)
+                appendText(sb, doc.value)
                 advanceColumn(column, doc.value)
             }
 
@@ -266,7 +269,7 @@ object Layout {
     private fun lastLineWidthInto(doc: Doc, acc: IntArray) {
         when (doc) {
             is Doc.Text -> {
-                val newline = doc.value.lastIndexOf('\n')
+                val newline = doc.value.lastIndexOfChar('\n')
                 if (newline < 0) acc[0] += doc.value.length else acc[0] = doc.value.length - newline - 1
             }
 
@@ -336,7 +339,7 @@ object Layout {
     }
 
     private fun measureText(doc: Doc.Text, acc: IntArray): Boolean {
-        val newline = doc.value.indexOf('\n')
+        val newline = doc.value.indexOfChar('\n')
         return if (newline < 0) {
             acc[0] += doc.value.length
             true
@@ -363,7 +366,7 @@ object Layout {
     ): Int =
         when (doc.kind) {
             BreakKind.HARD -> {
-                sb.append(doc.literal)
+                appendText(sb, doc.literal)
                 appendIndent(sb, indentDepth, style)
             }
 
@@ -398,13 +401,17 @@ object Layout {
 
     private val SPACES = " ".repeat(128)
 
-    private fun advanceColumn(column: Int, text: String): Int {
-        val lastNewline = text.lastIndexOf('\n')
+    private fun advanceColumn(column: Int, text: CharSequence): Int {
+        val lastNewline = text.lastIndexOfChar('\n')
         return if (lastNewline < 0) column + text.length else text.length - lastNewline - 1
     }
 
+    private fun appendText(sb: StringBuilder, text: CharSequence) {
+        if (text is StringSlice) sb.append(text.source, text.start, text.end) else sb.append(text)
+    }
+
     private fun flatWidth(doc: Doc): Int = when (doc) {
-        is Doc.Text -> if (doc.value.indexOf('\n') >= 0) NO_FLAT_WIDTH else doc.value.length
+        is Doc.Text -> if (doc.value.indexOfChar('\n') >= 0) NO_FLAT_WIDTH else doc.value.length
         is Doc.Break -> if (doc.kind == BreakKind.HARD) NO_FLAT_WIDTH else doc.flat.length
         is Doc.TrailingComma -> 0
         is Doc.Indent -> flatWidth(doc.body)

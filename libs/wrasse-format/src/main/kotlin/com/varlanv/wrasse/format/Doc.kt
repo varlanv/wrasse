@@ -16,7 +16,7 @@ sealed interface Doc {
 
     /** A run of literal text with no embedded line-break decision — a token, verbatim. */
     class Text(
-        val value: String,
+        val value: CharSequence,
         override val start: Int = 0,
         override val end: Int = 0,
     ) : Doc
@@ -39,7 +39,7 @@ sealed interface Doc {
      */
     class Break(
         val kind: BreakKind,
-        val literal: String = "\n",
+        val literal: CharSequence = "\n",
         val flat: String = " ",
         override val start: Int = 0,
         override val end: Int = 0,

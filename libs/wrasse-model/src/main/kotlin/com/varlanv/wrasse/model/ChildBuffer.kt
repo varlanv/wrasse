@@ -1,5 +1,7 @@
 package com.varlanv.wrasse.model
 
+import com.varlanv.wrasse.lang.StringSlice
+
 /**
  * Buffer of direct children collected by the framework for [WBufferedNodeRule]s.
  *
@@ -34,7 +36,7 @@ class ChildBuffer {
     fun textSpan(
         i: Int,
         sourceText: CharSequence,
-    ): CharSequence = sourceText.subSequence(startOffsets[i], endOffsets[i])
+    ): CharSequence = StringSlice(sourceText, startOffsets[i], endOffsets[i])
 
     fun hasChildOfType(type: WNodeType): Boolean {
         val ord = type.ordinal

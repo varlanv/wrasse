@@ -21,6 +21,9 @@ import com.varlanv.wrasse.model.WResolvedUsage
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.rules.SuppressionCollectorRule
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.PathMatcher
@@ -31,6 +34,7 @@ import org.jetbrains.kotlin.KtLightSourceElement
 
 private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
 private const val NO_AUTOFIX_MARKER = " (no autofix for this shape)"
+private const val HASH_CHUNK_BYTES = 8192
 
 class WrassePlugin(
     private val ruleSet: WRuleSet,
@@ -273,8 +277,23 @@ class WrassePlugin(
     }
 
     private fun computeSourceHash(sourceText: CharSequence): String {
-        val bytes = sourceText.toString().toByteArray(Charsets.UTF_8)
-        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
-        return HexEncoding.lowerCase(digest)
+        val digest = MessageDigest.getInstance("SHA-256")
+        val encoder = Charsets.UTF_8
+            .newEncoder()
+            .onMalformedInput(CodingErrorAction.REPLACE)
+            .onUnmappableCharacter(CodingErrorAction.REPLACE)
+        val input = CharBuffer.wrap(sourceText)
+        val output = ByteBuffer.allocate(HASH_CHUNK_BYTES)
+        while (true) {
+            val result = encoder.encode(input, output, true)
+            output.flip()
+            digest.update(output)
+            output.clear()
+            if (result.isUnderflow) break
+        }
+        encoder.flush(output)
+        output.flip()
+        digest.update(output)
+        return HexEncoding.lowerCase(digest.digest())
     }
 }

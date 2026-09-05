@@ -187,10 +187,10 @@ object DocSplicer {
             val localEnd = (edit.endOffset - node.start).coerceIn(0, len)
             val parts = mutableListOf<Doc>()
             if (localStart > 0) {
-                parts.add(Doc.Text(node.value.substring(0, localStart), node.start, node.start + localStart))
+                parts.add(Doc.Text(node.value.subSequence(0, localStart), node.start, node.start + localStart))
             }
             emitReplacementOnce()?.let { parts.add(it) }
-            if (localEnd < len) parts.add(Doc.Text(node.value.substring(localEnd), node.start + localEnd, node.end))
+            if (localEnd < len) parts.add(Doc.Text(node.value.subSequence(localEnd, len), node.start + localEnd, node.end))
             return Doc.Concat(parts, node.start, node.end)
         }
 
@@ -202,14 +202,14 @@ object DocSplicer {
                 val cut = edit.startOffset
                 if (cut in (representedEnd + 1) until node.end) return null
                 val local = cut - node.start
-                prefix = Doc.Break(node.kind, node.literal.substring(0, local), node.flat, node.start, cut)
+                prefix = Doc.Break(node.kind, node.literal.subSequence(0, local), node.flat, node.start, cut)
             }
             if (edit.endOffset < node.end) {
                 val cut = edit.endOffset
                 if (cut in (representedEnd + 1) until node.end) return null
                 val local = cut - node.start
                 if (local < node.literal.length) {
-                    suffix = Doc.Break(node.kind, node.literal.substring(local), node.flat, cut, node.end)
+                    suffix = Doc.Break(node.kind, node.literal.subSequence(local, node.literal.length), node.flat, cut, node.end)
                 }
             }
             val middle = emitReplacementOnce()
