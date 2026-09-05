@@ -39,6 +39,9 @@ interface WUninitializedRuleGroup {
      */
     val canAutofix: Boolean get() = false
 
+    /** Mirrors [WUninitializedRule.options] per backed id. Default: no options for any id. */
+    fun optionSpecs(ruleId: String): List<WRuleOptionSpec> = emptyList()
+
     /**
      * Produces a fresh, fused [WRule] instance for one file, configured with exactly the
      * enabled, non-excluded-for-this-file ids and their [WrasseRuleConfig]s. Never called with

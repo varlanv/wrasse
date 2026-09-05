@@ -24,6 +24,9 @@ interface WUninitializedRule {
      */
     val canAutofix: Boolean get() = false
 
+    /** The options this rule accepts in its `wrasse.json` entry; [WConfig] validates them and hands the result to [initRule] as [WrasseRuleConfig.options]. */
+    val options: List<WRuleOptionSpec> get() = emptyList()
+
     fun initRule(config: WrasseRuleConfig): WRule
 }
 

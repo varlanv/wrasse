@@ -111,7 +111,7 @@ object DocSplicer {
             }
 
             is Doc.Indent -> wrapIndent(doc.body, start, end, after)?.let { Doc.Indent(it) }
-            is Doc.Group -> wrapIndent(doc.body, start, end, after)?.let { Doc.Group(it, doc.kind) }
+            is Doc.Group -> wrapIndent(doc.body, start, end, after)?.let { Doc.Group(it, doc.kind, doc.indentWhenBroken) }
             else -> null
         }
     }
@@ -210,7 +210,7 @@ object DocSplicer {
                 is Doc.Break -> splitBreak(node)
                 is Doc.TrailingComma -> null
                 is Doc.Indent -> rec(node.body)?.let { Doc.Indent(it) }
-                is Doc.Group -> rec(node.body)?.let { Doc.Group(it, node.kind) }
+                is Doc.Group -> rec(node.body)?.let { Doc.Group(it, node.kind, node.indentWhenBroken) }
                 is Doc.Concat -> {
                     val newParts = ArrayList<Doc>(node.parts.size)
                     for (part in node.parts) {

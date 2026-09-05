@@ -56,19 +56,19 @@ class LayoutSpec :
             should("FLUID group joins the operator line when the value's first line fits, leaving the nested group to break") {
                 val args = Doc.Group(Doc.Concat(listOf(Doc.Text("("), Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text("argument-one")))), Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text(")"))))
                 val value = Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), Doc.Text("call"), args))
-                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(value, GroupKind.FLUID)))
+                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(value, GroupKind.FLUID, indentWhenBroken = true)))
                 Layout.render(doc, style) shouldBe "val x = call(\n    argument-one\n)"
             }
 
             should("FLUID group breaks after the operator and indents the value when its first line does not fit") {
                 val value = Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), Doc.Text("long.receiver()")))
-                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(value, GroupKind.FLUID)))
+                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(value, GroupKind.FLUID, indentWhenBroken = true)))
                 Layout.render(doc, style) shouldBe "val x =\n    long.receiver()"
             }
 
             should("FLUID group measures up to a HARD break inside the value") {
                 val lambda = Doc.Concat(listOf(Doc.Text("run {"), Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.HARD, literal = "\n"), Doc.Text("a very long body line that never counts")))), Doc.Break(BreakKind.HARD, literal = "\n"), Doc.Text("}")))
-                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), lambda)), GroupKind.FLUID)))
+                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), lambda)), GroupKind.FLUID, indentWhenBroken = true)))
                 Layout.render(doc, style) shouldBe "val x = run {\n    a very long body line that never counts\n}"
             }
 

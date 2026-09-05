@@ -53,17 +53,68 @@ object Layout {
 
         is Doc.Group -> {
             val fits =
-                if (doc.kind == GroupKind.FLUID) {
-                    fluidFits(doc.body, column, tailWidth, style)
-                } else {
-                    val flatW = flatWidth(doc.body)
-                    flatW != null && column + flatW + tailWidth <= style.maxLineLength
+                when (doc.kind) {
+                    GroupKind.FLUID -> fluidFits(doc.body, column, tailWidth, style)
+                    GroupKind.CONTINUATION -> continuationFits(doc.body, column, tailWidth, style)
+                    GroupKind.LAMBDA -> {
+                        val flatW = flatWidth(doc.body)
+                        flatW != null && column + flatW <= style.maxLineLength
+                    }
+
+                    GroupKind.DEFAULT -> {
+                        val flatW = flatWidth(doc.body)
+                        flatW != null && column + flatW + tailWidth <= style.maxLineLength
+                    }
                 }
             val chosenMode = if (fits) Mode.FLAT else Mode.BROKEN
-            val bodyDepth = if (doc.kind == GroupKind.FLUID && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
+            val bodyDepth = if (doc.indentWhenBroken && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
             renderNode(sb, doc.body, bodyDepth, column, chosenMode, style, tailWidth)
         }
     }
+
+    private fun continuationFits(body: Doc, column: Int, tailWidth: Int, style: FormatStyle): Boolean {
+        val acc = IntArray(1)
+        val parts = if (body is Doc.Concat) body.parts else listOf(body)
+        var outcome = MEASURE_COMPLETE
+        for ((i, part) in parts.withIndex()) {
+            outcome = measureContinuation(part, acc, softHard = i == parts.size - 1)
+            if (outcome != MEASURE_COMPLETE) break
+        }
+        return when (outcome) {
+            MEASURE_FORCED -> false
+            MEASURE_ENDED -> column + acc[0] <= style.maxLineLength
+            else -> column + acc[0] + tailWidth <= style.maxLineLength
+        }
+    }
+
+    private fun measureContinuation(doc: Doc, acc: IntArray, softHard: Boolean): Int = when (doc) {
+        is Doc.Text -> if (measureText(doc, acc)) MEASURE_COMPLETE else if (softHard) MEASURE_ENDED else MEASURE_FORCED
+        is Doc.Break ->
+            if (doc.kind == BreakKind.SOFT) {
+                acc[0] += doc.flat.length
+                MEASURE_COMPLETE
+            } else if (softHard) {
+                MEASURE_ENDED
+            } else {
+                MEASURE_FORCED
+            }
+
+        is Doc.TrailingComma -> MEASURE_COMPLETE
+        is Doc.Indent -> measureContinuation(doc.body, acc, softHard)
+        is Doc.Group -> measureContinuation(doc.body, acc, softHard || doc.kind == GroupKind.LAMBDA)
+        is Doc.Concat -> {
+            var outcome = MEASURE_COMPLETE
+            for (part in doc.parts) {
+                outcome = measureContinuation(part, acc, softHard)
+                if (outcome != MEASURE_COMPLETE) break
+            }
+            outcome
+        }
+    }
+
+    private const val MEASURE_COMPLETE = 0
+    private const val MEASURE_ENDED = 1
+    private const val MEASURE_FORCED = 2
 
     private fun fluidFits(body: Doc, column: Int, tailWidth: Int, style: FormatStyle): Boolean {
         val acc = IntArray(1)

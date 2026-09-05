@@ -92,6 +92,79 @@ class WConfigSpec :
                 config.format.ruleConfig.effectiveLevel shouldBe RuleLevel.WARN
             }
 
+            val optionSpecs = mapOf(
+                "no-semicolons" to listOf(
+                    WRuleOptionSpec.Optional("allow-inline", WRuleOptionType.BOOLEAN, "", WRuleOptionValue.Bool(false)),
+                    WRuleOptionSpec.Optional("max-width", WRuleOptionType.INTEGER, "", null),
+                    WRuleOptionSpec.Required("prefixes", WRuleOptionType.STRING_LIST, ""),
+                    WRuleOptionSpec.Optional("label", WRuleOptionType.STRING, "", WRuleOptionValue.Str("default")),
+                ),
+            )
+
+            fun buildWithOptions(json: String, baseJson: String? = null): Result<WConfig> =
+            WConfig
+                .from(
+                    configValue = ConfigValueJsonc.parse(json).getOrThrow(),
+                    ruleIds = setOf("no-semicolons"),
+                    warnOnly = false,
+                    resolveExtends = baseJson?.let { base -> { ConfigValueJsonc.parse(base) } },
+                    ruleOptionSpecs = optionSpecs,
+                )
+
+            should("parse declared options, applying defaults and leaving a default-less optional absent") {
+                val config = buildWithOptions("""{"rules":{"no-semicolons":{"level":"error","prefixes":["a","b"]}}}""").getOrThrow()
+                val options = config.rulesConfigs.idToConfig.getValue("no-semicolons").options
+                options.boolean("allow-inline") shouldBe false
+                options.integerOrNull("max-width") shouldBe null
+                options.stringList("prefixes") shouldBe listOf("a", "b")
+                options.string("label") shouldBe "default"
+            }
+
+            should("let an explicit value override an option's default") {
+                val json = """{"rules":{"no-semicolons":{"level":"error","prefixes":[],"allow-inline":true,"max-width":80,"label":"x"}}}"""
+                val options = buildWithOptions(json).getOrThrow().rulesConfigs.idToConfig.getValue("no-semicolons").options
+                options.boolean("allow-inline") shouldBe true
+                options.integer("max-width") shouldBe 80L
+                options.stringList("prefixes") shouldBe emptyList()
+                options.string("label") shouldBe "x"
+            }
+
+            should("fail with the full message when a required option is missing") {
+                val result = buildWithOptions("""{"rules":{"no-semicolons":{"level":"error"}}}""")
+                result.exceptionOrNull()?.message shouldBe "Missing required option 'prefixes' for rule 'no-semicolons'"
+            }
+
+            should("fail with the full message on an option the rule does not declare") {
+                val result = buildWithOptions("""{"rules":{"no-semicolons":{"level":"error","prefixes":[],"bogus":1}}}""")
+                result.exceptionOrNull()?.message shouldBe
+                    "Unknown option 'bogus' for rule 'no-semicolons'; expected one of [allow-inline, max-width, prefixes, label]"
+            }
+
+            should("fail with the full message on an option for a rule that declares none") {
+                val value = ConfigValueJsonc.parse("""{"rules":{"no-semicolons":{"level":"error","bogus":1}}}""").getOrThrow()
+                val result = WConfig.from(configValue = value, ruleIds = setOf("no-semicolons"), warnOnly = false)
+                result.exceptionOrNull()?.message shouldBe "Unknown option 'bogus' for rule 'no-semicolons'; rule accepts no options"
+            }
+
+            should("fail with the full message on an option of the wrong type") {
+                val result = buildWithOptions("""{"rules":{"no-semicolons":{"level":"error","prefixes":[],"allow-inline":"yes"}}}""")
+                result.exceptionOrNull()?.message shouldBe "Option 'allow-inline' for rule 'no-semicolons' must be a boolean, got string"
+            }
+
+            should("skip option validation for a rule that is off") {
+                val result = buildWithOptions("""{"rules":{"no-semicolons":{"level":"off","bogus":1}}}""")
+                result.getOrThrow().rulesConfigs.idToConfig shouldBe emptyMap()
+            }
+
+            should("merge options across extends, child key by key over base") {
+                val child = """{"extends":"base.json","rules":{"no-semicolons":{"allow-inline":true}}}"""
+                val base = """{"rules":{"no-semicolons":{"level":"error","prefixes":["p"],"max-width":10}}}"""
+                val options = buildWithOptions(child, base).getOrThrow().rulesConfigs.idToConfig.getValue("no-semicolons").options
+                options.boolean("allow-inline") shouldBe true
+                options.stringList("prefixes") shouldBe listOf("p")
+                options.integer("max-width") shouldBe 10L
+            }
+
             should("fail with the full message on an unknown importLayout value") {
                 val value = ConfigValueJsonc.parse("""{"format":{"importLayout":"idea"},"rules":{}}""").getOrThrow()
                 val result = WConfig.from(configValue = value, ruleIds = setOf("no-semicolons"), warnOnly = false)

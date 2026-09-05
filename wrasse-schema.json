@@ -209,8 +209,22 @@
                     "description": "Disallow trivial get()/set() accessors that only read or write the backing field"
                 },
                 "if-else-bracing": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Require braces around a bare if/else branch belonging to a multi-line if-statement"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Require braces around a bare if/else branch",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "allow-inline": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Leave a bare branch alone when its whole if/else chain sits on one source line. Default false: every bare branch is braced."
+                        }
+                    }
                 },
                 "redundant-constructor-keyword": {
                     "$ref": "#/$defs/ruleConfig",
@@ -524,25 +538,31 @@
         }
     },
     "$defs": {
+        "level": {
+            "type": "string",
+            "enum": [
+                "off",
+                "warn",
+                "error"
+            ],
+            "description": "Rule severity: 'off' disables, 'warn' reports as warning, 'error' reports as error"
+        },
+        "exclude": {
+            "type": "array",
+            "description": "Additional glob patterns to exclude for this rule",
+            "items": {
+                "type": "string"
+            }
+        },
         "ruleConfig": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
                 "level": {
-                    "type": "string",
-                    "enum": [
-                        "off",
-                        "warn",
-                        "error"
-                    ],
-                    "description": "Rule severity: 'off' disables, 'warn' reports as warning, 'error' reports as error"
+                    "$ref": "#/$defs/level"
                 },
                 "exclude": {
-                    "type": "array",
-                    "description": "Additional glob patterns to exclude for this rule",
-                    "items": {
-                        "type": "string"
-                    }
+                    "$ref": "#/$defs/exclude"
                 }
             }
         }

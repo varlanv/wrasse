@@ -51,11 +51,11 @@ sealed interface Doc {
      * Renders [body] flat (every `SOFT` break inside becomes its [Break.flat] text) if that flat
      * form fits within the remaining line width; otherwise renders [body] broken. A `HARD` break
      * anywhere inside forces the broken form regardless of width. Nested groups decide
-     * independently, top-down, once the enclosing group's mode is known. [kind] refines both how
-     * this group measures its own fit and how it counts toward a preceding group's tail — see
-     * [GroupKind].
+     * independently, top-down, once the enclosing group's mode is known. [kind] selects how this
+     * group measures its own fit — see [GroupKind]; [indentWhenBroken] renders [body] one indent
+     * level deeper when the group ends up broken (and at the ambient depth when flat).
      */
-    class Group(val body: Doc, val kind: GroupKind = GroupKind.DEFAULT) : Doc {
+    class Group(val body: Doc, val kind: GroupKind = GroupKind.DEFAULT, val indentWhenBroken: Boolean = false) : Doc {
         override val start: Int get() = body.start
         override val end: Int get() = body.end
     }
@@ -79,14 +79,25 @@ enum class BreakKind {
 }
 
 /**
- * - [DEFAULT] — fits iff its whole flat width plus the tail fits; counted flat, in full, as part
- *   of a preceding group's tail.
+ * - [DEFAULT] — fits iff its whole flat width plus the tail fits; a `HARD` break anywhere inside,
+ *   nested groups included, forces it broken. Counted flat, in full, as part of a preceding
+ *   group's tail.
  * - [FLUID] — an assigned value whose body starts with the `SOFT` break after the operator: fits
  *   iff the content up to the first break opportunity inside it (the first break inside any
- *   nested group, or the first `HARD` break) fits; when broken, the whole body renders one indent
- *   level deeper.
+ *   nested group, or the first `HARD` break) fits.
+ * - [LAMBDA] — a lambda literal: fits iff its own flat width fits, ignoring the tail after its
+ *   closing `}` — whatever follows a lambda has its own break opportunities (or none worth
+ *   breaking the lambda for). Also counted specially by an enclosing [CONTINUATION] group, below.
+ * - [CONTINUATION] — the links after a dot/safe-access chain's or binary expression's first
+ *   operand: a `HARD` break anywhere inside forces it broken, except inside a nested [LAMBDA]
+ *   group or inside the body's last top-level part, where it merely ends the measurement — a
+ *   multi-line trailing lambda, or a multi-line argument list closing the chain, never breaks the
+ *   chain around it; a multi-line argument list in the middle does. Fits iff the flat width up to
+ *   that point (plus the tail, if nothing ended it) fits.
  */
 enum class GroupKind {
     DEFAULT,
     FLUID,
+    LAMBDA,
+    CONTINUATION,
 }

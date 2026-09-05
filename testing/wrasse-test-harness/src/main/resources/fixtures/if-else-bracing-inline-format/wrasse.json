@@ -1,0 +1,6 @@
+{
+    "format": { "enabled": true },
+    "rules": {
+        "if-else-bracing": { "level": "error" }
+    }
+}

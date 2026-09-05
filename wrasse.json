@@ -107,7 +107,8 @@
             "level": "error"
         },
         "if-else-bracing": {
-            "level": "error"
+            "level": "error",
+            "allow-inline": true
         },
         "import-ordering": {
             "level": "error"

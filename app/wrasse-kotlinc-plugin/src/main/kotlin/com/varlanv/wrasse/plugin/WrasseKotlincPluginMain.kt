@@ -4,6 +4,7 @@ import com.varlanv.wrasse.lang.ConfigValue
 import com.varlanv.wrasse.lang.ConfigValueJsonc
 import com.varlanv.wrasse.lang.FileWalkUp
 import com.varlanv.wrasse.model.WConfig
+import com.varlanv.wrasse.model.WRuleOptionSpec
 import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
@@ -230,8 +231,17 @@ fun wrasseMain(
     val uninitializedRules = registeredRules().associateBy { it.id }
     val groups = registeredRuleGroups()
     val allRuleIds = uninitializedRules.keys + groups.flatMap { it.ids }
+    val ruleOptionSpecs = HashMap<String, List<WRuleOptionSpec>>()
+    for ((ruleId, rule) in uninitializedRules) ruleOptionSpecs[ruleId] = rule.options
+    for (group in groups) for (ruleId in group.ids) ruleOptionSpecs[ruleId] = group.optionSpecs(ruleId)
     val config =
-    loadConfig(sourceRoots = sourceRoots, ruleIds = allRuleIds, warnOnly = warnOnly, explicitApiActive = explicitApiActive)
+    loadConfig(
+        sourceRoots = sourceRoots,
+        ruleIds = allRuleIds,
+        warnOnly = warnOnly,
+        explicitApiActive = explicitApiActive,
+        ruleOptionSpecs = ruleOptionSpecs,
+    )
         .getOrElse { return Result.failure(it) }
     val activeRules = mutableListOf<Pair<WUninitializedRule, WrasseRuleConfig>>()
     for ((ruleId, ruleConfig) in config.rulesConfigs.idToConfig) {
@@ -256,7 +266,13 @@ fun wrasseMain(
         )
 }
 
-private fun loadConfig(sourceRoots: List<Path>, ruleIds: Set<String>, warnOnly: Boolean, explicitApiActive: Boolean): Result<WConfig> {
+private fun loadConfig(
+    sourceRoots: List<Path>,
+    ruleIds: Set<String>,
+    warnOnly: Boolean,
+    explicitApiActive: Boolean,
+    ruleOptionSpecs: Map<String, List<WRuleOptionSpec>>,
+): Result<WConfig> {
     for (root in sourceRoots) {
         val startDir = if (root.toFile().isFile) root.parent ?: continue else root
         val configPath = FileWalkUp.find(startDir) { it in configFileNames }.getOrElse {
@@ -277,6 +293,7 @@ private fun loadConfig(sourceRoots: List<Path>, ruleIds: Set<String>, warnOnly: 
                 configDir = configDir,
                 resolveExtends = resolveExtends,
                 explicitApiActive = explicitApiActive,
+                ruleOptionSpecs = ruleOptionSpecs,
             )
             .getOrElse { return Result.failure(Exception("wrasse: invalid config in $configPath: ${it.message}", it)) }
             .let { Result.success(it) }

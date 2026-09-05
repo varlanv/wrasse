@@ -5,15 +5,20 @@ import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 /**
- * Wraps a bare (unbraced) `if`/`else` branch in braces when it belongs to an if/else-if/else
- * chain that, as physically written, spans more than one source line. A chain that is entirely
- * one source line is left untouched, even across an `else if` continuation; consistency-only
- * bracing (already-braced siblings forcing the rest) is not attempted.
+ * Wraps a bare (unbraced) `if`/`else` branch in braces. With the `allow-inline` option at its
+ * default `false`, every bare branch is braced, including a chain written entirely on one source
+ * line (`val a = if (c) "1" else "2"`, `if (c) return`). With `allow-inline: true`, only a branch
+ * of an if/else-if/else chain that, as physically written, spans more than one source line is
+ * braced; a single-line chain is left untouched, even across an `else if` continuation.
+ * Consistency-only bracing (already-braced siblings forcing the rest) is not attempted.
  *
  * Never touches (no report, no fix): an already-braced branch; an empty branch (`if (false)
  * else { ... }` is legal Kotlin and must not throw); an `else` whose sole content is itself a
@@ -40,9 +45,20 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
 class IfElseBracingRule : WUninitializedRule {
     override val id: String = "if-else-bracing"
     override val canAutofix: Boolean = true
+    override val options: List<WRuleOptionSpec> =
+    listOf(
+        WRuleOptionSpec.Optional(
+            name = ALLOW_INLINE,
+            type = WRuleOptionType.BOOLEAN,
+            description = "Leave a bare branch alone when its whole if/else chain sits on one source line",
+            default = WRuleOptionValue.Bool(false),
+        ),
+    )
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
+        val allowInline = config.options.boolean(ALLOW_INLINE)
+        val message = if (allowInline) MESSAGE_MULTILINE else MESSAGE
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
@@ -65,7 +81,7 @@ class IfElseBracingRule : WUninitializedRule {
                 if (rparIdx < 0 || thenIdx < 0) return
 
                 val (chainStart, chainEnd) = chainHeadSpan(ctx)
-                if (!IfElseBracingDecision.chainSpansMultipleLines(ctx.sourceText, chainStart, chainEnd)) return
+                if (allowInline && !IfElseBracingDecision.chainSpansMultipleLines(ctx.sourceText, chainStart, chainEnd)) return
 
                 val baseIndentColumn =
                     if (config.formatEnabled) {
@@ -168,7 +184,7 @@ class IfElseBracingRule : WUninitializedRule {
             private fun report(ctx: WContext, reporter: WReporter, baseIndentColumn: Int, candidate: IfElseBracingCandidate) {
                 val verdict = IfElseBracingDecision
                     .decideBranch(ctx.sourceText, candidate, baseIndentColumn, INDENT_WIDTH, config.formatEnabled)
-                reporter.report(ruleId, MESSAGE, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
+                reporter.report(ruleId, message, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
             }
 
             private fun hasCommentBetween(children: ChildBuffer, from: Int, until: Int): Boolean {
@@ -183,7 +199,9 @@ class IfElseBracingRule : WUninitializedRule {
 
     private companion object {
         const val INDENT_WIDTH = 4
-        const val MESSAGE = "Missing braces on branch of multi-line if-statement"
+        const val ALLOW_INLINE = "allow-inline"
+        const val MESSAGE = "Missing braces on branch of if-statement"
+        const val MESSAGE_MULTILINE = "Missing braces on branch of multi-line if-statement"
 
         /**
          * Walks up through consecutive (`ELSE`, `IF`) ancestor pairs to find the outermost

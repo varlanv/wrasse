@@ -18,9 +18,10 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
             configDir: Path? = null,
             resolveExtends: ((String) -> Result<ConfigValue>)? = null,
             explicitApiActive: Boolean = false,
+            ruleOptionSpecs: Map<String, List<WRuleOptionSpec>> = emptyMap(),
         ): Result<WConfig> {
             val raw = resolveRaw(configValue, resolveExtends, depth = 0).getOrElse { return Result.failure(it) }
-            return buildConfig(raw, ruleIds, warnOnly, configDir, explicitApiActive)
+            return buildConfig(raw, ruleIds, warnOnly, configDir, explicitApiActive, ruleOptionSpecs)
         }
 
         private fun resolveRaw(configValue: ConfigValue, resolveExtends: ((String) -> Result<ConfigValue>)?, depth: Int): Result<RawConfig> {
@@ -110,6 +111,7 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                             level = childRule.level ?: baseRule.level,
                             exclude = if (childRule.excludeSet) childRule.exclude else baseRule.exclude,
                             excludeSet = childRule.excludeSet || baseRule.excludeSet,
+                            options = baseRule.options + childRule.options,
                         )
                 } else {
                     rules[id] = childRule
@@ -119,7 +121,14 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
             return RawConfig(exclude, excludeSet = true, rules, format, formatSet = true)
         }
 
-        private fun buildConfig(raw: RawConfig, ruleIds: Set<String>, warnOnly: Boolean, configDir: Path?, explicitApiActive: Boolean): Result<WConfig> {
+        private fun buildConfig(
+            raw: RawConfig,
+            ruleIds: Set<String>,
+            warnOnly: Boolean,
+            configDir: Path?,
+            explicitApiActive: Boolean,
+            ruleOptionSpecs: Map<String, List<WRuleOptionSpec>>,
+        ): Result<WConfig> {
             val globalExclude = raw.exclude.map { pathMatcher(it) }
             val format = buildFormatConfig(raw.format, warnOnly, explicitApiActive)
             val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
@@ -129,6 +138,8 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                 val level = rawRule.level ?: RuleLevel.OFF
                 if (level == RuleLevel.OFF) continue
                 val effectiveLevel = if (warnOnly && level == RuleLevel.ERROR) RuleLevel.WARN else level
+                val options = buildRuleOptions(ruleId, rawRule.options, ruleOptionSpecs[ruleId] ?: emptyList())
+                    .getOrElse { return Result.failure(it) }
                 ruleIdToConfig[ruleId] =
                     WrasseRuleConfig(
                         level = level,
@@ -136,6 +147,7 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                         effectiveLevel = effectiveLevel,
                         explicitApiActive = explicitApiActive,
                         formatEnabled = format.enabled,
+                        options = options,
                     )
             }
 
@@ -148,6 +160,43 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                         format = format,
                     ),
                 )
+        }
+
+        private fun buildRuleOptions(ruleId: String, raw: Map<String, ConfigValue>, specs: List<WRuleOptionSpec>): Result<WRuleOptions> {
+            val specsByName = specs.associateBy { it.name }
+            for (name in raw.keys) {
+                if (name !in specsByName) {
+                    val expected = if (specs.isEmpty()) "rule accepts no options" else "expected one of ${specs.map { it.name }}"
+                    return Result.failure(Exception("Unknown option '$name' for rule '$ruleId'; $expected"))
+                }
+            }
+            val values = LinkedHashMap<String, WRuleOptionValue>()
+            for (spec in specs) {
+                val rawValue = raw[spec.name]
+                if (rawValue == null) {
+                    when (spec) {
+                        is WRuleOptionSpec.Required -> return Result.failure(Exception("Missing required option '${spec.name}' for rule '$ruleId'"))
+                        is WRuleOptionSpec.Optional -> spec.default?.let { values[spec.name] = it }
+                    }
+                    continue
+                }
+                val value = convertOptionValue(spec.type, rawValue)
+                    ?: return Result
+                        .failure(
+                            Exception(
+                                "Option '${spec.name}' for rule '$ruleId' must be a ${spec.type.jsonName}, got ${rawValue.typeName()}",
+                            ),
+                        )
+                values[spec.name] = value
+            }
+            return Result.success(WRuleOptions(values))
+        }
+
+        private fun convertOptionValue(type: WRuleOptionType, raw: ConfigValue): WRuleOptionValue? = when (type) {
+            WRuleOptionType.BOOLEAN -> (raw as? ConfigValue.Bool)?.let { WRuleOptionValue.Bool(it.value) }
+            WRuleOptionType.INTEGER -> (raw as? ConfigValue.Num)?.let { WRuleOptionValue.Num(it.value) }
+            WRuleOptionType.STRING -> (raw as? ConfigValue.Str)?.let { WRuleOptionValue.Str(it.value) }
+            WRuleOptionType.STRING_LIST -> (raw as? ConfigValue.StrArr)?.let { WRuleOptionValue.StrList(it.value) }
         }
 
         private fun buildFormatConfig(raw: RawFormatConfig?, warnOnly: Boolean, explicitApiActive: Boolean): WFormatConfig {
@@ -261,7 +310,8 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
             val ruleObj =
                 when (val prop = rulesProps.get(key, ConfigValue.Obj::class.java)) {
                     is Property.Val -> prop.value.value
-                    is Property.Missing -> return Result.success(RawRuleConfig(level = null, exclude = emptyList(), excludeSet = false))
+                    is Property.Missing ->
+                        return Result.success(RawRuleConfig(level = null, exclude = emptyList(), excludeSet = false, options = emptyMap()))
                     is Property.TypeMismatch -> {
                         return Result.failure(Exception("Rule '$key' must be an object, got ${prop.actual.typeName()}"))
                     }
@@ -301,7 +351,13 @@ class WConfig(val exclude: List<PathMatcher>, val rulesConfigs: WrasseRulesConfi
                     }
                 }
 
-            return Result.success(RawRuleConfig(level = level, exclude = exclude, excludeSet = excludeSet))
+            val options = LinkedHashMap<String, ConfigValue>()
+            for (name in ruleObj.keys()) {
+                if (name == "level" || name == "exclude") continue
+                val prop = ruleObj.get(name, ConfigValue::class.java)
+                if (prop is Property.Val) options[name] = prop.value
+            }
+            return Result.success(RawRuleConfig(level = level, exclude = exclude, excludeSet = excludeSet, options = options))
         }
 
         private fun pathMatcher(glob: String): PathMatcher =
@@ -317,7 +373,7 @@ private class RawConfig(
     val formatSet: Boolean,
 )
 
-private class RawRuleConfig(val level: RuleLevel?, val exclude: List<String>, val excludeSet: Boolean)
+private class RawRuleConfig(val level: RuleLevel?, val exclude: List<String>, val excludeSet: Boolean, val options: Map<String, ConfigValue>)
 
 private class RawFormatConfig(
     val enabled: Boolean,
@@ -354,6 +410,8 @@ class WrasseRuleConfig(
      * multiline-body bail in the same mode.
      */
     val formatEnabled: Boolean = false,
+    /** This rule's validated options, see [WUninitializedRule.options]; [WRuleOptions.EMPTY] for a rule declaring none. */
+    val options: WRuleOptions = WRuleOptions.EMPTY,
 )
 
 enum class RuleLevel {

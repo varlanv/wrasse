@@ -10,6 +10,7 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 
 private val INDENTING_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN, WNodeType.FUNCTION_LITERAL)
 private val CHAIN_LINK_TYPES = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION)
+private val BINARY_SPREAD_TYPES = setOf(WNodeType.BINARY_EXPRESSION)
 private val COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT)
 private val SUPER_TYPE_ENTRY_TYPES = setOf(WNodeType.SUPER_TYPE_ENTRY, WNodeType.SUPER_TYPE_CALL_ENTRY)
 private val ANNOTATION_CONTAINER_TYPES = setOf(WNodeType.MODIFIER_LIST, WNodeType.ANNOTATED_EXPRESSION)
@@ -108,6 +109,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                     ChildEntry.Resolved(
                         ctx.type, doc, frame.hasLeadingAnnotation, hasLeadingComment,
                         frame.reindentedRawString, frame.isQualifiedNameChain, frame.hugsLambdaArgument, frame.wrapsCallLike,
+                        frame.chainHeadIsRawString,
                     ),
                 )
         }
@@ -437,7 +439,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val tailParts = normalizeChildren(children.subList(valueIdx, children.size), frameType)
         val tailEnd = tailParts.lastOrNull()?.end ?: end
         val body = Doc.Concat(listOf(breakDoc) + tailParts, breakDoc.start, tailEnd)
-        return Doc.Concat(headParts + listOf(Doc.Group(body, GroupKind.FLUID)), start, end)
+        return Doc.Concat(headParts + listOf(Doc.Group(body, GroupKind.FLUID, indentWhenBroken = true)), start, end)
     }
 
     /**
@@ -474,7 +476,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val lbraceDoc = headParts.first()
         val interior = headParts.subList(1, headParts.size) + listOf(headBreak) + bodyParts
         val indented = Doc.Indent(Doc.Concat(interior, interior.first().start, bodyEnd))
-        return Doc.Group(Doc.Concat(listOf(lbraceDoc, indented, tailBreak, rbraceDoc), start, end))
+        return Doc.Group(Doc.Concat(listOf(lbraceDoc, indented, tailBreak, rbraceDoc), start, end), GroupKind.LAMBDA)
     }
 
     private fun lambdaGapBreak(children: List<ChildEntry>, gapFrom: Int, gapUntil: Int, fallback: Int, maxNewlines: Int): Doc.Break {
@@ -507,33 +509,32 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     /**
-     * Shared by [resolvePropertyFrame], [resolveBinaryFrame]'s assignment-operator case, and
-     * [resolveWhenEntryFrame]'s own arrow: moves the value found right after [anchorIdx] onto its
-     * own line, one [Doc.Indent] level deeper, reusing an existing gap's own break if the source
-     * already had one there — when that value is a comment (nested ahead of the real value, e.g.
-     * inside an initializer expression, always relocated regardless of its own multi-line-ness,
-     * since a real newline already separates it from [anchorIdx] whenever this matters), or when
-     * it is one of [MULTILINE_WRAPPABLE_VALUE_TYPES] and already forced multi-line
-     * ([spansMultipleLines]). Returns `null` — meaning the caller falls through to its own
-     * unchanged default — when there is no value, the value's own type is outside
-     * [MULTILINE_WRAPPABLE_VALUE_TYPES] and not a comment (a raw multi-line string/KDoc token, a
-     * lambda or object-literal value whose own `{` always stays attached to the anchor, or a
-     * dot-chain/call/binary value — [resolveChainFrame]/[resolveBinaryFrame]'s own `Doc.Group`
-     * already decides those, including the deliberate "receiver stays, only `.method()` continues"
-     * placement a broader type match here would fight), or the value does not (yet) need to be
-     * forced multi-line (a fit-pending chain/binary expression, still `Doc.Group`-decided).
+     * Shared by [resolvePropertyFrame], [resolveValueArgumentFrame], [resolveBinaryFrame]'s
+     * assignment-operator case, and [resolveWhenEntryFrame]'s own arrow, for the value found right
+     * after [anchorIdx]. A comment there (nested ahead of the real value) always moves onto its own
+     * line, one indent level deeper, reusing the source gap's own break. An `if`/`when`/`try` value
+     * ([MULTILINE_WRAPPABLE_VALUE_TYPES]) becomes a group that indents when broken: it stays on
+     * the anchor's line while it renders on one line and fits, and moves onto its own line one
+     * indent level deeper as soon as it is multi-line — decided at layout time, so braces spliced
+     * in by a rule count too. Returns `null` for every other value, leaving the caller's own
+     * default in place.
      */
     private fun resolveAssignedValueFrame(children: List<ChildEntry>, frameType: WNodeType, start: Int, end: Int, anchorIdx: Int): Doc? {
         val valueIdx = (anchorIdx + 1 until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return null
         val valueEntry = children[valueIdx]
         val isLeadingComment = valueEntry.type in COMMENT_TYPES
-        if (!isLeadingComment) {
-            if (valueEntry.type !in MULTILINE_WRAPPABLE_VALUE_TYPES) return null
-            if (valueEntry !is ChildEntry.Resolved || !spansMultipleLines(valueEntry.doc)) return null
-        }
+        if (!isLeadingComment && valueEntry.type !in MULTILINE_WRAPPABLE_VALUE_TYPES) return null
 
         val headParts = normalizeChildren(children.subList(0, anchorIdx + 1), frameType)
         val gapEntry = children.getOrNull(anchorIdx + 1)
+        if (!isLeadingComment) {
+            val anchorEnd = (children[anchorIdx] as ChildEntry.Resolved).doc.end
+            val softBreak = wsBreakAt(children, anchorIdx + 1, anchorEnd, flat = " ")
+            val valueParts = normalizeChildren(children.subList(valueIdx, children.size), frameType)
+            val valueEnd = valueParts.lastOrNull()?.end ?: end
+            val body = Doc.Concat(listOf(softBreak) + valueParts, softBreak.start, valueEnd)
+            return Doc.Concat(headParts + listOf(Doc.Group(body, indentWhenBroken = true)), start, end)
+        }
         val breakDoc =
             when {
                 gapEntry is ChildEntry.Ws -> clampWs(gapEntry, newlineCount = 1)
@@ -973,6 +974,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val children = substituteTrimIndentReceiver(frame.children)
         val opIdx = children.indexOfFirst { it.type == WNodeType.DOT || it.type == WNodeType.SAFE_ACCESS }
         if (opIdx < 0) return Doc.Concat(children.map { resolveEntry(it) }, start, end)
+        val receiverEntry = children.first { it.type != WNodeType.WHITE_SPACE }
+        frame.chainHeadIsRawString = receiverEntry.type == WNodeType.STRING_TEMPLATE ||
+            (receiverEntry is ChildEntry.Resolved && receiverEntry.type in CHAIN_LINK_TYPES && receiverEntry.chainHeadIsRawString)
 
         if (!receiverHasMethodCall(children, opIdx)) {
             val hasCallAnywhere = children.any { it.type == WNodeType.CALL_EXPRESSION }
@@ -989,8 +993,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             }
         }
 
-        val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = true, flat = "")
-        return if (isRoot) wrapRoot(parts, start, end) else Doc.Concat(parts, start, end)
+        val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = true, flat = "", spreadTypes = CHAIN_LINK_TYPES)
+        return if (isRoot) wrapRoot(parts, start, end, foldHead = frame.chainHeadIsRawString) else Doc.Concat(parts, start, end)
     }
 
     private fun receiverHasMethodCall(children: List<ChildEntry>, opIdx: Int): Boolean {
@@ -1048,41 +1052,28 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (!isRoot && !isLogical && !isElvis) {
             return Doc.Concat(normalizeChildren(children, WNodeType.BINARY_EXPRESSION), start, end)
         }
-        val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = isElvis, flat = flat)
-        return if (isRoot) wrapRoot(parts, start, end) else Doc.Concat(parts, start, end)
+        val parts = spliceBreak(children, anchorIndex = opIdx, breakBefore = isElvis, flat = flat, spreadTypes = BINARY_SPREAD_TYPES)
+        val foldHead = children.first { it.type != WNodeType.WHITE_SPACE }.type == WNodeType.STRING_TEMPLATE
+        return if (isRoot) wrapRoot(parts, start, end, foldHead) else Doc.Concat(parts, start, end)
     }
 
     /**
-     * Wraps a root chain/binary expression's flattened [parts] in [Doc.Group]/[Doc.Indent] for the
-     * fit-check and continuation indent, except for a trailing part with its own indent scope
-     * ([hasOwnIndentScope], e.g. a trailing lambda argument's block body) and everything after it:
-     * that tail sits outside both the [Doc.Group] — so its unavoidable break cannot force an
-     * otherwise-joinable preceding part broken — and the [Doc.Indent] — so it keeps rendering at
-     * the depth [resolveBraceFrame] already gives it. A part whose only forced break comes from a
-     * plain multi-line [Doc.Text] (a raw string/KDoc token) has no indent scope of its own and
-     * stays inside the shared `Group`/`Indent`; [Layout.flatWidth] still forces that group broken
-     * independently. When the split-owning part is [parts]' own first element there is no head
-     * content to protect, so it folds into the same shared wrap instead of producing an empty head
-     * — this is also what lets a [buildReindentedRawString] receiver's own break sit at the same
-     * depth as the chain's continuation.
+     * Lays out a root chain/binary expression's flattened [parts]: the first operand (everything
+     * before the first break) stays where it is, and the rest forms one [GroupKind.CONTINUATION]
+     * group that indents its continuation lines only when broken — so a multi-line first operand
+     * leaves the chain's own layout alone and nothing renders one level too deep when the chain
+     * stays flat. With [foldHead] (a raw-string first operand) the first operand joins the group
+     * instead, so a multi-line string forces the chain broken and its continuation onto its own
+     * line at the same depth as the string's re-indented content.
      */
-    private fun wrapRoot(parts: List<Doc>, start: Int, end: Int): Doc {
-        val splitIdx = parts.indexOfFirst { hasOwnIndentScope(it) }
-        if (splitIdx <= 0) return Doc.Group(Doc.Indent(Doc.Concat(parts, start, end)))
-
-        val headEnd = parts.getOrNull(splitIdx - 1)?.end ?: start
-        val head = Doc.Indent(Doc.Group(Doc.Concat(parts.subList(0, splitIdx), start, headEnd)))
-        val tail = Doc.Concat(parts.subList(splitIdx, parts.size), headEnd, end)
-        return Doc.Concat(listOf(head, tail), start, end)
-    }
-
-    private fun hasOwnIndentScope(doc: Doc): Boolean = when (doc) {
-        is Doc.Text -> false
-        is Doc.Break -> doc.kind == BreakKind.HARD
-        is Doc.TrailingComma -> false
-        is Doc.Indent -> hasOwnIndentScope(doc.body)
-        is Doc.Group -> hasOwnIndentScope(doc.body)
-        is Doc.Concat -> doc.parts.any { hasOwnIndentScope(it) }
+    private fun wrapRoot(parts: List<Doc>, start: Int, end: Int, foldHead: Boolean): Doc {
+        val firstBreak = parts.indexOfFirst { it is Doc.Break }
+        if (firstBreak <= 0 || foldHead) {
+            return Doc.Group(Doc.Concat(parts, start, end), GroupKind.CONTINUATION, indentWhenBroken = true)
+        }
+        val head = Doc.Concat(parts.subList(0, firstBreak), start, parts[firstBreak - 1].end)
+        val rest = Doc.Concat(parts.subList(firstBreak, parts.size), parts[firstBreak].start, end)
+        return Doc.Concat(listOf(head, Doc.Group(rest, GroupKind.CONTINUATION, indentWhenBroken = true)), start, end)
     }
 
     /**
@@ -1717,13 +1708,21 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * Builds [children] with one `SOFT` [Doc.Break] spliced in at [anchorIndex] ([breakBefore] it
      * or after it), consuming the adjacent whitespace child in its place if one is there. Shared by
      * [resolveChainFrame] (break before the dot/safe-access operator) and [resolveBinaryFrame]
-     * (break after the operator, or before it for `?:`).
+     * (break after the operator, or before it for `?:`). A child whose type is in [spreadTypes] —
+     * an inner link of the same chain — contributes its own already-spliced parts directly, so the
+     * root sees one flat run of operands and breaks; any other child is one opaque part.
      *
      * The gap on the other side of [anchorIndex] wants the same [flat] text but is never itself a
      * break candidate: a plain, single-line `WHITE_SPACE` there is normalized to [flat] directly; a
      * real newline on that side is left untouched.
      */
-    private fun spliceBreak(children: List<ChildEntry>, anchorIndex: Int, breakBefore: Boolean, flat: String): List<Doc> {
+    private fun spliceBreak(
+        children: List<ChildEntry>,
+        anchorIndex: Int,
+        breakBefore: Boolean,
+        flat: String,
+        spreadTypes: Set<WNodeType>,
+    ): List<Doc> {
         val wsIndex = if (breakBefore) anchorIndex - 1 else anchorIndex + 1
         val hasWs = wsIndex in children.indices && wsIndex.isWs(children)
         val insertIndex = if (breakBefore) anchorIndex else anchorIndex + 1
@@ -1743,7 +1742,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                 parts.add(Doc.Text(flat, ws.start, ws.end))
                 continue
             }
-            parts.add(resolveEntry(children[idx]))
+            val entry = children[idx]
+            val doc = resolveEntry(entry)
+            if (entry.type in spreadTypes && doc is Doc.Concat) parts.addAll(doc.parts) else parts.add(doc)
         }
         if (insertIndex == children.size) parts.add(breakDoc)
         return parts
@@ -1795,6 +1796,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var isQualifiedNameChain = false
         var hugsLambdaArgument = false
         var wrapsCallLike = false
+        var chainHeadIsRawString = false
     }
 
     private sealed interface ChildEntry {
@@ -1809,6 +1811,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val isQualifiedNameChain: Boolean = false,
             val hugsLambdaArgument: Boolean = false,
             val wrapsCallLike: Boolean = false,
+            val chainHeadIsRawString: Boolean = false,
         ) : ChildEntry
 
         class Ws(val rawText: String, val start: Int) : ChildEntry {
