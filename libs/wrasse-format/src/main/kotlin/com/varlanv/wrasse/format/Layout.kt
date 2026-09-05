@@ -66,7 +66,7 @@ object Layout {
                 val bodyForce =
                     when (doc.kind) {
                         GroupKind.ARGUMENTS -> forced
-                        GroupKind.LAMBDA, GroupKind.CONTINUATION -> false
+                        GroupKind.LAMBDA, GroupKind.CONTINUATION, GroupKind.TEMPLATE -> false
                         GroupKind.DEFAULT, GroupKind.FLUID -> forceArguments
                     }
                 renderNode(sb, doc.body, bodyDepth, column, chosenMode, style, tail, bodyForce)
@@ -88,7 +88,7 @@ object Layout {
                 width != null && column + width <= max
             }
 
-            GroupKind.DEFAULT, GroupKind.ARGUMENTS -> {
+            GroupKind.DEFAULT, GroupKind.ARGUMENTS, GroupKind.TEMPLATE -> {
                 val width = flatWidth(group.body) ?: return false
                 column + width + tailWidth(tail, column + width, brokenEnd, style) <= max
             }

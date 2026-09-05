@@ -20,8 +20,8 @@ class RuleRegistrationOrderSpec : BaseSpec({
         "double-negative, empty-catch-block, empty-default-constructor, empty-function-block, empty-kotlin-file, " +
         "empty-when-block, enum-entry-naming, equals-null-call, " +
         "exception-raised-in-unexpected-location, explicit-it-lambda-multiple-parameters, " +
-        "explicit-it-lambda-parameter, extension-functions-same-name, file-size, filename, forbidden-comment, " +
-        "function-expression-body, function-naming, " +
+        "explicit-it-lambda-parameter, extension-functions-same-name, file-size, filename, forbidden-calls, " +
+        "forbidden-comment, forbidden-expression-body-functions, function-expression-body, function-naming, " +
         "function-only-returning-constant, function-parameter-naming, getter-setter-fields, " +
         "global-coroutine-usage, if-else-bracing, " +
         "instance-of-check-for-exception, invalid-range, kdoc-deprecated-tag, kdoc-references-non-public-property, " +
@@ -72,7 +72,9 @@ class RuleRegistrationOrderSpec : BaseSpec({
                 "extension-functions-same-name",
                 "file-size",
                 "filename",
+                "forbidden-calls",
                 "forbidden-comment",
+                "forbidden-expression-body-functions",
                 "function-expression-body",
                 "function-naming",
                 "function-only-returning-constant",

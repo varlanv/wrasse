@@ -1,0 +1,13 @@
+{
+    "rules": {
+        "forbidden-calls": {
+            "level": "error",
+            "calls": {
+                "sample.clock.now": ["**/Other.kt"],
+                "sample.clock.Ticker": [],
+                "sample.clock.Ticker.tickBy": [],
+                "kotlin.collections.associate*": []
+            }
+        }
+    }
+}

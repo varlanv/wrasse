@@ -37,7 +37,9 @@ import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
 import com.varlanv.wrasse.rules.ExtensionFunctionsSameNameRule
 import com.varlanv.wrasse.rules.FileNamingRule
 import com.varlanv.wrasse.rules.FileSizeRule
+import com.varlanv.wrasse.rules.ForbiddenCallsRule
 import com.varlanv.wrasse.rules.ForbiddenCommentRule
+import com.varlanv.wrasse.rules.ForbiddenExpressionBodyFunctionsRule
 import com.varlanv.wrasse.rules.FunctionExpressionBodyRule
 import com.varlanv.wrasse.rules.FunctionMetricsEngine
 import com.varlanv.wrasse.rules.FunctionNameLengthEngine
@@ -134,7 +136,9 @@ internal fun registeredRules(): List<WUninitializedRule> = listOf(
     ExtensionFunctionsSameNameRule(),
     FileSizeRule(),
     FileNamingRule(),
+    ForbiddenCallsRule(),
     ForbiddenCommentRule(),
+    ForbiddenExpressionBodyFunctionsRule(),
     FunctionExpressionBodyRule(),
     FunctionNamingRule(),
     FunctionOnlyReturningConstantRule(),

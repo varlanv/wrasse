@@ -29,6 +29,7 @@ import org.jetbrains.kotlin.fir.references.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.references.FirResolvedErrorReference
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirTypeAliasSymbol
 import org.jetbrains.kotlin.fir.types.ConeClassLikeType
@@ -127,7 +128,6 @@ object ResolvedUsageCollector {
                     addArgument(arguments, expression, parameterName, parameter.isVararg)
                 }
             }
-            if (arguments.isEmpty()) return
             val callableId = symbol.callableId
             callSites.add(
                 WCallSite(
@@ -138,6 +138,7 @@ object ResolvedUsageCollector {
                     calleeName = callableId.callableName.asString(),
                     hasStableParameterNames = symbol.resolvedStatus.hasStableParameterNames,
                     arguments = arguments,
+                    isConstructor = symbol is FirConstructorSymbol,
                 ),
             )
         }

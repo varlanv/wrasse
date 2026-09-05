@@ -43,7 +43,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
 
         result.wrasseDiagnostics shouldHaveSize 1
         result.wrasseDiagnostics[0].message shouldBe
-            "wrasse: resolved-usage: classifiers=[kotlin.Double, kotlin.Function1, kotlin.Int, kotlin.Pair, kotlin.text.Regex] callables=[kotlin.Double/toInt, kotlin.Function1/invoke, kotlin.Int/plus, kotlin.Pair/Pair, kotlin.Pair/component1, kotlin.Pair/component2, kotlin.math/abs, kotlin.math/absoluteValue, kotlin.math/cbrt] imports=[kotlin.math.abs, kotlin.math.abs, kotlin.math.absoluteValue, kotlin.math.cbrt, kotlin.text.Regex] qualified=[173..178:TYPE_REF:kotlin.text.Regex, 181..184:TYPE_REF:kotlin.Int, 342..354:TYPE_REF:kotlin.Function1, 380..398:TYPE_REF:kotlin.Function1] calls=[199..206:kotlin.math/abs:stable:[203..205=n], 219..227:kotlin.math/abs:stable:[224..226=n], 294..306:kotlin.Pair/Pair:stable:[299..302=first,304..305=second]] errors=false"
+            "wrasse: resolved-usage: classifiers=[kotlin.Double, kotlin.Function1, kotlin.Int, kotlin.Pair, kotlin.text.Regex] callables=[kotlin.Double/toInt, kotlin.Function1/invoke, kotlin.Int/plus, kotlin.Pair/Pair, kotlin.Pair/component1, kotlin.Pair/component2, kotlin.math/abs, kotlin.math/absoluteValue, kotlin.math/cbrt] imports=[kotlin.math.abs, kotlin.math.abs, kotlin.math.absoluteValue, kotlin.math.cbrt, kotlin.text.Regex] qualified=[173..178:TYPE_REF:kotlin.text.Regex, 181..184:TYPE_REF:kotlin.Int, 342..354:TYPE_REF:kotlin.Function1, 380..398:TYPE_REF:kotlin.Function1] calls=[199..206:kotlin.math/abs:stable:[203..205=n], 219..227:kotlin.math/abs:stable:[224..226=n], 294..306:kotlin.Pair/Pair:stable:[299..302=first,304..305=second], 436..456:kotlin.Double/toInt:stable:[]] errors=false"
     }
 
     should("dump errors=true for a file with an unresolved reference") {
@@ -175,7 +175,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
         result.wrasseDiagnostics shouldHaveSize 2
         val sampleDiagnostic = result.wrasseDiagnostics.single { it.message.contains("ACTIVE") }
         sampleDiagnostic.message shouldBe
-            "wrasse: resolved-usage: classifiers=[sample.aux.Status, sample.aux.Widget] callables=[sample.aux.Status/ACTIVE, sample.aux.Widget/Widget] imports=[sample.aux.*, sample.aux.Status.*(parent=sample.aux.Status)] qualified=[] calls=[] errors=false"
+            "wrasse: resolved-usage: classifiers=[sample.aux.Status, sample.aux.Widget] callables=[sample.aux.Status/ACTIVE, sample.aux.Widget/Widget] imports=[sample.aux.*, sample.aux.Status.*(parent=sample.aux.Status)] qualified=[] calls=[72..80:sample.aux.Widget/Widget:stable:[]] errors=false"
     }
 
     should("collect nothing when dumpResolvedUsage is off and no rule requires resolution") {

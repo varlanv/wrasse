@@ -1,0 +1,6 @@
+{
+    "format": { "enabled": true },
+    "rules": {
+        "forbidden-expression-body-functions": { "level": "error" }
+    }
+}

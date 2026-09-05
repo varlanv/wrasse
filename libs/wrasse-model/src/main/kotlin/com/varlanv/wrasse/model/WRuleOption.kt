@@ -30,6 +30,7 @@ enum class WRuleOptionType(val jsonName: String) {
     INTEGER("integer"),
     STRING("string"),
     STRING_LIST("string array"),
+    STRING_LIST_MAP("map of string arrays"),
 }
 
 sealed interface WRuleOptionValue {
@@ -40,6 +41,8 @@ sealed interface WRuleOptionValue {
     class Str(val value: String) : WRuleOptionValue
 
     class StrList(val value: List<String>) : WRuleOptionValue
+
+    class StrListMap(val value: Map<String, List<String>>) : WRuleOptionValue
 }
 
 /**
@@ -63,6 +66,10 @@ class WRuleOptions(private val values: Map<String, WRuleOptionValue>) {
     fun stringList(name: String): List<String> = stringListOrNull(name) ?: missing(name)
 
     fun stringListOrNull(name: String): List<String>? = (values[name] as WRuleOptionValue.StrList?)?.value
+
+    fun stringListMap(name: String): Map<String, List<String>> = stringListMapOrNull(name) ?: missing(name)
+
+    fun stringListMapOrNull(name: String): Map<String, List<String>>? = (values[name] as WRuleOptionValue.StrListMap?)?.value
 
     private fun missing(name: String): Nothing = throw IllegalStateException("Rule option '$name' is not set")
 

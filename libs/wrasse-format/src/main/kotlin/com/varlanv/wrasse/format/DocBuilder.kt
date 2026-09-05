@@ -77,6 +77,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     private val style = formatConfig.style
     private val frames = ArrayDeque<Frame>()
+    private var templateEntryDepth = 0
     private var rootDoc: Doc = Doc.Concat(emptyList())
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
@@ -107,11 +108,13 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     override fun enterNode(ctx: WContext) {
+        if (ctx.type == WNodeType.LONG_STRING_TEMPLATE_ENTRY) templateEntryDepth++
         frames.addLast(Frame(ctx.type))
     }
 
     override fun exitNode(ctx: WContext) {
         val frame = frames.removeLast()
+        if (frame.type == WNodeType.LONG_STRING_TEMPLATE_ENTRY) templateEntryDepth--
         val parentType = frames.lastOrNull()?.type
         val doc = resolveFrame(frame, ctx.startOffset, ctx.endOffset, parentType)
         if (frames.isEmpty()) {
@@ -206,6 +209,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         WNodeType.VALUE_ARGUMENT -> resolveValueArgumentFrame(frame, start, end)
 
         WNodeType.CALL_EXPRESSION -> resolveCallExpressionFrame(frame, start, end)
+
+        WNodeType.LONG_STRING_TEMPLATE_ENTRY -> Doc.Group(resolveBraceFrame(frame, start, end), GroupKind.TEMPLATE)
 
         WNodeType.SUPER_TYPE_CALL_ENTRY -> resolveSuperTypeCallEntryFrame(frame, start, end)
 
@@ -1416,6 +1421,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         }
         frame.hasArguments = true
         val nestsCallWithArguments = style.wrapNestedCallArguments &&
+            templateEntryDepth == 0 &&
             (lparIdx + 1 until rparIdx).any { (children[it] as? ChildEntry.Resolved)?.isCallWithArguments == true }
 
         val lparDoc = resolveEntry(children[lparIdx])

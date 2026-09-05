@@ -42,6 +42,7 @@ object NamedArgumentsDecision {
         var result: MutableList<WCallSite>? = null
         for (argument in site.arguments) {
             val nested = byCallSpan[spanKey(argument.startOffset, argument.endOffset)] ?: continue
+            if (nested.arguments.isEmpty()) continue
             if (result == null) result = ArrayList(2)
             result.add(nested)
         }

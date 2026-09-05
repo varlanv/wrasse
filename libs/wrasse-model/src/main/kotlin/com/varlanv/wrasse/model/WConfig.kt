@@ -16,6 +16,8 @@ class WConfig(
     companion object {
         private const val MAX_EXTENDS_DEPTH = 10
         private const val NAMED_ARGUMENTS_RULE_ID = "named-arguments"
+        private const val FUNCTION_EXPRESSION_BODY_RULE_ID = "function-expression-body"
+        private const val FORBIDDEN_EXPRESSION_BODY_RULE_ID = "forbidden-expression-body-functions"
         private const val NAMED_ARGUMENTS_WRAP_OPTION = "wrap"
 
         fun from(
@@ -151,6 +153,11 @@ class WConfig(
             val globalExclude = raw.exclude.map { pathMatcher(it) }
             val format = buildFormatConfig(raw.format, warnOnly, explicitApiActive, wrapNestedCallArguments(raw))
             val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
+            if (isOn(raw, FUNCTION_EXPRESSION_BODY_RULE_ID) && isOn(raw, FORBIDDEN_EXPRESSION_BODY_RULE_ID)) {
+                return Result.failure(
+                    Exception("Rules '$FUNCTION_EXPRESSION_BODY_RULE_ID' and '$FORBIDDEN_EXPRESSION_BODY_RULE_ID' cannot both be on"),
+                )
+            }
 
             for (ruleId in ruleIds) {
                 val rawRule = raw.rules[ruleId] ?: continue
@@ -227,7 +234,19 @@ class WConfig(
             WRuleOptionType.INTEGER -> (raw as? ConfigValue.Num)?.let { WRuleOptionValue.Num(it.value) }
             WRuleOptionType.STRING -> (raw as? ConfigValue.Str)?.let { WRuleOptionValue.Str(it.value) }
             WRuleOptionType.STRING_LIST -> (raw as? ConfigValue.StrArr)?.let { WRuleOptionValue.StrList(it.value) }
+            WRuleOptionType.STRING_LIST_MAP -> (raw as? ConfigValue.Obj)?.let { obj -> stringListMap(obj.value) }
         }
+
+        private fun stringListMap(properties: SafeProperties): WRuleOptionValue.StrListMap? {
+            val result = LinkedHashMap<String, List<String>>()
+            for (key in properties.keys()) {
+                val entry = properties.get(key, ConfigValue.StrArr::class.java) as? Property.Val ?: return null
+                result[key] = entry.value.value
+            }
+            return WRuleOptionValue.StrListMap(result)
+        }
+
+        private fun isOn(raw: RawConfig, ruleId: String): Boolean = (raw.rules[ruleId]?.level ?: RuleLevel.OFF) != RuleLevel.OFF
 
         private fun wrapNestedCallArguments(raw: RawConfig): Boolean {
             val rule = raw.rules[NAMED_ARGUMENTS_RULE_ID] ?: return false

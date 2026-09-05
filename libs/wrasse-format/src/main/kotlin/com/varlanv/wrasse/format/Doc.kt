@@ -107,6 +107,9 @@ enum class BreakKind {
  *   when its own [Group.forceBreak] is set or when an enclosing [ARGUMENTS] group broke for that
  *   reason — the forcing reaches every argument list nested through plain parts, [DEFAULT] and
  *   [FLUID] groups, and stops at a [LAMBDA] or [CONTINUATION] group.
+ * - [TEMPLATE] — a `${...}` string-template entry: fits like [DEFAULT]; stops the forcing an
+ *   enclosing [ARGUMENTS] group would otherwise push into argument lists written inside the
+ *   template.
  * - [LAMBDA] — a lambda literal: fits iff its own flat width fits, ignoring the tail after its
  *   closing `}` — whatever follows a lambda has its own break opportunities (or none worth
  *   breaking the lambda for). Also counted specially by an enclosing [CONTINUATION] group, below.
@@ -120,6 +123,7 @@ enum class BreakKind {
 enum class GroupKind {
     DEFAULT,
     ARGUMENTS,
+    TEMPLATE,
     FLUID,
     LAMBDA,
     CONTINUATION,

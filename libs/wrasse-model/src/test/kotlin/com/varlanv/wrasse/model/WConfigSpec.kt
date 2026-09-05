@@ -115,6 +115,7 @@ class WConfigSpec : BaseSpec({
                 WRuleOptionSpec.Required("prefixes", WRuleOptionType.STRING_LIST, ""),
                 WRuleOptionSpec.Optional("label", WRuleOptionType.STRING, "", WRuleOptionValue.Str("default")),
             ),
+        "forbidden-calls" to listOf(WRuleOptionSpec.Required("calls", WRuleOptionType.STRING_LIST_MAP, "")),
     )
 
     fun buildWithOptions(
@@ -146,6 +147,32 @@ class WConfigSpec : BaseSpec({
         options.integer("max-width") shouldBe 80L
         options.stringList("prefixes") shouldBe emptyList()
         options.string("label") shouldBe "x"
+    }
+
+    should("parse a map-of-string-arrays option and reject a map holding anything else") {
+        val ok = WConfig.from(
+            configValue = ConfigValueJsonc.parse("""{"rules":{"forbidden-calls":{"level":"error","calls":{"a.b":["**/X.kt"],"c.*":[]}}}}""").getOrThrow(),
+            ruleIds = setOf("forbidden-calls"),
+            warnOnly = false,
+            ruleOptionSpecs = optionSpecs,
+        ).getOrThrow()
+        ok.rulesConfigs.idToConfig.getValue("forbidden-calls").options.stringListMap("calls") shouldBe mapOf("a.b" to listOf("**/X.kt"), "c.*" to emptyList())
+        val bad = WConfig.from(
+            configValue = ConfigValueJsonc.parse("""{"rules":{"forbidden-calls":{"level":"error","calls":{"a.b":"X.kt"}}}}""").getOrThrow(),
+            ruleIds = setOf("forbidden-calls"),
+            warnOnly = false,
+            ruleOptionSpecs = optionSpecs,
+        )
+        bad.exceptionOrNull()?.message shouldBe "Option 'calls' for rule 'forbidden-calls' must be a map of string arrays, got object"
+    }
+
+    should("refuse function-expression-body and forbidden-expression-body-functions on together") {
+        val result = WConfig.from(
+            configValue = ConfigValueJsonc.parse("""{"rules":{"function-expression-body":{"level":"error"},"forbidden-expression-body-functions":{"level":"warn"}}}""").getOrThrow(),
+            ruleIds = setOf("function-expression-body", "forbidden-expression-body-functions"),
+            warnOnly = false,
+        )
+        result.exceptionOrNull()?.message shouldBe "Rules 'function-expression-body' and 'forbidden-expression-body-functions' cannot both be on"
     }
 
     should("fail with the full message when a required option is missing") {

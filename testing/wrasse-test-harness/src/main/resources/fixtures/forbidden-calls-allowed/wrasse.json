@@ -1,0 +1,11 @@
+{
+    "rules": {
+        "forbidden-calls": {
+            "level": "error",
+            "calls": {
+                "sample.clock.now": ["**/test.kt"],
+                "sample.clock.Ticker": ["src/sample/test.kt"]
+            }
+        }
+    }
+}

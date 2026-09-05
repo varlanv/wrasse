@@ -98,7 +98,7 @@ class WrassePlugin(
             alwaysOn = alwaysOn,
         )
 
-        val ctx = WContext(filePath = filePath.toString())
+        val ctx = WContext(filePath = filePath.toString(), configRelativeFilePath = relativeToConfigDir(filePath))
         val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
         val needsCallSites = dumpResolvedUsage || ruleSet.requiresCallSites
         if (resolvedUsage != null && (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages || needsCallSites)) {

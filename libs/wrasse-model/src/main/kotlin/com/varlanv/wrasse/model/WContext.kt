@@ -1,5 +1,7 @@
 package com.varlanv.wrasse.model
 
+import java.nio.file.Path
+
 /**
  * Mutable traversal context passed to every rule callback during a SAX-style walk.
  *
@@ -15,6 +17,8 @@ package com.varlanv.wrasse.model
 class WContext(
     /** Absolute path to the source file being walked. */
     val filePath: String,
+    /** [filePath] relative to the directory of the effective `wrasse.json`, or [filePath] itself when there is none — what `exclude` globs match against. */
+    val configRelativeFilePath: Path = Path.of(filePath),
 ) {
     /** Full source text of the file, set once by the adapter before the walk begins. */
     var sourceText: CharSequence = ""

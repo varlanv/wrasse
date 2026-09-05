@@ -120,9 +120,37 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow naming a multi-parameter lambda's parameter 'it'"
                 },
+                "forbidden-calls": {
+                    "type": "object",
+                    "description": "Disallow calling the listed functions and constructors, except in the files listed for each",
+                    "additionalProperties": false,
+                    "required": ["calls"],
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "calls": {
+                            "type": "object",
+                            "description": "Forbidden callee names (pkg.Class.member, pkg.member, pkg.Class for constructors, trailing * for a prefix), each mapped to the file globs, relative to this file, where the call stays allowed",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                },
                 "forbidden-comment": {
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow TODO:, FIXME:, and STOPSHIP: comment markers"
+                },
+                "forbidden-expression-body-functions": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow expression-bodied functions (fun f(): T = expr); cannot be on together with function-expression-body"
                 },
                 "function-only-returning-constant": {
                     "$ref": "#/$defs/ruleConfig",
