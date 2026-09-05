@@ -95,6 +95,8 @@ app/
   wrasse-kotlinc-internal-k20 / -k22   version-specific FIR registrar shells, selected at runtime
 testing/
   common-test/                          BaseSpec (kotest ShouldSpec base), useTempDir
+  wrasse-realworld-bench/               generator for synthetic 5k/50k/1M-LOC Gradle projects + bench.sh
+                                        runner comparing wrasse with ktlint/ktfmt/detekt (doc/benchmarks/)
   wrasse-test-harness/                  FixtureLoader/Parser, WrasseTestHarness, and the fixtures/ resources
   wrasse-kotlinc-plugin-tests-base/     WrasseFixtureSpec — iterates all fixtures, one `should` per fixture
   wrasse-kotlinc-plugin-tests-2-{1,2,3,4}-x/   thin subclasses that run the base spec against each Kotlin minor
