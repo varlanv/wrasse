@@ -182,6 +182,8 @@ object LightTreeStreamAdapter {
             astNode = root,
             type = rootType,
             isLeaf = rootIsLeaf,
+            startOffset = root.startOffset,
+            endOffset = root.endOffset,
             ctx = ctx,
             dispatch = dispatch,
             reporter = reporter,
@@ -212,6 +214,8 @@ object LightTreeStreamAdapter {
         astNode: LighterASTNode,
         type: WNodeType,
         isLeaf: Boolean,
+        startOffset: Int,
+        endOffset: Int,
         ctx: WContext,
         dispatch: StreamDispatch,
         reporter: WReporter,
@@ -223,8 +227,8 @@ object LightTreeStreamAdapter {
         val ownChildIndex = ctx.childIndex
 
         ctx.type = type
-        ctx.startOffset = astNode.startOffset
-        ctx.endOffset = astNode.endOffset
+        ctx.startOffset = startOffset
+        ctx.endOffset = endOffset
         if (isLeaf) ctx.enterLeaf() else ctx.leafText = null
 
         if (isLeaf) {
@@ -249,8 +253,8 @@ object LightTreeStreamAdapter {
             trackLastNewline(ctx)
 
             ctx.prevLeafType = type
-            ctx.prevLeafStart = astNode.startOffset
-            ctx.prevLeafEnd = astNode.endOffset
+            ctx.prevLeafStart = startOffset
+            ctx.prevLeafEnd = endOffset
         } else {
             if (dispatch.hasStreamRules) {
                 val streamRules = dispatch.streamRules
@@ -271,7 +275,7 @@ object LightTreeStreamAdapter {
             )
             val sharedBuffer = if (enteredCount > 0) activeNodeRules.lastBuffer(enteredCount) else null
 
-            ctx.ancestors.push(type = type, startOffset = astNode.startOffset, endOffset = astNode.endOffset)
+            ctx.ancestors.push(type = type, startOffset = startOffset, endOffset = endOffset)
             val count = tree.getChildren(astNode, ref)
             val liveChildren = ref.get()
             if (liveChildren != null && count > 0) {
@@ -282,12 +286,16 @@ object LightTreeStreamAdapter {
                     ctx.childIndex = i
                     val childType = WNodeTypeMapping.map(elementType = child.tokenType)
                     val childIsLeaf = child is LighterASTTokenNode
+                    val childStart = child.startOffset
+                    val childEnd = child.endOffset
 
                     walkNode(
                         tree = tree,
                         astNode = child,
                         type = childType,
                         isLeaf = childIsLeaf,
+                        startOffset = childStart,
+                        endOffset = childEnd,
                         ctx = ctx,
                         dispatch = dispatch,
                         reporter = reporter,
@@ -298,13 +306,11 @@ object LightTreeStreamAdapter {
                     )
 
                     if (sharedBuffer != null) {
-                        val start = child.startOffset
-                        val end = child.endOffset
                         sharedBuffer.add(
                             type = childType,
-                            start = start,
-                            end = end,
-                            text = if (childIsLeaf) StringSlice(ctx.sourceText, start, end) else null,
+                            start = childStart,
+                            end = childEnd,
+                            text = if (childIsLeaf) StringSlice(ctx.sourceText, childStart, childEnd) else null,
                         )
                     }
                 }
@@ -314,8 +320,8 @@ object LightTreeStreamAdapter {
             ctx.ancestors.pop()
 
             ctx.type = type
-            ctx.startOffset = astNode.startOffset
-            ctx.endOffset = astNode.endOffset
+            ctx.startOffset = startOffset
+            ctx.endOffset = endOffset
             ctx.leafText = null
             ctx.childIndex = ownChildIndex
 

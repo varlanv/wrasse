@@ -57,16 +57,20 @@ class BackingPropertyNamingRule : WUninitializedRule {
 
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
-                val hasOverride = Regex("\\boverride\\b").containsMatchIn(modifierText)
-                val isPublic = !Regex("\\b(private|protected|internal)\\b").containsMatchIn(modifierText)
+                val hasOverride = WordScan.containsWord(modifierText, "override")
+                val isPublic = !WordScan.containsWord(
+                    modifierText,
+                    "private",
+                ) &&
+                    !WordScan.containsWord(modifierText, "protected") &&
+                    !WordScan.containsWord(modifierText, "internal")
 
                 val emptyParamList =
                     if (isProperty) {
                         false
                     } else {
                         val paramListIdx = children.firstChildOfType(WNodeType.VALUE_PARAMETER_LIST)
-                        paramListIdx >= 0 &&
-                            children.textSpan(paramListIdx, ctx.sourceText).toString().replace(Regex("\\s"), "") == "()"
+                        paramListIdx >= 0 && WordScan.isEmptyParens(children.textSpan(paramListIdx, ctx.sourceText))
                     }
 
                 classBodyStack

@@ -153,8 +153,7 @@ object QualifiedUsageDecision {
      * (non-object) class never gets its own [WQualifiedUsage] entry (see design.md §8.3).
      */
     private fun literalOccurrences(candidateImportFqn: String, sourceText: CharSequence): List<IntRange> {
-        val pattern = Regex("\\b" + Regex.escape(candidateImportFqn) + "\\b")
-        return pattern.findAll(sourceText).map { it.range }.toList()
+        return WordScan.wordOccurrences(sourceText, candidateImportFqn)
     }
 
     private fun isSafeToDrop(

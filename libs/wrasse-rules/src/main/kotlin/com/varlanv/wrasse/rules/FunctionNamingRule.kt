@@ -73,7 +73,7 @@ class FunctionNamingRule : WUninitializedRule {
 
             private fun hasOverrideModifier(ctx: WContext, children: ChildBuffer): Boolean {
                 val idx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
-                return idx >= 0 && Regex("\\boverride\\b").containsMatchIn(children.textSpan(idx, ctx.sourceText))
+                return idx >= 0 && WordScan.containsWord(children.textSpan(idx, ctx.sourceText), "override")
             }
 
             private fun isFactoryFunction(

@@ -41,7 +41,7 @@ class EmptyFunctionBlockRule : WUninitializedRule {
 
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
-                if (Regex("\\bopen\\b").containsMatchIn(modifierText)) return
+                if (WordScan.containsWord(modifierText, "open")) return
                 if (isInterfaceMember(ctx)) return
 
                 reporter.report(
@@ -60,7 +60,7 @@ class EmptyFunctionBlockRule : WUninitializedRule {
                 if (ancestors.typeAt(ancestors.size - 2) != WNodeType.CLASS) return false
                 val classStart = ancestors.startOffsetAt(ancestors.size - 2)
                 val classBodyStart = ancestors.startOffsetAt(ancestors.size - 1)
-                return Regex("\\binterface\\b").containsMatchIn(ctx.sourceText.subSequence(classStart, classBodyStart))
+                return WordScan.containsWord(ctx.sourceText.subSequence(classStart, classBodyStart), "interface")
             }
         }
     }

@@ -1,5 +1,8 @@
 package com.varlanv.wrasse.format
 
+import com.varlanv.wrasse.lang.indexOfChar
+import com.varlanv.wrasse.lang.lastIndexOfChar
+
 /**
  * The printer's layout vocabulary. A `Doc` tree is built once per file by [DocBuilder] and
  * rendered once by [Layout]; nothing in this package re-parses or re-walks source text.
@@ -19,7 +22,30 @@ sealed interface Doc {
         val value: CharSequence,
         override val start: Int = 0,
         override val end: Int = 0,
-    ) : Doc
+    ) : Doc {
+        private var firstNewlineCache: Int = WIDTH_UNSET
+        private var lastNewlineCache: Int = WIDTH_UNSET
+
+        /** Index of the first `\n` in [value], or -1; scanned once. */
+        fun firstNewline(): Int {
+            var cached = firstNewlineCache
+            if (cached == WIDTH_UNSET) {
+                cached = value.indexOfChar('\n')
+                firstNewlineCache = cached
+            }
+            return cached
+        }
+
+        /** Index of the last `\n` in [value], or -1; scanned once. */
+        fun lastNewline(): Int {
+            var cached = lastNewlineCache
+            if (cached == WIDTH_UNSET) {
+                cached = value.lastIndexOfChar('\n')
+                lastNewlineCache = cached
+            }
+            return cached
+        }
+    }
 
     /**
      * A point where a line break may go. [kind] decides whether [Layout] ever has a choice:

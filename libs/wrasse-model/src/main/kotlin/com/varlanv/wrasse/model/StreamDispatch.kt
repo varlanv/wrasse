@@ -20,10 +20,10 @@ class StreamDispatch(rules: List<WRule>) {
     val hasStreamRules: Boolean
 
     init {
-        val leafRules = mutableListOf<WLeafRule>()
-        val nodeRules = mutableListOf<WNodeRule>()
-        val stream = mutableListOf<WStreamRule>()
-        val file = mutableListOf<WFileRule>()
+        val leafRules = ArrayList<WLeafRule>(rules.size)
+        val nodeRules = ArrayList<WNodeRule>(rules.size)
+        val stream = ArrayList<WStreamRule>(4)
+        val file = ArrayList<WFileRule>(4)
 
         for (rule in rules) {
             when (rule) {
@@ -34,28 +34,31 @@ class StreamDispatch(rules: List<WRule>) {
             }
         }
 
-        val ld = arrayOfNulls<MutableList<WLeafRule>?>(WNodeType.SIZE)
-        for (rule in leafRules) {
+        val none = emptyList<Nothing>()
+        val ld = arrayOfNulls<ArrayList<WLeafRule>?>(WNodeType.SIZE)
+        for (i in 0 until leafRules.size) {
+            val rule = leafRules[i]
             for (type in rule.targetTypes) {
-                val list = ld[type.ordinal] ?: mutableListOf<WLeafRule>().also { ld[type.ordinal] = it }
+                val list = ld[type.ordinal] ?: ArrayList<WLeafRule>(2).also { ld[type.ordinal] = it }
                 list.add(rule)
             }
         }
 
-        val nd = arrayOfNulls<MutableList<WNodeRule>?>(WNodeType.SIZE)
-        for (rule in nodeRules) {
+        val nd = arrayOfNulls<ArrayList<WNodeRule>?>(WNodeType.SIZE)
+        for (i in 0 until nodeRules.size) {
+            val rule = nodeRules[i]
             for (type in rule.targetTypes) {
-                val list = nd[type.ordinal] ?: mutableListOf<WNodeRule>().also { nd[type.ordinal] = it }
+                val list = nd[type.ordinal] ?: ArrayList<WNodeRule>(2).also { nd[type.ordinal] = it }
                 list.add(rule)
             }
         }
-        this.leafDispatch = Array(ld.size) { ld[it] ?: emptyList() }
-        this.nodeDispatch = Array(nd.size) { nd[it] ?: emptyList() }
+        this.leafDispatch = Array(ld.size) { ld[it] ?: none }
+        this.nodeDispatch = Array(nd.size) { nd[it] ?: none }
         this.allRules = rules
         this.streamRules = stream
         this.fileRules = file
-        this.hasLeafRules = leafDispatch.any { it.isNotEmpty() }
-        this.hasNodeRules = nodeDispatch.any { it.isNotEmpty() }
+        this.hasLeafRules = leafRules.isNotEmpty()
+        this.hasNodeRules = nodeRules.isNotEmpty()
         this.hasStreamRules = stream.isNotEmpty()
     }
 

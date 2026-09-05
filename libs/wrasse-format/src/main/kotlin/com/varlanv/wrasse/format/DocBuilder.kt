@@ -6,35 +6,70 @@ import com.varlanv.wrasse.lang.lastIndexOfChar
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFormatConfig
 import com.varlanv.wrasse.model.WNodeType
+import com.varlanv.wrasse.model.WNodeTypeSet
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WStreamRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
-private val INDENTING_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN, WNodeType.FUNCTION_LITERAL)
-private val CHAIN_LINK_TYPES = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION, WNodeType.SAFE_ACCESS_EXPRESSION)
-private val BINARY_SPREAD_TYPES = setOf(WNodeType.BINARY_EXPRESSION)
-private val COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT)
-private val SUPER_TYPE_ENTRY_TYPES = setOf(WNodeType.SUPER_TYPE_ENTRY, WNodeType.SUPER_TYPE_CALL_ENTRY)
-private val ANNOTATION_CONTAINER_TYPES = setOf(WNodeType.MODIFIER_LIST, WNodeType.ANNOTATED_EXPRESSION)
-private val ANNOTATION_EXEMPT_PARENT_TYPES = setOf(WNodeType.VALUE_PARAMETER, WNodeType.VALUE_ARGUMENT)
+private val INDENTING_TYPES = WNodeTypeSet.containing(
+    WNodeType.BLOCK,
+    WNodeType.CLASS_BODY,
+    WNodeType.WHEN,
+    WNodeType.FUNCTION_LITERAL,
+)
+private val CHAIN_LINK_TYPES = WNodeTypeSet.containing(
+    WNodeType.DOT_QUALIFIED_EXPRESSION,
+    WNodeType.SAFE_ACCESS_EXPRESSION,
+)
+private val BINARY_SPREAD_TYPES = WNodeTypeSet.containing(WNodeType.BINARY_EXPRESSION)
+private val COMMENT_TYPES = WNodeTypeSet.containing(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT)
+private val SUPER_TYPE_ENTRY_TYPES = WNodeTypeSet.containing(
+    WNodeType.SUPER_TYPE_ENTRY,
+    WNodeType.SUPER_TYPE_CALL_ENTRY,
+)
+private val ANNOTATION_CONTAINER_TYPES = WNodeTypeSet.containing(
+    WNodeType.MODIFIER_LIST,
+    WNodeType.ANNOTATED_EXPRESSION,
+)
+private val ANNOTATION_EXEMPT_PARENT_TYPES = WNodeTypeSet.containing(
+    WNodeType.VALUE_PARAMETER,
+    WNodeType.VALUE_ARGUMENT,
+)
 private val ASSIGNMENT_OPERATOR_TEXTS = setOf("=", "+=", "-=", "*=", "/=", "%=")
-private val OWN_LINE_FORCE_TYPES = setOf(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN)
-private val SEMICOLON_BREAK_SCOPE = setOf(WNodeType.BLOCK, WNodeType.WHEN)
-private val MULTILINE_WRAPPABLE_VALUE_TYPES = setOf(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
-private val BLANK_LINE_BEFORE_DECLARATION_TYPES = setOf(
+
+private val OWN_LINE_FORCE_TYPES = WNodeTypeSet.containing(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN)
+private val SEMICOLON_BREAK_SCOPE = WNodeTypeSet.containing(WNodeType.BLOCK, WNodeType.WHEN)
+private val MULTILINE_WRAPPABLE_VALUE_TYPES = WNodeTypeSet.containing(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
+private val BLANK_LINE_BEFORE_DECLARATION_TYPES = WNodeTypeSet.containing(
     WNodeType.CLASS,
     WNodeType.CLASS_INITIALIZER,
     WNodeType.FUN,
     WNodeType.OBJECT_DECLARATION,
     WNodeType.PROPERTY,
 )
-private val DECLARATION_SPACING_TYPES = BLANK_LINE_BEFORE_DECLARATION_TYPES +
-    setOf(WNodeType.TYPEALIAS, WNodeType.SECONDARY_CONSTRUCTOR, WNodeType.ENUM_ENTRY)
-private val DECLARATION_GAP_CONTAINER_TYPES = setOf(WNodeType.FILE, WNodeType.CLASS_BODY, WNodeType.BLOCK)
-private val LEADING_COMMENT_TYPES = setOf(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT, WNodeType.KDOC)
+private val DECLARATION_SPACING_TYPES = WNodeTypeSet.containing(
+    WNodeType.CLASS,
+    WNodeType.CLASS_INITIALIZER,
+    WNodeType.FUN,
+    WNodeType.OBJECT_DECLARATION,
+    WNodeType.PROPERTY,
+    WNodeType.TYPEALIAS,
+    WNodeType.SECONDARY_CONSTRUCTOR,
+    WNodeType.ENUM_ENTRY,
+)
+private val DECLARATION_GAP_CONTAINER_TYPES = WNodeTypeSet.containing(
+    WNodeType.FILE,
+    WNodeType.CLASS_BODY,
+    WNodeType.BLOCK,
+)
+private val LEADING_COMMENT_TYPES = WNodeTypeSet.containing(
+    WNodeType.EOL_COMMENT,
+    WNodeType.BLOCK_COMMENT,
+    WNodeType.KDOC,
+)
 private val EOL_COMMENT_EXEMPT_PREFIXES = listOf("//noinspection", "//region", "//endregion", "//language=")
 
-private val KEYWORDS_WANTING_SPACE_AFTER = setOf(
+private val KEYWORDS_WANTING_SPACE_AFTER = WNodeTypeSet.containing(
     WNodeType.KW_IF,
     WNodeType.KW_WHEN,
     WNodeType.KW_FOR,
@@ -42,13 +77,13 @@ private val KEYWORDS_WANTING_SPACE_AFTER = setOf(
     WNodeType.KW_CATCH,
     WNodeType.KW_WHERE,
 )
-private val CLOSERS_NOT_NEEDING_SPACE_AFTER_COMMA = setOf(
+private val CLOSERS_NOT_NEEDING_SPACE_AFTER_COMMA = WNodeTypeSet.containing(
     WNodeType.RPAR,
     WNodeType.RBRACKET,
     WNodeType.GT,
     WNodeType.RBRACE,
 )
-private val COLON_WANTS_SPACE_BOTH_SIDES = setOf(
+private val COLON_WANTS_SPACE_BOTH_SIDES = WNodeTypeSet.containing(
     WNodeType.CLASS,
     WNodeType.OBJECT_DECLARATION,
     WNodeType.OBJECT_LITERAL,
@@ -122,7 +157,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (frames.isEmpty()) {
             rootDoc = doc
         } else {
-            val hasLeadingComment = frame.children.firstOrNull()?.type in LEADING_COMMENT_TYPES
+            val firstChildType = frame.children.firstOrNull()?.type
+            val hasLeadingComment = firstChildType != null && firstChildType in LEADING_COMMENT_TYPES
             frames
                 .last()
                 .children
@@ -196,7 +232,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             frame,
             start,
             end,
-            isRoot = parentType !in CHAIN_LINK_TYPES,
+            isRoot = parentType == null || parentType !in CHAIN_LINK_TYPES,
         )
 
         WNodeType.BINARY_EXPRESSION -> resolveBinaryFrame(
@@ -1807,7 +1843,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         end: Int,
         parentType: WNodeType?,
     ): Doc {
-        if (parentType in ANNOTATION_EXEMPT_PARENT_TYPES) return resolveBraceFrame(frame, start, end)
+        if (parentType != null && parentType in ANNOTATION_EXEMPT_PARENT_TYPES) {
+            return resolveBraceFrame(frame, start, end)
+        }
         val children = frame.children
         if (children.any { it.type == WNodeType.UNKNOWN || it.type in COMMENT_TYPES }) {
             return resolveBraceFrame(frame, start, end)
@@ -2035,7 +2073,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     ): List<ChildEntry> = children.toMutableList().also { it.removeAt(existingIdx) }
 
     private fun spansMultipleLines(doc: Doc): Boolean = when (doc) {
-        is Doc.Text -> doc.value.containsChar('\n')
+        is Doc.Text -> doc.lastNewline() >= 0
         is Doc.Break -> doc.kind == BreakKind.HARD
         is Doc.TrailingComma -> false
         is Doc.Indent -> spansMultipleLines(doc.body)
@@ -2060,7 +2098,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         anchorIndex: Int,
         breakBefore: Boolean,
         flat: String,
-        spreadTypes: Set<WNodeType>,
+        spreadTypes: WNodeTypeSet,
     ): List<Doc> {
         val wsIndex = if (breakBefore) anchorIndex - 1 else anchorIndex + 1
         val hasWs = wsIndex in children.indices && wsIndex.isWs(children)

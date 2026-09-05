@@ -30,13 +30,13 @@ class PropertyNamingRule : WUninitializedRule {
 
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
-                val hasConst = Regex("\\bconst\\b").containsMatchIn(modifierText)
-                val hasOverride = Regex("\\boverride\\b").containsMatchIn(modifierText)
+                val hasConst = WordScan.containsWord(modifierText, "const")
+                val hasOverride = WordScan.containsWord(modifierText, "override")
 
                 val hasCustomGetter = (0 until children.size).any { i ->
                     children.type(i) ==
                         WNodeType.PROPERTY_ACCESSOR &&
-                        Regex("\\bget\\s*\\(").containsMatchIn(children.textSpan(i, ctx.sourceText))
+                        WordScan.containsWordFollowedBy(children.textSpan(i, ctx.sourceText), "get", '(')
                 }
 
                 val hasValKeyword = children.hasChildOfType(WNodeType.KW_VAL)

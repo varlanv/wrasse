@@ -1,5 +1,7 @@
 package com.varlanv.wrasse.rules
 
+import com.varlanv.wrasse.lang.StringSlice
+
 import com.varlanv.wrasse.model.WCallableUsage
 
 /**
@@ -65,9 +67,8 @@ object UnusedImportDecision {
         commentSpans: List<IntRange>,
     ): Boolean {
         if (commentSpans.isEmpty()) return false
-        val wordPattern = Regex("\\b" + Regex.escape(name) + "\\b")
         return commentSpans.any { span ->
-            wordPattern.containsMatchIn(sourceText.subSequence(span.first, span.last + 1))
+            WordScan.containsWord(StringSlice(sourceText, span.first, span.last + 1), name)
         }
     }
 

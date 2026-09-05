@@ -53,7 +53,7 @@ class FileNamingRule : WUninitializedRule {
                 if (idIdx < 0) return
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val isPrivate = modifierIdx >= 0 &&
-                    Regex("\\bprivate\\b").containsMatchIn(children.textSpan(modifierIdx, ctx.sourceText))
+                    WordScan.containsWord(children.textSpan(modifierIdx, ctx.sourceText), "private")
                 if (isPrivate) return
                 topLevelClassLikeNames.add(IdentifierCasing.unquote(children.textSpan(idIdx, ctx.sourceText)))
             }

@@ -38,8 +38,8 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
                 val name = IdentifierCasing.unquote(children.textSpan(idIdx, ctx.sourceText))
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifiersText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
-                val isOverride = Regex("\\boverride\\b").containsMatchIn(modifiersText)
-                val isOperator = Regex("\\boperator\\b").containsMatchIn(modifiersText)
+                val isOverride = WordScan.containsWord(modifiersText, "override")
+                val isOperator = WordScan.containsWord(modifiersText, "operator")
 
                 if (minRule != null) {
                     FunctionNameLengthDecision.decideMin(name, isOverride, isOperator)?.let {

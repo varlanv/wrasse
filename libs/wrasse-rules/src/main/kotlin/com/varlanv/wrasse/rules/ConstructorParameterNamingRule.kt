@@ -30,7 +30,7 @@ class ConstructorParameterNamingRule : WUninitializedRule {
 
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
-                val hasOverride = Regex("\\boverride\\b").containsMatchIn(modifierText)
+                val hasOverride = WordScan.containsWord(modifierText, "override")
 
                 val message = ConstructorParameterNamingDecision.decide(
                     children.textSpan(idIdx, ctx.sourceText),
