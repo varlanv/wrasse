@@ -1,0 +1,6 @@
+modules:
+  - ./app
+  - ./wrasse-apply
+
+plugins:
+  - ./wrasse-apply

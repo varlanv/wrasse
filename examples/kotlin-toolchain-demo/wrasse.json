@@ -1,0 +1,14 @@
+{
+    "format": { "enabled": true },
+    "rules": {
+        "no-semicolons": { "level": "error" },
+        "no-wildcard-imports": { "level": "error" },
+        "no-unused-imports": { "level": "error" },
+        "no-unnecessary-fqn": { "level": "error" },
+        "named-arguments": { "level": "error" },
+        "import-ordering": { "level": "error" },
+        "trailing-newline": { "level": "error" },
+        "if-else-bracing": { "level": "error" },
+        "magic-number": { "level": "error" }
+    }
+}

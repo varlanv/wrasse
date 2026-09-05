@@ -1,0 +1,7 @@
+product: jvm/amper-plugin
+
+repositories:
+  - mavenLocal
+
+dependencies:
+  - com.varlanv.wrasse:wrasse-lang:0.0.1-SNAPSHOT

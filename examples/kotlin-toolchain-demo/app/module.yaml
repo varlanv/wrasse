@@ -1,0 +1,20 @@
+product: jvm/app
+
+repositories:
+  - mavenLocal
+
+plugins:
+  wrasse-apply: enabled
+
+settings:
+  jvm:
+    mainClass: demo.MainKt
+    jdk:
+      version: 21
+  kotlin:
+    compilerPlugins:
+      - id: com.varlanv.wrasse
+        dependency: com.varlanv.wrasse:compiler-plugin:0.0.1-SNAPSHOT
+        options:
+          warnOnly: true
+          fixOutputDir: build/wrasse/app

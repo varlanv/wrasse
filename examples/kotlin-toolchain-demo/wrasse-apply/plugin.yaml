@@ -1,0 +1,8 @@
+tasks:
+  apply:
+    action: !wrasse.apply.wrasseApply
+      patchDir: ${project.rootDir}/build/wrasse
+
+commands:
+  - name: wrasseApply
+    performedBy: apply
