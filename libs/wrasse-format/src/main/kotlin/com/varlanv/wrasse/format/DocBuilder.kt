@@ -628,9 +628,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     /**
-     * Shared by [resolvePropertyFrame], [resolveValueArgumentFrame], [resolveBinaryFrame]'s
-     * assignment-operator case, and [resolveWhenEntryFrame]'s own arrow, for the value found right
-     * after [anchorIdx]. A comment there (nested ahead of the real value) always moves onto its own
+     * Shared by [resolvePropertyFrame], [resolveBinaryFrame]'s assignment-operator case, and
+     * [resolveWhenEntryFrame]'s own arrow, for the value found right after [anchorIdx] — never by
+     * a named argument, whose `if`/`when`/`try` value stays on the `name =` line. A comment there (nested ahead of the real value) always moves onto its own
      * line, one indent level deeper, reusing the source gap's own break. An `if`/`when`/`try` value
      * ([MULTILINE_WRAPPABLE_VALUE_TYPES]) becomes a group that indents when broken: it stays on
      * the anchor's line while it renders on one line and fits, and moves onto its own line one
@@ -1487,13 +1487,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         frame.hugsLambdaArgument = real.size == 1 && real[0].type == WNodeType.LAMBDA_EXPRESSION
         val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
         if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
-        return resolveAssignedValueFrame(
-            children,
-            WNodeType.VALUE_ARGUMENT,
-            start,
-            end,
-            eqIdx,
-        ) ?: resolveInitializerFrame(children, WNodeType.VALUE_ARGUMENT, start, end, eqIdx)
+        return resolveInitializerFrame(children, WNodeType.VALUE_ARGUMENT, start, end, eqIdx)
     }
 
     private fun resolveSuperTypeCallEntryFrame(

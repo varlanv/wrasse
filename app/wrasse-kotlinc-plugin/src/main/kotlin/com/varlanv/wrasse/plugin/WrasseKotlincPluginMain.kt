@@ -155,10 +155,12 @@ internal fun registeredRules(): List<WUninitializedRule> = listOf(
     MayBeConstantRule(),
     MissingPackageDeclarationRule(),
     MixedConditionOperatorsRule(),
+    NamedArgumentsRule(),
     NestedClassesVisibilityRule(),
     NoConsecutiveCommentsRule(),
     NoEmptyClassBodyRule(),
     NoEmptyParensBeforeTrailingLambdaRule(),
+    MixedArgumentsRule(),
     NoSemicolonsRule(),
     NoSingleLineBlockCommentRule(),
     NoUnitReturnRule(),
@@ -192,8 +194,6 @@ internal fun registeredRules(): List<WUninitializedRule> = listOf(
     VariableNameMaxLengthRule(),
     WhenEntryBracingRule(),
     WhenMustHaveElseRule(),
-    NamedArgumentsRule(),
-    MixedArgumentsRule(),
 )
 
 /**
