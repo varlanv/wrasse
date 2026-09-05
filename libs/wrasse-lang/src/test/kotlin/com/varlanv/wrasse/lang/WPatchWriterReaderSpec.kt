@@ -86,6 +86,33 @@ class WPatchWriterReaderSpec : BaseSpec({
         }
     }
 
+    context("journal semantics") {
+        should("let a later block for the same path replace an earlier one") {
+            val text = "# wrasse-fixes v1\nfile:a.kt\nhash:h1\nedit:0:1:\nfile:b.kt\nhash:h2\nedit:3:4:\nfile:a.kt\nhash:h3\nedit:5:6:x\n"
+            val journal = WPatchReader.readJournal(text)
+            journal.blockCount shouldBe 3
+            journal.entries.map { "${it.filePath}|${it.sourceHash}|${it.edits.single().replacement}" } shouldBe
+                listOf("a.kt|h3|x", "b.kt|h2|")
+        }
+
+        should("drop a path on a tombstone or an edit-less block") {
+            val text = "file:a.kt\nhash:h1\nedit:0:1:\nfile:b.kt\nhash:h2\nedit:0:1:\nfile:a.kt\nhash:-\nfile:b.kt\nhash:h9\n"
+            WPatchReader.readJournal(text).let {
+                it.blockCount shouldBe 4
+                it.entries shouldBe emptyList()
+            }
+        }
+
+        should("ignore an unterminated final edit line but reject a malformed one earlier") {
+            val truncated = "file:a.kt\nhash:h1\nedit:0:1:\nfile:b.kt\nhash:h2\nedit:3:"
+            WPatchReader.read(truncated).map { it.filePath } shouldBe listOf("a.kt")
+            val malformed = "file:a.kt\nhash:h1\nedit:0:x\nfile:b.kt\nhash:h2\n"
+            io.kotest.assertions.throwables
+                .shouldThrow<IllegalArgumentException> { WPatchReader.read(malformed) }
+                .message shouldBe "Malformed edit line: edit:0:x"
+        }
+    }
+
     context("reader edge cases") {
         should("skip comment lines") {
             val input = """
@@ -95,7 +122,7 @@ class WPatchWriterReaderSpec : BaseSpec({
                 hash:abc
                 edit:0:1:
                 """
-                .trimIndent()
+                .trimIndent() + "\n"
             val result = WPatchReader.read(input)
             result shouldHaveSize 1
         }
@@ -111,7 +138,7 @@ class WPatchWriterReaderSpec : BaseSpec({
                 edit:0:1:
 
                 """
-                .trimIndent()
+                .trimIndent() + "\n"
             val result = WPatchReader.read(input)
             result shouldHaveSize 1
         }

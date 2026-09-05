@@ -121,30 +121,42 @@ private fun readPatch(moduleDir: Path, compilation: String): String {
     return Files.readString(patchFile)
 }
 
-private fun filePathsIn(patchContent: String): Set<String> =
-    patchContent.lineSequence().filter { it.startsWith("file:") }.map { it.removePrefix("file:") }.toSet()
+private class PatchBlock(val hash: String, val editCount: Int)
 
-private fun editCountFor(patchContent: String, filePath: String): Int {
-    val lines = patchContent.lines()
-    val fileLineIndex = lines.indexOf("file:$filePath")
-    check(fileLineIndex >= 0) { "file:$filePath not found in patch content:\n$patchContent" }
-    var count = 0
-    var i = fileLineIndex + 1
-    while (i < lines.size && !lines[i].startsWith("file:")) {
-        if (lines[i].startsWith("edit:")) count++
-        i++
+private fun liveBlocks(patchContent: String): Map<String, PatchBlock> {
+    val live = LinkedHashMap<String, PatchBlock>()
+    var path: String? = null
+    var hash: String? = null
+    var edits = 0
+    fun flush() {
+        val p = path ?: return
+        val h = hash ?: return
+        if (h == "-" || edits == 0) live.remove(p) else live[p] = PatchBlock(h, edits)
     }
-    return count
+    for (line in patchContent.lines()) {
+        when {
+            line.startsWith("file:") -> {
+                flush()
+                path = line.removePrefix("file:")
+                hash = null
+                edits = 0
+            }
+
+            line.startsWith("hash:") -> hash = line.removePrefix("hash:")
+            line.startsWith("edit:") -> edits++
+        }
+    }
+    flush()
+    return live
 }
 
-private fun hashFor(patchContent: String, filePath: String): String {
-    val lines = patchContent.lines()
-    val fileLineIndex = lines.indexOf("file:$filePath")
-    check(fileLineIndex >= 0) { "file:$filePath not found in patch content:\n$patchContent" }
-    val hashLine = lines.getOrNull(fileLineIndex + 1) ?: error("no hash line after file:$filePath")
-    check(hashLine.startsWith("hash:")) { "expected a hash line after file:$filePath, got: $hashLine" }
-    return hashLine.removePrefix("hash:")
-}
+private fun filePathsIn(patchContent: String): Set<String> = liveBlocks(patchContent).keys
+
+private fun editCountFor(patchContent: String, filePath: String): Int =
+    checkNotNull(liveBlocks(patchContent)[filePath]) { "file:$filePath not found in patch content:\n$patchContent" }.editCount
+
+private fun hashFor(patchContent: String, filePath: String): String =
+    checkNotNull(liveBlocks(patchContent)[filePath]) { "file:$filePath not found in patch content:\n$patchContent" }.hash
 
 class PatchMergeOnWriteSpec : ShouldSpec({
 

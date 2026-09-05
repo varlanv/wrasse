@@ -3,11 +3,9 @@ package com.varlanv.wrasse.plugin
 import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
 import com.varlanv.wrasse.format.DocBuilder
 import com.varlanv.wrasse.lang.FileEdits
-import com.varlanv.wrasse.lang.HexEncoding
+import com.varlanv.wrasse.lang.Sha256
 import com.varlanv.wrasse.lang.WEdit
-import com.varlanv.wrasse.lang.WPatchMerge
-import com.varlanv.wrasse.lang.WPatchReader
-import com.varlanv.wrasse.lang.WPatchWriter
+import com.varlanv.wrasse.lang.WPatchStore
 import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
 import com.varlanv.wrasse.model.WCallSite
@@ -21,20 +19,11 @@ import com.varlanv.wrasse.model.WResolvedUsage
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.rules.SuppressionCollectorRule
-import java.nio.ByteBuffer
-import java.nio.CharBuffer
-import java.nio.charset.CodingErrorAction
-import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.PathMatcher
-import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
-import java.security.MessageDigest
 import org.jetbrains.kotlin.KtLightSourceElement
 
-private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
 private const val NO_AUTOFIX_MARKER = " (no autofix for this shape)"
-private const val HASH_CHUNK_BYTES = 8_192
 
 class WrassePlugin(
     private val ruleSet: WRuleSet,
@@ -44,8 +33,7 @@ class WrassePlugin(
     private val dumpResolvedUsage: Boolean = false,
     private val formatConfig: WFormatConfig? = null,
 ) {
-    private val patchFileLock = Any()
-    private var patchEntries: List<FileEdits>? = null
+    private val patchStore: WPatchStore? = fixOutputDir?.let { WPatchStore(it) }
 
     fun checkFile(
         source: KtLightSourceElement,
@@ -71,9 +59,7 @@ class WrassePlugin(
      * compile proceeds so kotlinc's own checkers still run and report normally.
      */
     private fun internalFailureReports(filePath: Path, failure: Throwable): List<ViolationReport> {
-        if (fixOutputDir != null) {
-            mergeAndWritePatchFile(fixOutputDir, filePath.toString(), null)
-        }
+        patchStore?.clear(filePath.toString())
         val exceptionType = failure::class.simpleName ?: failure.javaClass.name
         return listOf(
             ViolationReport(
@@ -143,14 +129,13 @@ class WrassePlugin(
         docBuilder?.finish(ctx, reporter)
 
         val finalEdits = ctx.editPlan.finalEdits()
-        if (fixOutputDir != null) {
-            val newEntry =
-                if (finalEdits.isNotEmpty()) {
-                    FileEdits(filePath.toString(), computeSourceHash(ctx.sourceText), finalEdits)
-                } else {
-                    null
-                }
-            mergeAndWritePatchFile(fixOutputDir, filePath.toString(), newEntry)
+        val store = patchStore
+        if (store != null) {
+            if (finalEdits.isNotEmpty()) {
+                store.record(FileEdits(filePath.toString(), Sha256.ofText(ctx.sourceText), finalEdits))
+            } else {
+                store.clear(filePath.toString())
+            }
         }
 
         val usage = ctx.resolvedUsage
@@ -239,61 +224,5 @@ class WrassePlugin(
     private fun relativeToConfigDir(filePath: Path): Path {
         val dir = configDir ?: return filePath
         return runCatching { dir.relativize(filePath) }.getOrDefault(filePath)
-    }
-
-    private fun mergeAndWritePatchFile(
-        dir: Path,
-        filePath: String,
-        newEntry: FileEdits?,
-    ) {
-        synchronized(patchFileLock) {
-            val current = patchEntries ?: readExistingPatchEntries(dir)
-            val merged =
-                if (newEntry != null) {
-                    WPatchMerge.upsert(current, newEntry)
-                } else {
-                    WPatchMerge.remove(current, filePath)
-                }
-            if (merged === current && patchEntries != null) return
-            patchEntries = merged
-            writePatchFileAtomically(dir, merged)
-        }
-    }
-
-    private fun readExistingPatchEntries(dir: Path): List<FileEdits> {
-        val patchFile = dir.resolve(PATCH_FILE_NAME)
-        if (!Files.exists(patchFile)) return emptyList()
-        return WPatchReader.read(Files.readString(patchFile))
-    }
-
-    private fun writePatchFileAtomically(dir: Path, entries: List<FileEdits>) {
-        Files.createDirectories(dir)
-        val patchFile = dir.resolve(PATCH_FILE_NAME)
-        val tmpFile = dir.resolve("$PATCH_FILE_NAME.tmp")
-        Files.newBufferedWriter(tmpFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING).use { w ->
-            WPatchWriter.writeAll(w, entries)
-        }
-        Files.move(tmpFile, patchFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-    }
-
-    private fun computeSourceHash(sourceText: CharSequence): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val encoder = Charsets.UTF_8
-            .newEncoder()
-            .onMalformedInput(CodingErrorAction.REPLACE)
-            .onUnmappableCharacter(CodingErrorAction.REPLACE)
-        val input = CharBuffer.wrap(sourceText)
-        val output = ByteBuffer.allocate(HASH_CHUNK_BYTES)
-        while (true) {
-            val result = encoder.encode(input, output, true)
-            output.flip()
-            digest.update(output)
-            output.clear()
-            if (result.isUnderflow) break
-        }
-        encoder.flush(output)
-        output.flip()
-        digest.update(output)
-        return HexEncoding.lowerCase(digest.digest())
     }
 }

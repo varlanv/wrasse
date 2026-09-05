@@ -1,20 +1,13 @@
 package com.varlanv.wrasse.lang
 
 /**
- * Writes [FileEdits] to the wrasse text patch format.
- *
- * Format:
- * ```
- * # wrasse-fixes v1
- * file:<path>
- * hash:<sha256hex>
- * edit:<startOffset>:<endOffset>:<escaped-replacement>
- * ```
- *
- * Edits within a file block are sorted in descending offset order.
- * Replacement escaping: newline → `\n`, backslash → `\\`.
+ * Serializes patch blocks. A file block is `file:`/`hash:` followed by its edits, start offsets
+ * descending; [writeTombstone] is a block with the hash `-` and no edits, which [WPatchReader]
+ * takes as "forget every earlier block for this path".
  */
 object WPatchWriter {
+    const val TOMBSTONE_HASH = "-"
+
     fun writeHeader(out: Appendable) {
         out.append("# wrasse-fixes v1\n")
     }
@@ -40,6 +33,11 @@ object WPatchWriter {
                 .append(escapeReplacement(edit.replacement))
                 .append('\n')
         }
+    }
+
+    fun writeTombstone(out: Appendable, filePath: String) {
+        out.append("file:").append(filePath).append('\n')
+        out.append("hash:").append(TOMBSTONE_HASH).append('\n')
     }
 
     private fun escapeReplacement(s: String): String = s.replace("\\", "\\\\").replace("\n", "\\n")

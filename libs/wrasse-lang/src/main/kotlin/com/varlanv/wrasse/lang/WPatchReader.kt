@@ -1,69 +1,83 @@
 package com.varlanv.wrasse.lang
 
 /**
- * Parses wrasse text patch files produced by [WPatchWriter] back into [FileEdits].
- * Ignores comment lines (starting with `#`). Unescapes `\n` → newline, `\\` → backslash.
- *
- * Each line is used verbatim (never `trim()`-ed): a replacement's escaped payload is the tail of
- * its `edit:` line, and leading/trailing spaces there are significant content (e.g. indentation of
- * inserted text before a real, unescaped newline further along the same replacement) — not
- * incidental formatting of the patch file itself, which [WPatchWriter] never indents anyway.
+ * Parses a patch file as a journal: blocks are read in order, a later block for the same path
+ * replaces an earlier one, and a tombstone block ([WPatchWriter.writeTombstone]) or an edit-less
+ * block drops the path. An incomplete final block (a crash mid-append) is ignored; a malformed
+ * edit line anywhere before it is an error.
  */
 object WPatchReader {
-    fun read(input: CharSequence): List<FileEdits> {
-        val result = mutableListOf<FileEdits>()
+    class Journal(val entries: List<FileEdits>, val blockCount: Int)
+
+    fun read(input: CharSequence): List<FileEdits> = readJournal(input).entries
+
+    fun readJournal(input: CharSequence): Journal {
+        val byPath = LinkedHashMap<String, FileEdits>()
+        var blockCount = 0
         var currentPath: String? = null
         var currentHash: String? = null
-        var currentEdits = mutableListOf<WEdit>()
+        var currentEdits = ArrayList<WEdit>()
+        var lineStart = 0
+        val length = input.length
 
-        for (line in input.lineSequence()) {
-            if (line.isEmpty() || line.startsWith("#")) continue
+        fun flush() {
+            val path = currentPath ?: return
+            blockCount++
+            if (currentHash == WPatchWriter.TOMBSTONE_HASH || currentEdits.isEmpty()) {
+                byPath.remove(path)
+            } else {
+                byPath[path] = FileEdits(path, currentHash ?: return, currentEdits)
+            }
+        }
 
+        while (lineStart < length) {
+            var lineEnd = input.indexOfChar('\n', lineStart)
+            val terminated = lineEnd >= 0
+            if (!terminated) lineEnd = length
+            val line = StringSlice(input, lineStart, lineEnd)
             when {
+                line.isEmpty() || line[0] == '#' -> {}
                 line.startsWith("file:") -> {
-                    flushCurrent(result, currentPath, currentHash, currentEdits)
-                    currentPath = line.substring(5)
+                    flush()
+                    currentPath = line.subSequence(5, line.length).toString()
                     currentHash = null
-                    currentEdits = mutableListOf()
+                    currentEdits = ArrayList()
                 }
-                line.startsWith("hash:") -> {
-                    currentHash = line.substring(5)
-                }
+
+                line.startsWith("hash:") -> currentHash = line.subSequence(5, line.length).toString()
                 line.startsWith("edit:") -> {
-                    val edit = parseEdit(line)
+                    val edit = parseEdit(line, terminated) ?: return Journal(ArrayList(byPath.values), blockCount)
                     currentEdits.add(edit)
                 }
             }
+            lineStart = lineEnd + 1
         }
-        flushCurrent(result, currentPath, currentHash, currentEdits)
-        return result
+        if (currentPath != null && currentHash == null) return Journal(ArrayList(byPath.values), blockCount)
+        flush()
+        return Journal(ArrayList(byPath.values), blockCount)
     }
 
-    private fun flushCurrent(
-        result: MutableList<FileEdits>,
-        path: String?,
-        hash: String?,
-        edits: MutableList<WEdit>,
-    ) {
-        if (path != null && hash != null && edits.isNotEmpty()) {
-            result.add(FileEdits(path, hash, edits.toList()))
-        }
-    }
-
-    private fun parseEdit(line: String): WEdit {
-        val afterPrefix = line.substring(5)
+    private fun parseEdit(line: StringSlice, terminated: Boolean): WEdit? {
+        val afterPrefix = line.subSequence(5, line.length)
         val firstColon = afterPrefix.indexOf(':')
-        if (firstColon < 0) throw IllegalArgumentException("Malformed edit line: $line")
-        val secondColon = afterPrefix.indexOf(':', firstColon + 1)
-        if (secondColon < 0) throw IllegalArgumentException("Malformed edit line: $line")
-        val startOffset = afterPrefix.substring(0, firstColon).toInt()
-        val endOffset = afterPrefix.substring(firstColon + 1, secondColon).toInt()
-        val escapedReplacement = afterPrefix.substring(secondColon + 1)
+        val secondColon = if (firstColon < 0) -1 else afterPrefix.indexOfChar(':', firstColon + 1)
+        if (firstColon < 0 || secondColon < 0) {
+            if (!terminated) return null
+            throw IllegalArgumentException("Malformed edit line: $line")
+        }
+        val startOffset = afterPrefix.subSequence(0, firstColon).toString().toIntOrNull()
+        val endOffset = afterPrefix.subSequence(firstColon + 1, secondColon).toString().toIntOrNull()
+        if (startOffset == null || endOffset == null) {
+            if (!terminated) return null
+            throw IllegalArgumentException("Malformed edit line: $line")
+        }
+        if (!terminated) return null
+        val escapedReplacement = afterPrefix.subSequence(secondColon + 1, afterPrefix.length)
         return WEdit(startOffset, endOffset, unescapeReplacement(escapedReplacement))
     }
 
-    private fun unescapeReplacement(s: String): String {
-        if (!s.contains('\\')) return s
+    private fun unescapeReplacement(s: CharSequence): String {
+        if (s.indexOfChar('\\') < 0) return s.toString()
         val sb = StringBuilder(s.length)
         var i = 0
         while (i < s.length) {

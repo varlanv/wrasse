@@ -1,35 +1,28 @@
 package com.varlanv.wrasse.lang
 
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.security.MessageDigest
 import kotlin.streams.asSequence
 
 /**
- * Reads wrasse patch files and applies the edits to source files on disk.
- *
- * Per-compilation patch files live at `<parentDir>/<compilation>/wrasse-fixes.txt` — [apply]
- * walks the whole tree under the directory it is given and applies every patch file it finds, so a
- * directly-passed directory containing a single `wrasse-fixes.txt` (the single-file layout still
- * used by the fixture harness) keeps working unchanged.
- *
- * For each file in a patch:
- * 1. Validates the source hash — skips if the file changed since compilation.
- * 2. Checks for overlapping edits — fails loudly (this is a rule design bug).
- * 3. Applies edits in descending offset order so earlier edits don't shift later offsets.
- * 4. Writes via temp file + atomic rename.
- *
- * Patch files are kept after application — the hash guard skips already-fixed files on re-runs.
+ * Host B: applies every `wrasse-fixes.txt` under a directory to the files they name. Each source
+ * file is read once as bytes, hashed as read (the plugin hashed the same UTF-8 bytes from its
+ * text), decoded once, and written through a buffered writer as untouched segments interleaved
+ * with replacements, so no second copy of the content is ever built. Edits are applied in
+ * ascending order; among insertions at one offset the last one listed lands leftmost, matching the
+ * order a descending in-place application produced.
  */
 object WPatchApplier {
-    private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
-
     fun apply(patchDir: Path): ApplyResult {
         if (!Files.exists(patchDir)) return ApplyResult(emptyList())
 
         val patchFiles = Files.walk(patchDir).use { walk ->
-            walk.asSequence().filter { Files.isRegularFile(it) && it.fileName.toString() == PATCH_FILE_NAME }.toList()
+            walk
+                .asSequence()
+                .filter { Files.isRegularFile(it) && it.fileName.toString() == WPatchStore.PATCH_FILE_NAME }
+                .toList()
         }
 
         val results = mutableListOf<FileApplyResult>()
@@ -45,15 +38,17 @@ object WPatchApplier {
     }
 
     private fun applyToFile(filePath: Path, fileEdits: FileEdits): FileApplyResult {
-        if (!Files.exists(filePath)) {
-            return FileApplyResult.Skipped(filePath, "file not found")
-        }
+        val bytes =
+            try {
+                Files.readAllBytes(filePath)
+            } catch (_: NoSuchFileException) {
+                return FileApplyResult.Skipped(filePath, "file not found")
+            }
 
-        val content = Files.readString(filePath)
-        val currentHash = sha256(content)
-        if (currentHash != fileEdits.sourceHash) {
+        if (Sha256.ofBytes(bytes) != fileEdits.sourceHash) {
+            val content = String(bytes, Charsets.UTF_8)
             val reason =
-                if (sha256(content.replace("\r\n", "\n")) == fileEdits.sourceHash) {
+                if (Sha256.ofText(content.replace("\r\n", "\n")) == fileEdits.sourceHash) {
                     "source line endings differ from what the compiler analyzed (CRLF vs LF); re-run the build to refresh the patch"
                 } else {
                     "source changed since compilation"
@@ -61,40 +56,40 @@ object WPatchApplier {
             return FileApplyResult.Skipped(filePath, reason)
         }
 
-        val sorted = fileEdits.edits.sortedByDescending { it.startOffset }
-        for (i in 0 until sorted.size - 1) {
-            val current = sorted[i]
-            val next = sorted[i + 1]
-            if (next.endOffset > current.startOffset) {
+        val ascending = fileEdits.edits.asReversed().sortedWith(compareBy({ it.startOffset }, { it.endOffset }))
+        for (i in 0 until ascending.size - 1) {
+            val current = ascending[i]
+            val next = ascending[i + 1]
+            if (next.startOffset < current.endOffset) {
                 return FileApplyResult.Failed(
                     filePath,
-                    "overlapping edits at ${next.startOffset}..${next.endOffset} and ${current.startOffset}..${current.endOffset}",
+                    "overlapping edits at ${current.startOffset}..${current.endOffset} and ${next.startOffset}..${next.endOffset}",
                 )
             }
         }
 
-        val sb = StringBuilder(content)
-        for (edit in sorted) {
-            sb.replace(edit.startOffset, edit.endOffset, edit.replacement)
-        }
-
+        val content = String(bytes, Charsets.UTF_8)
         val tmpFile = filePath.resolveSibling(filePath.fileName.toString() + ".wrasse-tmp")
         try {
-            Files.writeString(tmpFile, sb.toString())
+            Files.newBufferedWriter(tmpFile).use { out ->
+                var position = 0
+                for (edit in ascending) {
+                    out.append(content, position, edit.startOffset)
+                    out.append(edit.replacement)
+                    position = edit.endOffset
+                }
+                out.append(content, position, content.length)
+            }
             Files.move(tmpFile, filePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } catch (e: Exception) {
             Files.deleteIfExists(tmpFile)
             throw e
         }
 
-        return FileApplyResult.Applied(filePath, sorted.size)
+        return FileApplyResult.Applied(filePath, ascending.size)
     }
 
-    fun sha256(content: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(content.toByteArray(Charsets.UTF_8))
-        return HexEncoding.lowerCase(hash)
-    }
+    fun sha256(content: String): String = Sha256.ofText(content)
 }
 
 fun main(args: Array<String>) {
