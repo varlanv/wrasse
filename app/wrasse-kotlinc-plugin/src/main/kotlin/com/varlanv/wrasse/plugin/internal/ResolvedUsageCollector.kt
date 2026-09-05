@@ -43,7 +43,11 @@ import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 
-private val CALL_SYNTAX_TYPES = setOf(KtNodeTypes.CALL_EXPRESSION, KtNodeTypes.DOT_QUALIFIED_EXPRESSION, KtNodeTypes.SAFE_ACCESS_EXPRESSION)
+private val CALL_SYNTAX_TYPES = setOf(
+    KtNodeTypes.CALL_EXPRESSION,
+    KtNodeTypes.DOT_QUALIFIED_EXPRESSION,
+    KtNodeTypes.SAFE_ACCESS_EXPRESSION,
+)
 
 object ResolvedUsageCollector {
     @OptIn(DirectDeclarationsAccess::class)
@@ -96,7 +100,10 @@ object ResolvedUsageCollector {
         }
     }
 
-    private class UsageVisitor(private val collectQualifiedUsages: Boolean, private val collectCallSites: Boolean) : FirVisitorVoid() {
+    private class UsageVisitor(
+        private val collectQualifiedUsages: Boolean,
+        private val collectCallSites: Boolean,
+    ) : FirVisitorVoid() {
         val classifiers = mutableSetOf<String>()
         val callables = mutableSetOf<WCallableUsage>()
         val qualifiedUsages = mutableListOf<WQualifiedUsage>()
@@ -118,12 +125,18 @@ object ResolvedUsageCollector {
             val argumentList = call.argumentList as? FirResolvedArgumentList ?: return
             val callSource = call.source ?: return
             if (callSource.kind !== KtRealSourceElementKind || callSource.elementType !in CALL_SYNTAX_TYPES) return
-            val symbol = (call.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirFunctionSymbol<*> ?: return
+            val symbol = (call.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirFunctionSymbol<*>
+                ?: return
             val arguments = ArrayList<WCallArgument>()
             for ((expression, parameter) in argumentList.mapping) {
                 val parameterName = parameter.name.asString()
                 if (expression is FirVarargArgumentsExpression) {
-                    for (element in expression.arguments) addArgument(arguments, element, parameterName, isVararg = true)
+                    for (element in expression.arguments) addArgument(
+                        arguments,
+                        element,
+                        parameterName,
+                        isVararg = true,
+                    )
                 } else {
                     addArgument(arguments, expression, parameterName, parameter.isVararg)
                 }
@@ -143,7 +156,12 @@ object ResolvedUsageCollector {
             )
         }
 
-        private fun addArgument(out: MutableList<WCallArgument>, expression: FirExpression, parameterName: String, isVararg: Boolean) {
+        private fun addArgument(
+            out: MutableList<WCallArgument>,
+            expression: FirExpression,
+            parameterName: String,
+            isVararg: Boolean,
+        ) {
             val value =
                 when (expression) {
                     is FirNamedArgumentExpression -> expression.expression

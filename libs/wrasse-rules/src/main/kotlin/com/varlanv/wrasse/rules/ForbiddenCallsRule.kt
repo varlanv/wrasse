@@ -19,14 +19,13 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 class ForbiddenCallsRule : WUninitializedRule {
     override val id: String = "forbidden-calls"
     override val requiresCallSites: Boolean = true
-    override val options: List<WRuleOptionSpec> =
-        listOf(
-            WRuleOptionSpec.Required(
-                name = CALLS,
-                type = WRuleOptionType.STRING_LIST_MAP,
-                description = "Forbidden callee names (pkg.Class.member, pkg.member, pkg.Class for constructors, trailing * for a prefix), each mapped to the file globs where it stays allowed",
-            ),
-        )
+    override val options: List<WRuleOptionSpec> = listOf(
+        WRuleOptionSpec.Required(
+            name = CALLS,
+            type = WRuleOptionType.STRING_LIST_MAP,
+            description = "Forbidden callee names (pkg.Class.member, pkg.member, pkg.Class for constructors, trailing * for a prefix), each mapped to the file globs where it stays allowed",
+        ),
+    )
 
     @Volatile
     private var compiled: Pair<WrasseRuleConfig, List<ForbiddenCallsDecision.ForbiddenCall>>? = null
@@ -49,7 +48,9 @@ class ForbiddenCallsRule : WUninitializedRule {
                 val messages = HashMap<Int, String>()
                 for (site in sites) {
                     val canonical = ForbiddenCallsDecision.canonicalName(site)
-                    if (active.any { it.matches(canonical) }) messages[site.callEndOffset] = ForbiddenCallsDecision.message(canonical)
+                    if (active.any { it.matches(canonical) }) {
+                        messages[site.callEndOffset] = ForbiddenCallsDecision.message(canonical)
+                    }
                 }
                 messagesByCallEnd = messages
             }

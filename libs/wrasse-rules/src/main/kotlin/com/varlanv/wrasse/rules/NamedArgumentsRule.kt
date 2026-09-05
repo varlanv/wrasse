@@ -25,27 +25,26 @@ class NamedArgumentsRule : WUninitializedRule {
     override val id: String = "named-arguments"
     override val canAutofix: Boolean = true
     override val requiresCallSites: Boolean = true
-    override val options: List<WRuleOptionSpec> =
-        listOf(
-            WRuleOptionSpec.Optional(
-                name = EXCLUDED_PACKAGES,
-                type = WRuleOptionType.STRING_LIST,
-                description = "Package prefixes whose callees never get named arguments",
-                default = WRuleOptionValue.StrList(listOf("java", "javax")),
-            ),
-            WRuleOptionSpec.Optional(
-                name = ALL_CALLS,
-                type = WRuleOptionType.BOOLEAN,
-                description = "Name the positional arguments of every call, not only of calls nesting other calls",
-                default = WRuleOptionValue.Bool(false),
-            ),
-            WRuleOptionSpec.Optional(
-                name = WRAP,
-                type = WRuleOptionType.BOOLEAN,
-                description = "With format enabled, also lay out every call nesting another call with arguments one argument per line",
-                default = WRuleOptionValue.Bool(true),
-            ),
-        )
+    override val options: List<WRuleOptionSpec> = listOf(
+        WRuleOptionSpec.Optional(
+            name = EXCLUDED_PACKAGES,
+            type = WRuleOptionType.STRING_LIST,
+            description = "Package prefixes whose callees never get named arguments",
+            default = WRuleOptionValue.StrList(listOf("java", "javax")),
+        ),
+        WRuleOptionSpec.Optional(
+            name = ALL_CALLS,
+            type = WRuleOptionType.BOOLEAN,
+            description = "Name the positional arguments of every call, not only of calls nesting other calls",
+            default = WRuleOptionValue.Bool(false),
+        ),
+        WRuleOptionSpec.Optional(
+            name = WRAP,
+            type = WRuleOptionType.BOOLEAN,
+            description = "With format enabled, also lay out every call nesting another call with arguments one argument per line",
+            default = WRuleOptionValue.Bool(true),
+        ),
+    )
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
@@ -82,7 +81,9 @@ class NamedArgumentsRule : WUninitializedRule {
                     if (children.type(i) != WNodeType.VALUE_ARGUMENT) continue
                     val start = children.startOffset(i)
                     val end = children.endOffset(i)
-                    written.add(WrittenArgument(start, end, MixedArgumentsDecision.isNamedArgument(ctx.sourceText, start, end)))
+                    written.add(
+                        WrittenArgument(start, end, MixedArgumentsDecision.isNamedArgument(ctx.sourceText, start, end)),
+                    )
                 }
                 val edits = NamedArgumentsDecision.nameEdits(site, written)
                 if (edits.isEmpty()) return

@@ -29,4 +29,9 @@ class WCallSite(
  * the rule). [parameterName] is the declared name of the parameter FIR mapped it to; [isVararg]
  * marks one element of a vararg parameter.
  */
-class WCallArgument(val startOffset: Int, val endOffset: Int, val parameterName: String, val isVararg: Boolean)
+class WCallArgument(
+    val startOffset: Int,
+    val endOffset: Int,
+    val parameterName: String,
+    val isVararg: Boolean,
+)

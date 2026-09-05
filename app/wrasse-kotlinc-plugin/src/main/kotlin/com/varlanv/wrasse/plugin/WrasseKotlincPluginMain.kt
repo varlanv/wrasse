@@ -66,9 +66,9 @@ import com.varlanv.wrasse.rules.MissingPackageDeclarationRule
 import com.varlanv.wrasse.rules.MixedArgumentsRule
 import com.varlanv.wrasse.rules.MixedConditionOperatorsRule
 import com.varlanv.wrasse.rules.ModifierEngine
+import com.varlanv.wrasse.rules.NamedArgumentsRule
 import com.varlanv.wrasse.rules.NestedClassesVisibilityRule
 import com.varlanv.wrasse.rules.NoConsecutiveCommentsRule
-import com.varlanv.wrasse.rules.NamedArgumentsRule
 import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
 import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
 import com.varlanv.wrasse.rules.NoSemicolonsRule

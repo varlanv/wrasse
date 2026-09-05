@@ -10,10 +10,10 @@ import com.varlanv.wrasse.lang.WPatchReader
 import com.varlanv.wrasse.lang.WPatchWriter
 import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
+import com.varlanv.wrasse.model.WCallSite
 import com.varlanv.wrasse.model.WCallableUsage
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFormatConfig
-import com.varlanv.wrasse.model.WCallSite
 import com.varlanv.wrasse.model.WQualifiedUsage
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WResolvedImport
@@ -103,7 +103,8 @@ class WrassePlugin(
         val ctx = WContext(filePath = filePath.toString(), configRelativeFilePath = configRelativePath)
         val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
         val needsCallSites = dumpResolvedUsage || ruleSet.requiresCallSites
-        if (resolvedUsage != null && (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages || needsCallSites)) {
+        if (resolvedUsage != null &&
+            (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages || needsCallSites)) {
             ctx.resolvedUsage = resolvedUsage(needsQualifiedUsages, needsCallSites)
         }
         val reporter = object : WReporter {
@@ -166,7 +167,9 @@ class WrassePlugin(
             .sortedWith(compareBy({ it.startOffset }, { it.endOffset }))
             .map(::dumpQualifiedUsage)
             .joinToString(prefix = "[", postfix = "]")
-        val calls = usage.callSites.sortedWith(compareBy({ it.callStartOffset }, { it.callEndOffset })).joinToString(prefix = "[", postfix = "]") { dumpCallSite(it) }
+        val calls = usage.callSites
+            .sortedWith(compareBy({ it.callStartOffset }, { it.callEndOffset }))
+            .joinToString(prefix = "[", postfix = "]") { dumpCallSite(it) }
         return "resolved-usage: classifiers=$classifiers callables=$callables imports=$imports qualified=$qualified calls=$calls errors=${usage.hasResolutionErrors}"
     }
 
@@ -174,7 +177,8 @@ class WrassePlugin(
         val owner = site.calleeClassFqName?.let { "$it/" } ?: "${site.calleePackageFqName}/"
         val stability = if (site.hasStableParameterNames) "stable" else "unstable"
         val arguments = site.arguments.joinToString(",") { argument ->
-            "${argument.startOffset}..${argument.endOffset}=" + argument.parameterName + (if (argument.isVararg) "*" else "")
+            "${argument.startOffset}..${argument.endOffset}=" + argument.parameterName +
+                (if (argument.isVararg) "*" else "")
         }
         return "${site.callStartOffset}..${site.callEndOffset}:$owner${site.calleeName}:$stability:[$arguments]"
     }

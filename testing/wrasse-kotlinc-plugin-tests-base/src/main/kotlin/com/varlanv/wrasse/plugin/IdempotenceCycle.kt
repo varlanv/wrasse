@@ -195,9 +195,7 @@ object IdempotenceCycle {
 
     private fun formatKeys(keys: List<String>): String = keys.joinToString("\n") { "  $it" }.ifEmpty { "  (none)" }
 
-    private fun formatDiagnostics(
-        diagnostics: List<TestDiagnostic>,
-    ): String = diagnostics
+    private fun formatDiagnostics(diagnostics: List<TestDiagnostic>): String = diagnostics
         .joinToString("\n") { "  ${it.severity} ${it.location?.line}:${it.location?.column} ${it.message}" }
         .ifEmpty { "  (none)" }
 }

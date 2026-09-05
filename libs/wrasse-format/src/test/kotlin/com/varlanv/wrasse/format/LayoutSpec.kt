@@ -152,8 +152,13 @@ class LayoutSpec : BaseSpec({
         Layout.render(doc, style) shouldBe "fun f(\n    a: A\n) = call(a)"
     }
 
-    should("a forced ARGUMENTS group breaks and forces argument lists nested through FLUID groups, not through a lambda") {
-        fun args(vararg items: Doc, force: Boolean = false): Doc {
+    should(
+        "a forced ARGUMENTS group breaks and forces argument lists nested through FLUID groups, not through a lambda",
+    ) {
+        fun args(
+            vararg items: Doc,
+            force: Boolean = false,
+        ): Doc {
             val interior = ArrayList<Doc>()
             interior.add(Doc.Break(BreakKind.SOFT, flat = ""))
             for ((i, item) in items.withIndex()) {
@@ -165,16 +170,38 @@ class LayoutSpec : BaseSpec({
             }
             interior.add(Doc.TrailingComma())
             return Doc.Group(
-                Doc.Concat(listOf(Doc.Text("("), Doc.Indent(Doc.Concat(interior)), Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text(")"))),
+                Doc.Concat(
+                    listOf(
+                        Doc.Text("("),
+                        Doc.Indent(Doc.Concat(interior)),
+                        Doc.Break(BreakKind.SOFT, flat = ""),
+                        Doc.Text(")"),
+                    ),
+                ),
                 GroupKind.ARGUMENTS,
                 forceBreak = force,
             )
         }
         val leaf = Doc.Concat(listOf(Doc.Text("b"), args(Doc.Text("1"))))
-        val named = Doc.Concat(listOf(Doc.Text("n ="), Doc.Group(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), leaf)), GroupKind.FLUID, indentWhenBroken = true)))
-        val lambda = Doc.Group(Doc.Concat(listOf(Doc.Text("{ "), Doc.Text("c"), args(Doc.Text("2")), Doc.Text(" }"))), GroupKind.LAMBDA)
+        val named = Doc.Concat(
+            listOf(
+                Doc.Text("n ="),
+                Doc.Group(
+                    Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), leaf)),
+                    GroupKind.FLUID,
+                    indentWhenBroken = true,
+                ),
+            ),
+        )
+        val lambda = Doc.Group(
+            Doc.Concat(listOf(Doc.Text("{ "), Doc.Text("c"), args(Doc.Text("2")), Doc.Text(" }"))),
+            GroupKind.LAMBDA,
+        )
         val doc = Doc.Concat(listOf(Doc.Text("a"), args(named, lambda, force = true)))
-        Layout.render(doc, FormatStyle(indentWidth = 4, maxLineLength = 80)) shouldBe "a(\n    n = b(\n        1,\n    ),\n    { c(2) },\n)"
+        Layout.render(
+            doc,
+            FormatStyle(indentWidth = 4, maxLineLength = 80),
+        ) shouldBe "a(\n    n = b(\n        1,\n    ),\n    { c(2) },\n)"
     }
 
     should("decide nested groups independently once the outer group's mode is known") {

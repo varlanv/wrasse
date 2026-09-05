@@ -13,11 +13,25 @@ object Layout {
      * rendered in [mode], then whatever [outer] holds. Measured lazily by [tailWidth], so a group
      * deciding its fit can account for where that tail would start.
      */
-    private class Tail(val parts: List<Doc>, var from: Int, val mode: Mode, val outer: Tail?)
+    private class Tail(
+        val parts: List<Doc>,
+        var from: Int,
+        val mode: Mode,
+        val outer: Tail?,
+    )
 
     fun render(doc: Doc, style: FormatStyle): String {
         val sb = StringBuilder()
-        renderNode(sb, doc, indentDepth = 0, column = 0, mode = Mode.BROKEN, style = style, tail = null, forceArguments = false)
+        renderNode(
+            sb,
+            doc,
+            indentDepth = 0,
+            column = 0,
+            mode = Mode.BROKEN,
+            style = style,
+            tail = null,
+            forceArguments = false,
+        )
         return sb.toString()
     }
 
@@ -70,7 +84,8 @@ object Layout {
 
             is Doc.Group -> {
                 val forced = doc.kind == GroupKind.ARGUMENTS && (doc.forceBreak || forceArguments)
-                val chosenMode = if (!forced && groupFits(doc, indentDepth, column, style, tail)) Mode.FLAT else Mode.BROKEN
+                val chosenMode =
+                    if (!forced && groupFits(doc, indentDepth, column, style, tail)) Mode.FLAT else Mode.BROKEN
                 val bodyDepth = if (doc.indentWhenBroken && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
                 val bodyForce =
                     when (doc.kind) {
@@ -105,7 +120,8 @@ object Layout {
             GroupKind.FLUID -> {
                 val acc = IntArray(1)
                 val complete = measureFluid(group.body, acc, nested = false)
-                val rest = if (complete) tailWidth(tail, column + acc[0], brokenEnd(group, indentDepth, style), style) else 0
+                val rest =
+                    if (complete) tailWidth(tail, column + acc[0], brokenEnd(group, indentDepth, style), style) else 0
                 column + acc[0] + rest <= max
             }
 
@@ -125,13 +141,22 @@ object Layout {
                 when (outcome) {
                     MEASURE_FORCED -> false
                     MEASURE_ENDED -> column + acc[0] <= max
-                    else -> column + acc[0] + tailWidth(tail, column + acc[0], brokenEnd(group, indentDepth, style), style) <= max
+                    else -> column + acc[0] + tailWidth(
+                        tail,
+                        column + acc[0],
+                        brokenEnd(group, indentDepth, style),
+                        style,
+                    ) <= max
                 }
             }
         }
     }
 
-    private fun brokenEnd(group: Doc.Group, indentDepth: Int, style: FormatStyle): Int =
+    private fun brokenEnd(
+        group: Doc.Group,
+        indentDepth: Int,
+        style: FormatStyle,
+    ): Int =
         indentDepth * style.indentWidth + lastLineWidth(group.body)
 
     /**
@@ -153,7 +178,9 @@ object Layout {
         while (current != null) {
             for (i in current.from until current.parts.size) {
                 val part = current.parts[i]
-                if (part is Doc.Break || !measureTail(part, acc, current.mode, afterColumn, brokenEnd, style)) return acc[0]
+                if (part is Doc.Break || !measureTail(part, acc, current.mode, afterColumn, brokenEnd, style)) {
+                    return acc[0]
+                }
             }
             current = current.outer
         }
@@ -201,7 +228,9 @@ object Layout {
         style: FormatStyle,
     ): Boolean {
         val width = flatWidth(lambda.body)
-        if (width >= 0 && (afterColumn + acc[0] + width <= style.maxLineLength || brokenEnd + acc[0] + width <= style.maxLineLength)) {
+        if (width >= 0 &&
+            (afterColumn + acc[0] + width <= style.maxLineLength ||
+                brokenEnd + acc[0] + width <= style.maxLineLength)) {
             acc[0] += width
             return true
         }
@@ -352,7 +381,11 @@ object Layout {
                 }
         }
 
-    private fun appendIndent(sb: StringBuilder, indentDepth: Int, style: FormatStyle): Int {
+    private fun appendIndent(
+        sb: StringBuilder,
+        indentDepth: Int,
+        style: FormatStyle,
+    ): Int {
         val width = indentDepth * style.indentWidth
         var remaining = width
         while (remaining > 0) {

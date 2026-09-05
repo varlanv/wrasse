@@ -27,7 +27,9 @@ object NamedArgumentsDecision {
         val inScope = HashSet<Int>()
         val pending = ArrayDeque<WCallSite>()
         for (site in callSites) {
-            if (nestedCallArguments(site, byCallSpan).isNotEmpty() && inScope.add(site.callEndOffset)) pending.addLast(site)
+            if (nestedCallArguments(site, byCallSpan).isNotEmpty() && inScope.add(site.callEndOffset)) {
+                pending.addLast(site)
+            }
         }
         while (pending.isNotEmpty()) {
             val site = pending.removeFirst()
@@ -49,7 +51,7 @@ object NamedArgumentsDecision {
         return result ?: emptyList()
     }
 
-    private fun spanKey(start: Int, end: Int): Long = (start.toLong() shl 32) or (end.toLong() and 0xFFFFFFFFL)
+    private fun spanKey(start: Int, end: Int): Long = (start.toLong() shl 32) or (end.toLong() and 0xFF_FFF_FFFL)
 
     fun isExcludedCallee(site: WCallSite, excludedPackages: List<String>): Boolean {
         if (!site.hasStableParameterNames) return true
@@ -61,7 +63,9 @@ object NamedArgumentsDecision {
     }
 
     private fun isFunctionTypeClass(classFqName: String): Boolean =
-        classFqName.startsWith("kotlin.Function") ||
+        classFqName.startsWith(
+            "kotlin.Function",
+        ) ||
             classFqName.startsWith("kotlin.jvm.functions.Function") ||
             classFqName.startsWith("kotlin.coroutines.SuspendFunction") ||
             classFqName.startsWith("kotlin.reflect.KFunction")
@@ -70,7 +74,9 @@ object NamedArgumentsDecision {
         var edits: MutableList<WEdit>? = null
         for (argument in written) {
             if (argument.isNamed) continue
-            val mapped = site.arguments.firstOrNull { it.startOffset >= argument.startOffset && it.endOffset <= argument.endOffset } ?: continue
+            val mapped = site.arguments.firstOrNull {
+                it.startOffset >= argument.startOffset && it.endOffset <= argument.endOffset
+            } ?: continue
             if (mapped.isVararg) continue
             if (edits == null) edits = ArrayList(written.size)
             edits.add(WEdit(argument.startOffset, argument.startOffset, "${mapped.parameterName} = "))
@@ -80,4 +86,8 @@ object NamedArgumentsDecision {
 }
 
 /** One argument as written inside a call's parentheses: its span and whether it already carries a `name =`. */
-class WrittenArgument(val startOffset: Int, val endOffset: Int, val isNamed: Boolean)
+class WrittenArgument(
+    val startOffset: Int,
+    val endOffset: Int,
+    val isNamed: Boolean,
+)

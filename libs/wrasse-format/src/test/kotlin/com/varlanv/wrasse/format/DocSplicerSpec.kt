@@ -16,15 +16,29 @@ class DocSplicerSpec : BaseSpec({
         val value = Doc.Concat(
             listOf(
                 Doc.Text("when {", 12, 18),
-                Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.HARD, "\n", start = 18, end = 19), Doc.Text("else -> 1", 19, 28)), 18, 28)),
+                Doc.Indent(
+                    Doc.Concat(
+                        listOf(Doc.Break(BreakKind.HARD, "\n", start = 18, end = 19), Doc.Text("else -> 1", 19, 28)),
+                        18,
+                        28,
+                    ),
+                ),
                 Doc.Break(BreakKind.HARD, "\n", start = 28, end = 29),
                 Doc.Text("}", 29, 30),
             ),
             12,
             30,
         )
-        val fluid = Doc.Group(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT, start = 11, end = 12), value), 11, 30), GroupKind.FLUID, indentWhenBroken = true)
-        val doc = Doc.Concat(listOf(Doc.Text("fun f(): Int", 0, 9), Doc.Text(" ", 9, 10), Doc.Text("=", 10, 11), fluid), 0, 30)
+        val fluid = Doc.Group(
+            Doc.Concat(listOf(Doc.Break(BreakKind.SOFT, start = 11, end = 12), value), 11, 30),
+            GroupKind.FLUID,
+            indentWhenBroken = true,
+        )
+        val doc = Doc.Concat(
+            listOf(Doc.Text("fun f(): Int", 0, 9), Doc.Text(" ", 9, 10), Doc.Text("=", 10, 11), fluid),
+            0,
+            30,
+        )
         val edits = listOf(
             WEdit(9, 12, " {\nreturn ", indentScope = IndentScope.OPEN),
             WEdit(30, 30, "\n}", indentScope = IndentScope.CLOSE),

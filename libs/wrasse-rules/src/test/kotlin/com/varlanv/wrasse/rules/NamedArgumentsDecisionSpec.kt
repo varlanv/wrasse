@@ -7,7 +7,12 @@ import io.kotest.matchers.shouldBe
 
 class NamedArgumentsDecisionSpec : BaseSpec({
 
-    fun argument(start: Int, end: Int, name: String, vararg: Boolean = false) = WCallArgument(start, end, name, vararg)
+    fun argument(
+        start: Int,
+        end: Int,
+        name: String,
+        vararg: Boolean = false,
+    ) = WCallArgument(start, end, name, vararg)
 
     fun site(
         callStart: Int,
@@ -25,7 +30,10 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         val middle = site(callStart = 5, callEnd = 19, listStart = 8, arguments = listOf(argument(10, 18, "m")))
         val outer = site(callStart = 0, callEnd = 20, listStart = 3, arguments = listOf(argument(5, 19, "o")))
         val flat = site(callStart = 30, callEnd = 40, listStart = 33)
-        NamedArgumentsDecision.callsInScope(listOf(flat, outer, inner, middle), allCalls = false) shouldBe setOf(20, 19, 18)
+        NamedArgumentsDecision.callsInScope(
+            listOf(flat, outer, inner, middle),
+            allCalls = false,
+        ) shouldBe setOf(20, 19, 18)
     }
 
     should("put every call in scope with all-calls") {
@@ -35,16 +43,31 @@ class NamedArgumentsDecisionSpec : BaseSpec({
 
     should("exclude java and javax callees by package prefix, whole segments only") {
         NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "java.util"), listOf("java", "javax")) shouldBe true
-        NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "javax.swing"), listOf("java", "javax")) shouldBe true
+        NamedArgumentsDecision.isExcludedCallee(
+            site(0, 5, 1, pkg = "javax.swing"),
+            listOf("java", "javax"),
+        ) shouldBe true
         NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "java"), listOf("java", "javax")) shouldBe true
-        NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "javaland.util"), listOf("java", "javax")) shouldBe false
-        NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "kotlin.collections"), listOf("java", "javax")) shouldBe false
+        NamedArgumentsDecision.isExcludedCallee(
+            site(0, 5, 1, pkg = "javaland.util"),
+            listOf("java", "javax"),
+        ) shouldBe false
+        NamedArgumentsDecision.isExcludedCallee(
+            site(0, 5, 1, pkg = "kotlin.collections"),
+            listOf("java", "javax"),
+        ) shouldBe false
     }
 
     should("exclude a callee without stable parameter names and a function type's invoke") {
         NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, stable = false), emptyList()) shouldBe true
-        NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "kotlin", cls = "kotlin.Function2", name = "invoke"), emptyList()) shouldBe true
-        NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "kotlin", cls = "kotlin.Pair", name = "invoke"), emptyList()) shouldBe false
+        NamedArgumentsDecision.isExcludedCallee(
+            site(0, 5, 1, pkg = "kotlin", cls = "kotlin.Function2", name = "invoke"),
+            emptyList(),
+        ) shouldBe true
+        NamedArgumentsDecision.isExcludedCallee(
+            site(0, 5, 1, pkg = "kotlin", cls = "kotlin.Pair", name = "invoke"),
+            emptyList(),
+        ) shouldBe false
     }
 
     should("insert names before written arguments that are positional and map to a non-vararg parameter") {

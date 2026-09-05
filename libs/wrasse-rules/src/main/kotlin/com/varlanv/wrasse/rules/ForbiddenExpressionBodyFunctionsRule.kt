@@ -42,7 +42,11 @@ class ForbiddenExpressionBodyFunctionsRule : WUninitializedRule {
                 reporter.report(ruleId, ForbiddenExpressionBodyDecision.MESSAGE, eqStart, eqEnd, this, edits = edits)
             }
 
-            private fun fixEdits(ctx: WContext, children: ChildBuffer, eqIdx: Int): List<WEdit> {
+            private fun fixEdits(
+                ctx: WContext,
+                children: ChildBuffer,
+                eqIdx: Int,
+            ): List<WEdit> {
                 val typeIdx = returnTypeIndex(children, eqIdx)
                 if (typeIdx < 0) return emptyList()
                 var bodyIdx = eqIdx + 1
@@ -78,7 +82,11 @@ class ForbiddenExpressionBodyFunctionsRule : WUninitializedRule {
                 return if (i < eqIdx) i else -1
             }
 
-            private fun hasNewline(source: CharSequence, start: Int, end: Int): Boolean {
+            private fun hasNewline(
+                source: CharSequence,
+                start: Int,
+                end: Int,
+            ): Boolean {
                 for (i in start until end) if (source[i] == '\n') return true
                 return false
             }

@@ -6,7 +6,11 @@ package com.varlanv.wrasse.rules
  * `==`); [mixesNamedAndPositional] is true when a list has at least one argument of each kind.
  */
 object MixedArgumentsDecision {
-    fun isNamedArgument(sourceText: CharSequence, start: Int, end: Int): Boolean {
+    fun isNamedArgument(
+        sourceText: CharSequence,
+        start: Int,
+        end: Int,
+    ): Boolean {
         var i = start
         while (i < end && sourceText[i].isWhitespace()) i++
         if (i >= end) return false

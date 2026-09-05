@@ -25,12 +25,39 @@ class ForbiddenExpressionBodyDecisionSpec : BaseSpec({
     }
 
     should("omit the return prefix for a declared Unit type or a throw body") {
-        ForbiddenExpressionBodyDecision.edits(0, 3, 9, returnsUnit = true, bodyIsThrow = false, formatEnabled = false, baseIndentColumn = 0, indentWidth = 4)[0].replacement shouldBe " {\n    "
-        ForbiddenExpressionBodyDecision.edits(0, 3, 9, returnsUnit = false, bodyIsThrow = true, formatEnabled = false, baseIndentColumn = 0, indentWidth = 4)[0].replacement shouldBe " {\n    "
+        ForbiddenExpressionBodyDecision.edits(
+            0,
+            3,
+            9,
+            returnsUnit = true,
+            bodyIsThrow = false,
+            formatEnabled = false,
+            baseIndentColumn = 0,
+            indentWidth = 4,
+        )[0].replacement shouldBe " {\n    "
+        ForbiddenExpressionBodyDecision.edits(
+            0,
+            3,
+            9,
+            returnsUnit = false,
+            bodyIsThrow = true,
+            formatEnabled = false,
+            baseIndentColumn = 0,
+            indentWidth = 4,
+        )[0].replacement shouldBe " {\n    "
     }
 
     should("emit indent-scoped, unindented edits with format on") {
-        val edits = ForbiddenExpressionBodyDecision.edits(20, 23, 30, returnsUnit = false, bodyIsThrow = false, formatEnabled = true, baseIndentColumn = 4, indentWidth = 4)
+        val edits = ForbiddenExpressionBodyDecision.edits(
+            20,
+            23,
+            30,
+            returnsUnit = false,
+            bodyIsThrow = false,
+            formatEnabled = true,
+            baseIndentColumn = 4,
+            indentWidth = 4,
+        )
         render(edits) shouldBe listOf(Triple(20, 23, " {\nreturn "), Triple(30, 30, "\n}"))
         edits.map { it.indentScope } shouldBe listOf(IndentScope.OPEN, IndentScope.CLOSE)
     }

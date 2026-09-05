@@ -31,10 +31,7 @@ object ForbiddenExpressionBodyDecision {
         }
         val bodyIndent = " ".repeat(baseIndentColumn + indentWidth)
         val closeIndent = " ".repeat(baseIndentColumn)
-        return listOf(
-            WEdit(gapStart, bodyStart, " {\n$bodyIndent$prefix"),
-            WEdit(bodyEnd, bodyEnd, "\n$closeIndent}"),
-        )
+        return listOf(WEdit(gapStart, bodyStart, " {\n$bodyIndent$prefix"), WEdit(bodyEnd, bodyEnd, "\n$closeIndent}"))
     }
 
     fun isUnitTypeText(text: CharSequence): Boolean {

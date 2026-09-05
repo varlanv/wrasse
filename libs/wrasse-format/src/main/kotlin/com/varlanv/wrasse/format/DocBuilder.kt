@@ -932,8 +932,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     private fun firstNonCommentEntry(
         children: List<ChildEntry>,
         fromIdx: Int,
-    ): ChildEntry? = (fromIdx until
-        children.size)
+    ): ChildEntry? = (fromIdx until children.size)
         .asSequence()
         .map { children[it] }
         .firstOrNull { it.type != WNodeType.WHITE_SPACE && it.type !in COMMENT_TYPES }
@@ -1145,7 +1144,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val opIdx = children.indexOfFirst { it.type == WNodeType.DOT || it.type == WNodeType.SAFE_ACCESS }
         if (opIdx < 0) return Doc.Concat(children.map { resolveEntry(it) }, start, end)
         val receiverEntry = children.first { it.type != WNodeType.WHITE_SPACE }
-        frame.endsWithCallWithArguments = isCallWithArgumentsEntry(children.lastOrNull { it.type != WNodeType.WHITE_SPACE })
+        frame.endsWithCallWithArguments =
+            isCallWithArgumentsEntry(children.lastOrNull { it.type != WNodeType.WHITE_SPACE })
         frame.chainHeadIsRawString =
             receiverEntry.type == WNodeType.STRING_TEMPLATE ||
             (receiverEntry is ChildEntry.Resolved &&
@@ -1501,14 +1501,16 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         start: Int,
         end: Int,
     ): Doc {
-        frame.isCallWithArguments = frame.children.any { it is ChildEntry.Resolved && it.type == WNodeType.VALUE_ARGUMENT_LIST && it.hasArguments }
+        frame.isCallWithArguments = frame.children.any {
+            it is ChildEntry.Resolved && it.type == WNodeType.VALUE_ARGUMENT_LIST && it.hasArguments
+        }
         return resolveBraceFrame(frame, start, end)
     }
 
     private fun isCallWithArgumentsEntry(entry: ChildEntry?): Boolean =
         entry is ChildEntry.Resolved &&
-            ((entry.type == WNodeType.CALL_EXPRESSION && entry.isCallWithArguments) ||
-                (entry.type in CHAIN_LINK_TYPES && entry.endsWithCallWithArguments))
+            ((entry.type == WNodeType.CALL_EXPRESSION &&
+                entry.isCallWithArguments) || (entry.type in CHAIN_LINK_TYPES && entry.endsWithCallWithArguments))
 
     private fun resolveValueArgumentFrame(
         frame: Frame,

@@ -32,15 +32,30 @@ class WConfigSpec : BaseSpec({
     }
 
     should("derive wrapNestedCallArguments from named-arguments being on with wrap left at its default") {
-        val specs = mapOf("named-arguments" to listOf(WRuleOptionSpec.Optional("wrap", WRuleOptionType.BOOLEAN, "", WRuleOptionValue.Bool(true))))
-        fun style(json: String) = WConfig
-            .from(configValue = ConfigValueJsonc.parse(json).getOrThrow(), ruleIds = setOf("named-arguments", "no-semicolons"), warnOnly = false, ruleOptionSpecs = specs)
+        val specs = mapOf(
+            "named-arguments" to
+                listOf(WRuleOptionSpec.Optional("wrap", WRuleOptionType.BOOLEAN, "", WRuleOptionValue.Bool(true))),
+        )
+
+        fun style(
+            json: String,
+        ) = WConfig
+            .from(
+                configValue = ConfigValueJsonc.parse(json).getOrThrow(),
+                ruleIds = setOf("named-arguments", "no-semicolons"),
+                warnOnly = false,
+                ruleOptionSpecs = specs,
+            )
             .getOrThrow()
             .format
             .style
         style("""{"format":{},"rules":{"named-arguments":{"level":"error"}}}""").wrapNestedCallArguments shouldBe true
-        style("""{"format":{},"rules":{"named-arguments":{"level":"error","wrap":false}}}""").wrapNestedCallArguments shouldBe false
-        style("""{"format":{},"rules":{"named-arguments":{"level":"off","wrap":true}}}""").wrapNestedCallArguments shouldBe false
+        style(
+            """{"format":{},"rules":{"named-arguments":{"level":"error","wrap":false}}}""",
+        ).wrapNestedCallArguments shouldBe false
+        style(
+            """{"format":{},"rules":{"named-arguments":{"level":"off","wrap":true}}}""",
+        ).wrapNestedCallArguments shouldBe false
         style("""{"format":{},"rules":{"no-semicolons":{"level":"error"}}}""").wrapNestedCallArguments shouldBe false
     }
 
@@ -150,29 +165,47 @@ class WConfigSpec : BaseSpec({
     }
 
     should("parse a map-of-string-arrays option and reject a map holding anything else") {
-        val ok = WConfig.from(
-            configValue = ConfigValueJsonc.parse("""{"rules":{"forbidden-calls":{"level":"error","calls":{"a.b":["**/X.kt"],"c.*":[]}}}}""").getOrThrow(),
-            ruleIds = setOf("forbidden-calls"),
-            warnOnly = false,
-            ruleOptionSpecs = optionSpecs,
-        ).getOrThrow()
-        ok.rulesConfigs.idToConfig.getValue("forbidden-calls").options.stringListMap("calls") shouldBe mapOf("a.b" to listOf("**/X.kt"), "c.*" to emptyList())
+        val ok = WConfig
+            .from(
+                configValue = ConfigValueJsonc
+                    .parse("""{"rules":{"forbidden-calls":{"level":"error","calls":{"a.b":["**/X.kt"],"c.*":[]}}}}""")
+                    .getOrThrow(),
+                ruleIds = setOf("forbidden-calls"),
+                warnOnly = false,
+                ruleOptionSpecs = optionSpecs,
+            )
+            .getOrThrow()
+        ok.rulesConfigs.idToConfig
+            .getValue("forbidden-calls")
+            .options
+            .stringListMap("calls") shouldBe mapOf("a.b" to listOf("**/X.kt"), "c.*" to emptyList())
         val bad = WConfig.from(
-            configValue = ConfigValueJsonc.parse("""{"rules":{"forbidden-calls":{"level":"error","calls":{"a.b":"X.kt"}}}}""").getOrThrow(),
+            configValue = ConfigValueJsonc
+                .parse("""{"rules":{"forbidden-calls":{"level":"error","calls":{"a.b":"X.kt"}}}}""")
+                .getOrThrow(),
             ruleIds = setOf("forbidden-calls"),
             warnOnly = false,
             ruleOptionSpecs = optionSpecs,
         )
-        bad.exceptionOrNull()?.message shouldBe "Option 'calls' for rule 'forbidden-calls' must be a map of string arrays, got object"
+        bad
+            .exceptionOrNull()
+            ?.message shouldBe "Option 'calls' for rule 'forbidden-calls' must be a map of string arrays, got object"
     }
 
     should("refuse function-expression-body and forbidden-expression-body-functions on together") {
         val result = WConfig.from(
-            configValue = ConfigValueJsonc.parse("""{"rules":{"function-expression-body":{"level":"error"},"forbidden-expression-body-functions":{"level":"warn"}}}""").getOrThrow(),
+            configValue = ConfigValueJsonc
+                .parse(
+                    """{"rules":{"function-expression-body":{"level":"error"},"forbidden-expression-body-functions":{"level":"warn"}}}""",
+                )
+                .getOrThrow(),
             ruleIds = setOf("function-expression-body", "forbidden-expression-body-functions"),
             warnOnly = false,
         )
-        result.exceptionOrNull()?.message shouldBe "Rules 'function-expression-body' and 'forbidden-expression-body-functions' cannot both be on"
+        result
+            .exceptionOrNull()
+            ?.message shouldBe
+            "Rules 'function-expression-body' and 'forbidden-expression-body-functions' cannot both be on"
     }
 
     should("fail with the full message when a required option is missing") {

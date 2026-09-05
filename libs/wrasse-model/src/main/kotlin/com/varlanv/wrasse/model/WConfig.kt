@@ -155,7 +155,9 @@ class WConfig(
             val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
             if (isOn(raw, FUNCTION_EXPRESSION_BODY_RULE_ID) && isOn(raw, FORBIDDEN_EXPRESSION_BODY_RULE_ID)) {
                 return Result.failure(
-                    Exception("Rules '$FUNCTION_EXPRESSION_BODY_RULE_ID' and '$FORBIDDEN_EXPRESSION_BODY_RULE_ID' cannot both be on"),
+                    Exception(
+                        "Rules '$FUNCTION_EXPRESSION_BODY_RULE_ID' and '$FORBIDDEN_EXPRESSION_BODY_RULE_ID' cannot both be on",
+                    ),
                 )
             }
 
@@ -246,7 +248,10 @@ class WConfig(
             return WRuleOptionValue.StrListMap(result)
         }
 
-        private fun isOn(raw: RawConfig, ruleId: String): Boolean = (raw.rules[ruleId]?.level ?: RuleLevel.OFF) != RuleLevel.OFF
+        private fun isOn(
+            raw: RawConfig,
+            ruleId: String,
+        ): Boolean = (raw.rules[ruleId]?.level ?: RuleLevel.OFF) != RuleLevel.OFF
 
         private fun wrapNestedCallArguments(raw: RawConfig): Boolean {
             val rule = raw.rules[NAMED_ARGUMENTS_RULE_ID] ?: return false

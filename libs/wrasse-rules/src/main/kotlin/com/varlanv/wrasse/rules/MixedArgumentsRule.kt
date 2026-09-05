@@ -32,7 +32,11 @@ class MixedArgumentsRule : WUninitializedRule {
                 var positional = 0
                 for (i in 0 until children.size) {
                     if (children.type(i) != WNodeType.VALUE_ARGUMENT) continue
-                    if (MixedArgumentsDecision.isNamedArgument(ctx.sourceText, children.startOffset(i), children.endOffset(i))) {
+                    if (MixedArgumentsDecision.isNamedArgument(
+                        ctx.sourceText,
+                        children.startOffset(i),
+                        children.endOffset(i),
+                    )) {
                         named++
                     } else {
                         positional++

@@ -69,7 +69,9 @@ class WRuleOptions(private val values: Map<String, WRuleOptionValue>) {
 
     fun stringListMap(name: String): Map<String, List<String>> = stringListMapOrNull(name) ?: missing(name)
 
-    fun stringListMapOrNull(name: String): Map<String, List<String>>? = (values[name] as WRuleOptionValue.StrListMap?)?.value
+    fun stringListMapOrNull(
+        name: String,
+    ): Map<String, List<String>>? = (values[name] as WRuleOptionValue.StrListMap?)?.value
 
     private fun missing(name: String): Nothing = throw IllegalStateException("Rule option '$name' is not set")
 
