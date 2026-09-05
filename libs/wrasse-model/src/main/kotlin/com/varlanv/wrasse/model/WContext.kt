@@ -64,6 +64,14 @@ class WContext(
 
     private var leafTextCache: CharSequence? = null
 
+    /** [leafText] as a `String`, copied once per event; for rules that keep or compare the text as a `String` anyway. */
+    fun leafString(): String? {
+        if (!isLeaf) return null
+        val cached = leafTextCache
+        if (cached is String) return cached
+        return sourceText.subSequence(startOffset, endOffset).toString().also { leafTextCache = it }
+    }
+
     /** Marks the current event as a leaf token whose text is [startOffset]..[endOffset] of [sourceText]. */
     fun enterLeaf() {
         isLeaf = true

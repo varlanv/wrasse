@@ -71,7 +71,7 @@ class TrivialAccessorsRule : WUninitializedRule {
                     ctx.type == WNodeType.IDENTIFIER &&
                         pending.paramName == null &&
                         ctx.ancestors.peekType() == WNodeType.VALUE_PARAMETER ->
-                        pending.paramName = ctx.leafText?.toString()
+                        pending.paramName = ctx.leafString()
                     else -> {}
                 }
             }

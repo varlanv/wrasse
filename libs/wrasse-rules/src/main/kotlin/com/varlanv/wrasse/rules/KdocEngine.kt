@@ -97,7 +97,7 @@ class KdocEngine : WUninitializedRuleGroup {
                     ctx.ancestors.peekType() ==
                     WNodeType.CLASS
                 ) {
-                    pendingClassNames[pendingClassNames.size - 1] = IdentifierCasing.unquote(ctx.leafText!!)
+                    pendingClassNames[pendingClassNames.size - 1] = IdentifierCasing.unquote(ctx.leafString()!!)
                 }
             }
 

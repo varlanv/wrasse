@@ -71,7 +71,7 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
                         if (pending != null && ancestors.peekType() == WNodeType.FUN && pending.nameStart < 0) {
                             pending.nameStart = ctx.startOffset
                             pending.nameEnd = ctx.endOffset
-                            pending.functionName = IdentifierCasing.unquote(ctx.leafText ?: "")
+                            pending.functionName = IdentifierCasing.unquote(ctx.leafString() ?: "")
                         }
                     }
 

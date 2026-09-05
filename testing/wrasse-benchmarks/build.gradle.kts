@@ -22,4 +22,5 @@ jmh {
     timeOnIteration = "1s"
     benchmarkMode.add("avgt")
     timeUnit = "ms"
+    profilers.add("gc")
 }

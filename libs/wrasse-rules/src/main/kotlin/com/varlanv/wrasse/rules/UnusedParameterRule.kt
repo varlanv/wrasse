@@ -93,7 +93,7 @@ class UnusedParameterRule : WUninitializedRule {
                 if (ancestors.peekType() == WNodeType.FUN && pendingFuns.isNotEmpty()) {
                     val pending = pendingFuns.last()
                     if (pending.functionName == null) {
-                        pending.functionName = IdentifierCasing.unquote(ctx.leafText ?: "")
+                        pending.functionName = IdentifierCasing.unquote(ctx.leafString() ?: "")
                     }
                     return
                 }
@@ -107,7 +107,7 @@ class UnusedParameterRule : WUninitializedRule {
                     WNodeType.FUN
                 ) {
                     val pending = pendingFuns.lastOrNull() ?: return
-                    val name = IdentifierCasing.unquote(ctx.leafText ?: "")
+                    val name = IdentifierCasing.unquote(ctx.leafString() ?: "")
                     if (name !in pending.params) pending.params[name] = intArrayOf(ctx.startOffset, ctx.endOffset)
                     return
                 }
@@ -119,7 +119,7 @@ class UnusedParameterRule : WUninitializedRule {
                     ancestors.typeAt(ancestors.size - 2) ==
                     WNodeType.BLOCK
                 if (isUsage || isLocalShadow) {
-                    val name = IdentifierCasing.unquote(ctx.leafText ?: "")
+                    val name = IdentifierCasing.unquote(ctx.leafString() ?: "")
                     for (frame in pendingFuns) frame.params.remove(name)
                 }
             }

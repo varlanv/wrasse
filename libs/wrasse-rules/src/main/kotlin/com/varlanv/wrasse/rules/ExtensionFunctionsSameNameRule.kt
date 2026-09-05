@@ -55,7 +55,7 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
                         val frame = classFrames.lastOrNull()
                         if (frame != null && !frame.nameCaptured) {
                             frame.nameCaptured = true
-                            frame.name = IdentifierCasing.unquote(ctx.leafText ?: "")
+                            frame.name = IdentifierCasing.unquote(ctx.leafString() ?: "")
                         }
                     }
 
@@ -65,7 +65,7 @@ class ExtensionFunctionsSameNameRule : WUninitializedRule {
                     ctx.type == WNodeType.IDENTIFIER &&
                         ancestors.peekType() == WNodeType.VALUE_PARAMETER -> paramListFrames
                         .lastOrNull()
-                        ?.add(IdentifierCasing.unquote(ctx.leafText ?: ""))
+                        ?.add(IdentifierCasing.unquote(ctx.leafString() ?: ""))
 
                     else -> {}
                 }

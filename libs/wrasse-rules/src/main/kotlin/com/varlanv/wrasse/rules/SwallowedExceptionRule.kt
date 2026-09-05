@@ -60,7 +60,7 @@ class SwallowedExceptionRule : WUninitializedRule {
                 }
                 val pending = pendingCatches.lastOrNull() ?: return
                 val name = pending.name ?: return
-                val text = IdentifierCasing.unquote(ctx.leafText ?: "")
+                val text = IdentifierCasing.unquote(ctx.leafString() ?: "")
                 if (SwallowedExceptionDecision.isUsageText(text, name)) pending.used = true
             }
 

@@ -50,7 +50,7 @@ class GetterSetterFieldsRule : WUninitializedRule {
                 if (ctx.type != WNodeType.IDENTIFIER) return
                 val ancestors = ctx.ancestors
                 val parentType = ancestors.peekType()
-                val text = IdentifierCasing.unquote(ctx.leafText ?: "")
+                val text = IdentifierCasing.unquote(ctx.leafString() ?: "")
 
                 if (parentType == WNodeType.PROPERTY) {
                     val property = propertyFrames.lastOrNull()

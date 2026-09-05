@@ -34,7 +34,7 @@ import org.jetbrains.kotlin.KtLightSourceElement
 
 private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
 private const val NO_AUTOFIX_MARKER = " (no autofix for this shape)"
-private const val HASH_CHUNK_BYTES = 8192
+private const val HASH_CHUNK_BYTES = 8_192
 
 class WrassePlugin(
     private val ruleSet: WRuleSet,

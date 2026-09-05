@@ -190,7 +190,9 @@ object DocSplicer {
                 parts.add(Doc.Text(node.value.subSequence(0, localStart), node.start, node.start + localStart))
             }
             emitReplacementOnce()?.let { parts.add(it) }
-            if (localEnd < len) parts.add(Doc.Text(node.value.subSequence(localEnd, len), node.start + localEnd, node.end))
+            if (localEnd < len) {
+                parts.add(Doc.Text(node.value.subSequence(localEnd, len), node.start + localEnd, node.end))
+            }
             return Doc.Concat(parts, node.start, node.end)
         }
 
@@ -209,7 +211,14 @@ object DocSplicer {
                 if (cut in (representedEnd + 1) until node.end) return null
                 val local = cut - node.start
                 if (local < node.literal.length) {
-                    suffix = Doc.Break(node.kind, node.literal.subSequence(local, node.literal.length), node.flat, cut, node.end)
+                    suffix =
+                        Doc.Break(
+                            node.kind,
+                            node.literal.subSequence(local, node.literal.length),
+                            node.flat,
+                            cut,
+                            node.end,
+                        )
                 }
             }
             val middle = emitReplacementOnce()

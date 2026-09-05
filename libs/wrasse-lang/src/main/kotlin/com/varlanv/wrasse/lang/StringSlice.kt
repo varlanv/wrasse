@@ -61,7 +61,10 @@ class StringSlice(
 }
 
 /** Index of [ch] at or after [from], without the char-array allocation the generic `indexOf` does for non-`String` receivers. */
-fun CharSequence.indexOfChar(ch: Char, from: Int = 0): Int =
+fun CharSequence.indexOfChar(
+    ch: Char,
+    from: Int = 0,
+): Int =
     when (this) {
         is String -> indexOf(ch, from)
         is StringSlice -> {

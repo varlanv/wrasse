@@ -43,7 +43,7 @@ class ImportDirectiveAssembler {
         when (ctx.type) {
             WNodeType.MUL -> starSeen = true
             WNodeType.IDENTIFIER -> {
-                val text = ctx.leafText?.toString()?.removeSurrounding("`") ?: return
+                val text = ctx.leafString()?.removeSurrounding("`") ?: return
                 if (ctx.hasAncestor(WNodeType.IMPORT_ALIAS)) {
                     aliasName = text
                 } else {

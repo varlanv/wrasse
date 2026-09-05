@@ -59,7 +59,7 @@ class UnusedPrivateClassRule : WUninitializedRule {
                         }
 
                     WNodeType.IDENTIFIER -> {
-                        val text = IdentifierCasing.unquote(ctx.leafText ?: "")
+                        val text = IdentifierCasing.unquote(ctx.leafString() ?: "")
                         val parent = ancestors.peekType()
                         if (parent == WNodeType.CLASS) {
                             val pending = pendingClasses.lastOrNull()

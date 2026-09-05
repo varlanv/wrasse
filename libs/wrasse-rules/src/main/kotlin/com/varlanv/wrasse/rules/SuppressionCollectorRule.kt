@@ -52,7 +52,7 @@ class SuppressionCollectorRule : WStreamRule {
         if (!entryActive) return
         val parent = if (ctx.ancestors.isEmpty) null else ctx.ancestors.peekType()
         if (ctx.type == WNodeType.IDENTIFIER && ctx.hasAncestor(WNodeType.CONSTRUCTOR_CALLEE)) {
-            val text = ctx.leafText?.toString()?.removeSurrounding("`") ?: return
+            val text = ctx.leafString()?.removeSurrounding("`") ?: return
             calleeSegments.add(text)
             return
         }

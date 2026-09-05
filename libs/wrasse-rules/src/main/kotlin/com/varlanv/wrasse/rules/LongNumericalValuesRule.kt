@@ -24,7 +24,7 @@ class LongNumericalValuesRule : WUninitializedRule {
             override val targetTypes = setOf(WNodeType.INTEGER_LITERAL, WNodeType.FLOAT_LITERAL)
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
-                val text = ctx.leafText?.toString() ?: return
+                val text = ctx.leafString() ?: return
                 val edit =
                     if (ctx.type == WNodeType.INTEGER_LITERAL) {
                         LongNumericalValuesDecision.decideInteger(text, ctx.startOffset)

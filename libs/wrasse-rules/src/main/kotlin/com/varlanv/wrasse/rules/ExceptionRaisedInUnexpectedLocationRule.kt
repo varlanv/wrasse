@@ -51,7 +51,7 @@ class ExceptionRaisedInUnexpectedLocationRule : WUninitializedRule {
                 if (pending.nameStart < 0) {
                     pending.nameStart = ctx.startOffset
                     pending.nameEnd = ctx.endOffset
-                    pending.name = IdentifierCasing.unquote(ctx.leafText ?: "")
+                    pending.name = IdentifierCasing.unquote(ctx.leafString() ?: "")
                 }
             }
 

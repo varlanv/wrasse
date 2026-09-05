@@ -79,7 +79,7 @@ class MagicNumberRule : WUninitializedRule {
                         if (isOwnFunModifier(ctx)) funFrames.lastOrNull()?.let { it.hasOverride = true }
                     WNodeType.IDENTIFIER ->
                         if (ctx.ancestors.peekType() == WNodeType.FUN) {
-                            funFrames.lastOrNull()?.let { it.name = ctx.leafText?.toString() }
+                            funFrames.lastOrNull()?.let { it.name = ctx.leafString() }
                         }
 
                     else -> {}

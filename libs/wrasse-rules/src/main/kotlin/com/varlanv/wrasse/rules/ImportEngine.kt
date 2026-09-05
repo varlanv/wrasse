@@ -135,7 +135,7 @@ class ImportEngine : WUninitializedRuleGroup {
                     return
                 }
                 if (ctx.type != WNodeType.IDENTIFIER) return
-                val text = ctx.leafText?.toString()?.removeSurrounding("`") ?: return
+                val text = ctx.leafString()?.removeSurrounding("`") ?: return
                 if (ctx.hasAncestor(WNodeType.PACKAGE_DIRECTIVE)) {
                     packagePathParts.add(text)
                 } else {
