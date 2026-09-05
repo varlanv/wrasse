@@ -66,7 +66,7 @@ open class QualifiedUsageCorrelationSpec : BaseSpec({
         result.wrasseDiagnostics shouldHaveSize 2
         val sampleDiagnostic = result.wrasseDiagnostics.single { it.location?.path?.endsWith("Sample.kt") == true }
         sampleDiagnostic.message shouldBe
-            "wrasse: resolved-usage: classifiers=[kotlin.Any, kotlin.Int, kotlin.Pair, kotlin.String, kotlin.collections.IntIterator, sample.Sample, sample.aux.A, sample.aux.C, sample.aux.C.Nested, sample.aux.Color] callables=[_synthetic/WHEN_CALL, kotlin.Any/Any, kotlin.Int/compareTo, kotlin.Int/rangeTo, kotlin.Pair/Pair, kotlin.Pair/component1, kotlin.Pair/component2, kotlin.collections.IntIterator/hasNext, kotlin.collections.IntIterator/next, kotlin.io/println, kotlin.ranges.IntProgression/iterator, sample.aux.A/A, sample.aux.C.Nested/Nested, sample.aux.C/staticLike, sample.aux.Color/RED] imports=[] qualified=[17..29:TYPE_REF:sample.aux.A, 56..68:TYPE_REF:sample.aux.C, 71..83:QUALIFIER:sample.aux.C, 100..119:TYPE_REF:sample.aux.C.Nested, 122..134:QUALIFIER:sample.aux.C, 159..175:TYPE_REF:sample.aux.Color, 178..194:QUALIFIER:sample.aux.Color, 219..222:TYPE_REF:kotlin.Int, 225..237:QUALIFIER:sample.aux.C, 271..274:TYPE_REF:kotlin.Int] errors=false"
+            "wrasse: resolved-usage: classifiers=[kotlin.Any, kotlin.Int, kotlin.Pair, kotlin.String, kotlin.collections.IntIterator, sample.Sample, sample.aux.A, sample.aux.C, sample.aux.C.Nested, sample.aux.Color] callables=[_synthetic/WHEN_CALL, kotlin.Any/Any, kotlin.Int/compareTo, kotlin.Int/rangeTo, kotlin.Pair/Pair, kotlin.Pair/component1, kotlin.Pair/component2, kotlin.collections.IntIterator/hasNext, kotlin.collections.IntIterator/next, kotlin.io/println, kotlin.ranges.IntProgression/iterator, sample.aux.A/A, sample.aux.C.Nested/Nested, sample.aux.C/staticLike, sample.aux.Color/RED] imports=[] qualified=[17..29:TYPE_REF:sample.aux.A, 56..68:TYPE_REF:sample.aux.C, 71..83:QUALIFIER:sample.aux.C, 100..119:TYPE_REF:sample.aux.C.Nested, 122..134:QUALIFIER:sample.aux.C, 159..175:TYPE_REF:sample.aux.Color, 178..194:QUALIFIER:sample.aux.Color, 219..222:TYPE_REF:kotlin.Int, 225..237:QUALIFIER:sample.aux.C, 271..274:TYPE_REF:kotlin.Int] calls=[315..325:kotlin.io/println:stable:[323..324=message], 357..367:kotlin.Pair/Pair:stable:[362..363=first,365..366=second], 444..454:kotlin.io/println:stable:[452..453=message]] errors=false"
     }
 
     should(
@@ -101,6 +101,6 @@ open class QualifiedUsageCorrelationSpec : BaseSpec({
         result.wrasseDiagnostics shouldHaveSize 2
         val sampleDiagnostic = result.wrasseDiagnostics.single { it.location?.path?.endsWith("AliasSample.kt") == true }
         sampleDiagnostic.message shouldBe
-            "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.AliasSample, sample.aux.Widget, sample.aux.WidgetAlias] callables=[kotlin.Any/Any, sample.aux.Widget/Widget] imports=[] qualified=[47..69:TYPE_REF:sample.aux.WidgetAlias] errors=false"
+            "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.AliasSample, sample.aux.Widget, sample.aux.WidgetAlias] callables=[kotlin.Any/Any, sample.aux.Widget/Widget] imports=[] qualified=[47..69:TYPE_REF:sample.aux.WidgetAlias] calls=[] errors=false"
     }
 })

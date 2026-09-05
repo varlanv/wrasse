@@ -208,6 +208,36 @@
                     "$ref": "#/$defs/ruleConfig",
                     "description": "Disallow trivial get()/set() accessors that only read or write the backing field"
                 },
+                "named-arguments": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Name the positional arguments of calls that nest other calls with arguments (or of every call with all-calls)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "excluded-packages": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "default": ["java", "javax"],
+                            "description": "Package prefixes whose callees never get named arguments. Default [\"java\", \"javax\"]."
+                        },
+                        "all-calls": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Name the positional arguments of every call, not only of calls nesting other calls. Default false."
+                        }
+                    }
+                },
+                "no-mixed-named-positional-arguments": {
+                    "$ref": "#/$defs/ruleConfig",
+                    "description": "Disallow mixing named and positional arguments in one call"
+                },
                 "if-else-bracing": {
                     "type": "object",
                     "additionalProperties": false,

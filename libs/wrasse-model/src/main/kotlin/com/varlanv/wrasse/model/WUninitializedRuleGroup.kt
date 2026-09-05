@@ -30,6 +30,9 @@ interface WUninitializedRuleGroup {
      */
     fun requiresQualifiedUsages(enabledIds: Set<String>): Boolean = false
 
+    /** Mirrors [WUninitializedRule.requiresCallSites] at group granularity. Default false. */
+    fun requiresCallSites(enabledIds: Set<String>): Boolean = false
+
     /**
      * Mirrors [WUninitializedRule.canAutofix] at group granularity: true if any id backed by this
      * group ever attaches an edit to its own reports. Group-, not per-id-, granularity, because

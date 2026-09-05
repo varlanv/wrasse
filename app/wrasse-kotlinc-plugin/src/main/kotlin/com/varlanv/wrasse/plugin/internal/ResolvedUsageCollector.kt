@@ -1,10 +1,13 @@
 package com.varlanv.wrasse.plugin.internal
 
+import com.varlanv.wrasse.model.WCallArgument
+import com.varlanv.wrasse.model.WCallSite
 import com.varlanv.wrasse.model.WCallableUsage
 import com.varlanv.wrasse.model.WQualifiedUsage
 import com.varlanv.wrasse.model.WQualifiedUsageKind
 import com.varlanv.wrasse.model.WResolvedImport
 import com.varlanv.wrasse.model.WResolvedUsage
+import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.KtRealSourceElementKind
 import org.jetbrains.kotlin.KtSourceElement
 import org.jetbrains.kotlin.fir.FirElement
@@ -13,13 +16,20 @@ import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.declarations.FirResolvedImport
 import org.jetbrains.kotlin.fir.declarations.utils.isStatic
 import org.jetbrains.kotlin.fir.expressions.FirErrorResolvedQualifier
+import org.jetbrains.kotlin.fir.expressions.FirExpression
+import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
+import org.jetbrains.kotlin.fir.expressions.FirNamedArgumentExpression
 import org.jetbrains.kotlin.fir.expressions.FirResolvedQualifier
+import org.jetbrains.kotlin.fir.expressions.FirSpreadArgumentExpression
+import org.jetbrains.kotlin.fir.expressions.FirVarargArgumentsExpression
+import org.jetbrains.kotlin.fir.expressions.impl.FirResolvedArgumentList
 import org.jetbrains.kotlin.fir.references.FirErrorNamedReference
 import org.jetbrains.kotlin.fir.references.FirPropertyWithExplicitBackingFieldResolvedNamedReference
 import org.jetbrains.kotlin.fir.references.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.references.FirResolvedErrorReference
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirTypeAliasSymbol
 import org.jetbrains.kotlin.fir.types.ConeClassLikeType
 import org.jetbrains.kotlin.fir.types.ConeErrorType
@@ -32,13 +42,16 @@ import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 
+private val CALL_SYNTAX_TYPES = setOf(KtNodeTypes.CALL_EXPRESSION, KtNodeTypes.DOT_QUALIFIED_EXPRESSION, KtNodeTypes.SAFE_ACCESS_EXPRESSION)
+
 object ResolvedUsageCollector {
     @OptIn(DirectDeclarationsAccess::class)
     fun collect(
         file: FirFile,
         collectQualifiedUsages: Boolean = false,
+        collectCallSites: Boolean = false,
     ): WResolvedUsage = runCatching {
-        val visitor = UsageVisitor(collectQualifiedUsages)
+        val visitor = UsageVisitor(collectQualifiedUsages, collectCallSites)
         for (annotation in file.annotations) {
             annotation.accept(visitor)
         }
@@ -51,6 +64,7 @@ object ResolvedUsageCollector {
             hasResolutionErrors = visitor.hasErrors,
             resolvedImports = collectResolvedImports(file),
             qualifiedUsages = visitor.qualifiedUsages,
+            callSites = visitor.callSites,
         )
     }.getOrElse {
         WResolvedUsage(
@@ -81,14 +95,63 @@ object ResolvedUsageCollector {
         }
     }
 
-    private class UsageVisitor(private val collectQualifiedUsages: Boolean) : FirVisitorVoid() {
+    private class UsageVisitor(private val collectQualifiedUsages: Boolean, private val collectCallSites: Boolean) : FirVisitorVoid() {
         val classifiers = mutableSetOf<String>()
         val callables = mutableSetOf<WCallableUsage>()
         val qualifiedUsages = mutableListOf<WQualifiedUsage>()
+        val callSites = mutableListOf<WCallSite>()
         var hasErrors = false
 
         override fun visitElement(element: FirElement) {
             element.acceptChildren(this)
+        }
+
+        override fun visitFunctionCall(functionCall: FirFunctionCall) {
+            if (collectCallSites) {
+                runCatching { recordCallSite(functionCall) }
+            }
+            visitElement(functionCall)
+        }
+
+        private fun recordCallSite(call: FirFunctionCall) {
+            val argumentList = call.argumentList as? FirResolvedArgumentList ?: return
+            val callSource = call.source ?: return
+            if (callSource.kind !== KtRealSourceElementKind || callSource.elementType !in CALL_SYNTAX_TYPES) return
+            val symbol = (call.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirFunctionSymbol<*> ?: return
+            val arguments = ArrayList<WCallArgument>()
+            for ((expression, parameter) in argumentList.mapping) {
+                val parameterName = parameter.name.asString()
+                if (expression is FirVarargArgumentsExpression) {
+                    for (element in expression.arguments) addArgument(arguments, element, parameterName, isVararg = true)
+                } else {
+                    addArgument(arguments, expression, parameterName, parameter.isVararg)
+                }
+            }
+            if (arguments.isEmpty()) return
+            val callableId = symbol.callableId
+            callSites.add(
+                WCallSite(
+                    callStartOffset = callSource.startOffset,
+                    callEndOffset = callSource.endOffset,
+                    calleePackageFqName = callableId.packageName.asString(),
+                    calleeClassFqName = callableId.classId?.asFqNameString(),
+                    calleeName = callableId.callableName.asString(),
+                    hasStableParameterNames = symbol.resolvedStatus.hasStableParameterNames,
+                    arguments = arguments,
+                ),
+            )
+        }
+
+        private fun addArgument(out: MutableList<WCallArgument>, expression: FirExpression, parameterName: String, isVararg: Boolean) {
+            val value =
+                when (expression) {
+                    is FirNamedArgumentExpression -> expression.expression
+                    is FirSpreadArgumentExpression -> expression.expression
+                    else -> expression
+                }
+            val source = value.source ?: expression.source ?: return
+            if (source.startOffset < 0 || source.endOffset < source.startOffset) return
+            out.add(WCallArgument(source.startOffset, source.endOffset, parameterName, isVararg))
         }
 
         override fun visitResolvedNamedReference(resolvedNamedReference: FirResolvedNamedReference) {

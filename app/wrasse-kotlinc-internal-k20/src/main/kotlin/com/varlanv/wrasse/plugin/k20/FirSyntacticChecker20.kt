@@ -20,8 +20,8 @@ class FirSyntacticChecker20(private val plugin: WrassePlugin) : FirFileChecker(M
         val source = declaration.source as? KtLightSourceElement ?: return
         val sourceFilePath = declaration.sourceFile?.path ?: declaration.name
 
-        for (violation in plugin.checkFile(source, declaration.name, sourceFilePath) { collectQualifiedUsages ->
-            ResolvedUsageCollector.collect(declaration, collectQualifiedUsages)
+        for (violation in plugin.checkFile(source, declaration.name, sourceFilePath) { collectQualifiedUsages, collectCallSites ->
+            ResolvedUsageCollector.collect(declaration, collectQualifiedUsages, collectCallSites)
         }) {
             val diagnostic =
                 when (violation.level) {

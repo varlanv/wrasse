@@ -16,6 +16,9 @@ interface WUninitializedRule {
     /** True if this rule needs [WResolvedUsage.qualifiedUsages] populated, a stronger ask than [requiresResolution] alone. */
     val requiresQualifiedUsages: Boolean get() = false
 
+    /** True if this rule needs [WResolvedUsage.callSites] populated. */
+    val requiresCallSites: Boolean get() = false
+
     /**
      * True if this rule ever attaches a [com.varlanv.wrasse.lang.WEdit] to one of its own reports
      * (report-only rules — naming, metrics, smells — leave this false). Drives whether a report

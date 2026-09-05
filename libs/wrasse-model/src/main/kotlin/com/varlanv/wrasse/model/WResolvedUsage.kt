@@ -18,6 +18,8 @@ class WResolvedUsage(
     val resolvedImports: List<WResolvedImport>,
     /** Every qualifier/type-ref FIR resolved to a real source span, collected only when qualified-usage collection is gated on for this file — empty when not collected. */
     val qualifiedUsages: List<WQualifiedUsage> = emptyList(),
+    /** Every resolved call with a parenthesized argument list, collected only when a rule requires call sites — empty when not collected. */
+    val callSites: List<WCallSite> = emptyList(),
 )
 
 /**

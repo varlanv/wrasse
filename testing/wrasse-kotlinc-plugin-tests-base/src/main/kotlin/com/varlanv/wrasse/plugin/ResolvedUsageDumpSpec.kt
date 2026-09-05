@@ -43,7 +43,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
 
         result.wrasseDiagnostics shouldHaveSize 1
         result.wrasseDiagnostics[0].message shouldBe
-            "wrasse: resolved-usage: classifiers=[kotlin.Double, kotlin.Function1, kotlin.Int, kotlin.Pair, kotlin.text.Regex] callables=[kotlin.Double/toInt, kotlin.Function1/invoke, kotlin.Int/plus, kotlin.Pair/Pair, kotlin.Pair/component1, kotlin.Pair/component2, kotlin.math/abs, kotlin.math/absoluteValue, kotlin.math/cbrt] imports=[kotlin.math.abs, kotlin.math.abs, kotlin.math.absoluteValue, kotlin.math.cbrt, kotlin.text.Regex] qualified=[173..178:TYPE_REF:kotlin.text.Regex, 181..184:TYPE_REF:kotlin.Int, 342..354:TYPE_REF:kotlin.Function1, 380..398:TYPE_REF:kotlin.Function1] errors=false"
+            "wrasse: resolved-usage: classifiers=[kotlin.Double, kotlin.Function1, kotlin.Int, kotlin.Pair, kotlin.text.Regex] callables=[kotlin.Double/toInt, kotlin.Function1/invoke, kotlin.Int/plus, kotlin.Pair/Pair, kotlin.Pair/component1, kotlin.Pair/component2, kotlin.math/abs, kotlin.math/absoluteValue, kotlin.math/cbrt] imports=[kotlin.math.abs, kotlin.math.abs, kotlin.math.absoluteValue, kotlin.math.cbrt, kotlin.text.Regex] qualified=[173..178:TYPE_REF:kotlin.text.Regex, 181..184:TYPE_REF:kotlin.Int, 342..354:TYPE_REF:kotlin.Function1, 380..398:TYPE_REF:kotlin.Function1] calls=[199..206:kotlin.math/abs:stable:[203..205=n], 219..227:kotlin.math/abs:stable:[224..226=n], 294..306:kotlin.Pair/Pair:stable:[299..302=first,304..305=second]] errors=false"
     }
 
     should("dump errors=true for a file with an unresolved reference") {
@@ -64,7 +64,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
 
         result.wrasseDiagnostics shouldHaveSize 1
         result.wrasseDiagnostics[0].message shouldBe
-            "wrasse: resolved-usage: classifiers=[kotlin.Unit] callables=[] imports=[] qualified=[] errors=true"
+            "wrasse: resolved-usage: classifiers=[kotlin.Unit] callables=[] imports=[] qualified=[] calls=[] errors=true"
     }
 
     should("dump empty-ish sets for a file with no references beyond its own declarations") {
@@ -83,7 +83,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
 
         result.wrasseDiagnostics shouldHaveSize 1
         result.wrasseDiagnostics[0].message shouldBe
-            "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.Empty] callables=[kotlin.Any/Any] imports=[] qualified=[] errors=false"
+            "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.Empty] callables=[kotlin.Any/Any] imports=[] qualified=[] calls=[] errors=false"
     }
 
     should("dump cleanly for a trailing-newline-terminated file with no references beyond its own declarations") {
@@ -104,7 +104,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
         result.wrasseDiagnostics[0].location?.line shouldBe 1
         result.wrasseDiagnostics[0].location?.column shouldBe 1
         result.wrasseDiagnostics[0].message shouldBe
-            "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.Empty] callables=[kotlin.Any/Any] imports=[] qualified=[] errors=false"
+            "wrasse: resolved-usage: classifiers=[kotlin.Any, sample.Empty] callables=[kotlin.Any/Any] imports=[] qualified=[] calls=[] errors=false"
     }
 
     should("dump both the abbreviated (typealias) classifier and its expansion for a supertype-position usage") {
@@ -137,7 +137,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
         result.wrasseDiagnostics shouldHaveSize 2
         val sampleDiagnostic = result.wrasseDiagnostics.single { it.message.contains("BaseAlias") }
         sampleDiagnostic.message shouldBe
-            "wrasse: resolved-usage: classifiers=[sample.Impl, sample.aux.Base, sample.aux.BaseAlias] callables=[sample.aux.Base/Base] imports=[sample.aux.BaseAlias] qualified=[58..67:TYPE_REF:sample.aux.BaseAlias] errors=false"
+            "wrasse: resolved-usage: classifiers=[sample.Impl, sample.aux.Base, sample.aux.BaseAlias] callables=[sample.aux.Base/Base] imports=[sample.aux.BaseAlias] qualified=[58..67:TYPE_REF:sample.aux.BaseAlias] calls=[] errors=false"
     }
 
     should("distinguish a package-star from a member-star import by its resolved parent class") {
@@ -175,7 +175,7 @@ open class ResolvedUsageDumpSpec : BaseSpec({
         result.wrasseDiagnostics shouldHaveSize 2
         val sampleDiagnostic = result.wrasseDiagnostics.single { it.message.contains("ACTIVE") }
         sampleDiagnostic.message shouldBe
-            "wrasse: resolved-usage: classifiers=[sample.aux.Status, sample.aux.Widget] callables=[sample.aux.Status/ACTIVE, sample.aux.Widget/Widget] imports=[sample.aux.*, sample.aux.Status.*(parent=sample.aux.Status)] qualified=[] errors=false"
+            "wrasse: resolved-usage: classifiers=[sample.aux.Status, sample.aux.Widget] callables=[sample.aux.Status/ACTIVE, sample.aux.Widget/Widget] imports=[sample.aux.*, sample.aux.Status.*(parent=sample.aux.Status)] qualified=[] calls=[] errors=false"
     }
 
     should("collect nothing when dumpResolvedUsage is off and no rule requires resolution") {

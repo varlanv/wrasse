@@ -1,0 +1,91 @@
+package com.varlanv.wrasse.rules
+
+import com.varlanv.wrasse.model.ChildBuffer
+import com.varlanv.wrasse.model.WBufferedNodeRule
+import com.varlanv.wrasse.model.WCallSite
+import com.varlanv.wrasse.model.WContext
+import com.varlanv.wrasse.model.WNodeType
+import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
+import com.varlanv.wrasse.model.WUninitializedRule
+import com.varlanv.wrasse.model.WrasseRuleConfig
+
+/**
+ * Names the positional arguments of a call whose arguments include another call with arguments
+ * (the whole nested tree of such calls), or of every call with `all-calls: true`. Never touches a
+ * callee in an `excluded-packages` package (`java` and `javax` by default), a callee without
+ * stable parameter names, a function type's `invoke`, a vararg element, or a trailing lambda.
+ * Inert for a file whose resolution has errors. See [NamedArgumentsDecision].
+ */
+class NamedArgumentsRule : WUninitializedRule {
+    override val id: String = "named-arguments"
+    override val canAutofix: Boolean = true
+    override val requiresCallSites: Boolean = true
+    override val options: List<WRuleOptionSpec> =
+        listOf(
+            WRuleOptionSpec.Optional(
+                name = EXCLUDED_PACKAGES,
+                type = WRuleOptionType.STRING_LIST,
+                description = "Package prefixes whose callees never get named arguments",
+                default = WRuleOptionValue.StrList(listOf("java", "javax")),
+            ),
+            WRuleOptionSpec.Optional(
+                name = ALL_CALLS,
+                type = WRuleOptionType.BOOLEAN,
+                description = "Name the positional arguments of every call, not only of calls nesting other calls",
+                default = WRuleOptionValue.Bool(false),
+            ),
+        )
+
+    override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
+        val ruleId = id
+        val excludedPackages = config.options.stringList(EXCLUDED_PACKAGES)
+        val allCalls = config.options.boolean(ALL_CALLS)
+        return object : WBufferedNodeRule {
+            override val id = ruleId
+            override val config = config
+            override val targetTypes = setOf(WNodeType.VALUE_ARGUMENT_LIST)
+
+            private var sitesByCallEnd: Map<Int, WCallSite> = emptyMap()
+            private var inScope: Set<Int> = emptySet()
+
+            override fun beforeFile(ctx: WContext) {
+                val usage = ctx.resolvedUsage
+                if (usage == null || usage.hasResolutionErrors) return
+                sitesByCallEnd = usage.callSites.associateBy { it.callEndOffset }
+                inScope = NamedArgumentsDecision.callsInScope(usage.callSites, allCalls)
+            }
+
+            override fun exitNode(
+                ctx: WContext,
+                children: ChildBuffer,
+                reporter: WReporter,
+            ) {
+                val ancestors = ctx.ancestors
+                if (ancestors.isEmpty || ancestors.typeAt(ancestors.size - 1) != WNodeType.CALL_EXPRESSION) return
+                val callEnd = ancestors.peekEndOffset()
+                if (callEnd !in inScope) return
+                val site = sitesByCallEnd[callEnd] ?: return
+                if (NamedArgumentsDecision.isExcludedCallee(site, excludedPackages)) return
+                val written = ArrayList<WrittenArgument>(children.size)
+                for (i in 0 until children.size) {
+                    if (children.type(i) != WNodeType.VALUE_ARGUMENT) continue
+                    val start = children.startOffset(i)
+                    val end = children.endOffset(i)
+                    written.add(WrittenArgument(start, end, MixedArgumentsDecision.isNamedArgument(ctx.sourceText, start, end)))
+                }
+                val edits = NamedArgumentsDecision.nameEdits(site, written)
+                if (edits.isEmpty()) return
+                reporter.report(ruleId, MESSAGE, ctx.startOffset, ctx.endOffset, this, edits = edits)
+            }
+        }
+    }
+
+    private companion object {
+        const val EXCLUDED_PACKAGES = "excluded-packages"
+        const val ALL_CALLS = "all-calls"
+        const val MESSAGE = "Positional arguments should be named"
+    }
+}

@@ -32,6 +32,11 @@ class WRuleSet(
         activeRules.any { (uninitialized, _) -> uninitialized.requiresQualifiedUsages } ||
             activeGroups.any { (group, configs) -> group.requiresQualifiedUsages(configs.keys) }
 
+    /** True if any active rule or group needs [WResolvedUsage.callSites]; computed once, like [requiresResolution]. */
+    val requiresCallSites: Boolean =
+        activeRules.any { (uninitialized, _) -> uninitialized.requiresCallSites } ||
+            activeGroups.any { (group, configs) -> group.requiresCallSites(configs.keys) }
+
     /**
      * Every rule id that is capable of autofixing at least some of its own occurrences
      * ([WUninitializedRule.canAutofix] / [WUninitializedRuleGroup.canAutofix]), computed once from
