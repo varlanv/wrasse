@@ -9,6 +9,7 @@ dependencies {
     jmh(projects.libs.wrasseModel)
     jmh(projects.libs.wrasseKotlincAdapter)
     jmh(projects.libs.wrasseRules)
+    jmh(projects.libs.wrasseFormat)
     jmh(projects.libs.wrasseLang)
     jmh(libs.kotlin.compiler.embeddable)
 }

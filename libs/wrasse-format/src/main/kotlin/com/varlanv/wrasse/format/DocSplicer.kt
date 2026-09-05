@@ -155,6 +155,17 @@ object DocSplicer {
         return Doc.Concat(parts, edit.startOffset, edit.endOffset)
     }
 
+    /**
+     * A [GroupKind.FLUID] group hangs its value under the `=` whose trailing break opens its body;
+     * an edit that consumes that break (a block-body conversion replacing `= `) leaves nothing to
+     * hang from, so the group falls back to a plain one at ambient depth.
+     */
+    private fun lostLeadingBreak(original: Doc, spliced: Doc): Boolean =
+        original is Doc.Concat &&
+            original.parts.firstOrNull() is Doc.Break &&
+            spliced is Doc.Concat &&
+            spliced.parts.firstOrNull() !is Doc.Break
+
     private fun spliceOne(doc: Doc, edit: WEdit): Doc? {
         if (edit.startOffset == edit.endOffset && edit.startOffset >= doc.end) {
             return Doc.Concat(listOf(doc, replacementDoc(edit)), doc.start, edit.endOffset)
@@ -225,7 +236,13 @@ object DocSplicer {
                 is Doc.Break -> splitBreak(node)
                 is Doc.TrailingComma -> null
                 is Doc.Indent -> rec(node.body)?.let { Doc.Indent(it) }
-                is Doc.Group -> rec(node.body)?.let { Doc.Group(it, node.kind, node.indentWhenBroken, node.forceBreak) }
+                is Doc.Group -> rec(node.body)?.let { body ->
+                    if (node.kind == GroupKind.FLUID && lostLeadingBreak(node.body, body)) {
+                        Doc.Group(body)
+                    } else {
+                        Doc.Group(body, node.kind, node.indentWhenBroken, node.forceBreak)
+                    }
+                }
                 is Doc.Concat -> {
                     val newParts = ArrayList<Doc>(node.parts.size)
                     for (part in node.parts) {

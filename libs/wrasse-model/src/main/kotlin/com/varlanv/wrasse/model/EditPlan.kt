@@ -33,14 +33,13 @@ class EditPlan {
 
     fun add(ruleId: String, edit: WEdit) {
         val entry = Entry(ruleId, edit, nextSequence++)
-        var insertAt = entries.size
-        for (i in entries.indices) {
-            if (precedes(entry, entries[i])) {
-                insertAt = i
-                break
-            }
+        var low = 0
+        var high = entries.size
+        while (low < high) {
+            val mid = (low + high) ushr 1
+            if (precedes(entry, entries[mid])) high = mid else low = mid + 1
         }
-        entries.add(insertAt, entry)
+        entries.add(low, entry)
     }
 
     /**

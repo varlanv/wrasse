@@ -21,6 +21,19 @@ class EditPlanSpec : BaseSpec({
         edits[1].startOffset shouldBe 20
     }
 
+    should("keep many edits sorted by span, later-added first among identical spans") {
+        val plan = EditPlan()
+        val spans = (0 until 200).map { i -> (i * 7919) % 200 }
+        for ((i, s) in spans.withIndex()) plan.add("r$i", WEdit(s * 2, s * 2 + 1, "v$i"))
+        plan.add("dup-first", WEdit(100, 101, "first"))
+        plan.add("dup-second", WEdit(100, 101, "second"))
+
+        val edits = plan.takeAll()
+
+        edits.map { it.edit.startOffset }.zipWithNext().all { (a, b) -> a <= b } shouldBe true
+        edits.filter { it.edit.startOffset == 100 }.map { it.ruleId } shouldBe listOf("dup-second", "dup-first", "r${spans.indexOf(50)}")
+    }
+
     should("take and remove edits whose span lies within the requested range") {
         val plan = EditPlan()
         plan.add("inner", WEdit(3, 4, "x"))

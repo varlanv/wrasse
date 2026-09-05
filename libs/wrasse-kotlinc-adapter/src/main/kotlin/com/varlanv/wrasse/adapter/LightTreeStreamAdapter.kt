@@ -169,9 +169,10 @@ object LightTreeStreamAdapter {
             rule.beforeFile(ctx = ctx)
         }
 
-        val activeNodeRules = ArrayList<ActiveNodeEntry>()
+        val activeNodeRules = ActiveNodeRules()
         val ref = Ref<Array<LighterASTNode?>>()
         val pool = ChildArrayPool()
+        val bufferPool = ChildBufferPool()
         val root = source.lighterASTNode
         val rootType = WNodeTypeMapping.map(elementType = root.tokenType)
         val rootIsLeaf = root is LighterASTTokenNode
@@ -187,6 +188,7 @@ object LightTreeStreamAdapter {
             reporter = reporter,
             ref = ref,
             pool = pool,
+            bufferPool = bufferPool,
             activeNodeRules = activeNodeRules,
         )
 
@@ -217,7 +219,8 @@ object LightTreeStreamAdapter {
         reporter: WReporter,
         ref: Ref<Array<LighterASTNode?>>,
         pool: ChildArrayPool,
-        activeNodeRules: ArrayList<ActiveNodeEntry>,
+        bufferPool: ChildBufferPool,
+        activeNodeRules: ActiveNodeRules,
     ) {
         val ownChildIndex = ctx.childIndex
 
@@ -229,19 +232,20 @@ object LightTreeStreamAdapter {
         if (isLeaf) {
             if (dispatch.hasLeafRules) {
                 val leafRules = dispatch.leafRulesForType(type = type)
-                for (rule in leafRules) {
-                    rule.visitLeaf(ctx = ctx, reporter = reporter)
+                for (i in 0 until leafRules.size) {
+                    leafRules[i].visitLeaf(ctx = ctx, reporter = reporter)
                 }
             }
 
             if (dispatch.hasStreamRules) {
-                for (rule in dispatch.streamRules) {
-                    rule.visitLeaf(ctx = ctx, reporter = reporter)
+                val streamRules = dispatch.streamRules
+                for (i in 0 until streamRules.size) {
+                    streamRules[i].visitLeaf(ctx = ctx, reporter = reporter)
                 }
             }
 
-            for (i in activeNodeRules.indices) {
-                activeNodeRules[i].rule.onChildLeaf(ctx = ctx, reporter = reporter)
+            for (i in 0 until activeNodeRules.size) {
+                activeNodeRules.ruleAt(i).onChildLeaf(ctx = ctx, reporter = reporter)
             }
 
             trackLastNewline(ctx)
@@ -252,8 +256,9 @@ object LightTreeStreamAdapter {
             ctx.prevLeafText = leafText
         } else {
             if (dispatch.hasStreamRules) {
-                for (rule in dispatch.streamRules) {
-                    rule.enterNode(ctx = ctx)
+                val streamRules = dispatch.streamRules
+                for (i in 0 until streamRules.size) {
+                    streamRules[i].enterNode(ctx = ctx)
                 }
             }
 
@@ -264,7 +269,10 @@ object LightTreeStreamAdapter {
                 ctx = ctx,
                 reporter = reporter,
                 activeNodeRules = activeNodeRules,
+                bufferPool = bufferPool,
+                depth = depth,
             )
+            val sharedBuffer = if (enteredCount > 0) activeNodeRules.lastBuffer(enteredCount) else null
 
             ctx.ancestors.push(type = type, startOffset = astNode.startOffset, endOffset = astNode.endOffset)
             val count = tree.getChildren(astNode, ref)
@@ -290,21 +298,16 @@ object LightTreeStreamAdapter {
                         reporter = reporter,
                         ref = ref,
                         pool = pool,
+                        bufferPool = bufferPool,
                         activeNodeRules = activeNodeRules,
                     )
 
-                    if (enteredCount > 0) {
-                        val activeStart = activeNodeRules.size - enteredCount
-                        for (j in activeStart until activeNodeRules.size) {
-                            val entry = activeNodeRules[j]
-                            entry.buffer?.add(
-                                type = childType,
-                                start = child.startOffset,
-                                end = child.endOffset,
-                                text = childText,
-                            )
-                        }
-                    }
+                    sharedBuffer?.add(
+                        type = childType,
+                        start = child.startOffset,
+                        end = child.endOffset,
+                        text = childText,
+                    )
                 }
                 tree.disposeChildren(liveChildren, count)
             }
@@ -325,8 +328,9 @@ object LightTreeStreamAdapter {
             )
 
             if (dispatch.hasStreamRules) {
-                for (rule in dispatch.streamRules) {
-                    rule.exitNode(ctx = ctx)
+                val streamRules = dispatch.streamRules
+                for (i in 0 until streamRules.size) {
+                    streamRules[i].exitNode(ctx = ctx)
                 }
             }
         }
@@ -347,14 +351,18 @@ object LightTreeStreamAdapter {
         nodeRules: List<WNodeRule>,
         ctx: WContext,
         reporter: WReporter,
-        activeNodeRules: ArrayList<ActiveNodeEntry>,
+        activeNodeRules: ActiveNodeRules,
+        bufferPool: ChildBufferPool,
+        depth: Int,
     ): Int {
         var enteredCount = 0
-        for (rule in nodeRules) {
+        var buffer: ChildBuffer? = null
+        for (i in 0 until nodeRules.size) {
+            val rule = nodeRules[i]
             val wantChildren = rule.enterNode(ctx = ctx, reporter = reporter)
             if (wantChildren) {
-                val buffer = if (rule is WBufferedNodeRule) ChildBuffer() else null
-                activeNodeRules.add(ActiveNodeEntry(rule = rule, buffer = buffer))
+                if (rule is WBufferedNodeRule && buffer == null) buffer = bufferPool.acquire(depth)
+                activeNodeRules.add(rule = rule, buffer = if (rule is WBufferedNodeRule) buffer else null)
                 enteredCount++
             }
         }
@@ -362,7 +370,7 @@ object LightTreeStreamAdapter {
     }
 
     private fun exitNodeRules(
-        activeNodeRules: ArrayList<ActiveNodeEntry>,
+        activeNodeRules: ActiveNodeRules,
         enteredCount: Int,
         ctx: WContext,
         reporter: WReporter,
@@ -372,19 +380,82 @@ object LightTreeStreamAdapter {
         }
         val start = activeNodeRules.size - enteredCount
         for (i in start until activeNodeRules.size) {
-            val entry = activeNodeRules[i]
-            if (entry.rule is WBufferedNodeRule && entry.buffer != null) {
-                entry.rule.exitNode(ctx = ctx, children = entry.buffer, reporter = reporter)
+            val rule = activeNodeRules.ruleAt(i)
+            val buffer = activeNodeRules.bufferAt(i)
+            if (rule is WBufferedNodeRule && buffer != null) {
+                rule.exitNode(ctx = ctx, children = buffer, reporter = reporter)
             } else {
-                entry.rule.exitNode(ctx = ctx, reporter = reporter)
+                rule.exitNode(ctx = ctx, reporter = reporter)
             }
         }
-        for (i in 0 until enteredCount) {
-            activeNodeRules.removeAt(activeNodeRules.size - 1)
+        activeNodeRules.removeLast(enteredCount)
+    }
+
+    /**
+     * The node rules currently between their `enterNode` and `exitNode`, as two parallel arrays
+     * (no per-entry object): the rule, and the [ChildBuffer] it will receive on exit — one buffer
+     * per node, shared by every buffered rule entered at that node.
+     */
+    private class ActiveNodeRules {
+        private var rules = arrayOfNulls<WNodeRule>(16)
+        private var buffers = arrayOfNulls<ChildBuffer>(16)
+        var size = 0
+            private set
+
+        fun add(rule: WNodeRule, buffer: ChildBuffer?) {
+            if (size == rules.size) {
+                rules = rules.copyOf(size * 2)
+                buffers = buffers.copyOf(size * 2)
+            }
+            rules[size] = rule
+            buffers[size] = buffer
+            size++
+        }
+
+        fun ruleAt(i: Int): WNodeRule = rules[i]!!
+
+        fun bufferAt(i: Int): ChildBuffer? = buffers[i]
+
+        /** The buffer shared by the last [enteredCount] entries, or null when none of them is buffered. */
+        fun lastBuffer(enteredCount: Int): ChildBuffer? {
+            for (i in size - enteredCount until size) {
+                val buffer = buffers[i]
+                if (buffer != null) return buffer
+            }
+            return null
+        }
+
+        fun removeLast(count: Int) {
+            for (i in size - count until size) {
+                rules[i] = null
+                buffers[i] = null
+            }
+            size -= count
         }
     }
 
-    private class ActiveNodeEntry(val rule: WNodeRule, val buffer: ChildBuffer?)
+    /**
+     * One reusable [ChildBuffer] per tree depth, mirroring [ChildArrayPool]: the buffer for a
+     * node at depth `d` is live only between that node's enter and exit, and siblings at the same
+     * depth reuse it in turn. Cleared on every [acquire].
+     */
+    private class ChildBufferPool {
+        private var slots: Array<ChildBuffer?> = arrayOfNulls(16)
+
+        fun acquire(depth: Int): ChildBuffer {
+            if (depth >= slots.size) {
+                slots = slots.copyOf(maxOf(slots.size * 2, depth + 1))
+            }
+            val existing = slots[depth]
+            if (existing != null) {
+                existing.clear()
+                return existing
+            }
+            val fresh = ChildBuffer()
+            slots[depth] = fresh
+            return fresh
+        }
+    }
 
     /**
      * Per-walk pool of children arrays, one reusable, geometrically-grown slot per tree

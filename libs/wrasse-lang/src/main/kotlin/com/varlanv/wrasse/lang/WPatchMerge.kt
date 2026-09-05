@@ -9,22 +9,32 @@ package com.varlanv.wrasse.lang
  * is preserved; an upserted entry keeps its original position if the path already existed, or is
  * appended if it is new.
  */
+/**
+ * Merge steps over a patch file's entries. Both operations return [existing] itself, same
+ * instance, when they would change nothing — a caller compares identity to skip a rewrite.
+ */
 object WPatchMerge {
     fun upsert(existing: List<FileEdits>, entry: FileEdits): List<FileEdits> {
-        var replaced = false
-        val result = existing.map {
-            if (it.filePath == entry.filePath) {
-                replaced = true
-                entry
-            } else {
-                it
-            }
-        }
-        return if (replaced) result else result + entry
+        val index = existing.indexOfFirst { it.filePath == entry.filePath }
+        if (index < 0) return existing + entry
+        if (sameContent(existing[index], entry)) return existing
+        val result = ArrayList(existing)
+        result[index] = entry
+        return result
     }
 
     fun remove(
         existing: List<FileEdits>,
         filePath: String,
-    ): List<FileEdits> = existing.filterNot { it.filePath == filePath }
+    ): List<FileEdits> = if (existing.none { it.filePath == filePath }) existing else existing.filterNot { it.filePath == filePath }
+
+    private fun sameContent(a: FileEdits, b: FileEdits): Boolean {
+        if (a.sourceHash != b.sourceHash || a.edits.size != b.edits.size) return false
+        for (i in a.edits.indices) {
+            val x = a.edits[i]
+            val y = b.edits[i]
+            if (x.startOffset != y.startOffset || x.endOffset != y.endOffset || x.replacement != y.replacement) return false
+        }
+        return true
+    }
 }

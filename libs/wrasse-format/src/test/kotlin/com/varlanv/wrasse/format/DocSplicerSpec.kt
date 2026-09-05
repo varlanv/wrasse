@@ -12,6 +12,26 @@ class DocSplicerSpec : BaseSpec({
 
     fun render(doc: Doc?): String? = doc?.let { Layout.render(it, style) }
 
+    should("drop a FLUID group's hang when an edit consumes the break after its = (block-body conversion shape)") {
+        val value = Doc.Concat(
+            listOf(
+                Doc.Text("when {", 12, 18),
+                Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.HARD, "\n", start = 18, end = 19), Doc.Text("else -> 1", 19, 28)), 18, 28)),
+                Doc.Break(BreakKind.HARD, "\n", start = 28, end = 29),
+                Doc.Text("}", 29, 30),
+            ),
+            12,
+            30,
+        )
+        val fluid = Doc.Group(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT, start = 11, end = 12), value), 11, 30), GroupKind.FLUID, indentWhenBroken = true)
+        val doc = Doc.Concat(listOf(Doc.Text("fun f(): Int", 0, 9), Doc.Text(" ", 9, 10), Doc.Text("=", 10, 11), fluid), 0, 30)
+        val edits = listOf(
+            WEdit(9, 12, " {\nreturn ", indentScope = IndentScope.OPEN),
+            WEdit(30, 30, "\n}", indentScope = IndentScope.CLOSE),
+        )
+        render(DocSplicer.splice(doc, edits)) shouldBe "fun f(): Int {\n    return when {\n        else -> 1\n    }\n}"
+    }
+
     should("delete a whole leaf (no-semicolons shape)") {
         val doc = Doc.Concat(listOf(Doc.Text("bar()", 0, 5), Doc.Text(";", 5, 6), Doc.Text("\n", 6, 7)), 0, 7)
         val spliced = DocSplicer.splice(doc, listOf(WEdit(5, 6, "")))

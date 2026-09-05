@@ -50,11 +50,12 @@ class WrassePlugin(
         resolvedUsage: ((collectQualifiedUsages: Boolean, collectCallSites: Boolean) -> WResolvedUsage)? = null,
     ): List<ViolationReport> {
         val filePath = resolveFilePath(sourceFilePath, fileName)
-        if (matchesAny(globalExclude, filePath)) {
+        val configRelativePath = relativeToConfigDir(filePath)
+        if (matchesAny(globalExclude, configRelativePath)) {
             return emptyList()
         }
 
-        return runCatching { checkFileOrThrow(filePath, source, resolvedUsage) }
+        return runCatching { checkFileOrThrow(filePath, configRelativePath, source, resolvedUsage) }
             .getOrElse { failure -> internalFailureReports(filePath, failure) }
     }
 
@@ -83,6 +84,7 @@ class WrassePlugin(
 
     private fun checkFileOrThrow(
         filePath: Path,
+        configRelativePath: Path,
         source: KtLightSourceElement,
         resolvedUsage: ((collectQualifiedUsages: Boolean, collectCallSites: Boolean) -> WResolvedUsage)?,
     ): List<ViolationReport> {
@@ -94,11 +96,11 @@ class WrassePlugin(
             alwaysOn.add(docBuilder)
         }
         val dispatch = ruleSet.dispatchForFile(
-            isExcluded = { config -> matchesAny(config.exclude, filePath) },
+            isExcluded = { config -> matchesAny(config.exclude, configRelativePath) },
             alwaysOn = alwaysOn,
         )
 
-        val ctx = WContext(filePath = filePath.toString(), configRelativeFilePath = relativeToConfigDir(filePath))
+        val ctx = WContext(filePath = filePath.toString(), configRelativeFilePath = configRelativePath)
         val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
         val needsCallSites = dumpResolvedUsage || ruleSet.requiresCallSites
         if (resolvedUsage != null && (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages || needsCallSites)) {
@@ -221,10 +223,9 @@ class WrassePlugin(
         fileName: String,
     ): Path = runCatching { Path.of(sourceFilePath).toAbsolutePath().normalize() }.getOrElse { Path.of(fileName) }
 
-    private fun matchesAny(matchers: List<PathMatcher>, filePath: Path): Boolean {
+    private fun matchesAny(matchers: List<PathMatcher>, configRelativePath: Path): Boolean {
         if (matchers.isEmpty()) return false
-        val candidate = relativeToConfigDir(filePath)
-        return matchers.any { it.matches(candidate) }
+        return matchers.any { it.matches(configRelativePath) }
     }
 
     private fun relativeToConfigDir(filePath: Path): Path {
@@ -245,6 +246,7 @@ class WrassePlugin(
                 } else {
                     WPatchMerge.remove(current, filePath)
                 }
+            if (merged === current && patchEntries != null) return
             patchEntries = merged
             writePatchFileAtomically(dir, merged)
         }

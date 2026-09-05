@@ -22,6 +22,18 @@ class WPatchMergeSpec : BaseSpec({
             result.describe() shouldBe listOf(a, updatedB, c).describe()
         }
 
+        should("return the same list instance when the entry matches what is already recorded") {
+            val a = FileEdits("src/A.kt", "hashA", listOf(WEdit(0, 1, ""), WEdit(4, 6, "x")))
+            val existing = listOf(a)
+            val same = FileEdits("src/A.kt", "hashA", listOf(WEdit(0, 1, ""), WEdit(4, 6, "x")))
+            val changedHash = FileEdits("src/A.kt", "hashA2", listOf(WEdit(0, 1, ""), WEdit(4, 6, "x")))
+            val changedEdit = FileEdits("src/A.kt", "hashA", listOf(WEdit(0, 1, ""), WEdit(4, 6, "y")))
+
+            (WPatchMerge.upsert(existing, same) === existing) shouldBe true
+            (WPatchMerge.upsert(existing, changedHash) === existing) shouldBe false
+            (WPatchMerge.upsert(existing, changedEdit) === existing) shouldBe false
+        }
+
         should("append a new file's entry when its path did not previously exist") {
             val a = FileEdits("src/A.kt", "hashA", listOf(WEdit(0, 1, "")))
             val newEntry = FileEdits("src/New.kt", "hashNew", listOf(WEdit(5, 6, "")))
@@ -48,6 +60,11 @@ class WPatchMergeSpec : BaseSpec({
             val result = WPatchMerge.remove(listOf(a, b), "src/A.kt")
 
             result.describe() shouldBe listOf(b).describe()
+        }
+
+        should("return the same list instance when the path is not present") {
+            val existing = listOf(FileEdits("src/A.kt", "hashA", listOf(WEdit(0, 1, ""))))
+            (WPatchMerge.remove(existing, "src/Other.kt") === existing) shouldBe true
         }
 
         should("be a no-op when the path is not present") {

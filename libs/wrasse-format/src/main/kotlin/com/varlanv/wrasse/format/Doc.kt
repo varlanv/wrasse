@@ -69,6 +69,8 @@ sealed interface Doc {
     ) : Doc {
         override val start: Int get() = body.start
         override val end: Int get() = body.end
+        internal var flatWidthCache: Int = WIDTH_UNSET
+        internal var lastLineWidthCache: Int = WIDTH_UNSET
     }
 
     /** Sequences [parts] with no layout decision of its own. */
@@ -76,7 +78,10 @@ sealed interface Doc {
         val parts: List<Doc>,
         override val start: Int = 0,
         override val end: Int = 0,
-    ) : Doc
+    ) : Doc {
+        internal var flatWidthCache: Int = WIDTH_UNSET
+        internal var lastLineWidthCache: Int = WIDTH_UNSET
+    }
 
     /**
      * A trailing comma candidate: renders `,` when the enclosing [Group] chooses broken mode,
@@ -90,6 +95,8 @@ sealed interface Doc {
         override val end: Int = 0,
     ) : Doc
 }
+
+internal const val WIDTH_UNSET = Int.MIN_VALUE
 
 enum class BreakKind {
     HARD,

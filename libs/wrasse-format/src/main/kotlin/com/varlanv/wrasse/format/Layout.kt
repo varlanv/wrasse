@@ -13,7 +13,7 @@ object Layout {
      * rendered in [mode], then whatever [outer] holds. Measured lazily by [tailWidth], so a group
      * deciding its fit can account for where that tail would start.
      */
-    private class Tail(val parts: List<Doc>, val from: Int, val mode: Mode, val outer: Tail?)
+    private class Tail(val parts: List<Doc>, var from: Int, val mode: Mode, val outer: Tail?)
 
     fun render(doc: Doc, style: FormatStyle): String {
         val sb = StringBuilder()
@@ -39,9 +39,18 @@ object Layout {
 
             is Doc.Concat -> {
                 var col = column
-                for ((i, part) in doc.parts.withIndex()) {
-                    val partTail = if (i < doc.parts.size - 1) Tail(doc.parts, i + 1, mode, tail) else tail
-                    col = renderNode(sb, part, indentDepth, col, mode, style, partTail, forceArguments)
+                val parts = doc.parts
+                val last = parts.size - 1
+                val ownTail = if (last > 0) Tail(parts, 1, mode, tail) else null
+                for (i in 0..last) {
+                    val partTail =
+                        if (i < last) {
+                            ownTail!!.from = i + 1
+                            ownTail
+                        } else {
+                            tail
+                        }
+                    col = renderNode(sb, parts[i], indentDepth, col, mode, style, partTail, forceArguments)
                 }
                 col
             }
@@ -81,42 +90,49 @@ object Layout {
         tail: Tail?,
     ): Boolean {
         val max = style.maxLineLength
-        val brokenEnd = indentDepth * style.indentWidth + lastLineWidth(group.body)
         return when (group.kind) {
             GroupKind.LAMBDA -> {
                 val width = flatWidth(group.body)
-                width != null && column + width <= max
+                width >= 0 && column + width <= max
             }
 
             GroupKind.DEFAULT, GroupKind.ARGUMENTS, GroupKind.TEMPLATE -> {
-                val width = flatWidth(group.body) ?: return false
-                column + width + tailWidth(tail, column + width, brokenEnd, style) <= max
+                val width = flatWidth(group.body)
+                if (width < 0) return false
+                column + width + tailWidth(tail, column + width, brokenEnd(group, indentDepth, style), style) <= max
             }
 
             GroupKind.FLUID -> {
                 val acc = IntArray(1)
                 val complete = measureFluid(group.body, acc, nested = false)
-                val rest = if (complete) tailWidth(tail, column + acc[0], brokenEnd, style) else 0
+                val rest = if (complete) tailWidth(tail, column + acc[0], brokenEnd(group, indentDepth, style), style) else 0
                 column + acc[0] + rest <= max
             }
 
             GroupKind.CONTINUATION -> {
                 val acc = IntArray(1)
                 val body = group.body
-                val parts = if (body is Doc.Concat) body.parts else listOf(body)
                 var outcome = MEASURE_COMPLETE
-                for ((i, part) in parts.withIndex()) {
-                    outcome = measureContinuation(part, acc, softHard = i == parts.size - 1)
-                    if (outcome != MEASURE_COMPLETE) break
+                if (body is Doc.Concat) {
+                    val parts = body.parts
+                    for (i in 0 until parts.size) {
+                        outcome = measureContinuation(parts[i], acc, softHard = i == parts.size - 1)
+                        if (outcome != MEASURE_COMPLETE) break
+                    }
+                } else {
+                    outcome = measureContinuation(body, acc, softHard = true)
                 }
                 when (outcome) {
                     MEASURE_FORCED -> false
                     MEASURE_ENDED -> column + acc[0] <= max
-                    else -> column + acc[0] + tailWidth(tail, column + acc[0], brokenEnd, style) <= max
+                    else -> column + acc[0] + tailWidth(tail, column + acc[0], brokenEnd(group, indentDepth, style), style) <= max
                 }
             }
         }
     }
+
+    private fun brokenEnd(group: Doc.Group, indentDepth: Int, style: FormatStyle): Int =
+        indentDepth * style.indentWidth + lastLineWidth(group.body)
 
     /**
      * Width of [tail] as it would render on the current line, starting at [afterColumn] when the
@@ -131,8 +147,9 @@ object Layout {
         brokenEnd: Int,
         style: FormatStyle,
     ): Int {
+        if (tail == null) return 0
         val acc = IntArray(1)
-        var current = tail
+        var current: Tail? = tail
         while (current != null) {
             for (i in current.from until current.parts.size) {
                 val part = current.parts[i]
@@ -184,7 +201,7 @@ object Layout {
         style: FormatStyle,
     ): Boolean {
         val width = flatWidth(lambda.body)
-        if (width != null && (afterColumn + acc[0] + width <= style.maxLineLength || brokenEnd + acc[0] + width <= style.maxLineLength)) {
+        if (width >= 0 && (afterColumn + acc[0] + width <= style.maxLineLength || brokenEnd + acc[0] + width <= style.maxLineLength)) {
             acc[0] += width
             return true
         }
@@ -202,8 +219,18 @@ object Layout {
 
     /** Width of the text after the last break anywhere inside [doc] — the width of its final line once broken. */
     private fun lastLineWidth(doc: Doc): Int {
+        when (doc) {
+            is Doc.Concat -> if (doc.lastLineWidthCache != WIDTH_UNSET) return doc.lastLineWidthCache
+            is Doc.Group -> if (doc.lastLineWidthCache != WIDTH_UNSET) return doc.lastLineWidthCache
+            else -> {}
+        }
         val acc = IntArray(1)
         lastLineWidthInto(doc, acc)
+        when (doc) {
+            is Doc.Concat -> doc.lastLineWidthCache = acc[0]
+            is Doc.Group -> doc.lastLineWidthCache = acc[0]
+            else -> {}
+        }
         return acc[0]
     }
 
@@ -218,7 +245,10 @@ object Layout {
             is Doc.TrailingComma -> {}
             is Doc.Indent -> lastLineWidthInto(doc.body, acc)
             is Doc.Group -> lastLineWidthInto(doc.body, acc)
-            is Doc.Concat -> for (part in doc.parts) lastLineWidthInto(part, acc)
+            is Doc.Concat -> {
+                val parts = doc.parts
+                for (i in 0 until parts.size) lastLineWidthInto(parts[i], acc)
+            }
         }
     }
 
@@ -243,8 +273,9 @@ object Layout {
         is Doc.Group -> measureContinuation(doc.body, acc, softHard || doc.kind == GroupKind.LAMBDA)
         is Doc.Concat -> {
             var outcome = MEASURE_COMPLETE
-            for (part in doc.parts) {
-                outcome = measureContinuation(part, acc, softHard)
+            val parts = doc.parts
+            for (i in 0 until parts.size) {
+                outcome = measureContinuation(parts[i], acc, softHard)
                 if (outcome != MEASURE_COMPLETE) break
             }
             outcome
@@ -287,8 +318,8 @@ object Layout {
     }
 
     private inline fun measureParts(parts: List<Doc>, measure: (Doc) -> Boolean): Boolean {
-        for (part in parts) {
-            if (!measure(part)) return false
+        for (i in 0 until parts.size) {
+            if (!measure(parts[i])) return false
         }
         return true
     }
@@ -323,27 +354,52 @@ object Layout {
 
     private fun appendIndent(sb: StringBuilder, indentDepth: Int, style: FormatStyle): Int {
         val width = indentDepth * style.indentWidth
-        repeat(width) { sb.append(' ') }
+        var remaining = width
+        while (remaining > 0) {
+            val chunk = minOf(remaining, SPACES.length)
+            sb.append(SPACES, 0, chunk)
+            remaining -= chunk
+        }
         return width
     }
+
+    private val SPACES = " ".repeat(128)
 
     private fun advanceColumn(column: Int, text: String): Int {
         val lastNewline = text.lastIndexOf('\n')
         return if (lastNewline < 0) column + text.length else text.length - lastNewline - 1
     }
 
-    private fun flatWidth(doc: Doc): Int? = when (doc) {
-        is Doc.Text -> if (doc.value.contains('\n')) null else doc.value.length
-        is Doc.Break -> if (doc.kind == BreakKind.HARD) null else doc.flat.length
+    private fun flatWidth(doc: Doc): Int = when (doc) {
+        is Doc.Text -> if (doc.value.indexOf('\n') >= 0) NO_FLAT_WIDTH else doc.value.length
+        is Doc.Break -> if (doc.kind == BreakKind.HARD) NO_FLAT_WIDTH else doc.flat.length
         is Doc.TrailingComma -> 0
         is Doc.Indent -> flatWidth(doc.body)
-        is Doc.Group -> flatWidth(doc.body)
+        is Doc.Group -> {
+            val cached = doc.flatWidthCache
+            if (cached != WIDTH_UNSET) cached else flatWidth(doc.body).also { doc.flatWidthCache = it }
+        }
+
         is Doc.Concat -> {
-            var total = 0
-            for (part in doc.parts) {
-                total += flatWidth(part) ?: return null
+            val cached = doc.flatWidthCache
+            if (cached != WIDTH_UNSET) {
+                cached
+            } else {
+                var total = 0
+                val parts = doc.parts
+                for (i in 0 until parts.size) {
+                    val width = flatWidth(parts[i])
+                    if (width < 0) {
+                        total = NO_FLAT_WIDTH
+                        break
+                    }
+                    total += width
+                }
+                doc.flatWidthCache = total
+                total
             }
-            total
         }
     }
+
+    private const val NO_FLAT_WIDTH = -1
 }
