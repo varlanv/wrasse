@@ -15,6 +15,17 @@ class UnnecessaryPartOfBinaryExpressionDecisionSpec : BaseSpec({
         ) shouldBe UnnecessaryPartOfBinaryExpressionDecision.MESSAGE
     }
 
+    should("strip whitespace outside string and character literals only") {
+        UnnecessaryPartOfBinaryExpressionDecision.normalizeOperand("a  &&\n  b") shouldBe "a&&b"
+        UnnecessaryPartOfBinaryExpressionDecision.normalizeOperand(
+            "\"buy back\" in lower",
+        ) shouldBe "\"buy back\"inlower"
+        UnnecessaryPartOfBinaryExpressionDecision.normalizeOperand(
+            "s.endsWith(\"x \\\" y\")",
+        ) shouldBe "s.endsWith(\"x \\\" y\")"
+        UnnecessaryPartOfBinaryExpressionDecision.normalizeOperand("c == ' '") shouldBe "c==' '"
+    }
+
     should("not report a single operand") {
         UnnecessaryPartOfBinaryExpressionDecision.decide(listOf("foo")) shouldBe null
     }

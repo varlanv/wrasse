@@ -39,6 +39,11 @@ class EditPlan {
             val mid = (low + high) ushr 1
             if (precedes(entry, entries[mid])) high = mid else low = mid + 1
         }
+        var probe = low
+        while (probe < entries.size && sameSpan(entries[probe].edit, edit)) {
+            if (entries[probe].edit.replacement == edit.replacement) return
+            probe++
+        }
         entries.add(low, entry)
     }
 
@@ -84,6 +89,8 @@ class EditPlan {
         }
         return entries.map { it.edit }
     }
+
+    private fun sameSpan(a: WEdit, b: WEdit): Boolean = a.startOffset == b.startOffset && a.endOffset == b.endOffset
 
     private fun precedes(a: Entry, b: Entry): Boolean {
         if (a.edit.startOffset != b.edit.startOffset) return a.edit.startOffset < b.edit.startOffset

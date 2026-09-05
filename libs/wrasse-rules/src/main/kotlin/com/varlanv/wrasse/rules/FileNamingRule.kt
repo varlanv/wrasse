@@ -17,9 +17,17 @@ class FileNamingRule : WUninitializedRule {
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
-            override val targetTypes = setOf(WNodeType.FILE, WNodeType.CLASS, WNodeType.OBJECT_DECLARATION)
+            override val targetTypes = setOf(
+                WNodeType.FILE,
+                WNodeType.CLASS,
+                WNodeType.OBJECT_DECLARATION,
+                WNodeType.FUN,
+                WNodeType.PROPERTY,
+                WNodeType.TYPEALIAS,
+            )
 
             private val topLevelClassLikeNames = mutableListOf<String>()
+            private var otherTopLevelDeclarations = 0
 
             override fun exitNode(
                 ctx: WContext,
@@ -28,13 +36,19 @@ class FileNamingRule : WUninitializedRule {
             ) {
                 when (ctx.type) {
                     WNodeType.CLASS, WNodeType.OBJECT_DECLARATION -> recordTopLevelDeclaration(ctx, children)
+                    WNodeType.FUN, WNodeType.PROPERTY, WNodeType.TYPEALIAS ->
+                        if (isTopLevel(ctx)) otherTopLevelDeclarations++
                     WNodeType.FILE -> finalizeFile(ctx, reporter)
                     else -> {}
                 }
             }
 
+            private fun isTopLevel(
+                ctx: WContext,
+            ): Boolean = ctx.ancestors.size == 1 && ctx.ancestors.peekType() == WNodeType.FILE
+
             private fun recordTopLevelDeclaration(ctx: WContext, children: ChildBuffer) {
-                if (ctx.ancestors.size != 1 || ctx.ancestors.peekType() != WNodeType.FILE) return
+                if (!isTopLevel(ctx)) return
                 val idIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 if (idIdx < 0) return
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
@@ -52,7 +66,7 @@ class FileNamingRule : WUninitializedRule {
                     return
                 }
                 val fileStem = normalizedPath.substringAfterLast('/').substringBeforeLast('.')
-                val singleName = topLevelClassLikeNames.singleOrNull()
+                val singleName = if (otherTopLevelDeclarations == 0) topLevelClassLikeNames.singleOrNull() else null
                 val message = FileNamingDecision.decide(fileStem, singleName) ?: return
                 reporter.report(ruleId, message, 0, 1, this)
             }

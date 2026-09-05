@@ -79,13 +79,7 @@ class UnnecessaryPartOfBinaryExpressionRule : WUninitializedRule {
                         return
                     }
                 }
-                out.add(stripWhitespace(children.textSpan(idx, sourceText)))
-            }
-
-            private fun stripWhitespace(text: CharSequence): String {
-                val builder = StringBuilder(text.length)
-                for (c in text) if (!c.isWhitespace()) builder.append(c)
-                return builder.toString()
+                out.add(UnnecessaryPartOfBinaryExpressionDecision.normalizeOperand(children.textSpan(idx, sourceText)))
             }
 
             private fun key(start: Int, end: Int): Long = (start.toLong() shl 32) or (end.toLong() and 0xFF_FFF_FFFL)

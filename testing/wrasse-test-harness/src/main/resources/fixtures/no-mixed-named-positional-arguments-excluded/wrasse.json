@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "no-mixed-named-positional-arguments": { "level": "error", "excluded-packages": ["sample.vendor"] }
+    }
+}

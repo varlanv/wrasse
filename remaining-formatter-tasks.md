@@ -2,6 +2,108 @@
 
 All changes from rounds 1-6 are uncommitted in the working tree. 1573 tests pass, kryptoid builds with 0 errors.
 
+## Status (nightly run, 2026-09-05)
+
+| # | Task | State |
+|---|------|-------|
+| 1 | `BaseSpec({...})` hug | done (`resolveSuperTypeListFrame` joins `: Base({` for a sole lambda argument) |
+| 2 | `val x = chain.call(` same-line | done (FLUID value group; chains ending in a call stay on the `=` line) |
+| 2.1 | redundant newlines after annotations | done (`adjustAnnotationTrailingGap`) |
+| 3 | named-arguments rule | done: names + wrapping (`wrap` option, default true; no wrapping inside `${...}`); `java`/`javax` excluded by default (`excluded-packages`) |
+| 4 | no-mixed-named-positional-arguments | done, report-only |
+| 5 | name everywhere | done via `named-arguments` option `all-calls: true` |
+| 6 | per-rule options | done: required / optional-with-default / optional-without-default, boolean / integer / string / string list / map of string lists; `if-else-bracing` has `allow-inline` (default false) |
+| 7 | forbidden syntax | done: `forbidden-calls` (required `calls` map: callee pattern -> allowed file globs; `pkg.Class.member`, `pkg.member`, `pkg.Class` for constructors, trailing `*` prefix) and `forbidden-expression-body-functions` (autofix to a block body when the return type is explicit; cannot be on with `function-expression-body`) |
+| 8 | performance | done for this round, see below |
+| 9 | every rule against kryptoid | see below |
+
+### Decisions taken without the owner (revisit if wrong)
+
+- wrasse's own `wrasse.json` sets `if-else-bracing` `allow-inline: true` so the repo's style did not churn; kryptoid keeps the default (`false`).
+- `named-arguments` names `kotlin.*` callees too, so kryptoid gained many `element = ` / `key = ` arguments on stdlib calls. Put `"kotlin"` into `excluded-packages` if that is unwanted.
+- `named-arguments` `wrap` (default true) wraps every call that nests a call with arguments one argument per line, transitively, as in the spec example; string-template entries are exempt.
+- kryptoid's `apps/analytics-scrapyard/.../analytics/**` is gitignored. A trial run of `forbidden-expression-body-functions` with format on rewrote the expression-bodied functions there into block bodies before the trial was scoped to exclude that directory; those files are not tracked, so that change could not be reverted with git. They compile.
+
+### Performance (JMH, `:testing:wrasse-benchmarks:jmh`, 100 generated files / 223 KB per op)
+
+| benchmark | before | after |
+|-----------|-------:|------:|
+| walkWithNoRules | 9.05 ms | 8.73 ms |
+| walkWithShippedRules | 10.29 ms | 10.15 ms |
+| walkWithBufferedRules (12 buffered rules) | 14.94 ms | 13.06 ms |
+| walkWithFormat (DocBuilder + Layout) | 19.16 ms | 18.70 ms (17.4 before the lazy leaf text; within run-to-run noise of ±0.8) |
+
+Changes: one shared `ChildBuffer` per tree depth instead of one per rule per node, no per-entry
+objects for active node rules, index loops on the hot dispatch paths, leaf text sliced lazily
+from the file text (a leaf nobody reads allocates nothing), `Doc` flat-width and last-line-width
+caches (the printer's fit checks were re-measuring nested groups once per enclosing group),
+binary-search insertion in `EditPlan`, and the patch file is rewritten only when its content
+changes (a clean file used to rewrite the whole patch file on every compile).
+
+Not done: a zero-copy `StringSlice` for rule text scanning. Every rule reads `leafText` through
+the `CharSequence` API and most go through `IdentifierCasing.unquote`, so the change is
+mechanical but touches ~25 call sites; the lazy slice above already removes the per-leaf
+allocation for leaves no rule reads. The raw walk (no rules) is ~9 ms per 223 KB and is
+dominated by kotlinc's own `getChildren`/tree access, not by wrasse code.
+
+### Kryptoid, all rules on (`warn`, format off)
+
+Every rule id in `wrasse-schema.json` was switched on at `warn` (format off, `forbidden-expression-body-functions` off because it conflicts with `function-expression-body`), kryptoid compiled with 0 errors and 0 wrasse internal errors. Reports per rule:
+
+| rule | reports |
+|------|--------:|
+| magic-number | 1345 |
+| return-count | 465 |
+| comment-over-private-declaration | 411 |
+| long-numerical-values | 249 |
+| no-mixed-named-positional-arguments | 140 |
+| loop-with-too-many-jump-statements | 106 |
+| cyclomatic-complexity | 102 |
+| no-wildcard-imports | 99 |
+| complex-condition | 96 |
+| long-method | 90 |
+| property-naming | 62 |
+| when-must-have-else | 52 |
+| too-generic-exception-caught | 51 |
+| long-parameter-list | 43 |
+| debug-print | 40 |
+| too-many-functions | 39 |
+| function-name-max-length | 30 |
+| string-should-be-raw-string | 24 |
+| large-class | 22 |
+| string-concatenation | 20 |
+| no-unnecessary-fqn | 19 |
+| trim-multiline-raw-string | 16 |
+| no-unused-imports | 14 |
+| filename | 13 |
+| forbidden-calls | 12 |
+| nested-block-depth | 8 |
+| also-could-be-apply | 8 |
+| unused-parameter | 6 |
+| throws-count | 6 |
+| function-name-min-length | 6 |
+| too-generic-exception-thrown | 3 |
+| kdoc-tag-mismatch | 3 |
+| empty-function-block | 3 |
+| unnecessary-part-of-binary-expression | 2 |
+| unused-private-class | 1 |
+| not-implemented-declaration | 1 |
+| file-size | 1 |
+| equals-null-call | 1 |
+| destructuring-declaration-with-too-many-entries | 1 |
+| collapse-if | 1 |
+
+Spot-checked against the source and fixed in this run:
+
+- `filename` flagged `RunService.kt` (one class plus top-level functions) — the single-class name check now applies only when the class or object is the file's only top-level declaration.
+- `unnecessary-part-of-binary-expression` flagged `"buyback" in lower || "buy back" in lower` — operand whitespace is now normalised outside string and character literals only.
+- `no-mixed-named-positional-arguments` now autofixes by naming the positional arguments when the callee resolved with stable parameter names outside `excluded-packages` (`java`, `javax` by default); identical edits emitted by it and `named-arguments` collapse into one.
+
+Everything else sampled (`unused-parameter`, `no-unnecessary-fqn`, `also-could-be-apply`, `equals-null-call`, `empty-function-block`, `kdoc-tag-mismatch`, `string-should-be-raw-string`, `forbidden-calls`) matched the code it pointed at. High counts (`magic-number`, `return-count`, `comment-over-private-declaration`, `long-numerical-values`) are the rules being strict, not wrong.
+
+With kryptoid's own `wrasse.json` (format on, `named-arguments` and `no-mixed-named-positional-arguments` on) the final plugin build formats kryptoid idempotently (0 residual patch entries after a recompile), compiles with 0 errors and 0 warnings; the mixed-argument autofix named the remaining positional arguments in 36 files (committed in kryptoid).
+
+
 ## Testing against kryptoid
 
 The kryptoid project (`/var/home/vlad/dev/IdeaProjects/kryptoid`) is wired as a real-world test bed

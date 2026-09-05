@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "named-arguments": { "level": "error" },
+        "no-mixed-named-positional-arguments": { "level": "error" }
+    }
+}

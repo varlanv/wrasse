@@ -36,6 +36,17 @@ class EditPlanSpec : BaseSpec({
             .map { it.ruleId } shouldBe listOf("dup-second", "dup-first", "r${spans.indexOf(50)}")
     }
 
+    should("keep one copy of an identical edit two rules both emit, but keep differing edits on the same span") {
+        val plan = EditPlan()
+        plan.add("named-arguments", WEdit(10, 10, "x = "))
+        plan.add("no-mixed-named-positional-arguments", WEdit(10, 10, "x = "))
+        plan.add("other", WEdit(10, 10, "y = "))
+
+        val edits = plan.finalEdits()
+
+        edits.map { it.replacement } shouldBe listOf("y = ", "x = ")
+    }
+
     should("take and remove edits whose span lies within the requested range") {
         val plan = EditPlan()
         plan.add("inner", WEdit(3, 4, "x"))

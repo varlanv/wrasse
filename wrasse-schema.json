@@ -268,8 +268,25 @@
                     }
                 },
                 "no-mixed-named-positional-arguments": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow mixing named and positional arguments in one call"
+                    "type": "object",
+                    "description": "Disallow mixing named and positional arguments in one call; the positional ones are named when the callee allows it",
+                    "additionalProperties": false,
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "excluded-packages": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "default": ["java", "javax"],
+                            "description": "Package prefixes whose callees are reported but never autofixed. Default [\"java\", \"javax\"]."
+                        }
+                    }
                 },
                 "if-else-bracing": {
                     "type": "object",
