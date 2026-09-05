@@ -112,7 +112,12 @@ object IdempotenceCycle {
     }
 
     private fun describeResidualEntries(entries: List<FileEdits>): String =
-    entries.joinToString("\n") { "  ${it.filePath} (${it.edits.size} edits)" }.ifEmpty { "  (none)" }
+    entries
+        .joinToString("\n") { file ->
+            "  ${file.filePath} (${file.edits.size} edits)" +
+                file.edits.joinToString("") { "\n    [${it.startOffset}, ${it.endOffset}) -> ${it.replacement.take(400)}" }
+        }
+        .ifEmpty { "  (none)" }
 
     /**
      * Fails if applying the fix introduced a non-wrasse `e:`-severity diagnostic message present in

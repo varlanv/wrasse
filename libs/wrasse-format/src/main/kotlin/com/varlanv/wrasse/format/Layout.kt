@@ -32,7 +32,7 @@ object Layout {
         is Doc.Concat -> {
             var col = column
             for ((i, part) in doc.parts.withIndex()) {
-                val partTail = if (i < doc.parts.size - 1) computeTailWidth(doc.parts, i + 1, tailWidth) else tailWidth
+                val partTail = if (i < doc.parts.size - 1) computeTailWidth(doc.parts, i + 1, tailWidth, mode) else tailWidth
                 col = renderNode(sb, part, indentDepth, col, mode, style, partTail)
             }
             col
@@ -52,21 +52,87 @@ object Layout {
             }
 
         is Doc.Group -> {
-            val flatW = flatWidth(doc.body)
-            val chosenMode = if (flatW != null && column + flatW + tailWidth <= style.maxLineLength) Mode.FLAT else Mode.BROKEN
-            renderNode(sb, doc.body, indentDepth, column, chosenMode, style, tailWidth)
+            val fits =
+                if (doc.kind == GroupKind.FLUID) {
+                    fluidFits(doc.body, column, tailWidth, style)
+                } else {
+                    val flatW = flatWidth(doc.body)
+                    flatW != null && column + flatW + tailWidth <= style.maxLineLength
+                }
+            val chosenMode = if (fits) Mode.FLAT else Mode.BROKEN
+            val bodyDepth = if (doc.kind == GroupKind.FLUID && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
+            renderNode(sb, doc.body, bodyDepth, column, chosenMode, style, tailWidth)
         }
     }
 
-    private fun computeTailWidth(parts: List<Doc>, fromIndex: Int, outerTailWidth: Int): Int {
-        var total = 0
+    private fun fluidFits(body: Doc, column: Int, tailWidth: Int, style: FormatStyle): Boolean {
+        val acc = IntArray(1)
+        val complete = measureFluid(body, acc, nested = false)
+        val rest = if (complete) tailWidth else 0
+        return column + acc[0] + rest <= style.maxLineLength
+    }
+
+    private fun measureFluid(doc: Doc, acc: IntArray, nested: Boolean): Boolean = when (doc) {
+        is Doc.Text -> measureText(doc, acc)
+        is Doc.Break ->
+            if (!nested && doc.kind == BreakKind.SOFT) {
+                acc[0] += doc.flat.length
+                true
+            } else {
+                false
+            }
+
+        is Doc.TrailingComma -> true
+        is Doc.Indent -> measureFluid(doc.body, acc, nested)
+        is Doc.Group -> measureFluid(doc.body, acc, nested = true)
+        is Doc.Concat -> measureParts(doc.parts, acc) { measureFluid(it, acc, nested) }
+    }
+
+    private fun computeTailWidth(parts: List<Doc>, fromIndex: Int, outerTailWidth: Int, mode: Mode): Int {
+        val acc = IntArray(1)
         for (i in fromIndex until parts.size) {
             val part = parts[i]
-            if (part is Doc.Break) return total
-            val w = flatWidth(part) ?: return total
-            total += w
+            if (part is Doc.Break || !measureTail(part, acc, mode)) return acc[0]
         }
-        return total + outerTailWidth
+        return acc[0] + outerTailWidth
+    }
+
+    private fun measureTail(doc: Doc, acc: IntArray, mode: Mode): Boolean = when (doc) {
+        is Doc.Text -> measureText(doc, acc)
+        is Doc.Break ->
+            if (doc.kind == BreakKind.SOFT) {
+                acc[0] += doc.flat.length
+                true
+            } else {
+                false
+            }
+
+        is Doc.TrailingComma -> {
+            if (mode == Mode.BROKEN) acc[0] += 1
+            true
+        }
+
+        is Doc.Indent -> measureTail(doc.body, acc, mode)
+        is Doc.Group -> measureTail(doc.body, acc, Mode.FLAT)
+        is Doc.Concat -> measureParts(doc.parts, acc) { measureTail(it, acc, mode) }
+    }
+
+    private fun measureText(doc: Doc.Text, acc: IntArray): Boolean {
+        val newline = doc.value.indexOf('\n')
+        return if (newline < 0) {
+            acc[0] += doc.value.length
+            true
+        } else {
+            acc[0] += newline
+            false
+        }
+    }
+
+    private inline fun measureParts(parts: List<Doc>, acc: IntArray, measure: (Doc) -> Boolean): Boolean {
+        for (part in parts) {
+            if (!measure(part)) return false
+        }
+        return true
     }
 
     private fun renderBreak(sb: StringBuilder, doc: Doc.Break, indentDepth: Int, column: Int, mode: Mode, style: FormatStyle): Int =

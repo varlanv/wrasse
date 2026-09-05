@@ -51,9 +51,11 @@ sealed interface Doc {
      * Renders [body] flat (every `SOFT` break inside becomes its [Break.flat] text) if that flat
      * form fits within the remaining line width; otherwise renders [body] broken. A `HARD` break
      * anywhere inside forces the broken form regardless of width. Nested groups decide
-     * independently, top-down, once the enclosing group's mode is known.
+     * independently, top-down, once the enclosing group's mode is known. [kind] refines both how
+     * this group measures its own fit and how it counts toward a preceding group's tail — see
+     * [GroupKind].
      */
-    class Group(val body: Doc) : Doc {
+    class Group(val body: Doc, val kind: GroupKind = GroupKind.DEFAULT) : Doc {
         override val start: Int get() = body.start
         override val end: Int get() = body.end
     }
@@ -74,4 +76,17 @@ sealed interface Doc {
 enum class BreakKind {
     HARD,
     SOFT,
+}
+
+/**
+ * - [DEFAULT] — fits iff its whole flat width plus the tail fits; counted flat, in full, as part
+ *   of a preceding group's tail.
+ * - [FLUID] — an assigned value whose body starts with the `SOFT` break after the operator: fits
+ *   iff the content up to the first break opportunity inside it (the first break inside any
+ *   nested group, or the first `HARD` break) fits; when broken, the whole body renders one indent
+ *   level deeper.
+ */
+enum class GroupKind {
+    DEFAULT,
+    FLUID,
 }

@@ -18,12 +18,11 @@ class Builder {
     fun build(): Builder = this
 }
 
-val client =
-    Builder()
-        .setDefaultRequestConfig(
-            Config.custom().setResponseTimeout(5).build()
-            // Retries belong to the limiters.
-            ,
-        )
-        .disableRetries()
-        .build()
+val client = Builder()
+    .setDefaultRequestConfig(
+        Config.custom().setResponseTimeout(5).build()
+        // Retries belong to the limiters.
+        ,
+    )
+    .disableRetries()
+    .build()

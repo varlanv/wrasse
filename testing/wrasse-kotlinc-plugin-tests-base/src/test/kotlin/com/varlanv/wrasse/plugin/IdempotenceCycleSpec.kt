@@ -114,7 +114,7 @@ class IdempotenceCycleSpec :
                 "fix(fix(x)) == fix(x) violated: a second fix pass emitted further edits, expected merge-on-write " +
                     "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
                     "exist, header-only, since emission now rides check mode unconditionally.\n" +
-                    "Residual patch entries at $patchFile:\n  /tmp/sample/test.kt (1 edits)\n" +
+                    "Residual patch entries at $patchFile:\n  /tmp/sample/test.kt (1 edits)\n    [4, 4) -> ;\n" +
                     "expected:<true> but was:<false>"
                 )
             }

@@ -53,6 +53,39 @@ class LayoutSpec :
                 Layout.render(doc, style) shouldBe "a\nb"
             }
 
+            should("FLUID group joins the operator line when the value's first line fits, leaving the nested group to break") {
+                val args = Doc.Group(Doc.Concat(listOf(Doc.Text("("), Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text("argument-one")))), Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text(")"))))
+                val value = Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), Doc.Text("call"), args))
+                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(value, GroupKind.FLUID)))
+                Layout.render(doc, style) shouldBe "val x = call(\n    argument-one\n)"
+            }
+
+            should("FLUID group breaks after the operator and indents the value when its first line does not fit") {
+                val value = Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), Doc.Text("long.receiver()")))
+                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(value, GroupKind.FLUID)))
+                Layout.render(doc, style) shouldBe "val x =\n    long.receiver()"
+            }
+
+            should("FLUID group measures up to a HARD break inside the value") {
+                val lambda = Doc.Concat(listOf(Doc.Text("run {"), Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.HARD, literal = "\n"), Doc.Text("a very long body line that never counts")))), Doc.Break(BreakKind.HARD, literal = "\n"), Doc.Text("}")))
+                val doc = Doc.Concat(listOf(Doc.Text("val x ="), Doc.Group(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT), lambda)), GroupKind.FLUID)))
+                Layout.render(doc, style) shouldBe "val x = run {\n    a very long body line that never counts\n}"
+            }
+
+            should("a tail stops at a HARD break but counts the content before it") {
+                val args = Doc.Group(Doc.Concat(listOf(Doc.Text("("), Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text("a")))), Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text(")"))))
+                val lambda = Doc.Concat(listOf(Doc.Text(" { x, y, z, w ->"), Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.HARD, literal = "\n"), Doc.Text("x")))), Doc.Break(BreakKind.HARD, literal = "\n"), Doc.Text("}")))
+                val doc = Doc.Concat(listOf(Doc.Text("fold"), args, lambda))
+                Layout.render(doc, style) shouldBe "fold(\n    a\n) { x, y, z, w ->\n    x\n}"
+            }
+
+            should("a DEFAULT group in tail position counts its whole flat width, so the preceding group breaks first") {
+                val params = Doc.Group(Doc.Concat(listOf(Doc.Text("("), Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text("a: A")))), Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text(")"))))
+                val args = Doc.Group(Doc.Concat(listOf(Doc.Text("("), Doc.Indent(Doc.Concat(listOf(Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text("a")))), Doc.Break(BreakKind.SOFT, flat = ""), Doc.Text(")"))))
+                val doc = Doc.Concat(listOf(Doc.Text("fun f"), params, Doc.Text(" = call"), args))
+                Layout.render(doc, style) shouldBe "fun f(\n    a: A\n) = call(a)"
+            }
+
             should("decide nested groups independently once the outer group's mode is known") {
                 val inner = Doc.Group(Doc.Concat(listOf(Doc.Text("inner-a"), Doc.Break(BreakKind.SOFT), Doc.Text("inner-b"))))
                 val outer = Doc.Group(Doc.Concat(listOf(Doc.Text("outer-prefix-that-is-long"), Doc.Break(BreakKind.SOFT), inner)))
