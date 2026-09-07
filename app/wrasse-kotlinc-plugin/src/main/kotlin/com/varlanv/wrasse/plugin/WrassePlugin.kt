@@ -235,9 +235,10 @@ class WrassePlugin(
                 )
                 recorded.add(report)
                 if (!quiet && (!formatRun || edits.isEmpty())) reports.add(report)
+                val groupId = ctx.editPlan.newGroupId()
                 for (edit in edits) {
                     requireWithinOpenAncestor(ctx, ruleId, edit)
-                    ctx.editPlan.add(ruleId, edit)
+                    ctx.editPlan.add(ruleId, edit, groupId)
                 }
             }
         }
@@ -273,7 +274,10 @@ class WrassePlugin(
                 }
             }
         }
-        if (perf.enabled) perf.add("count:edits", finalEdits.size.toLong())
+        if (perf.enabled) {
+            perf.add("count:edits", finalEdits.size.toLong())
+            perf.add("count:dropped-edits", ctx.editPlan.droppedEdits().size.toLong())
+        }
 
         val usage = ctx.resolvedUsage
         if (dumpResolvedUsage && usage != null) {

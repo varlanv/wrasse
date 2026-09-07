@@ -283,7 +283,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * [com.varlanv.wrasse.model.WFileRule] phase have both completed, so every rule's final edit is
      * already in the plan. Overlapping edits are resolved via [EditPlan.resolveOverlaps] first —
      * [DocSplicer] still assumes disjoint input — so a dropped edit's finding is reported but not
-     * spliced here either; it survives into the next pass same as it would outside format mode.
+     * spliced here either; it survives into the next pass same as it would outside format mode. Once
+     * splicing is committed to, the dropped entries are handed to [EditPlan.recordDropped] since they
+     * never return to the plan for a later [EditPlan.finalEdits] call to see them itself.
      * [DocSplicer.splice] returning `null` means at least one surviving edit could not be cleanly
      * mapped onto a `Doc` leaf: the format pass is skipped for this compile (no report, no edit)
      * and the plan is handed back untouched (every taken entry, not just the kept ones) so the
@@ -296,7 +298,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     ) {
         val original = ctx.sourceText.toString()
         val taken = ctx.editPlan.takeAll()
-        val (kept, _) = EditPlan.resolveOverlaps(taken)
+        val (kept, dropped) = EditPlan.resolveOverlaps(taken)
         val spliceStarted = if (perf.enabled) System.nanoTime() else 0L
         val spliced = DocSplicer.splice(rootDoc, kept.map { it.edit })
         if (perf.enabled) perf.record("phase:format-splice", System.nanoTime() - spliceStarted)
@@ -305,6 +307,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             if (perf.enabled) perf.add("count:format-splice-bailed", 1)
             return
         }
+        ctx.editPlan.recordDropped(dropped)
         val renderStarted = if (perf.enabled) System.nanoTime() else 0L
         val rendered = Layout.render(spliced, style)
         if (perf.enabled) perf.record("phase:format-render", System.nanoTime() - renderStarted)

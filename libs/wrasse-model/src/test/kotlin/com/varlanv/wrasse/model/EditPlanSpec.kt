@@ -169,4 +169,58 @@ class EditPlanSpec : BaseSpec({
         edits.map { it.replacement } shouldBe listOf("LEFT", "RIGHT")
         plan.droppedEdits().shouldBeEmpty()
     }
+
+    should("drop an entire brace-insertion pair when only its OPEN edit overlaps a kept edit") {
+        val plan = EditPlan()
+        plan.add("other", WEdit(5, 12, "OTHER"))
+        val braceGroup = plan.newGroupId()
+        plan.add("brace", WEdit(10, 11, " {\n"), braceGroup)
+        plan.add("brace", WEdit(40, 41, "\n}"), braceGroup)
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 1
+        edits[0].replacement shouldBe "OTHER"
+        plan.droppedEdits().map { it.ruleId } shouldBe listOf("brace", "brace")
+        plan.droppedEdits().map { it.startOffset to it.endOffset } shouldBe listOf(10 to 11, 40 to 41)
+    }
+
+    should("keep a brace-insertion pair and an edit nested in the gap between OPEN and CLOSE") {
+        val plan = EditPlan()
+        val braceGroup = plan.newGroupId()
+        plan.add("brace", WEdit(10, 11, " {\n"), braceGroup)
+        plan.add("brace", WEdit(40, 41, "\n}"), braceGroup)
+        plan.add("inner", WEdit(15, 20, "INNER"))
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 3
+        edits.map { it.replacement } shouldBe listOf(" {\n", "INNER", "\n}")
+        plan.droppedEdits().shouldBeEmpty()
+    }
+
+    should("keep two independent brace-insertion pairs whose edits interleave in span order") {
+        val plan = EditPlan()
+        val pairA = plan.newGroupId()
+        val pairB = plan.newGroupId()
+        plan.add("pair-a", WEdit(10, 11, "openA"), pairA)
+        plan.add("pair-b", WEdit(15, 16, "openB"), pairB)
+        plan.add("pair-a", WEdit(20, 21, "closeA"), pairA)
+        plan.add("pair-b", WEdit(25, 26, "closeB"), pairB)
+
+        val edits = plan.finalEdits()
+
+        edits.map { it.replacement } shouldBe listOf("openA", "openB", "closeA", "closeB")
+        plan.droppedEdits().shouldBeEmpty()
+    }
+
+    should("resolve a large non-overlapping plan and keep every edit") {
+        val plan = EditPlan()
+        for (i in 0 until 5_000) plan.add("rule-$i", WEdit(i * 10, i * 10 + 5, "x"))
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 5_000
+        plan.droppedEdits().shouldBeEmpty()
+    }
 })

@@ -5,7 +5,9 @@ import com.varlanv.wrasse.lang.WEdit
 /**
  * Per-file collector of attributed fix edits. Rules never touch this directly for
  * reporting — [WReporter.report] forwards each attached [WEdit] here, tagged with the
- * reporting rule's id and its collection sequence.
+ * reporting rule's id, its collection sequence, and a group id shared by every edit of that
+ * same [WReporter.report] call ([Entry.groupId]): an inseparable multi-edit fix (an OPEN/CLOSE
+ * brace-insertion pair, say) must survive or lose overlap resolution as one unit, never split.
  *
  * Because the walk is post-order (children exit before parents), every edit inside a node's
  * span already sits in the plan by the time that node's own rule exits. A composing rule calls
@@ -19,24 +21,31 @@ import com.varlanv.wrasse.lang.WEdit
  * the output (later-collected must be spliced first so earlier-collected ends up leftmost).
  *
  * [finalEdits] resolves any surviving overlap rather than failing, via [resolveOverlaps]:
- * candidates are ranked by start ascending, then span length descending, then collection
- * sequence ascending, and kept greedily — an edit is kept unless it overlaps an already-kept
- * one, otherwise it is dropped. Touching (one edit's end equal to another's start) is not an
- * overlap. Ranking longer spans first at a shared start means an outer edit wins over one nested
- * inside it; when two edits share an identical span, the one collected earliest (lowest
- * sequence, i.e. the first rule to report it during the walk) is kept. Dropped entries are
- * exposed via [droppedEdits] so the caller can log them; the finding they came from stays
- * reported regardless, and — since the surviving edit already changed that text — a later pass
- * over the fixed file re-reports and this time fixes it. `DocBuilder.finish` runs the same
- * [resolveOverlaps] over its own [takeAll] before splicing, so the printer never sees a pair of
- * overlapping edits either.
+ * entries are grouped by [Entry.groupId], the groups are ranked by their earliest edit (start
+ * ascending, then span length descending, then collection sequence ascending — an outer edit
+ * wins over one nested inside it at a shared start, and of two identical spans the first
+ * reported wins), and kept greedily in that order — a group is kept only when none of its own
+ * edits overlaps an edit already kept by an earlier group, otherwise every edit in that group is
+ * dropped together. Touching (one edit's end equal to another's start) is not an overlap.
+ * Dropped entries are exposed via [droppedEdits] for the `count:dropped-edits` perf counter
+ * only: the finding that produced a dropped edit stays reported regardless (it is a diagnostic,
+ * never conditioned on its fix surviving overlap resolution), and since the surviving edit
+ * already changed that text, a later pass over the fixed file re-reports and this time fixes it.
+ * `DocBuilder.finish` runs the same [resolveOverlaps] over its own [takeAll] before splicing, so
+ * the printer never sees a pair of overlapping edits either, and hands its own drops to
+ * [recordDropped] since those entries never return to this plan for [finalEdits] to see them.
  */
 class EditPlan {
-    /** One collected edit, attributed to the rule that reported it and its arrival order. */
+    /**
+     * One collected edit, attributed to the rule that reported it, its arrival order, and the
+     * [WReporter.report] call it came from — every entry sharing [groupId] is kept or dropped
+     * as one unit by [resolveOverlaps].
+     */
     class Entry(
         val ruleId: String,
         val edit: WEdit,
         val sequence: Int,
+        val groupId: Int,
     )
 
     /** One edit that lost overlap resolution, attributed to its reporting rule. */
@@ -47,20 +56,33 @@ class EditPlan {
     )
 
     companion object {
-        /** See the class-level overlap-resolution rules. Kept entries are returned in [candidates]' own order. */
+        private val priority = compareBy<Entry> { it.edit.startOffset }
+            .thenByDescending { it.edit.endOffset - it.edit.startOffset }
+            .thenBy { it.sequence }
+
+        /**
+         * See the class-level overlap-resolution rules: candidates are grouped by
+         * [Entry.groupId] and whole groups are kept or dropped together. Kept entries are
+         * returned in [candidates]' own order.
+         */
         fun resolveOverlaps(candidates: List<Entry>): Pair<List<Entry>, List<Dropped>> {
-            val resolutionOrder = candidates.sortedWith(
-                compareBy<Entry> { it.edit.startOffset }
-                    .thenByDescending { it.edit.endOffset - it.edit.startOffset }
-                    .thenBy { it.sequence },
-            )
+            if (candidates.isEmpty()) return candidates to emptyList()
+            val groups = candidates
+                .groupBy { it.groupId }
+                .values
+                .sortedWith(Comparator { a, b -> priority.compare(a.minWith(priority), b.minWith(priority)) })
             val kept = mutableListOf<Entry>()
             val dropped = mutableListOf<Dropped>()
-            for (candidate in resolutionOrder) {
-                if (kept.any { overlaps(it.edit, candidate.edit) }) {
-                    dropped.add(Dropped(candidate.ruleId, candidate.edit.startOffset, candidate.edit.endOffset))
+            var maxKeptEnd = Int.MIN_VALUE
+            for (group in groups) {
+                val mayOverlapKept = group.any { it.edit.startOffset < maxKeptEnd }
+                val overlapsKept = mayOverlapKept &&
+                    group.any { candidate -> kept.any { overlaps(it.edit, candidate.edit) } }
+                if (overlapsKept) {
+                    dropped.addAll(group.map { Dropped(it.ruleId, it.edit.startOffset, it.edit.endOffset) })
                 } else {
-                    kept.add(candidate)
+                    kept.addAll(group)
+                    for (entry in group) if (entry.edit.endOffset > maxKeptEnd) maxKeptEnd = entry.edit.endOffset
                 }
             }
             val keptSet = kept.toHashSet()
@@ -72,10 +94,14 @@ class EditPlan {
 
     private val entries = mutableListOf<Entry>()
     private var nextSequence = 0
+    private var nextGroupId = 0
     private var lastDropped: List<Dropped> = emptyList()
 
-    fun add(ruleId: String, edit: WEdit) {
-        val entry = Entry(ruleId, edit, nextSequence++)
+    /** A fresh id for grouping every edit of one [WReporter.report] call under [add]'s [groupId] parameter. */
+    fun newGroupId(): Int = nextGroupId++
+
+    fun add(ruleId: String, edit: WEdit, groupId: Int = newGroupId()) {
+        val entry = Entry(ruleId, edit, nextSequence++, groupId)
         var low = 0
         var high = entries.size
         while (low < high) {
@@ -125,12 +151,26 @@ class EditPlan {
         return taken
     }
 
-    /** Every edit dropped by the most recent [finalEdits] call, in the order they were dropped. */
+    /**
+     * Every edit dropped by the most recent [finalEdits] call, plus whatever a consumer that
+     * removed entries via [takeAll] handed back through [recordDropped] — exposed for the
+     * `count:dropped-edits` perf counter only. The finding a dropped edit came from stays
+     * reported regardless of what this list contains.
+     */
     fun droppedEdits(): List<Dropped> = lastDropped
+
+    /**
+     * Adds [dropped] to what [droppedEdits] reports, for a consumer (`DocBuilder.finish`) that
+     * ran [resolveOverlaps] itself over entries it already removed via [takeAll] and is not
+     * putting back.
+     */
+    fun recordDropped(dropped: List<Dropped>) {
+        lastDropped = lastDropped + dropped
+    }
 
     fun finalEdits(): List<WEdit> {
         val (kept, dropped) = resolveOverlaps(entries)
-        lastDropped = dropped
+        lastDropped = lastDropped + dropped
         return kept.map { it.edit }
     }
 
