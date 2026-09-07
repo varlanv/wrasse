@@ -27,9 +27,8 @@ class PackageNamingRule : WUninitializedRule {
                 reporter: WReporter,
             ) {
                 val nameIdx = (0 until children.size).firstOrNull {
-                    children.type(
-                        it,
-                    ) == WNodeType.DOT_QUALIFIED_EXPRESSION || children.type(it) == WNodeType.REFERENCE_EXPRESSION
+                    children.type(it) == WNodeType.DOT_QUALIFIED_EXPRESSION ||
+                        children.type(it) == WNodeType.REFERENCE_EXPRESSION
                 } ?: return
                 val fqName = children.textSpan(nameIdx, ctx.sourceText).toString()
                 val message = PackageNamingDecision.decide(fqName) ?: return

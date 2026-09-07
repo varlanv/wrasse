@@ -98,22 +98,17 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
         val cyclomaticComplexityRule = configs[CYCLOMATIC_COMPLEXITY_ID]?.let {
             ReportFacade(CYCLOMATIC_COMPLEXITY_ID, it)
         }
-        val returnCountThreshold = configs[RETURN_COUNT_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: ReturnCountDecision.DEFAULT_THRESHOLD
-        val throwsCountThreshold = configs[THROWS_COUNT_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: ThrowsCountDecision.DEFAULT_THRESHOLD
-        val nestedBlockDepthThreshold = configs[NESTED_BLOCK_DEPTH_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: NestedBlockDepthDecision.DEFAULT_THRESHOLD
-        val complexityThreshold = configs[CYCLOMATIC_COMPLEXITY_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: CyclomaticComplexityDecision.DEFAULT_THRESHOLD
+        val returnCountThreshold = configs[RETURN_COUNT_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: ReturnCountDecision.DEFAULT_THRESHOLD
+        val throwsCountThreshold = configs[THROWS_COUNT_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: ThrowsCountDecision.DEFAULT_THRESHOLD
+        val nestedBlockDepthThreshold = configs[NESTED_BLOCK_DEPTH_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: NestedBlockDepthDecision.DEFAULT_THRESHOLD
+        val complexityThreshold = configs[CYCLOMATIC_COMPLEXITY_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: CyclomaticComplexityDecision.DEFAULT_THRESHOLD
         val longMethodRule = configs[LONG_METHOD_ID]?.let { ReportFacade(LONG_METHOD_ID, it) }
-        val longMethodThreshold = configs[LONG_METHOD_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: LongMethodDecision.DEFAULT_THRESHOLD
+        val longMethodThreshold = configs[LONG_METHOD_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: LongMethodDecision.DEFAULT_THRESHOLD
 
         return object : WStreamRule {
             override val id = ENGINE_ID

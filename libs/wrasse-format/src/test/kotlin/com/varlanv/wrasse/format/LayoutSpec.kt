@@ -275,10 +275,8 @@ class LayoutSpec : BaseSpec({
             GroupKind.LAMBDA,
         )
         val doc = Doc.Concat(listOf(Doc.Text("a"), args(named, lambda, force = true)))
-        Layout.render(
-            doc,
-            FormatStyle(indentWidth = 4, maxLineLength = 80),
-        ) shouldBe "a(\n    n = b(\n        1,\n    ),\n    { c(2) },\n)"
+        Layout.render(doc, FormatStyle(indentWidth = 4, maxLineLength = 80)) shouldBe
+            "a(\n    n = b(\n        1,\n    ),\n    { c(2) },\n)"
     }
 
     fun fill(vararg items: String): Doc.Group {

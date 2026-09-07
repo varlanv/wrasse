@@ -134,9 +134,7 @@ object QualifiedUsageDecision {
         val matches = when (usage.kind) {
             WQualifiedUsageKind.QUALIFIER -> written == usage.targetFqName
             WQualifiedUsageKind.TYPE_REF -> {
-                written.startsWith(
-                    usage.targetFqName,
-                ) &&
+                written.startsWith(usage.targetFqName) &&
                     (written.length == usage.targetFqName.length ||
                         written[usage.targetFqName.length].let { it == '<' || it == '?' })
             }

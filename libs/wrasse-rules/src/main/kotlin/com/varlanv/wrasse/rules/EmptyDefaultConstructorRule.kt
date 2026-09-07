@@ -80,9 +80,8 @@ class EmptyDefaultConstructorRule : WUninitializedRule {
                 when (ctx.ancestors.peekType()) {
                     WNodeType.CLASS -> {
                         val cls = classes.lastOrNull() ?: return
-                        if (children.hasChildOfType(
-                            WNodeType.KW_EXPECT,
-                        ) || children.hasChildOfType(WNodeType.KW_ACTUAL)) {
+                        if (children.hasChildOfType(WNodeType.KW_EXPECT) ||
+                            children.hasChildOfType(WNodeType.KW_ACTUAL)) {
                             cls.isExpectOrActual = true
                         }
                     }
@@ -91,14 +90,10 @@ class EmptyDefaultConstructorRule : WUninitializedRule {
                         ctor.hasAnnotation = children.hasChildOfType(WNodeType.ANNOTATION_ENTRY)
                         for (i in 0 until children.size) {
                             val type = children.type(i)
-                            if (type ==
-                                WNodeType.KW_PUBLIC ||
-                                type ==
-                                WNodeType.KW_PRIVATE ||
-                                type ==
-                                WNodeType.KW_PROTECTED ||
-                                type ==
-                                WNodeType.KW_INTERNAL
+                            if (type == WNodeType.KW_PUBLIC ||
+                                type == WNodeType.KW_PRIVATE ||
+                                type == WNodeType.KW_PROTECTED ||
+                                type == WNodeType.KW_INTERNAL
                             ) {
                                 ctor.visibility = type
                             }

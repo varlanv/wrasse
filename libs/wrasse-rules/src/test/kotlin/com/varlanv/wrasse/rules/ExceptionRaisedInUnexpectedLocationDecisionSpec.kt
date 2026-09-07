@@ -6,25 +6,17 @@ import io.kotest.matchers.shouldBe
 class ExceptionRaisedInUnexpectedLocationDecisionSpec : BaseSpec({
 
     should("report toString throwing") {
-        ExceptionRaisedInUnexpectedLocationDecision.decide(
-            "toString",
-            hasThrow = true,
-        ) shouldBe ExceptionRaisedInUnexpectedLocationDecision.MESSAGE
+        ExceptionRaisedInUnexpectedLocationDecision.decide("toString", hasThrow = true) shouldBe
+            ExceptionRaisedInUnexpectedLocationDecision.MESSAGE
     }
 
     should("report equals, hashCode, and finalize throwing") {
-        ExceptionRaisedInUnexpectedLocationDecision.decide(
-            "equals",
-            hasThrow = true,
-        ) shouldBe ExceptionRaisedInUnexpectedLocationDecision.MESSAGE
-        ExceptionRaisedInUnexpectedLocationDecision.decide(
-            "hashCode",
-            hasThrow = true,
-        ) shouldBe ExceptionRaisedInUnexpectedLocationDecision.MESSAGE
-        ExceptionRaisedInUnexpectedLocationDecision.decide(
-            "finalize",
-            hasThrow = true,
-        ) shouldBe ExceptionRaisedInUnexpectedLocationDecision.MESSAGE
+        ExceptionRaisedInUnexpectedLocationDecision.decide("equals", hasThrow = true) shouldBe
+            ExceptionRaisedInUnexpectedLocationDecision.MESSAGE
+        ExceptionRaisedInUnexpectedLocationDecision.decide("hashCode", hasThrow = true) shouldBe
+            ExceptionRaisedInUnexpectedLocationDecision.MESSAGE
+        ExceptionRaisedInUnexpectedLocationDecision.decide("finalize", hasThrow = true) shouldBe
+            ExceptionRaisedInUnexpectedLocationDecision.MESSAGE
     }
 
     should("not report an unrelated function name throwing") {

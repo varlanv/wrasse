@@ -77,8 +77,7 @@ class FixtureLoaderSpec : BaseSpec({
             val ruleDir = fixturesDir.resolve("sample-rule")
             shouldThrow<IllegalArgumentException> {
                 FixtureLoader.load(fixturesDir)
-            }
-                .message shouldBe
+            }.message shouldBe
                 "Fixture main declares fixture-aux-file 'aux/Missing.kt' but ${ruleDir.resolve(
                     "aux/Missing.kt",
                 )} does not exist"

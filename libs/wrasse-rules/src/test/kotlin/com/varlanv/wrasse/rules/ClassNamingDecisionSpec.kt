@@ -25,10 +25,8 @@ class ClassNamingDecisionSpec : BaseSpec({
     }
 
     should("reject a backtick-wrapped non-keyword name outside test code") {
-        ClassNamingDecision.decide(
-            "`some weird name`",
-            isJUnitJupiterImported = false,
-        ) shouldBe ClassNamingDecision.MESSAGE
+        ClassNamingDecision.decide("`some weird name`", isJUnitJupiterImported = false) shouldBe
+            ClassNamingDecision.MESSAGE
     }
 
     should("accept a backtick-wrapped non-keyword name when JUnit Jupiter is imported") {

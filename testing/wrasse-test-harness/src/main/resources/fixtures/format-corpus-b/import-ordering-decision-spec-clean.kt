@@ -26,9 +26,8 @@ class ImportOrderingDecisionSpec : BaseSpec({
         )
 
         ImportOrderingDecision.firstOutOfOrder(records) shouldBe records[0]
-        ImportOrderingDecision.sortedReplacement(
-            records,
-        ) shouldBe "import org.mockito.Mockito.verify\nimport org.mockito.Mockito.`when`"
+        ImportOrderingDecision.sortedReplacement(records) shouldBe
+            "import org.mockito.Mockito.verify\nimport org.mockito.Mockito.`when`"
     }
 
     should("find no first-out-of-order record for fewer than two records") {

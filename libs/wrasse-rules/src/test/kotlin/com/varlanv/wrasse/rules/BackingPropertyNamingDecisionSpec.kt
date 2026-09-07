@@ -17,11 +17,8 @@ class BackingPropertyNamingDecisionSpec : BaseSpec({
     }
 
     should("reject a leading underscore followed by an uppercase letter") {
-        BackingPropertyNamingDecision.decide(
-            "_Foo",
-            hasOverride = false,
-            correlatedMemberIsPublic = null,
-        ) shouldBe BackingPropertyNamingDecision.SHAPE_MESSAGE
+        BackingPropertyNamingDecision.decide("_Foo", hasOverride = false, correlatedMemberIsPublic = null) shouldBe
+            BackingPropertyNamingDecision.SHAPE_MESSAGE
     }
 
     should("accept a well-shaped backing property with no correlated member reachable") {
@@ -33,10 +30,7 @@ class BackingPropertyNamingDecisionSpec : BaseSpec({
     }
 
     should("reject a well-shaped backing property whose correlated member is not public") {
-        BackingPropertyNamingDecision.decide(
-            "_foo",
-            hasOverride = false,
-            correlatedMemberIsPublic = false,
-        ) shouldBe BackingPropertyNamingDecision.VISIBILITY_MESSAGE
+        BackingPropertyNamingDecision.decide("_foo", hasOverride = false, correlatedMemberIsPublic = false) shouldBe
+            BackingPropertyNamingDecision.VISIBILITY_MESSAGE
     }
 })

@@ -15,22 +15,18 @@ class DestructuringTooManyEntriesDecisionSpec : BaseSpec({
     }
 
     should("report just above the threshold") {
-        DestructuringTooManyEntriesDecision.decide(
-            4,
-        ) shouldBe "Destructuring declaration has 4 entries; the maximum allowed is 3"
+        DestructuringTooManyEntriesDecision.decide(4) shouldBe
+            "Destructuring declaration has 4 entries; the maximum allowed is 3"
     }
 
     should("report well above the threshold") {
-        DestructuringTooManyEntriesDecision.decide(
-            8,
-        ) shouldBe "Destructuring declaration has 8 entries; the maximum allowed is 3"
+        DestructuringTooManyEntriesDecision.decide(8) shouldBe
+            "Destructuring declaration has 8 entries; the maximum allowed is 3"
     }
 
     should("report just above a configured threshold") {
-        DestructuringTooManyEntriesDecision.decide(
-            3,
-            threshold = 2,
-        ) shouldBe "Destructuring declaration has 3 entries; the maximum allowed is 2"
+        DestructuringTooManyEntriesDecision.decide(3, threshold = 2) shouldBe
+            "Destructuring declaration has 3 entries; the maximum allowed is 2"
         DestructuringTooManyEntriesDecision.decide(2, threshold = 2) shouldBe null
     }
 })

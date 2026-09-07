@@ -60,10 +60,7 @@ class BackingPropertyNamingRule : WUninitializedRule {
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
                 val hasOverride = WordScan.containsWord(modifierText, "override")
-                val isPublic = !WordScan.containsWord(
-                    modifierText,
-                    "private",
-                ) &&
+                val isPublic = !WordScan.containsWord(modifierText, "private") &&
                     !WordScan.containsWord(modifierText, "protected") &&
                     !WordScan.containsWord(modifierText, "internal")
 
@@ -95,22 +92,15 @@ class BackingPropertyNamingRule : WUninitializedRule {
                     if (!member.isProperty || !member.name.startsWith("_") || member.name == "_") continue
                     val strippedName = member.name.removePrefix("_")
                     val correlated = members.firstOrNull { candidate ->
-                        candidate !==
-                            member &&
-                            ((candidate.isProperty &&
-                                candidate.name == strippedName) ||
+                        candidate !== member &&
+                            ((candidate.isProperty && candidate.name == strippedName) ||
                                 (!candidate.isProperty &&
                                     candidate.emptyParamList &&
-                                    candidate.name ==
-                                    "get" +
-                                    strippedName.replaceFirstChar { it.uppercaseChar() }))
+                                    candidate.name == "get" + strippedName.replaceFirstChar { it.uppercaseChar() }))
                     }
                     val message =
-                        BackingPropertyNamingDecision.decide(
-                            member.name,
-                            member.hasOverride,
-                            correlated?.isPublic,
-                        ) ?: continue
+                        BackingPropertyNamingDecision.decide(member.name, member.hasOverride, correlated?.isPublic)
+                            ?: continue
                     reporter.report(ruleId, message, member.identifierStart, member.identifierEnd, this)
                 }
             }

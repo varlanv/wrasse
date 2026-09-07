@@ -57,10 +57,7 @@ class UselessPostfixExpressionRule : WUninitializedRule {
                 if (significant.size != 2) return
                 val (operandIdx, opIdx) = significant[0] to significant[1]
                 val opText = children.textSpan(opIdx, ctx.sourceText)
-                postfixFacts[key(
-                    ctx.startOffset,
-                    ctx.endOffset,
-                )] =
+                postfixFacts[key(ctx.startOffset, ctx.endOffset)] =
                     PostfixFact(
                         baseText = children.textSpan(operandIdx, ctx.sourceText).toString(),
                         isIncrementOrDecrement = UselessPostfixExpressionDecision.isIncrementOrDecrement(opText),

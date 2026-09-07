@@ -51,12 +51,10 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val tooManyFunctionsRule = configs[TOO_MANY_FUNCTIONS_ID]?.let { ReportFacade(TOO_MANY_FUNCTIONS_ID, it) }
         val largeClassRule = configs[LARGE_CLASS_ID]?.let { ReportFacade(LARGE_CLASS_ID, it) }
-        val tooManyFunctionsThreshold = configs[TOO_MANY_FUNCTIONS_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: TooManyFunctionsDecision.DEFAULT_THRESHOLD
-        val largeClassThreshold = configs[LARGE_CLASS_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: LargeClassDecision.DEFAULT_THRESHOLD
+        val tooManyFunctionsThreshold = configs[TOO_MANY_FUNCTIONS_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: TooManyFunctionsDecision.DEFAULT_THRESHOLD
+        val largeClassThreshold = configs[LARGE_CLASS_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: LargeClassDecision.DEFAULT_THRESHOLD
 
         return object : WStreamRule {
             override val id = ENGINE_ID

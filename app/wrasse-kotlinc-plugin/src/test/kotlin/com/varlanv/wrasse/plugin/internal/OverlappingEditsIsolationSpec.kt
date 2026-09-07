@@ -72,9 +72,7 @@ class OverlappingEditsIsolationSpec : BaseSpec({
             val reportFile = fixOutputDir.resolve("patch").resolve("wrasse-report.txt")
             val entries = WReportReader.read(Files.readString(reportFile))
             entries shouldHaveSize 1
-            entries[0].diagnostics
-                .sortedBy { it.message }
-                .map { "${it.message}:${if (it.fixable) 1 else 0}" } shouldBe
+            entries[0].diagnostics.sortedBy { it.message }.map { "${it.message}:${if (it.fixable) 1 else 0}" } shouldBe
                 listOf(
                     "long-numerical-values: Long numerical literal without underscore separators:0",
                     "range-conventional: Replace rangeTo call with the .. operator:1",

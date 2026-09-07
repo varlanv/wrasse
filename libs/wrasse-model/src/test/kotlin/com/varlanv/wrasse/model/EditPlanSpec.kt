@@ -30,9 +30,8 @@ class EditPlanSpec : BaseSpec({
         val edits = plan.takeAll()
 
         edits.map { it.edit.startOffset }.zipWithNext().all { (a, b) -> a <= b } shouldBe true
-        edits
-            .filter { it.edit.startOffset == 100 }
-            .map { it.ruleId } shouldBe listOf("dup-second", "dup-first", "r${spans.indexOf(50)}")
+        edits.filter { it.edit.startOffset == 100 }.map { it.ruleId } shouldBe
+            listOf("dup-second", "dup-first", "r${spans.indexOf(50)}")
     }
 
     should("keep one copy of an identical edit two rules both emit, but keep differing edits on the same span") {

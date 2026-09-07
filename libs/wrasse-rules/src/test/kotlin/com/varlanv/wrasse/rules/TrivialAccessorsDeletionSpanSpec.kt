@@ -33,9 +33,7 @@ class TrivialAccessorsDeletionSpanSpec : BaseSpec({
 
         val edit = TrivialAccessorsDeletionSpan.compute(source, accessorStart, accessorEnd)
 
-        (source.substring(
-            0,
-            edit.startOffset,
-        ) + source.substring(edit.endOffset)) shouldBe "val prop: Int = 0 /* keep */"
+        (source.substring(0, edit.startOffset) + source.substring(edit.endOffset)) shouldBe
+            "val prop: Int = 0 /* keep */"
     }
 })

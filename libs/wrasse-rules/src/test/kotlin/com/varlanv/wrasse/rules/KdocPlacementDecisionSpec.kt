@@ -19,10 +19,8 @@ class KdocPlacementDecisionSpec : BaseSpec({
     }
 
     should("report a KDoc that is not a value parameter's own first child") {
-        KdocPlacementDecision.decide(
-            WNodeType.VALUE_PARAMETER,
-            1,
-        ) shouldBe "A KDoc is allowed only at the start of a 'value_parameter'"
+        KdocPlacementDecision.decide(WNodeType.VALUE_PARAMETER, 1) shouldBe
+            "A KDoc is allowed only at the start of a 'value_parameter'"
     }
 
     should("report a dangling top-level KDoc") {
@@ -30,9 +28,7 @@ class KdocPlacementDecisionSpec : BaseSpec({
     }
 
     should("report a KDoc nested inside a disallowed node kind") {
-        KdocPlacementDecision.decide(
-            WNodeType.VALUE_ARGUMENT_LIST,
-            0,
-        ) shouldBe "A KDoc is not allowed inside a 'value_argument_list'"
+        KdocPlacementDecision.decide(WNodeType.VALUE_ARGUMENT_LIST, 0) shouldBe
+            "A KDoc is not allowed inside a 'value_argument_list'"
     }
 })

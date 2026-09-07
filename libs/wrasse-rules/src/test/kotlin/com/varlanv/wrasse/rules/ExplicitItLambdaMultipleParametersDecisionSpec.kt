@@ -6,10 +6,8 @@ import io.kotest.matchers.shouldBe
 class ExplicitItLambdaMultipleParametersDecisionSpec : BaseSpec({
 
     should("report a multi-parameter lambda naming one parameter it") {
-        ExplicitItLambdaMultipleParametersDecision.decide(
-            parameterCount = 2,
-            hasItParameter = true,
-        ) shouldBe ExplicitItLambdaMultipleParametersDecision.MESSAGE
+        ExplicitItLambdaMultipleParametersDecision.decide(parameterCount = 2, hasItParameter = true) shouldBe
+            ExplicitItLambdaMultipleParametersDecision.MESSAGE
     }
 
     should("not report a single-parameter lambda even if named it") {

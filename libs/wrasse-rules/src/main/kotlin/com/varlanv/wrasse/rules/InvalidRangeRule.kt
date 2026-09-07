@@ -38,9 +38,8 @@ class InvalidRangeRule : WUninitializedRule {
                 if (significant.size != 3) return
                 val (leftIdx, opIdx, rightIdx) = significant
                 if (children.type(opIdx) != WNodeType.OPERATION_REFERENCE) return
-                if (children.type(
-                    leftIdx,
-                ) != WNodeType.INTEGER_CONSTANT || children.type(rightIdx) != WNodeType.INTEGER_CONSTANT) {
+                if (children.type(leftIdx) != WNodeType.INTEGER_CONSTANT ||
+                    children.type(rightIdx) != WNodeType.INTEGER_CONSTANT) {
                     return
                 }
                 val lower = children.textSpan(leftIdx, ctx.sourceText).toString().toIntOrNull() ?: return

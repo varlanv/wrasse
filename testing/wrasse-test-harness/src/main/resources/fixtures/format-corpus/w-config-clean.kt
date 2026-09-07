@@ -208,10 +208,7 @@ class WConfig(
                     }
                     continue
                 }
-                val value = convertOptionValue(
-                    spec.type,
-                    rawValue,
-                )
+                val value = convertOptionValue(spec.type, rawValue)
                     ?: return Result.failure(
                         Exception(
                             "Option '${spec.name}' for rule '$ruleId' must be a ${spec.type.jsonName}, got ${rawValue.typeName()}",

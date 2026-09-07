@@ -8,6 +8,12 @@ import java.nio.file.Path
 
 class WConfigSpec : BaseSpec({
 
+    fun singleLevelResolver(json: String): ExtendsResolver = ExtendsResolver {
+        ConfigValueJsonc.parse(json).map {
+            ExtendsResolution(it, ExtendsResolver { Result.failure(Exception("no further extends configured")) })
+        }
+    }
+
     fun buildConfig(
         json: String,
         configDir: Path? = null,
@@ -26,7 +32,7 @@ class WConfigSpec : BaseSpec({
                 configValue = childValue,
                 ruleIds = setOf("no-semicolons"),
                 warnOnly = false,
-                resolveExtends = { ConfigValueJsonc.parse(baseJson) },
+                resolveExtends = singleLevelResolver(baseJson),
             )
             .getOrThrow()
     }
@@ -138,7 +144,7 @@ class WConfigSpec : BaseSpec({
         configValue = ConfigValueJsonc.parse(json).getOrThrow(),
         ruleIds = setOf("no-semicolons"),
         warnOnly = false,
-        resolveExtends = baseJson?.let { base -> { ConfigValueJsonc.parse(base) } },
+        resolveExtends = baseJson?.let { base -> singleLevelResolver(base) },
         ruleOptionSpecs = optionSpecs,
     )
 
@@ -172,10 +178,8 @@ class WConfigSpec : BaseSpec({
                 ruleOptionSpecs = optionSpecs,
             )
             .getOrThrow()
-        ok.rulesConfigs.idToConfig
-            .getValue("forbidden-calls")
-            .options
-            .stringListMap("calls") shouldBe mapOf("a.b" to listOf("**/X.kt"), "c.*" to emptyList())
+        ok.rulesConfigs.idToConfig.getValue("forbidden-calls").options.stringListMap("calls") shouldBe
+            mapOf("a.b" to listOf("**/X.kt"), "c.*" to emptyList())
         val bad = WConfig.from(
             configValue = ConfigValueJsonc
                 .parse("""{"rules":{"forbidden-calls":{"level":"error","calls":{"a.b":"X.kt"}}}}""")
@@ -184,9 +188,8 @@ class WConfigSpec : BaseSpec({
             warnOnly = false,
             ruleOptionSpecs = optionSpecs,
         )
-        bad
-            .exceptionOrNull()
-            ?.message shouldBe "Option 'calls' for rule 'forbidden-calls' must be a map of string arrays, got object"
+        bad.exceptionOrNull()?.message shouldBe
+            "Option 'calls' for rule 'forbidden-calls' must be a map of string arrays, got object"
     }
 
     should("refuse function-expression-body and forbidden-expression-body-functions on together") {
@@ -199,9 +202,7 @@ class WConfigSpec : BaseSpec({
             ruleIds = setOf("function-expression-body", "forbidden-expression-body-functions"),
             warnOnly = false,
         )
-        result
-            .exceptionOrNull()
-            ?.message shouldBe
+        result.exceptionOrNull()?.message shouldBe
             "Rules 'function-expression-body' and 'forbidden-expression-body-functions' cannot both be on"
     }
 
@@ -212,43 +213,37 @@ class WConfigSpec : BaseSpec({
 
     should("fail with the full message on an option the rule does not declare") {
         val result = buildWithOptions("""{"rules":{"no-semicolons":{"level":"error","prefixes":[],"bogus":1}}}""")
-        result
-            .exceptionOrNull()
-            ?.message shouldBe
+        result.exceptionOrNull()?.message shouldBe
             "Unknown option 'bogus' for rule 'no-semicolons'; expected one of [allow-inline, max-width, prefixes, label]"
     }
 
     should("fail with the full message on an option for a rule that declares none") {
         val value = ConfigValueJsonc.parse("""{"rules":{"no-semicolons":{"level":"error","bogus":1}}}""").getOrThrow()
         val result = WConfig.from(configValue = value, ruleIds = setOf("no-semicolons"), warnOnly = false)
-        result
-            .exceptionOrNull()
-            ?.message shouldBe "Unknown option 'bogus' for rule 'no-semicolons'; rule accepts no options"
+        result.exceptionOrNull()?.message shouldBe
+            "Unknown option 'bogus' for rule 'no-semicolons'; rule accepts no options"
     }
 
     should("fail with the full message on an option of the wrong type") {
         val result = buildWithOptions(
             """{"rules":{"no-semicolons":{"level":"error","prefixes":[],"allow-inline":"yes"}}}""",
         )
-        result
-            .exceptionOrNull()
-            ?.message shouldBe "Option 'allow-inline' for rule 'no-semicolons' must be a boolean, got string"
+        result.exceptionOrNull()?.message shouldBe
+            "Option 'allow-inline' for rule 'no-semicolons' must be a boolean, got string"
     }
 
     should("fail with the full message on an integer option below its minimum") {
         val result = buildWithOptions("""{"rules":{"no-semicolons":{"level":"error","prefixes":[],"max-width":0}}}""")
-        result
-            .exceptionOrNull()
-            ?.message shouldBe "Option 'max-width' for rule 'no-semicolons' must be at least 1, got 0"
+        result.exceptionOrNull()?.message shouldBe
+            "Option 'max-width' for rule 'no-semicolons' must be at least 1, got 0"
     }
 
     should("fail with the full message on an integer option above its maximum") {
         val result = buildWithOptions(
             """{"rules":{"no-semicolons":{"level":"error","prefixes":[],"max-width":2147483648}}}""",
         )
-        result
-            .exceptionOrNull()
-            ?.message shouldBe "Option 'max-width' for rule 'no-semicolons' must be at most 100, got 2147483648"
+        result.exceptionOrNull()?.message shouldBe
+            "Option 'max-width' for rule 'no-semicolons' must be at most 100, got 2147483648"
     }
 
     should("skip option validation for a rule that is off") {
@@ -303,6 +298,41 @@ class WConfigSpec : BaseSpec({
         )
         config.format.enabled shouldBe true
         config.format.style.indentWidth shouldBe 8
+    }
+
+    should("resolve a second-level extends against the resolver the first level returned, not the leaf's") {
+        var resolverB: ExtendsResolver? = null
+        val resolverA = ExtendsResolver { relativePath ->
+            if (relativePath == "level1") {
+                ConfigValueJsonc
+                    .parse("""{"extends":"level2","rules":{"no-semicolons":{"level":"warn"}}}""")
+                    .map { ExtendsResolution(it, resolverB!!) }
+            } else {
+                Result.failure(Exception("resolverA cannot resolve $relativePath"))
+            }
+        }
+        resolverB = ExtendsResolver { relativePath ->
+            if (relativePath == "level2") {
+                ConfigValueJsonc
+                    .parse("""{"rules":{"no-semicolons":{"level":"error"},"magic-number":{"level":"warn"}}}""")
+                    .map { ExtendsResolution(it, resolverB!!) }
+            } else {
+                Result.failure(Exception("resolverB cannot resolve $relativePath"))
+            }
+        }
+        val childValue = ConfigValueJsonc.parse("""{"extends":"level1","rules":{}}""").getOrThrow()
+
+        val config = WConfig
+            .from(
+                configValue = childValue,
+                ruleIds = setOf("no-semicolons", "magic-number"),
+                warnOnly = false,
+                resolveExtends = resolverA,
+            )
+            .getOrThrow()
+
+        config.rulesConfigs.idToConfig.getValue("no-semicolons").level shouldBe RuleLevel.WARN
+        config.rulesConfigs.idToConfig.getValue("magic-number").level shouldBe RuleLevel.WARN
     }
 })
 

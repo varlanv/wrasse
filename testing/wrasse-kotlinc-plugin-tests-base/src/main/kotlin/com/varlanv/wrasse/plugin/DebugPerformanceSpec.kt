@@ -41,9 +41,7 @@ open class DebugPerformanceSpec : BaseSpec({
                 val reports = PerfStore.collect(fixOutputDir)
                 reports.map { it.first } shouldBe listOf("compile ${fixOutputDir.fileName}")
                 val recorder = reports[0].second
-                recorder
-                    .entries()
-                    .map { it.key } shouldContainAll
+                recorder.entries().map { it.key } shouldContainAll
                     listOf(
                         "phase:rule-init",
                         "phase:walk",

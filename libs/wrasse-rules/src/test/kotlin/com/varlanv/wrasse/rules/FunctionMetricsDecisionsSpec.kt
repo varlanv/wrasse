@@ -19,20 +19,14 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
     }
 
     should("report return-count just above a configured threshold") {
-        ReturnCountDecision.decide(
-            2,
-            "foo",
-            threshold = 1,
-        ) shouldBe "Function 'foo' has 2 return statements; the maximum allowed is 1"
+        ReturnCountDecision.decide(2, "foo", threshold = 1) shouldBe
+            "Function 'foo' has 2 return statements; the maximum allowed is 1"
         ReturnCountDecision.decide(1, "foo", threshold = 1) shouldBe null
     }
 
     should("report return-count with a singular statement at a threshold of zero") {
-        ReturnCountDecision.decide(
-            1,
-            "foo",
-            threshold = 0,
-        ) shouldBe "Function 'foo' has 1 return statement; the maximum allowed is 0"
+        ReturnCountDecision.decide(1, "foo", threshold = 0) shouldBe
+            "Function 'foo' has 1 return statement; the maximum allowed is 0"
     }
 
     should("not report throws-count at the threshold") {
@@ -44,20 +38,14 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
     }
 
     should("report throws-count just above a configured threshold") {
-        ThrowsCountDecision.decide(
-            2,
-            "foo",
-            threshold = 1,
-        ) shouldBe "Function 'foo' has 2 throw statements; the maximum allowed is 1"
+        ThrowsCountDecision.decide(2, "foo", threshold = 1) shouldBe
+            "Function 'foo' has 2 throw statements; the maximum allowed is 1"
         ThrowsCountDecision.decide(1, "foo", threshold = 1) shouldBe null
     }
 
     should("report throws-count with a singular statement at a threshold of zero") {
-        ThrowsCountDecision.decide(
-            1,
-            "foo",
-            threshold = 0,
-        ) shouldBe "Function 'foo' has 1 throw statement; the maximum allowed is 0"
+        ThrowsCountDecision.decide(1, "foo", threshold = 0) shouldBe
+            "Function 'foo' has 1 throw statement; the maximum allowed is 0"
     }
 
     should("not report nested-block-depth at the threshold") {
@@ -69,11 +57,8 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
     }
 
     should("report nested-block-depth just above a configured threshold") {
-        NestedBlockDepthDecision.decide(
-            3,
-            "foo",
-            threshold = 2,
-        ) shouldBe "Function 'foo' is nested too deeply (depth 3); the maximum allowed is 2"
+        NestedBlockDepthDecision.decide(3, "foo", threshold = 2) shouldBe
+            "Function 'foo' is nested too deeply (depth 3); the maximum allowed is 2"
         NestedBlockDepthDecision.decide(2, "foo", threshold = 2) shouldBe null
     }
 
@@ -83,11 +68,8 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
 
     should("report cyclomatic-complexity just above the threshold") {
         CyclomaticComplexityDecision.decide(15, "foo") shouldNotBe null
-        CyclomaticComplexityDecision.decide(
-            4,
-            "foo",
-            threshold = 3,
-        ) shouldBe "Function 'foo' has a cyclomatic complexity of 4; the maximum allowed is 3"
+        CyclomaticComplexityDecision.decide(4, "foo", threshold = 3) shouldBe
+            "Function 'foo' has a cyclomatic complexity of 4; the maximum allowed is 3"
         CyclomaticComplexityDecision.decide(3, "foo", threshold = 3) shouldBe null
     }
 
@@ -100,11 +82,8 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
     }
 
     should("report long-method just above a configured threshold") {
-        LongMethodDecision.decide(
-            31,
-            "foo",
-            threshold = 30,
-        ) shouldBe "Function 'foo' is too long (31 lines); the maximum allowed is 30"
+        LongMethodDecision.decide(31, "foo", threshold = 30) shouldBe
+            "Function 'foo' is too long (31 lines); the maximum allowed is 30"
         LongMethodDecision.decide(30, "foo", threshold = 30) shouldBe null
     }
 })

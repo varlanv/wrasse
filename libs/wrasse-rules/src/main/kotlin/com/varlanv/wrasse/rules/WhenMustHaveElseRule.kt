@@ -54,14 +54,10 @@ class WhenMustHaveElseRule : WUninitializedRule {
                     val ancestors = ctx.ancestors
                     val isExempt =
                         ctx.hasAncestor(WNodeType.RETURN) ||
-                            ancestors.peekType() ==
-                            WNodeType.WHEN_ENTRY ||
-                            ancestors.peekType() ==
-                            WNodeType.PROPERTY ||
-                            ancestors.peekType() ==
-                            WNodeType.FUN ||
-                            ancestors.peekType() ==
-                            WNodeType.BINARY_EXPRESSION
+                            ancestors.peekType() == WNodeType.WHEN_ENTRY ||
+                            ancestors.peekType() == WNodeType.PROPERTY ||
+                            ancestors.peekType() == WNodeType.FUN ||
+                            ancestors.peekType() == WNodeType.BINARY_EXPRESSION
                     whenFrames.add(WhenFrame(isExempt))
                     true
                 }
@@ -106,8 +102,7 @@ class WhenMustHaveElseRule : WUninitializedRule {
                     significantCount++
                     soleType = children.type(i)
                 }
-                val enumLike = significantCount ==
-                    1 &&
+                val enumLike = significantCount == 1 &&
                     (soleType == WNodeType.REFERENCE_EXPRESSION || soleType == WNodeType.DOT_QUALIFIED_EXPRESSION)
                 if (!enumLike) frame.allExpressionConditionsEnumLike = false
             }
@@ -116,10 +111,8 @@ class WhenMustHaveElseRule : WUninitializedRule {
                 var lastSignificant = -1
                 for (i in 0 until children.size) {
                     if (children.type(i).isWhitespaceOrComment ||
-                        children.type(i) ==
-                        WNodeType.LBRACE ||
-                        children.type(i) ==
-                        WNodeType.RBRACE) {
+                        children.type(i) == WNodeType.LBRACE ||
+                        children.type(i) == WNodeType.RBRACE) {
                         continue
                     }
                     lastSignificant = i

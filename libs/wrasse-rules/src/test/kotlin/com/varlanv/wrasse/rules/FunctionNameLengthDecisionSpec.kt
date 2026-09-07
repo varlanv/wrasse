@@ -20,18 +20,10 @@ class FunctionNameLengthDecisionSpec : BaseSpec({
     }
 
     should("report below a configured min-length threshold") {
-        FunctionNameLengthDecision.decideMin(
-            "abcd",
-            isOverride = false,
-            isOperator = false,
-            threshold = 5,
-        ) shouldBe "Function name 'abcd' is shorter than the minimum length of 5"
-        FunctionNameLengthDecision.decideMin(
-            "abcde",
-            isOverride = false,
-            isOperator = false,
-            threshold = 5,
-        ) shouldBe null
+        FunctionNameLengthDecision.decideMin("abcd", isOverride = false, isOperator = false, threshold = 5) shouldBe
+            "Function name 'abcd' is shorter than the minimum length of 5"
+        FunctionNameLengthDecision.decideMin("abcde", isOverride = false, isOperator = false, threshold = 5) shouldBe
+            null
     }
 
     should("not report a 30-character name (the maximum) for the max-length check") {
@@ -52,12 +44,8 @@ class FunctionNameLengthDecisionSpec : BaseSpec({
 
     should("report above a configured max-length threshold") {
         val name = "a".repeat(11)
-        FunctionNameLengthDecision.decideMax(
-            name,
-            isOverride = false,
-            isOperator = false,
-            threshold = 10,
-        ) shouldBe "Function name '$name' is longer than the maximum length of 10"
+        FunctionNameLengthDecision.decideMax(name, isOverride = false, isOperator = false, threshold = 10) shouldBe
+            "Function name '$name' is longer than the maximum length of 10"
         FunctionNameLengthDecision.decideMax(
             "a".repeat(10),
             isOverride = false,

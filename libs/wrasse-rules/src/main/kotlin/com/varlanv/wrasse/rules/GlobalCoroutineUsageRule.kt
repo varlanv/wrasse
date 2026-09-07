@@ -33,8 +33,8 @@ class GlobalCoroutineUsageRule : WUninitializedRule {
                 children: ChildBuffer,
                 reporter: WReporter,
             ) {
-                val receiverIdx = (0 until
-                    children.size).firstOrNull { !children.type(it).isWhitespaceOrComment } ?: return
+                val receiverIdx = (0 until children.size).firstOrNull { !children.type(it).isWhitespaceOrComment }
+                    ?: return
                 val dotIdx = children.firstChildOfType(WNodeType.DOT)
                 if (dotIdx < 0) return
                 val selectorIdx = (dotIdx + 1 until

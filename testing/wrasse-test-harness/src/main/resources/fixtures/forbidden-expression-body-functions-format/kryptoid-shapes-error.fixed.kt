@@ -9,12 +9,7 @@ class CompetitionContext(private val byAsset: Map<String, List<Window>>) {
         withinDays: Long = 7L,
     ): Int {
         return byAsset[asset]?.count {
-            atMillis <
-                it.startMillis &&
-                it.startMillis <=
-                atMillis +
-                withinDays *
-                DAY_MILLIS
+            atMillis < it.startMillis && it.startMillis <= atMillis + withinDays * DAY_MILLIS
         } ?: 0
     }
 

@@ -28,9 +28,8 @@ class TooGenericExceptionCaughtRule : WUninitializedRule {
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 if (ctx.ancestors.peekType() != WNodeType.CATCH) return false
-                val facts = CatchParameterText.parse(
-                    ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
-                ) ?: return false
+                val facts = CatchParameterText.parse(ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset))
+                    ?: return false
                 val message = TooGenericExceptionCaughtDecision.decide(facts.typeText, facts.name) ?: return false
                 reporter.report(
                     ruleId,

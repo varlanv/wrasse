@@ -10,17 +10,13 @@ class FunctionParameterNamingDecisionSpec : BaseSpec({
     }
 
     should("report a PascalCase parameter") {
-        FunctionParameterNamingDecision.decide(
-            "UserName",
-            isOverride = false,
-        ) shouldBe FunctionParameterNamingDecision.MESSAGE
+        FunctionParameterNamingDecision.decide("UserName", isOverride = false) shouldBe
+            FunctionParameterNamingDecision.MESSAGE
     }
 
     should("report a SCREAMING_SNAKE_CASE parameter") {
-        FunctionParameterNamingDecision.decide(
-            "USER_NAME",
-            isOverride = false,
-        ) shouldBe FunctionParameterNamingDecision.MESSAGE
+        FunctionParameterNamingDecision.decide("USER_NAME", isOverride = false) shouldBe
+            FunctionParameterNamingDecision.MESSAGE
     }
 
     should("not report an override's badly-cased parameter") {
@@ -32,9 +28,7 @@ class FunctionParameterNamingDecisionSpec : BaseSpec({
     }
 
     should("report a backtick-wrapped non-keyword that is badly cased") {
-        FunctionParameterNamingDecision.decide(
-            "`Bad Name`",
-            isOverride = false,
-        ) shouldBe FunctionParameterNamingDecision.MESSAGE
+        FunctionParameterNamingDecision.decide("`Bad Name`", isOverride = false) shouldBe
+            FunctionParameterNamingDecision.MESSAGE
     }
 })

@@ -745,10 +745,8 @@ class WildcardExpansionDecisionSpec : BaseSpec({
             typeAliases = typeAliases,
         )
         decide(emptyList(), emptyMap()).shouldBeNull()
-        decide(
-            emptyList(),
-            mapOf("p.aux.Boom" to "p.real.Boom"),
-        ).shouldNotBeNull().replacement shouldBe "import p.aux.Boom"
+        decide(emptyList(), mapOf("p.aux.Boom" to "p.real.Boom")).shouldNotBeNull().replacement shouldBe
+            "import p.aux.Boom"
         decide(listOf(explicitImport("p.real.Boom")), mapOf("p.aux.Boom" to "p.real.Boom")).shouldBeNull()
     }
 

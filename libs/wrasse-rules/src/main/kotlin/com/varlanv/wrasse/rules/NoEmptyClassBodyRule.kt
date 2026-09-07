@@ -89,10 +89,8 @@ class NoEmptyClassBodyRule : WUninitializedRule {
             private fun isAnonymousObjectBody(ctx: WContext): Boolean {
                 val ancestors = ctx.ancestors
                 if (ancestors.size < 2) return false
-                return ancestors.peekType() ==
-                    WNodeType.OBJECT_DECLARATION &&
-                    ancestors.typeAt(ancestors.size - 2) ==
-                    WNodeType.OBJECT_LITERAL
+                return ancestors.peekType() == WNodeType.OBJECT_DECLARATION &&
+                    ancestors.typeAt(ancestors.size - 2) == WNodeType.OBJECT_LITERAL
             }
         }
     }

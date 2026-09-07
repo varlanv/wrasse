@@ -28,8 +28,8 @@ object BooleanExpressionsDecision {
         rightType: WNodeType,
         rightText: CharSequence,
     ): Boolean =
-        (leftType == WNodeType.BOOLEAN_CONSTANT &&
-            isBooleanLiteral(leftText)) || (rightType == WNodeType.BOOLEAN_CONSTANT && isBooleanLiteral(rightText))
+        (leftType == WNodeType.BOOLEAN_CONSTANT && isBooleanLiteral(leftText)) ||
+            (rightType == WNodeType.BOOLEAN_CONSTANT && isBooleanLiteral(rightText))
 
     fun decide(
         isAndOrOperator: Boolean,

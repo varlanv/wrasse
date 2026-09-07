@@ -119,10 +119,8 @@ class FunctionExpressionBodyRule : WUninitializedRule {
                 if (returnTypeIndex(children, blockIdx) < 0) return emptyList()
                 val source = ctx.sourceText
                 val statementText = source.subSequence(pending.statementStart, pending.statementEnd)
-                val expressionText = FunctionExpressionBodyDecision.expressionText(
-                    pending.statementType,
-                    statementText,
-                ) ?: return emptyList()
+                val expressionText = FunctionExpressionBodyDecision.expressionText(pending.statementType, statementText)
+                    ?: return emptyList()
                 if (!config.formatEnabled && hasNewline(source, pending.statementStart, pending.statementEnd)) {
                     return emptyList()
                 }

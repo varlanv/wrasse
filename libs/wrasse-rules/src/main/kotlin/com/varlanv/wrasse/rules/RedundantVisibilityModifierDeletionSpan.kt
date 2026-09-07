@@ -30,11 +30,8 @@ object RedundantVisibilityModifierDeletionSpan {
         while (end < sourceText.length && sourceText[end].isWhitespace()) {
             end++
         }
-        val trailingComment = end +
-        1 <
-            sourceText.length &&
-            sourceText[end] ==
-            '/' &&
+        val trailingComment = end + 1 < sourceText.length &&
+            sourceText[end] == '/' &&
             (sourceText[end + 1] == '/' || sourceText[end + 1] == '*')
 
         if (hasCommentInList || trailingComment) return null

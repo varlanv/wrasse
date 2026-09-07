@@ -35,10 +35,8 @@ class EqualsNullCallRule : WUninitializedRule {
                 if (calleeIdx < 0) return
                 val argsIdx = children.firstChildOfType(WNodeType.VALUE_ARGUMENT_LIST)
                 val argumentText = if (argsIdx < 0) null else singleArgumentText(children, argsIdx, ctx.sourceText)
-                val message = EqualsNullCallDecision.decide(
-                    children.textSpan(calleeIdx, ctx.sourceText),
-                    argumentText,
-                ) ?: return
+                val message = EqualsNullCallDecision.decide(children.textSpan(calleeIdx, ctx.sourceText), argumentText)
+                    ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
 

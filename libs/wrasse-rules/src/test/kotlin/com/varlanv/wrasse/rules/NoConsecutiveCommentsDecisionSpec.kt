@@ -7,11 +7,8 @@ import io.kotest.matchers.shouldBe
 class NoConsecutiveCommentsDecisionSpec : BaseSpec({
 
     should("report a KDoc preceded by a KDoc") {
-        NoConsecutiveCommentsDecision.decide(
-            WNodeType.KDOC,
-            WNodeType.KDOC,
-            separatedByBlankLine = true,
-        ) shouldBe "a KDoc may not be preceded by a KDoc"
+        NoConsecutiveCommentsDecision.decide(WNodeType.KDOC, WNodeType.KDOC, separatedByBlankLine = true) shouldBe
+            "a KDoc may not be preceded by a KDoc"
     }
 
     should("report a block comment preceded by a KDoc even across a blank line") {
@@ -21,7 +18,7 @@ class NoConsecutiveCommentsDecisionSpec : BaseSpec({
             separatedByBlankLine = true,
         ) shouldBe
             "a block comment may not be preceded by a KDoc. Reversed order is allowed though when separated by " +
-            "a newline."
+                "a newline."
     }
 
     should("report a block comment preceded by a block comment") {

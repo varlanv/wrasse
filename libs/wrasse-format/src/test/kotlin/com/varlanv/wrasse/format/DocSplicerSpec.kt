@@ -148,7 +148,7 @@ class DocSplicerSpec : BaseSpec({
 
     should(
         "wrap a minimal brace pair one Indent level deeper than its enclosing block, splicing a " +
-        "zero-width close as a sibling rather than into the enclosing block's own dedent " +
+            "zero-width close as a sibling rather than into the enclosing block's own dedent " +
             "whitespace (the C.3 regression: a bare branch that is also the last statement in its " +
             "block)",
     ) {

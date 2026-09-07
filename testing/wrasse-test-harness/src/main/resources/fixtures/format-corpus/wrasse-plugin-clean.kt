@@ -338,7 +338,8 @@ class WrassePlugin(
         val owner = site.calleeClassFqName?.let { "$it/" } ?: "${site.calleePackageFqName}/"
         val stability = if (site.hasStableParameterNames) "stable" else "unstable"
         val arguments = site.arguments.joinToString(",") { argument ->
-            "${argument.startOffset}..${argument.endOffset}=" + argument.parameterName +
+            "${argument.startOffset}..${argument.endOffset}=" +
+                argument.parameterName +
                 (if (argument.isVararg) "*" else "")
         }
         return "${site.callStartOffset}..${site.callEndOffset}:$owner${site.calleeName}:$stability:[$arguments]"

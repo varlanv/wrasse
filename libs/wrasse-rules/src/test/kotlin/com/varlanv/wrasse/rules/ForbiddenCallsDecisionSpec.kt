@@ -15,15 +15,12 @@ class ForbiddenCallsDecisionSpec : BaseSpec({
     ) = WCallSite(0, 1, pkg, cls, name, true, emptyList(), constructor)
 
     should("build the canonical name of a member, a top-level callable, and a constructor") {
-        ForbiddenCallsDecision.canonicalName(
-            site("java.lang", "java.lang.System", "currentTimeMillis"),
-        ) shouldBe "java.lang.System.currentTimeMillis"
-        ForbiddenCallsDecision.canonicalName(
-            site("kotlin.collections", null, "associateBy"),
-        ) shouldBe "kotlin.collections.associateBy"
-        ForbiddenCallsDecision.canonicalName(
-            site("java.util", "java.util.Date", "Date", constructor = true),
-        ) shouldBe "java.util.Date"
+        ForbiddenCallsDecision.canonicalName(site("java.lang", "java.lang.System", "currentTimeMillis")) shouldBe
+            "java.lang.System.currentTimeMillis"
+        ForbiddenCallsDecision.canonicalName(site("kotlin.collections", null, "associateBy")) shouldBe
+            "kotlin.collections.associateBy"
+        ForbiddenCallsDecision.canonicalName(site("java.util", "java.util.Date", "Date", constructor = true)) shouldBe
+            "java.util.Date"
     }
 
     should("match exactly, or by prefix with a trailing star") {
@@ -46,8 +43,7 @@ class ForbiddenCallsDecisionSpec : BaseSpec({
     }
 
     should("word the message around the canonical name") {
-        ForbiddenCallsDecision.message(
-            "java.lang.System.currentTimeMillis",
-        ) shouldBe "Call to 'java.lang.System.currentTimeMillis' is forbidden"
+        ForbiddenCallsDecision.message("java.lang.System.currentTimeMillis") shouldBe
+            "Call to 'java.lang.System.currentTimeMillis' is forbidden"
     }
 })

@@ -61,21 +61,12 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             arguments = listOf(argument(5, 19, "o")),
             parameterCount = 3,
         )
-        NamedArgumentsDecision.callsInScope(
-            listOf(outer, inner, middle),
-            allCalls = false,
-            threshold = 2,
-        ) shouldBe setOf(20, 18)
-        NamedArgumentsDecision.callsInScope(
-            listOf(outer, inner, middle),
-            allCalls = false,
-            threshold = 3,
-        ) shouldBe setOf(20)
-        NamedArgumentsDecision.callsInScope(
-            listOf(outer, inner, middle),
-            allCalls = true,
-            threshold = 2,
-        ) shouldBe setOf(20, 18)
+        NamedArgumentsDecision.callsInScope(listOf(outer, inner, middle), allCalls = false, threshold = 2) shouldBe
+            setOf(20, 18)
+        NamedArgumentsDecision.callsInScope(listOf(outer, inner, middle), allCalls = false, threshold = 3) shouldBe
+            setOf(20)
+        NamedArgumentsDecision.callsInScope(listOf(outer, inner, middle), allCalls = true, threshold = 2) shouldBe
+            setOf(20, 18)
     }
 
     should("drop the names of an all-named call to a narrow callee only when positional form means the same call") {
@@ -102,10 +93,8 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             1,
             arguments = listOf(argument(6, 7, "b", index = 1), argument(14, 15, "a", index = 0)),
         )
-        NamedArgumentsDecision.positionalEdits(
-            reordered,
-            listOf(named(2, 7, 6), named(10, 15, 14)),
-        ) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(reordered, listOf(named(2, 7, 6), named(10, 15, 14))) shouldBe
+            emptyList()
 
         val skipsFirst = site(0, 30, 1, arguments = listOf(argument(6, 7, "b", index = 1)))
         NamedArgumentsDecision.positionalEdits(skipsFirst, listOf(named(2, 7, 6))) shouldBe emptyList()
@@ -117,10 +106,8 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             arguments = listOf(argument(9, 12, "text", index = 0), argument(27, 32, "ignoreCase", index = 2)),
             parameterCount = 3,
         )
-        NamedArgumentsDecision.positionalEdits(
-            pastDefaulted,
-            listOf(named(2, 12, 9), named(14, 32, 27)),
-        ) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(pastDefaulted, listOf(named(2, 12, 9), named(14, 32, 27))) shouldBe
+            emptyList()
 
         val vararg = site(0, 30, 1, arguments = listOf(argument(7, 12, "xs", vararg = true, index = 0)))
         NamedArgumentsDecision.positionalEdits(vararg, listOf(named(2, 12, 7))) shouldBe emptyList()
@@ -197,10 +184,8 @@ class NamedArgumentsDecisionSpec : BaseSpec({
 
     should("call a list mixed only when a named argument meets a positional one outside a vararg") {
         val plain = site(0, 30, 1, arguments = listOf(argument(2, 3, "a", index = 0), argument(10, 11, "b", index = 1)))
-        NamedArgumentsDecision.isMixed(
-            plain,
-            listOf(WrittenArgument(2, 3, null), WrittenArgument(6, 11, 10)),
-        ) shouldBe true
+        NamedArgumentsDecision.isMixed(plain, listOf(WrittenArgument(2, 3, null), WrittenArgument(6, 11, 10))) shouldBe
+            true
         NamedArgumentsDecision.isMixed(
             plain,
             listOf(WrittenArgument(2, 3, null), WrittenArgument(10, 11, null)),
@@ -219,15 +204,11 @@ class NamedArgumentsDecisionSpec : BaseSpec({
 
     should("exclude java and javax callees by package prefix, whole segments only") {
         NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "java.util"), listOf("java", "javax")) shouldBe true
-        NamedArgumentsDecision.isExcludedCallee(
-            site(0, 5, 1, pkg = "javax.swing"),
-            listOf("java", "javax"),
-        ) shouldBe true
+        NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "javax.swing"), listOf("java", "javax")) shouldBe
+            true
         NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "java"), listOf("java", "javax")) shouldBe true
-        NamedArgumentsDecision.isExcludedCallee(
-            site(0, 5, 1, pkg = "javaland.util"),
-            listOf("java", "javax"),
-        ) shouldBe false
+        NamedArgumentsDecision.isExcludedCallee(site(0, 5, 1, pkg = "javaland.util"), listOf("java", "javax")) shouldBe
+            false
         NamedArgumentsDecision.isExcludedCallee(
             site(0, 5, 1, pkg = "kotlin.collections"),
             listOf("java", "javax"),

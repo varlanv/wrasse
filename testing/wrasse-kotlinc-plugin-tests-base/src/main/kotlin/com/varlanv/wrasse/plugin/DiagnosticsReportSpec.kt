@@ -52,9 +52,7 @@ open class DiagnosticsReportSpec : BaseSpec({
                     )
                 entries[0].diagnostics.map { it.fixable } shouldBe listOf(false, true)
                 val sourcePath = harness.sourcePath(workDir, source).toUri()
-                replayReports(
-                    listOf(fixOutputDir.toString()),
-                ) shouldBe
+                replayReports(listOf(fixOutputDir.toString())) shouldBe
                     listOf(
                         "w: $sourcePath:4:13 wrasse: magic-number: This expression contains a magic number; consider defining it as a well-named constant",
                         "e: $sourcePath:4:16 wrasse: no-semicolons: Unnecessary semicolon",

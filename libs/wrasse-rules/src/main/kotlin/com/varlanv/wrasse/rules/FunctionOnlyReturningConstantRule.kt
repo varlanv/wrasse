@@ -110,8 +110,7 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
                     significant.add(i)
                 }
                 val isConstant =
-                    significant.size ==
-                        1 &&
+                    significant.size == 1 &&
                         ConstantLiteralCheck.isConstant(
                             children.type(significant[0]),
                             children.textSpan(significant[0], ctx.sourceText),
@@ -152,14 +151,12 @@ class FunctionOnlyReturningConstantRule : WUninitializedRule {
                     exprBodyIsConstant(ctx, children, eqIdx)
                 } else {
                     val blockIdx = children.firstChildOfType(WNodeType.BLOCK)
-                    blockIdx >=
-                        0 &&
+                    blockIdx >= 0 &&
                         takeCompleted(
                             completedBlocks,
                             children.startOffset(blockIdx),
                             children.endOffset(blockIdx),
-                        )?.isConstant ==
-                        true
+                        )?.isConstant == true
                 }
 
                 val name = pending.functionName.ifEmpty { "<anonymous>" }

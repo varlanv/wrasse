@@ -7,17 +7,13 @@ import io.kotest.matchers.shouldBe
 class FunctionExpressionBodyDecisionSpec : BaseSpec({
 
     should("report a block containing only a single return statement") {
-        FunctionExpressionBodyDecision.decide(
-            WNodeType.RETURN,
-            returnKeywordCount = 1,
-        ) shouldBe FunctionExpressionBodyDecision.MESSAGE
+        FunctionExpressionBodyDecision.decide(WNodeType.RETURN, returnKeywordCount = 1) shouldBe
+            FunctionExpressionBodyDecision.MESSAGE
     }
 
     should("report a block containing only a single throw statement") {
-        FunctionExpressionBodyDecision.decide(
-            WNodeType.THROW,
-            returnKeywordCount = 0,
-        ) shouldBe FunctionExpressionBodyDecision.MESSAGE
+        FunctionExpressionBodyDecision.decide(WNodeType.THROW, returnKeywordCount = 0) shouldBe
+            FunctionExpressionBodyDecision.MESSAGE
     }
 
     should("not report a return statement whose own expression contains a nested return") {
@@ -33,10 +29,8 @@ class FunctionExpressionBodyDecisionSpec : BaseSpec({
     }
 
     should("build the expression text for a throw statement verbatim") {
-        FunctionExpressionBodyDecision.expressionText(
-            WNodeType.THROW,
-            "throw IllegalStateException(\"bad\")",
-        ) shouldBe "throw IllegalStateException(\"bad\")"
+        FunctionExpressionBodyDecision.expressionText(WNodeType.THROW, "throw IllegalStateException(\"bad\")") shouldBe
+            "throw IllegalStateException(\"bad\")"
     }
 
     should("strip the return keyword and following whitespace from a return statement") {

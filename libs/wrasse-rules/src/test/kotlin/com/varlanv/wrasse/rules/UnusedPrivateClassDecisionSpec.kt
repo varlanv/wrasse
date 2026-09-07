@@ -6,11 +6,8 @@ import io.kotest.matchers.shouldBe
 class UnusedPrivateClassDecisionSpec : BaseSpec({
 
     should("report an unused private class") {
-        UnusedPrivateClassDecision.decide(
-            isPrivate = true,
-            isUsed = false,
-            className = "Unused",
-        ) shouldBe "Private class 'Unused' is unused"
+        UnusedPrivateClassDecision.decide(isPrivate = true, isUsed = false, className = "Unused") shouldBe
+            "Private class 'Unused' is unused"
     }
 
     should("not report a non-private class") {

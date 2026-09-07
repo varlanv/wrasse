@@ -59,10 +59,8 @@ class UnnecessaryPartOfBinaryExpressionRule : WUninitializedRule {
                 collectOperand(children, leftIdx, operator, ctx.sourceText, operands)
                 collectOperand(children, rightIdx, operator, ctx.sourceText, operands)
 
-                chains[key(
-                    ctx.startOffset,
-                    ctx.endOffset,
-                )] = ChainNode(ctx.startOffset, ctx.endOffset, operator, operands)
+                chains[key(ctx.startOffset, ctx.endOffset)] =
+                    ChainNode(ctx.startOffset, ctx.endOffset, operator, operands)
             }
 
             private fun collectOperand(

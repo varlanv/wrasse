@@ -37,9 +37,8 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
         val excludedRoots = configuration.getList(KEY_EXCLUDED_ROOT).map { Paths.get(it).toAbsolutePath().normalize() }
         val projectDir = configuration[KEY_PROJECT_DIR]?.let { Paths.get(it).toAbsolutePath().normalize() }
         val messageCollector = configuration[CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY] ?: MessageCollector.NONE
-        val explicitApiActive = configuration.languageVersionSettings.getFlag(
-            AnalysisFlags.explicitApiMode,
-        ) != ExplicitApiMode.DISABLED
+        val explicitApiActive = configuration.languageVersionSettings.getFlag(AnalysisFlags.explicitApiMode) !=
+            ExplicitApiMode.DISABLED
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
         if (sourceRoots.isEmpty()) {
             return

@@ -340,9 +340,8 @@ class ImportEngine : WUninitializedRuleGroup {
 
                 if (directiveSpans.isEmpty()) {
                     if (newFqns.isNotEmpty()) {
-                        anchorsByFqn
-                            .getValue(newFqns.first())
-                            .extraEdit = ImportInsertionDecision.emptyListInsertion(sourceText, listStart, newFqns)
+                        anchorsByFqn.getValue(newFqns.first()).extraEdit =
+                            ImportInsertionDecision.emptyListInsertion(sourceText, listStart, newFqns)
                     }
                     return
                 }

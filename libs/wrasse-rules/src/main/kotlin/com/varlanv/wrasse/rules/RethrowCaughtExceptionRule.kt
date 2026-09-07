@@ -87,12 +87,9 @@ class RethrowCaughtExceptionRule : WUninitializedRule {
                     break
                 }
                 val isTrivial =
-                    firstIdx >=
-                        0 &&
-                        children.type(firstIdx) ==
-                        WNodeType.THROW &&
-                        name !=
-                        null &&
+                    firstIdx >= 0 &&
+                        children.type(firstIdx) == WNodeType.THROW &&
+                        name != null &&
                         isBareRethrow(children.textSpan(firstIdx, ctx.sourceText), name)
                 outcomes.add(
                     CatchOutcome(

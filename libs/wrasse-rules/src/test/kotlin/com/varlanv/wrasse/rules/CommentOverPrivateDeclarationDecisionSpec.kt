@@ -6,11 +6,7 @@ import io.kotest.matchers.shouldBe
 class CommentOverPrivateDeclarationDecisionSpec : BaseSpec({
 
     should("report a documented private function") {
-        CommentOverPrivateDeclarationDecision.decideFunction(
-            hasKdoc = true,
-            isPrivate = true,
-            name = "helper",
-        ) shouldBe
+        CommentOverPrivateDeclarationDecision.decideFunction(hasKdoc = true, isPrivate = true, name = "helper") shouldBe
             "The function helper has a comment. Prefer renaming the function giving it a more self-explanatory name."
     }
 
@@ -31,10 +27,8 @@ class CommentOverPrivateDeclarationDecisionSpec : BaseSpec({
     }
 
     should("report a documented private property") {
-        CommentOverPrivateDeclarationDecision.decideProperty(
-            hasKdoc = true,
-            isPrivate = true,
-        ) shouldBe "Private properties should be named in a self-explanatory manner without the need for a comment."
+        CommentOverPrivateDeclarationDecision.decideProperty(hasKdoc = true, isPrivate = true) shouldBe
+            "Private properties should be named in a self-explanatory manner without the need for a comment."
     }
 
     should("not report a documented public property") {

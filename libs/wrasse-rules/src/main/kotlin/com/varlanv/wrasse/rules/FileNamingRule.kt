@@ -62,9 +62,9 @@ class FileNamingRule : WUninitializedRule {
 
             private fun finalizeFile(ctx: WContext, reporter: WReporter) {
                 val normalizedPath = ctx.filePath.replace('\\', '/')
-                if (!normalizedPath.endsWith(
-                    ".kt",
-                ) || normalizedPath.endsWith("/package.kt") || normalizedPath == "package.kt") {
+                if (!normalizedPath.endsWith(".kt") ||
+                    normalizedPath.endsWith("/package.kt") ||
+                    normalizedPath == "package.kt") {
                     return
                 }
                 val fileStem = normalizedPath.substringAfterLast('/').substringBeforeLast('.')

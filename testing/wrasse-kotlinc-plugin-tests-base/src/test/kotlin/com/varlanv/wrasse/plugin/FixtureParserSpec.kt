@@ -79,8 +79,7 @@ class FixtureParserSpec : BaseSpec({
     should("fail on fixture with no directives") {
         shouldThrow<IllegalArgumentException> {
             FixtureParser.parse("package sample\nval x = 1")
-        }
-            .message shouldBe
+        }.message shouldBe
             "Fixture must have at least one // expect-error, // expect-warning, or // expect-clean directive"
     }
 

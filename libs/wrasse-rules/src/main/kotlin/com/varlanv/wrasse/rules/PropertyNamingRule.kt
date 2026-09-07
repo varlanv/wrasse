@@ -36,8 +36,7 @@ class PropertyNamingRule : WUninitializedRule {
                 val hasOverride = WordScan.containsWord(modifierText, "override")
 
                 val hasCustomGetter = (0 until children.size).any { i ->
-                    children.type(i) ==
-                        WNodeType.PROPERTY_ACCESSOR &&
+                    children.type(i) == WNodeType.PROPERTY_ACCESSOR &&
                         WordScan.containsWordFollowedBy(children.textSpan(i, ctx.sourceText), "get", '(')
                 }
 

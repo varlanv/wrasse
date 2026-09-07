@@ -226,9 +226,8 @@ object ResolvedUsageCollector {
                 classId == null -> topLevelCandidates(callableId)
 
                 else -> {
-                    val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(
-                        classId,
-                    ) as? FirClassSymbol<*> ?: return NO_AMBIGUITY
+                    val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(classId) as? FirClassSymbol<*>
+                        ?: return NO_AMBIGUITY
                     classSymbol
                         .unsubstitutedScope(
                             session,
@@ -245,9 +244,8 @@ object ResolvedUsageCollector {
                 val candidateOriginal = candidate.originalOrSelf()
                 if (candidateOriginal === original) continue
                 if (receiverClassId(candidateOriginal) != calleeReceiverClassId) continue
-                if (candidateOriginal.valueParameterSymbols
-                    .map { it.name.asString() }
-                    .toSet() == calleeParameterNames) {
+                if (candidateOriginal.valueParameterSymbols.map { it.name.asString() }.toSet() ==
+                    calleeParameterNames) {
                     namingIsAmbiguous = true
                 }
                 if (candidateOriginal.valueParameterSymbols.size == calleeParameterCount) {

@@ -46,8 +46,7 @@ class StringConcatenationRule : WUninitializedRule {
                 if (significant.size != 3) return
                 val (leftIdx, opIdx, rightIdx) = Triple(significant[0], significant[1], significant[2])
 
-                val isPlus = children.type(opIdx) ==
-                    WNodeType.OPERATION_REFERENCE &&
+                val isPlus = children.type(opIdx) == WNodeType.OPERATION_REFERENCE &&
                     children.textSpan(opIdx, ctx.sourceText).contentEquals("+")
                 var finding: Finding? = null
                 if (isPlus &&

@@ -71,9 +71,8 @@ class TrimMultilineRawStringRule : WUninitializedRule {
             private fun isAnnotationClassConstructorParamDefault(ctx: WContext): Boolean {
                 val ancestors = ctx.ancestors
                 for (i in ancestors.size - 1 downTo 1) {
-                    if (ancestors.typeAt(
-                        i,
-                    ) == WNodeType.PRIMARY_CONSTRUCTOR && ancestors.typeAt(i - 1) == WNodeType.CLASS) {
+                    if (ancestors.typeAt(i) == WNodeType.PRIMARY_CONSTRUCTOR &&
+                        ancestors.typeAt(i - 1) == WNodeType.CLASS) {
                         val classStart = ancestors.startOffsetAt(i - 1)
                         val constructorStart = ancestors.startOffsetAt(i)
                         return WordBoundaryScan.containsWord(

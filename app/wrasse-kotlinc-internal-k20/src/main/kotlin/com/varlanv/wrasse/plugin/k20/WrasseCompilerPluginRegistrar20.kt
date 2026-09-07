@@ -29,9 +29,8 @@ class WrasseCompilerPluginRegistrar20(private val prebuilt: WrassePlugin? = null
         val warnOnly = configuration[KEY_WARN_ONLY, false]
         val fixOutputDir = configuration[KEY_FIX_OUTPUT_DIR]?.let { Paths.get(it) }
         val dumpResolvedUsage = configuration[KEY_DUMP_RESOLVED_USAGE, false]
-        val explicitApiActive = configuration.languageVersionSettings.getFlag(
-            AnalysisFlags.explicitApiMode,
-        ) != ExplicitApiMode.DISABLED
+        val explicitApiActive = configuration.languageVersionSettings.getFlag(AnalysisFlags.explicitApiMode) !=
+            ExplicitApiMode.DISABLED
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
         val plugin = prebuilt
             ?: wrasseMain(

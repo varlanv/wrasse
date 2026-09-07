@@ -64,17 +64,12 @@ class GetterSetterFieldsRule : WUninitializedRule {
                     }
 
                     val accessor = accessorFrames.lastOrNull()
-                    if (accessor !=
-                        null &&
+                    if (accessor != null &&
                         !accessor.foundChosen &&
-                        ancestors.size >=
-                        3 &&
-                        ancestors.typeAt(ancestors.size - 2) ==
-                        WNodeType.BLOCK &&
-                        ancestors.typeAt(ancestors.size - 3) ==
-                        WNodeType.PROPERTY_ACCESSOR &&
-                        text ==
-                        accessor.propertyName
+                        ancestors.size >= 3 &&
+                        ancestors.typeAt(ancestors.size - 2) == WNodeType.BLOCK &&
+                        ancestors.typeAt(ancestors.size - 3) == WNodeType.PROPERTY_ACCESSOR &&
+                        text == accessor.propertyName
                     ) {
                         accessor.sawLocalVarBefore = true
                     }

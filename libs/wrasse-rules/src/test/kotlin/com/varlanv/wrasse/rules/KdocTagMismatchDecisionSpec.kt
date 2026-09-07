@@ -27,19 +27,15 @@ class KdocTagMismatchDecisionSpec : BaseSpec({
     should("report a documented name absent from the declaration") {
         val doc = listOf(KdocDeclaration("wrong", KdocDeclarationKind.PARAM))
         val element = listOf(KdocDeclaration("foo", KdocDeclarationKind.PARAM))
-        KdocTagMismatchDecision.decide(
-            doc,
-            element,
-        ) shouldBe "documented parameters 'wrong' are not present in the declaration"
+        KdocTagMismatchDecision.decide(doc, element) shouldBe
+            "documented parameters 'wrong' are not present in the declaration"
     }
 
     should("report a param tag used for a constructor property by default") {
         val doc = listOf(KdocDeclaration("foo", KdocDeclarationKind.PARAM))
         val element = listOf(KdocDeclaration("foo", KdocDeclarationKind.PROPERTY))
-        KdocTagMismatchDecision.decide(
-            doc,
-            element,
-        ) shouldBe "documented parameters 'foo' are not present in the declaration"
+        KdocTagMismatchDecision.decide(doc, element) shouldBe
+            "documented parameters 'foo' are not present in the declaration"
     }
 
     should("report documentation order not matching declaration order") {
@@ -51,10 +47,8 @@ class KdocTagMismatchDecisionSpec : BaseSpec({
             KdocDeclaration("foo", KdocDeclarationKind.PARAM),
             KdocDeclaration("bar", KdocDeclarationKind.PARAM),
         )
-        KdocTagMismatchDecision.decide(
-            doc,
-            element,
-        ) shouldBe "order of documented parameters does not match the declaration order"
+        KdocTagMismatchDecision.decide(doc, element) shouldBe
+            "order of documented parameters does not match the declaration order"
     }
 
     should("report an undocumented declared parameter when the doc is non-empty but incomplete") {

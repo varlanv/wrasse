@@ -7,10 +7,8 @@ import io.kotest.matchers.shouldBe
 class MixedConditionOperatorsDecisionSpec : BaseSpec({
 
     should("report a chain using both && and ||") {
-        MixedConditionOperatorsDecision.decide(
-            hasAnd = true,
-            hasOr = true,
-        ) shouldBe MixedConditionOperatorsDecision.MESSAGE
+        MixedConditionOperatorsDecision.decide(hasAnd = true, hasOr = true) shouldBe
+            MixedConditionOperatorsDecision.MESSAGE
     }
 
     should("not report a chain using only &&") {

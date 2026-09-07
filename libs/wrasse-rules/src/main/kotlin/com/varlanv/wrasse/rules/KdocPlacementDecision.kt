@@ -21,8 +21,7 @@ object KdocPlacementDecision {
     )
 
     fun decide(parent: WNodeType, childIndex: Int): String? = when {
-        parent in
-            DOCUMENTABLE_PARENTS ->
+        parent in DOCUMENTABLE_PARENTS ->
             if (childIndex == 0) null else "A KDoc is allowed only at the start of a '${parent.name.lowercase()}'"
         parent == WNodeType.FILE -> "A dangling top-level KDoc is not allowed"
         else -> "A KDoc is not allowed inside a '${parent.name.lowercase()}'"

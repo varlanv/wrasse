@@ -164,7 +164,7 @@ object IdempotenceCycle {
             if (Files.exists(patchFile)) WPatchReader.read(Files.readString(patchFile)) else emptyList()
         withClue(
             "fix(fix(x)) == fix(x) violated: a second fix pass emitted further edits, expected merge-on-write " +
-            "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
+                "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
                 "exist, header-only, since emission now rides check mode unconditionally.\n" +
                 "Residual patch entries at $patchFile:\n${describeResidualEntries(residualEntries)}",
         ) {
@@ -194,8 +194,8 @@ object IdempotenceCycle {
         val newDiagnostics = round2.filter { it.message in newMessages }.distinctBy { it.message }
         withClue(
             "Autofix broke the compile: round 2 (after applying round 1's emitted edits and " +
-            "recompiling) introduced non-wrasse compiler error(s) that round 1 did not have. " +
-            "A fix must never turn compiling code into code that no longer compiles.\n" +
+                "recompiling) introduced non-wrasse compiler error(s) that round 1 did not have. " +
+                "A fix must never turn compiling code into code that no longer compiles.\n" +
                 "New errors introduced by the fix:\n${formatDiagnostics(newDiagnostics)}\n" +
                 "Round 1 non-wrasse errors:\n${formatDiagnostics(round1.filter { it.message in round1Messages })}",
         ) {
@@ -231,7 +231,7 @@ object IdempotenceCycle {
         val actualSorted = actualD2Keys.sorted()
         withClue(
             "Idempotence invariant (D19) violated: after applying autofix, D2 must equal exactly " +
-            "the D1 diagnostics that carried no edits.\n" +
+                "the D1 diagnostics that carried no edits.\n" +
                 "Expected D2 (D1 minus fixed violations):\n${formatKeys(expectedSorted)}\n" +
                 "Actual D2 (after fix(fix(x))):\n${formatKeys(actualSorted)}",
         ) {

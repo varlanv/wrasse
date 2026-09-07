@@ -110,10 +110,8 @@ class WRuleSetSpec : BaseSpec({
         val ruleSet = WRuleSet(
             listOf(RecordingRule("plain-rule") to errorConfig()),
             listOf(
-                RecordingGroup(
-                    setOf("group-rule"),
-                    requiresQualifiedUsagesFlag = false,
-                ) to mapOf("group-rule" to errorConfig()),
+                RecordingGroup(setOf("group-rule"), requiresQualifiedUsagesFlag = false) to
+                    mapOf("group-rule" to errorConfig()),
             ),
         )
 

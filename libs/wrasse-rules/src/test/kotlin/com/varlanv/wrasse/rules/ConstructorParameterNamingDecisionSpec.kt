@@ -10,10 +10,8 @@ class ConstructorParameterNamingDecisionSpec : BaseSpec({
     }
 
     should("report a PascalCase parameter name") {
-        ConstructorParameterNamingDecision.decide(
-            "FirstName",
-            hasOverride = false,
-        ) shouldBe ConstructorParameterNamingDecision.MESSAGE
+        ConstructorParameterNamingDecision.decide("FirstName", hasOverride = false) shouldBe
+            ConstructorParameterNamingDecision.MESSAGE
     }
 
     should("not report an override, regardless of its casing") {

@@ -116,8 +116,7 @@ class SuppressionCollectorRule : WStreamRule {
 
     private fun finalizeEntry() {
         val isSuppress = calleeSegments.isNotEmpty() &&
-            calleeSegments.last() ==
-            "Suppress" &&
+            calleeSegments.last() == "Suppress" &&
             (calleeSegments.size == 1 || calleeSegments == listOf("kotlin", "Suppress"))
         if (!isSuppress) return
         val scope = entryScope

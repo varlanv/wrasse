@@ -92,22 +92,16 @@ class MagicNumberRule : WUninitializedRule {
 
             private fun isOwnFunModifier(ctx: WContext): Boolean {
                 val ancestors = ctx.ancestors
-                return ancestors.peekType() ==
-                    WNodeType.MODIFIER_LIST &&
-                    ancestors.size >=
-                    2 &&
-                    ancestors.typeAt(ancestors.size - 2) ==
-                    WNodeType.FUN
+                return ancestors.peekType() == WNodeType.MODIFIER_LIST &&
+                    ancestors.size >= 2 &&
+                    ancestors.typeAt(ancestors.size - 2) == WNodeType.FUN
             }
 
             private fun isOwnFunParam(ctx: WContext): Boolean {
                 val ancestors = ctx.ancestors
-                return ancestors.peekType() ==
-                    WNodeType.VALUE_PARAMETER_LIST &&
-                    ancestors.size >=
-                    2 &&
-                    ancestors.typeAt(ancestors.size - 2) ==
-                    WNodeType.FUN
+                return ancestors.peekType() == WNodeType.VALUE_PARAMETER_LIST &&
+                    ancestors.size >= 2 &&
+                    ancestors.typeAt(ancestors.size - 2) == WNodeType.FUN
             }
 
             private fun checkLiteral(ctx: WContext) {

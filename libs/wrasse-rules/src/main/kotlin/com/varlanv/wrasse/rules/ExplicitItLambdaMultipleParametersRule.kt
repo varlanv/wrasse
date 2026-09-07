@@ -63,10 +63,8 @@ class ExplicitItLambdaMultipleParametersRule : WUninitializedRule {
 
             private fun finalizeLiteral(ctx: WContext, reporter: WReporter) {
                 val pending = pendingLiterals.removeAt(pendingLiterals.size - 1)
-                val message = ExplicitItLambdaMultipleParametersDecision.decide(
-                    pending.paramCount,
-                    pending.hasItParam,
-                ) ?: return
+                val message = ExplicitItLambdaMultipleParametersDecision.decide(pending.paramCount, pending.hasItParam)
+                    ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
         }

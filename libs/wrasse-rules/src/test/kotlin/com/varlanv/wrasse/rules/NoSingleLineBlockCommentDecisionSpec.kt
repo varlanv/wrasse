@@ -6,10 +6,8 @@ import io.kotest.matchers.shouldBe
 class NoSingleLineBlockCommentDecisionSpec : BaseSpec({
 
     should("report a single-line block comment followed by nothing but a newline") {
-        NoSingleLineBlockCommentDecision.decide(
-            "/* text */",
-            followedByCodeOnSameLine = false,
-        ) shouldBe NoSingleLineBlockCommentDecision.MESSAGE
+        NoSingleLineBlockCommentDecision.decide("/* text */", followedByCodeOnSameLine = false) shouldBe
+            NoSingleLineBlockCommentDecision.MESSAGE
     }
 
     should("not report a single-line block comment followed by code on the same line") {
@@ -17,10 +15,8 @@ class NoSingleLineBlockCommentDecisionSpec : BaseSpec({
     }
 
     should("not report a multi-line block comment") {
-        NoSingleLineBlockCommentDecision.decide(
-            "/* line one\nline two */",
-            followedByCodeOnSameLine = false,
-        ) shouldBe null
+        NoSingleLineBlockCommentDecision.decide("/* line one\nline two */", followedByCodeOnSameLine = false) shouldBe
+            null
     }
 
     should("replace with an EOL comment, trimming one leading and one trailing space") {

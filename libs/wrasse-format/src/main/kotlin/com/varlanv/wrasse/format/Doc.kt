@@ -89,7 +89,9 @@ sealed interface Doc {
      * width — no enclosing group can render flat around it — and so does every argument list
      * nested in it, except a [singleArgument] list, which stays a width decision and passes the
      * forcing on to the lists inside it only when it ends up broken itself and
-     * [forceNestedWhenBroken] is set (it nests a call with arguments).
+     * [forceNestedWhenBroken] is set (it nests a call with arguments). [operand] marks a
+     * [GroupKind.CONTINUATION] group that is an operand of an enclosing binary expression: it
+     * never breaks for a chain that follows that expression.
      */
     class Group(
         val body: Doc,
@@ -98,10 +100,11 @@ sealed interface Doc {
         val forceBreak: Boolean = false,
         val singleArgument: Boolean = false,
         val forceNestedWhenBroken: Boolean = false,
+        val operand: Boolean = false,
     ) : Doc {
         fun withBody(
             body: Doc,
-        ): Group = Group(body, kind, indentWhenBroken, forceBreak, singleArgument, forceNestedWhenBroken)
+        ): Group = Group(body, kind, indentWhenBroken, forceBreak, singleArgument, forceNestedWhenBroken, operand)
 
         override val start: Int get() = body.start
         override val end: Int get() = body.end

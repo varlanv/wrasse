@@ -262,6 +262,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                         frame.endsWithCallWithArguments,
                         frame.hasChainComment,
                         carriesComment,
+                        frame.binaryOperator,
+                        frame.binaryChildren,
                     ),
                 )
         }
@@ -460,8 +462,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val conditionIdx = children.indexOfFirst { it.type == WNodeType.CONDITION }
         if (conditionIdx < 0) return children
         val lparIdx = (conditionIdx - 1 downTo 0).firstOrNull { children[it].type == WNodeType.LPAR } ?: return children
-        val rparIdx = (conditionIdx + 1 until
-            children.size).firstOrNull { children[it].type == WNodeType.RPAR } ?: return children
+        val rparIdx = (conditionIdx + 1 until children.size).firstOrNull { children[it].type == WNodeType.RPAR }
+            ?: return children
         if ((lparIdx + 1 until rparIdx).any { it != conditionIdx && children[it].type != WNodeType.WHITE_SPACE }) {
             return children
         }
@@ -655,13 +657,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (accessorIdx >= 0) return resolvePropertyAccessorsFrame(children, start, end, accessorIdx)
         val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
         if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
-        return resolveAssignedValueFrame(
-            children,
-            WNodeType.PROPERTY,
-            start,
-            end,
-            eqIdx,
-        ) ?: resolveInitializerFrame(children, WNodeType.PROPERTY, start, end, eqIdx)
+        return resolveAssignedValueFrame(children, WNodeType.PROPERTY, start, end, eqIdx)
+            ?: resolveInitializerFrame(children, WNodeType.PROPERTY, start, end, eqIdx)
     }
 
     /**
@@ -686,8 +683,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (gapEntry !is ChildEntry.Ws) {
             return resolveBraceFrame(Frame(frameType).also { it.children.addAll(children) }, start, end)
         }
-        val valueIdx = (gapIdx until
-            children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
+        val valueIdx = (gapIdx until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
             ?: return resolveBraceFrame(Frame(frameType).also { it.children.addAll(children) }, start, end)
         val headParts = normalizeChildren(children.subList(0, eqIdx + 1), frameType)
         val breakDoc = clampWs(gapEntry, newlineCount = 1)
@@ -764,14 +760,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     private fun valueAfterAnchorIsCallLike(children: List<ChildEntry>, anchorIdx: Int): Boolean {
-        val valueIdx = (anchorIdx + 1 until
-            children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return false
+        val valueIdx = (anchorIdx + 1 until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
+            ?: return false
         return isCallLikeEntry(children[valueIdx])
     }
 
     private fun valueAfterAnchorHugs(children: List<ChildEntry>, anchorIdx: Int): Boolean {
-        val valueIdx = (anchorIdx + 1 until
-            children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return false
+        val valueIdx = (anchorIdx + 1 until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
+            ?: return false
         return hugsAnchor(children[valueIdx])
     }
 
@@ -915,8 +911,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         end: Int,
         anchorIdx: Int,
     ): Doc? {
-        val valueIdx = (anchorIdx + 1 until
-            children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE } ?: return null
+        val valueIdx = (anchorIdx + 1 until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
+            ?: return null
         val valueEntry = children[valueIdx]
         val isLeadingComment = valueEntry.type in COMMENT_TYPES
         if (!isLeadingComment && valueEntry.type !in HUGGING_VALUE_TYPES) return null
@@ -990,12 +986,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * resolved `Doc`'s actual content, never from its source span.
      */
     private fun isEffectivelyEmpty(entry: ChildEntry?): Boolean =
-        entry ==
-            null ||
-            entry.type ==
-            WNodeType.RBRACE ||
-            entry.type ==
-            WNodeType.LBRACE ||
+        entry == null ||
+            entry.type == WNodeType.RBRACE ||
+            entry.type == WNodeType.LBRACE ||
             (entry is ChildEntry.Resolved && isEmptyDoc(entry.doc))
 
     private fun isEmptyDoc(doc: Doc): Boolean = when (doc) {
@@ -1080,8 +1073,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         for (i in children.indices) {
             val entry = children[i]
             val nextIsSuperTypeList = suppressSuperTypeListLeadGap &&
-                children.getOrNull(i + 1)?.type ==
-                WNodeType.SUPER_TYPE_LIST
+                children.getOrNull(i + 1)?.type == WNodeType.SUPER_TYPE_LIST
             if (entry is ChildEntry.Ws) {
                 if (nextIsSuperTypeList && children.getOrNull(i - 1)?.type == WNodeType.COLON) {
                     out.add(Doc.Text("", entry.start, entry.start + entry.rawText.length))
@@ -1117,8 +1109,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val next = children.getOrNull(i + 1)
             if (next != null && !isPlainWhitespace(next) && next !is ChildEntry.Ws) {
                 val isSuperTypeListLead = suppressSuperTypeListLeadGap &&
-                    next.type ==
-                    WNodeType.SUPER_TYPE_LIST &&
+                    next.type == WNodeType.SUPER_TYPE_LIST &&
                     precedesSuperTypeListLead(children, i)
                 val decision = if (isSuperTypeListLead) null else spacingDecision(frameType, entry.type, next.type)
                 val wantsSpace = decision == " " || (decision == null && next.type == WNodeType.EOL_COMMENT)
@@ -1268,10 +1259,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         }
         if (frameType !in DECLARATION_GAP_CONTAINER_TYPES) return false
 
-        if (next.type in
-            DECLARATION_SPACING_TYPES &&
-            prevType in
-            DECLARATION_SPACING_TYPES &&
+        if (next.type in DECLARATION_SPACING_TYPES &&
+            prevType in DECLARATION_SPACING_TYPES &&
             (next.hasLeadingAnnotation || next.hasLeadingComment)
         ) {
             return true
@@ -1374,18 +1363,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (prevType == WNodeType.LPAR) return ""
         if (nextType == WNodeType.RPAR) return ""
         if ((nextType == WNodeType.VALUE_PARAMETER_LIST || nextType == WNodeType.VALUE_ARGUMENT_LIST) &&
-            frameType !=
-            WNodeType.FUNCTION_TYPE &&
-            frameType !=
-            WNodeType.FUNCTION_LITERAL
+            frameType != WNodeType.FUNCTION_TYPE &&
+            frameType != WNodeType.FUNCTION_LITERAL
         ) {
             return ""
         }
-        if (frameType ==
-            WNodeType.PROPERTY_ACCESSOR &&
+        if (frameType == WNodeType.PROPERTY_ACCESSOR &&
             (prevType == WNodeType.KW_GET || prevType == WNodeType.KW_SET) &&
-            nextType ==
-            WNodeType.LPAR
+            nextType == WNodeType.LPAR
         ) {
             return ""
         }
@@ -1518,11 +1503,15 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     /**
-     * Nested [WNodeType.BINARY_EXPRESSION]s (`a + b + c`) flatten the same way [resolveChainFrame]
-     * does: only the outermost expression wraps in [Doc.Group]/[Doc.Indent]. The break sits after
-     * the operator for every operator but `?:`, which breaks before it, alongside `.`/`?.`. The
-     * flat-form gap is one space for every operator except the range operator (`..`), which is
-     * tight both sides, unconditionally.
+     * Nested [WNodeType.BINARY_EXPRESSION]s of one precedence class (`a + b + c`, `a && b && c`)
+     * flatten the same way [resolveChainFrame] does: only the outermost expression wraps in
+     * [Doc.Group]/[Doc.Indent], and every operator of the chain carries a break of its own. An
+     * operand of another precedence class (`a == null` inside `&&`, `a * b` inside `+`) is a
+     * group of its own, so it breaks at its operator only when it does not fit by itself,
+     * whatever the source had there; a nested `&&`/`||`/`?:` keeps sharing its enclosing chain's
+     * group. The break sits after the operator for every operator but `?:`, which breaks before
+     * it, alongside `.`/`?.`. The flat-form gap is one space for every operator except the range
+     * operator (`..`), which is tight both sides, unconditionally.
      *
      * An assignment operator ([ASSIGNMENT_OPERATOR_TEXTS], e.g. `x = <expr>`, `x += <expr>`) is
      * never chained (never a [WNodeType.BINARY_EXPRESSION] operand of another one), so it is
@@ -1540,25 +1529,69 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (opIdx < 0) return Doc.Concat(children.map { resolveEntry(it) }, start, end)
 
         val opText = flatText((children[opIdx] as ChildEntry.Resolved).doc)
+        frame.binaryOperator = opText
         if (opText in ASSIGNMENT_OPERATOR_TEXTS) {
             resolveAssignedValueFrame(children, WNodeType.BINARY_EXPRESSION, start, end, opIdx)?.let { return it }
         }
         val isElvis = opText == "?:"
         val isLogical = opText == "&&" || opText == "||"
-        val flat = if (opText == "..") "" else " "
-        if (!isRoot && !isLogical && !isElvis) {
-            return Doc.Concat(normalizeChildren(children, WNodeType.BINARY_EXPRESSION), start, end)
-        }
+        val sharesEnclosingChain = !isRoot && (isLogical || isElvis)
+        if (!isRoot && !sharesEnclosingChain) frame.binaryChildren = children
         val parts = spliceBreak(
             children,
             anchorIndex = opIdx,
             breakBefore = isElvis,
-            flat = flat,
+            flat = binaryFlatGap(opText),
             spreadTypes = BINARY_SPREAD_TYPES,
+            chainOperator = opText,
         )
         val foldHead = children.first { it.type != WNodeType.WHITE_SPACE }.type == WNodeType.STRING_TEMPLATE
-        return if (isRoot) wrapRoot(parts, start, end, foldHead) else Doc.Concat(parts, start, end)
+        return if (sharesEnclosingChain) {
+            Doc.Concat(parts, start, end)
+        } else {
+            wrapRoot(parts, start, end, foldHead, operand = !isRoot)
+        }
     }
+
+    private fun binaryFlatGap(opText: String): String = if (opText == "..") "" else " "
+
+    private fun operatorClass(opText: String): String = when (opText) {
+        "*", "/", "%" -> "multiplicative"
+        "+", "-" -> "additive"
+        "..", "..<" -> "range"
+        "<", ">", "<=", ">=" -> "comparison"
+        "==", "!=", "===", "!==" -> "equality"
+        "&&" -> "conjunction"
+        "||" -> "disjunction"
+        "?:" -> "elvis"
+        "in", "!in" -> "containment"
+        else -> "infix"
+    }
+
+    /**
+     * The flattened parts of a [ChildEntry.Resolved.binaryChildren]-carrying operand whose operator
+     * shares [operator]'s precedence class: its own children re-spliced with a break at its
+     * operator, so it joins the enclosing chain instead of standing flat inside it.
+     */
+    private fun chainParts(entry: ChildEntry.Resolved, operator: String): List<Doc> {
+        val nested = entry.binaryChildren ?: return listOf(entry.doc)
+        val nestedOperator = entry.binaryOperator ?: return listOf(entry.doc)
+        val opIdx = nested.indexOfFirst { it.type == WNodeType.OPERATION_REFERENCE }
+        if (opIdx < 0) return listOf(entry.doc)
+        return spliceBreak(
+            nested,
+            anchorIndex = opIdx,
+            breakBefore = false,
+            flat = binaryFlatGap(nestedOperator),
+            spreadTypes = BINARY_SPREAD_TYPES,
+            chainOperator = operator,
+        )
+    }
+
+    private fun joinsChain(entry: ChildEntry.Resolved, chainOperator: String): Boolean =
+        entry.binaryChildren != null &&
+            entry.binaryOperator != null &&
+            operatorClass(entry.binaryOperator) == operatorClass(chainOperator)
 
     /**
      * Lays out a root chain/binary expression's flattened [parts]: the first operand (everything
@@ -1568,7 +1601,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * operand leaves the chain's own layout alone and nothing renders one level too deep when the
      * chain stays flat. With [foldHead] (a raw-string first operand) the first operand joins the
      * group instead, so a multi-line string forces the chain broken and its continuation onto its
-     * own line at the same depth as the string's re-indented content.
+     * own line at the same depth as the string's re-indented content. [operand] marks the group of
+     * a binary expression nested as an operand of another ([Doc.Group.operand]).
      */
     private fun wrapRoot(
         parts: List<Doc>,
@@ -1576,14 +1610,15 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         end: Int,
         foldHead: Boolean,
         kind: GroupKind = GroupKind.CONTINUATION,
+        operand: Boolean = false,
     ): Doc {
         val firstBreak = parts.indexOfFirst { it is Doc.Break }
         if (firstBreak <= 0 || foldHead) {
-            return Doc.Group(Doc.Concat(parts, start, end), kind, indentWhenBroken = true)
+            return Doc.Group(Doc.Concat(parts, start, end), kind, indentWhenBroken = true, operand = operand)
         }
         val head = Doc.Concat(parts.subList(0, firstBreak), start, parts[firstBreak - 1].end)
         val rest = Doc.Concat(parts.subList(firstBreak, parts.size), parts[firstBreak].start, end)
-        return Doc.Concat(listOf(head, Doc.Group(rest, kind, indentWhenBroken = true)), start, end)
+        return Doc.Concat(listOf(head, Doc.Group(rest, kind, indentWhenBroken = true, operand = operand)), start, end)
     }
 
     /**
@@ -1836,8 +1871,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     private fun isCallWithArgumentsEntry(entry: ChildEntry?): Boolean =
         entry is ChildEntry.Resolved &&
-            ((entry.type == WNodeType.CALL_EXPRESSION &&
-                entry.isCallWithArguments) || (entry.type in CHAIN_LINK_TYPES && entry.endsWithCallWithArguments))
+            ((entry.type == WNodeType.CALL_EXPRESSION && entry.isCallWithArguments) ||
+                (entry.type in CHAIN_LINK_TYPES && entry.endsWithCallWithArguments))
 
     private fun resolveValueArgumentFrame(
         frame: Frame,
@@ -1951,8 +1986,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val threshold = style.multilineSignatureThreshold
         val hasDefaultValue = paramIndices.size >= 2 &&
             paramIndices.any { "= " in flatText((children[it] as ChildEntry.Resolved).doc) }
-        val forceMultiline = (threshold != null &&
-            paramIndices.size >= threshold) ||
+        val forceMultiline = (threshold != null && paramIndices.size >= threshold) ||
             hasDefaultValue ||
             paramIndices.any { spansMultipleLines((children[it] as ChildEntry.Resolved).doc) }
         val breakKind = if (forceMultiline) BreakKind.HARD else BreakKind.SOFT
@@ -2059,8 +2093,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val entryIndices = children.indices.filter { children[it].type !in SUPER_TYPE_SEPARATOR_TYPES }
         if (entryIndices.isEmpty()) return resolveBraceFrame(frame, start, end)
         val commaIndices = entryIndices.zipWithNext().map { (a, b) ->
-            (a + 1 until
-                b).firstOrNull { children[it].type == WNodeType.COMMA } ?: return resolveBraceFrame(frame, start, end)
+            (a + 1 until b).firstOrNull { children[it].type == WNodeType.COMMA }
+                ?: return resolveBraceFrame(frame, start, end)
         }
 
         frames.lastOrNull()?.ownsSuperTypeListLeadGap = true
@@ -2279,13 +2313,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val children = applyTrailingComma(frame.children, 0, closeIdx)
         val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
         if (eqIdx < 0) return resolveBraceFrame(rebuildFrame(frame, children), start, end)
-        return resolveAssignedValueFrame(
-            children,
-            WNodeType.DESTRUCTURING_DECLARATION,
-            start,
-            end,
-            eqIdx,
-        ) ?: resolveInitializerFrame(children, WNodeType.DESTRUCTURING_DECLARATION, start, end, eqIdx)
+        return resolveAssignedValueFrame(children, WNodeType.DESTRUCTURING_DECLARATION, start, end, eqIdx)
+            ?: resolveInitializerFrame(children, WNodeType.DESTRUCTURING_DECLARATION, start, end, eqIdx)
     }
 
     /**
@@ -2309,8 +2338,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val children = frame.children
         val arrowIdx = children.indexOfFirst { it.type == WNodeType.ARROW }
         val hasSubject = frames.lastOrNull()?.children?.any { it.type == WNodeType.LPAR } == true
-        val bail = arrowIdx <
-            0 ||
+        val bail = arrowIdx < 0 ||
             !hasSubject ||
             (0 until arrowIdx).any { children[it].type == WNodeType.KW_ELSE || children[it].type == WNodeType.UNKNOWN }
         val adjusted = if (bail) children else resolveWhenConditionList(children, arrowIdx) ?: children
@@ -2457,6 +2485,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         breakBefore: Boolean,
         flat: String,
         spreadTypes: WNodeTypeSet,
+        chainOperator: String? = null,
     ): List<Doc> {
         val wsIndex = if (breakBefore) anchorIndex - 1 else anchorIndex + 1
         val hasWs = wsIndex in children.indices && wsIndex.isWs(children)
@@ -2467,18 +2496,25 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val breakDoc = wsBreakAt(children, wsIndex, fallback, flat, breakKind)
 
         val otherWsIndex = if (breakBefore) anchorIndex + 1 else anchorIndex - 1
-        val otherIsPlainWs = otherWsIndex in children.indices && isPlainWhitespace(children[otherWsIndex])
+        val otherEntry = children.getOrNull(otherWsIndex)
+        val otherJoins = otherEntry != null &&
+            (isPlainWhitespace(otherEntry) ||
+                (otherEntry is ChildEntry.Ws && !followsEolComment(children, otherWsIndex)))
 
         val parts = ArrayList<Doc>(children.size + 1)
         for (idx in children.indices) {
             if (idx == insertIndex) parts.add(breakDoc)
             if (hasWs && idx == wsIndex) continue
-            if (otherIsPlainWs && idx == otherWsIndex) {
-                val ws = (children[idx] as ChildEntry.Resolved).doc
-                parts.add(Doc.Text(flat, ws.start, ws.end))
+            if (otherJoins && idx == otherWsIndex) {
+                val (wsStart, wsEnd) = wsSpan(children[idx])
+                parts.add(Doc.Text(flat, wsStart, wsEnd))
                 continue
             }
             val entry = children[idx]
+            if (chainOperator != null && entry is ChildEntry.Resolved && joinsChain(entry, chainOperator)) {
+                parts.addAll(chainParts(entry, chainOperator))
+                continue
+            }
             val doc = resolveEntry(entry)
             if (entry.type in spreadTypes && doc is Doc.Concat) parts.addAll(doc.parts) else parts.add(doc)
         }
@@ -2512,14 +2548,16 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     ): Doc.Break {
         val entry = children.getOrNull(wsIndex)
         return if (entry != null && entry.type == WNodeType.WHITE_SPACE) {
-            val (spanStart, spanEnd) = when (entry) {
-                is ChildEntry.Ws -> entry.start to entry.start + entry.rawText.length
-                is ChildEntry.Resolved -> entry.doc.start to entry.doc.end
-            }
+            val (spanStart, spanEnd) = wsSpan(entry)
             Doc.Break(kind, flat = flat, start = spanStart, end = spanEnd)
         } else {
             Doc.Break(kind, flat = flat, start = fallback, end = fallback)
         }
+    }
+
+    private fun wsSpan(entry: ChildEntry): Pair<Int, Int> = when (entry) {
+        is ChildEntry.Ws -> entry.start to entry.start + entry.rawText.length
+        is ChildEntry.Resolved -> entry.doc.start to entry.doc.end
     }
 
     private fun flatText(doc: Doc): String = when (doc) {
@@ -2555,6 +2593,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var endsWithCallWithArguments = false
         var branchOfMultilineIf = false
         var hasChainComment = false
+        var binaryOperator: String? = null
+        var binaryChildren: List<ChildEntry>? = null
     }
 
     private sealed interface ChildEntry {
@@ -2575,6 +2615,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val endsWithCallWithArguments: Boolean = false,
             val hasChainComment: Boolean = false,
             val carriesComment: Boolean = false,
+            val binaryOperator: String? = null,
+            val binaryChildren: List<ChildEntry>? = null,
         ) : ChildEntry
 
         class Ws(val rawText: CharSequence, val start: Int) : ChildEntry {

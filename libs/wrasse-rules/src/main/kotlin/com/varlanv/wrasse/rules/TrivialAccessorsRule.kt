@@ -58,12 +58,9 @@ class TrivialAccessorsRule : WUninitializedRule {
 
             private fun isAccessorBlockStatement(ctx: WContext): Boolean {
                 val ancestors = ctx.ancestors
-                return ancestors.size >=
-                    2 &&
-                    ancestors.peekType() ==
-                    WNodeType.BLOCK &&
-                    ancestors.typeAt(ancestors.size - 2) ==
-                    WNodeType.PROPERTY_ACCESSOR
+                return ancestors.size >= 2 &&
+                    ancestors.peekType() == WNodeType.BLOCK &&
+                    ancestors.typeAt(ancestors.size - 2) == WNodeType.PROPERTY_ACCESSOR
             }
 
             override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
@@ -96,9 +93,8 @@ class TrivialAccessorsRule : WUninitializedRule {
             private fun recordReturn(ctx: WContext, children: ChildBuffer) {
                 val pending = pendingAccessors.lastOrNull() ?: return
                 if (pending.isGetter != true) return
-                val idx = singleSignificant(
-                    children,
-                ) { it.isWhitespaceOrComment || it == WNodeType.KW_RETURN } ?: return
+                val idx = singleSignificant(children) { it.isWhitespaceOrComment || it == WNodeType.KW_RETURN }
+                    ?: return
                 if (children.type(idx) == WNodeType.REFERENCE_EXPRESSION &&
                     children.textSpan(idx, ctx.sourceText).contentEquals("field")) {
                     pending.blockMatched = true
@@ -114,8 +110,7 @@ class TrivialAccessorsRule : WUninitializedRule {
                 val leftIdx = sig[0]
                 val opIdx = sig[1]
                 val rightIdx = sig[2]
-                if (children.type(leftIdx) !=
-                    WNodeType.REFERENCE_EXPRESSION ||
+                if (children.type(leftIdx) != WNodeType.REFERENCE_EXPRESSION ||
                     !children.textSpan(leftIdx, ctx.sourceText).contentEquals("field")) {
                     return
                 }
@@ -123,8 +118,7 @@ class TrivialAccessorsRule : WUninitializedRule {
                     !children.textSpan(opIdx, ctx.sourceText).contentEquals("=")) {
                     return
                 }
-                if (children.type(rightIdx) !=
-                    WNodeType.REFERENCE_EXPRESSION ||
+                if (children.type(rightIdx) != WNodeType.REFERENCE_EXPRESSION ||
                     !children.textSpan(rightIdx, ctx.sourceText).contentEquals(paramName)
                 ) {
                     return

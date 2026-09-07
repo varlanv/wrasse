@@ -85,9 +85,8 @@ class CustomLabelRule : WUninitializedRule {
                 if (limit <= start) return false
                 val text = sourceText.subSequence(start, limit)
                 val matchesForEachIndexed = text.startsWith(FOR_EACH_INDEXED)
-                val matchesForEach = text.startsWith(
-                    FOR_EACH,
-                ) && (limit == start + FOR_EACH.length || !text[FOR_EACH.length].isLetterOrDigit())
+                val matchesForEach = text.startsWith(FOR_EACH) &&
+                    (limit == start + FOR_EACH.length || !text[FOR_EACH.length].isLetterOrDigit())
                 return matchesForEachIndexed || matchesForEach
             }
         }

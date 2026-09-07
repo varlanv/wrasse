@@ -57,8 +57,8 @@ class ModifierOrderDecisionSpec : BaseSpec({
 
         val fixed =
             source.substring(0, openSlot.startOffset) +
-            openSlot.replacement +
-            source.substring(openSlot.endOffset, privateSlot.startOffset) +
+                openSlot.replacement +
+                source.substring(openSlot.endOffset, privateSlot.startOffset) +
                 privateSlot.replacement +
                 source.substring(privateSlot.endOffset)
         fixed shouldBe "private open class Foo"

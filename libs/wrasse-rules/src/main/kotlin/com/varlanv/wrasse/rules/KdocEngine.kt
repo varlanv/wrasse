@@ -88,13 +88,10 @@ class KdocEngine : WUninitializedRuleGroup {
             }
 
             override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
-                if (ctx.type ==
-                    WNodeType.IDENTIFIER &&
+                if (ctx.type == WNodeType.IDENTIFIER &&
                     pendingClassNames.isNotEmpty() &&
-                    pendingClassNames[pendingClassNames.size - 1] ==
-                    null &&
-                    ctx.ancestors.peekType() ==
-                    WNodeType.CLASS
+                    pendingClassNames[pendingClassNames.size - 1] == null &&
+                    ctx.ancestors.peekType() == WNodeType.CLASS
                 ) {
                     pendingClassNames[pendingClassNames.size - 1] = IdentifierCasing.unquote(ctx.leafString()!!)
                 }
@@ -299,10 +296,8 @@ class KdocEngine : WUninitializedRuleGroup {
                 val name = IdentifierCasing.unquote(children.textSpan(nameIdx, ctx.sourceText))
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx < 0) "" else children.textSpan(modifierIdx, ctx.sourceText)
-                val isPublic = !WordBoundaryScan.containsWord(
-                    modifierText,
-                    "private",
-                ) && !WordBoundaryScan.containsWord(modifierText, "internal")
+                val isPublic = !WordBoundaryScan.containsWord(modifierText, "private") &&
+                    !WordBoundaryScan.containsWord(modifierText, "internal")
                 val isOverride = WordBoundaryScan.containsWord(modifierText, "override")
                 return DeclarationFacts(
                     name = name,

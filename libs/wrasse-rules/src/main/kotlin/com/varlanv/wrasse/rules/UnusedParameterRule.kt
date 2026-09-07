@@ -72,10 +72,8 @@ class UnusedParameterRule : WUninitializedRule {
 
                     WNodeType.KW_EXPECT, WNodeType.KW_EXTERNAL -> {
                         if (inOwnModifierList(ancestors, WNodeType.FUN)) markFunModifier(ctx.type)
-                        if (inOwnModifierList(
-                            ancestors,
-                            WNodeType.CLASS,
-                        ) || inOwnModifierList(ancestors, WNodeType.OBJECT_DECLARATION)) {
+                        if (inOwnModifierList(ancestors, WNodeType.CLASS) ||
+                            inOwnModifierList(ancestors, WNodeType.OBJECT_DECLARATION)) {
                             markClassModifier(ctx.type)
                         }
                     }
@@ -97,14 +95,10 @@ class UnusedParameterRule : WUninitializedRule {
                     }
                     return
                 }
-                if (ancestors.peekType() ==
-                    WNodeType.VALUE_PARAMETER &&
-                    ancestors.size >=
-                    3 &&
-                    ancestors.typeAt(ancestors.size - 2) ==
-                    WNodeType.VALUE_PARAMETER_LIST &&
-                    ancestors.typeAt(ancestors.size - 3) ==
-                    WNodeType.FUN
+                if (ancestors.peekType() == WNodeType.VALUE_PARAMETER &&
+                    ancestors.size >= 3 &&
+                    ancestors.typeAt(ancestors.size - 2) == WNodeType.VALUE_PARAMETER_LIST &&
+                    ancestors.typeAt(ancestors.size - 3) == WNodeType.FUN
                 ) {
                     val pending = pendingFuns.lastOrNull() ?: return
                     val name = IdentifierCasing.unquote(ctx.leafString() ?: "")
@@ -112,12 +106,9 @@ class UnusedParameterRule : WUninitializedRule {
                     return
                 }
                 val isUsage = ancestors.peekType() == WNodeType.REFERENCE_EXPRESSION
-                val isLocalShadow = ancestors.peekType() ==
-                    WNodeType.PROPERTY &&
-                    ancestors.size >=
-                    2 &&
-                    ancestors.typeAt(ancestors.size - 2) ==
-                    WNodeType.BLOCK
+                val isLocalShadow = ancestors.peekType() == WNodeType.PROPERTY &&
+                    ancestors.size >= 2 &&
+                    ancestors.typeAt(ancestors.size - 2) == WNodeType.BLOCK
                 if (isUsage || isLocalShadow) {
                     val name = IdentifierCasing.unquote(ctx.leafString() ?: "")
                     for (frame in pendingFuns) frame.params.remove(name)
@@ -165,14 +156,10 @@ class UnusedParameterRule : WUninitializedRule {
                             pending.hasExpect ||
                             pending.hasActual ||
                             pending.hasProtected ||
-                            pending.functionName ==
-                            "main" ||
-                            containingClass?.isExpect ==
-                            true ||
-                            containingClass?.isExternal ==
-                            true ||
-                            containingClass?.isInterface ==
-                            true
+                            pending.functionName == "main" ||
+                            containingClass?.isExpect == true ||
+                            containingClass?.isExternal == true ||
+                            containingClass?.isInterface == true
                     for ((name, span) in pending.params) {
                         val message = UnusedParameterDecision.decide(functionExempt, name, wasUsed = false) ?: continue
                         reporter.report(ruleId, message, span[0], span[1], this)

@@ -100,9 +100,7 @@ object NamedArgumentsDecision {
     }
 
     private fun isFunctionTypeClass(classFqName: String): Boolean =
-        classFqName.startsWith(
-            "kotlin.Function",
-        ) ||
+        classFqName.startsWith("kotlin.Function") ||
             classFqName.startsWith("kotlin.jvm.functions.Function") ||
             classFqName.startsWith("kotlin.coroutines.SuspendFunction") ||
             classFqName.startsWith("kotlin.reflect.KFunction")

@@ -6,11 +6,8 @@ import io.kotest.matchers.shouldBe
 class UndocumentedPublicApiDecisionSpec : BaseSpec({
 
     should("report an undocumented public class") {
-        UndocumentedPublicApiDecision.decideClass(
-            "Foo",
-            hasKdoc = false,
-            isPublic = true,
-        ) shouldBe "Foo is missing required documentation."
+        UndocumentedPublicApiDecision.decideClass("Foo", hasKdoc = false, isPublic = true) shouldBe
+            "Foo is missing required documentation."
     }
 
     should("not report a documented public class") {

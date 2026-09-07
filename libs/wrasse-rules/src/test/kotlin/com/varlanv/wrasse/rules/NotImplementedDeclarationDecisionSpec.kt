@@ -6,9 +6,8 @@ import io.kotest.matchers.shouldBe
 class NotImplementedDeclarationDecisionSpec : BaseSpec({
 
     should("report throwing NotImplementedError") {
-        NotImplementedDeclarationDecision.decideThrow(
-            "NotImplementedError",
-        ) shouldBe NotImplementedDeclarationDecision.MESSAGE
+        NotImplementedDeclarationDecision.decideThrow("NotImplementedError") shouldBe
+            NotImplementedDeclarationDecision.MESSAGE
     }
 
     should("not report throwing an unrelated exception") {

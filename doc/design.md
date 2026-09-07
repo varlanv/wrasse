@@ -2167,6 +2167,24 @@ information. Statuses: Accepted · Rejected · Superseded.
   (and so `wrasseFormat`) now fails with `wrasse found N error-level violation(s) in <project path>`
   when a replayed line is error-level, the same way `wrasseLint` does, instead of a green build with
   unfixed errors left behind.
+- **D29 — Operator chains break per precedence class; a nested operand is its own group ·
+  Accepted 2026-09-07.** The printer used to give every nested binary expression that was not
+  `&&`/`||`/`?:` a flat layout that kept whatever line break the source had at its operator, and
+  broke only at the outermost operator by width. Two consequences showed up in real code: a chain
+  written as `a ==\n null && b ==\n null` (the shape an earlier printer had produced) was never
+  repaired, and a `"a" + "b" + "c"` concatenation had no break of its own except the last `+`.
+  Now (1) operands of the same precedence class as their enclosing operator (`+`/`-`, `*`/`/`/`%`,
+  comparisons, equalities, `..`, `in`, named infix calls) splice into that chain with a break at
+  every operator, breaking together; (2) an operand of another class is a group of its own
+  (`Doc.Group.operand`) that stays flat while it fits and breaks at its operator only otherwise, so
+  `a == null` never breaks because the `&&` around it did; (3) a newline on the far side of the
+  break anchor — before a leading `&&`, after a dot — joins, unless an end-of-line comment sits
+  before it; (4) an operator chain breaks before anything standing in its first operand does: an
+  argument list, a chain or an operator chain measured with a `CONTINUATION` group in its tail
+  counts that group only up to its first break, and a nested operand does the same for a call chain
+  after its expression, while a declaration's own parameter list or `=` value still counts the
+  whole tail (so `fun f(a, b) = x && y` keeps exploding the signature rather than the body). Locked
+  by `format-binary-operands/` and the reformatted `format-corpus/` files.
 
 ### Build & distribution
 
@@ -5212,7 +5230,9 @@ comparisons, `in`/`is`) stays at the *end* of the line it came from, with the op
   detected by walking the already-built operator `Doc` back to its literal text (no new kotlinc-facing
   type was needed), in which case the break goes *before* it instead, matching the chain case. The
   same bottom-up flattening as chains applies (`a + b + c` nests `BINARY_EXPRESSION` the same way),
-  and for the same reason.
+  and for the same reason — but only across one precedence class: an operand of another class
+  (`a == null` inside `&&`, `a * b` inside `+`) is a group of its own that breaks at its operator
+  only when it does not fit by itself (D29).
 - **Argument list** (`WNodeType.VALUE_ARGUMENT_LIST`): its own independent `Group`/`Indent`, right
   after `(`, right after every comma with another argument following it, and right before `)`. A
   comma already followed by nothing but whitespace (a pre-existing trailing comma) gets no break of

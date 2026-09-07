@@ -93,9 +93,8 @@ class LambdaReturnRule : WUninitializedRule {
                 }
                 var i = ancestors.size - 3
                 while (i >= 0 &&
-                    (ancestors.typeAt(
-                        i,
-                    ) == WNodeType.VALUE_ARGUMENT || ancestors.typeAt(i) == WNodeType.VALUE_ARGUMENT_LIST)
+                    (ancestors.typeAt(i) == WNodeType.VALUE_ARGUMENT ||
+                        ancestors.typeAt(i) == WNodeType.VALUE_ARGUMENT_LIST)
                 ) {
                     i--
                 }

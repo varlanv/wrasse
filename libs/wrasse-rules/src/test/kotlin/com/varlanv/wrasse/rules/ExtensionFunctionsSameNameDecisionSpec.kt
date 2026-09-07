@@ -49,10 +49,8 @@ class ExtensionFunctionsSameNameDecisionSpec : BaseSpec({
             ExtensionFunctionsSameNameDecision.Candidate("Derived", "process", listOf("x"), "Int"),
         )
 
-        ExtensionFunctionsSameNameDecision.indicesToReport(
-            candidates,
-            related,
-        ) shouldBe listOf(0 to 1, 1 to 0, 0 to 2, 2 to 0)
+        ExtensionFunctionsSameNameDecision.indicesToReport(candidates, related) shouldBe
+            listOf(0 to 1, 1 to 0, 0 to 2, 2 to 0)
     }
 
     should("report every pairwise relation in a star topology of three related classes") {
@@ -63,9 +61,7 @@ class ExtensionFunctionsSameNameDecisionSpec : BaseSpec({
             ExtensionFunctionsSameNameDecision.Candidate("DerivedB", "process", listOf("x"), "String"),
         )
 
-        ExtensionFunctionsSameNameDecision.indicesToReport(
-            candidates,
-            starRelated,
-        ) shouldBe listOf(0 to 1, 1 to 0, 0 to 2, 2 to 0)
+        ExtensionFunctionsSameNameDecision.indicesToReport(candidates, starRelated) shouldBe
+            listOf(0 to 1, 1 to 0, 0 to 2, 2 to 0)
     }
 })

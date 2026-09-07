@@ -165,7 +165,7 @@ class WPatchApplierSpec : BaseSpec({
                 Files.writeString(
                     mainDir.resolve("wrasse-fixes.txt"),
                     "# wrasse-fixes v1\n" +
-                    "file:$mainSourceFile\n" +
+                        "file:$mainSourceFile\n" +
                         "hash:${WPatchApplier.sha256(mainContent)}\n" +
                         "edit:9:10:\n",
                 )
@@ -177,7 +177,7 @@ class WPatchApplierSpec : BaseSpec({
                 Files.writeString(
                     testDir.resolve("wrasse-fixes.txt"),
                     "# wrasse-fixes v1\n" +
-                    "file:$testSourceFile\n" +
+                        "file:$testSourceFile\n" +
                         "hash:${WPatchApplier.sha256(testContent)}\n" +
                         "edit:9:10:\n",
                 )

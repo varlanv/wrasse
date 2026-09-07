@@ -52,10 +52,8 @@ class BooleanExpressionsRule : WUninitializedRule {
                 if (significant.size != 2) return
                 val (opIdx, operandIdx) = significant[0] to significant[1]
                 if (!children.textSpan(opIdx, ctx.sourceText).contentEquals("!")) return
-                negationFacts[key(
-                    ctx.startOffset,
-                    ctx.endOffset,
-                )] = children.textSpan(operandIdx, ctx.sourceText).toString()
+                negationFacts[key(ctx.startOffset, ctx.endOffset)] =
+                    children.textSpan(operandIdx, ctx.sourceText).toString()
             }
 
             private fun finalizeBinary(
@@ -69,8 +67,7 @@ class BooleanExpressionsRule : WUninitializedRule {
                 val (leftIdx, opIdx, rightIdx) = Triple(significant[0], significant[1], significant[2])
 
                 val opText = children.textSpan(opIdx, ctx.sourceText)
-                val isAndOr = children.type(opIdx) ==
-                    WNodeType.OPERATION_REFERENCE &&
+                val isAndOr = children.type(opIdx) == WNodeType.OPERATION_REFERENCE &&
                     (opText.contentEquals("&&") || opText.contentEquals("||"))
 
                 val leftText = children.textSpan(leftIdx, ctx.sourceText)

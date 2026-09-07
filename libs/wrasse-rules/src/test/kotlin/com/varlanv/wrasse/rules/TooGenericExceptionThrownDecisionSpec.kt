@@ -6,9 +6,7 @@ import io.kotest.matchers.shouldBe
 class TooGenericExceptionThrownDecisionSpec : BaseSpec({
 
     should("report throwing a bare Exception") {
-        TooGenericExceptionThrownDecision.decide(
-            "Exception",
-        ) shouldBe
+        TooGenericExceptionThrownDecision.decide("Exception") shouldBe
             "Exception is a too generic Exception. Prefer throwing specific exceptions that indicate a specific error case."
     }
 

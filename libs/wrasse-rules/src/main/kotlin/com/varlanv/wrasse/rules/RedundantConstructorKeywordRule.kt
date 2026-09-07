@@ -56,8 +56,8 @@ class RedundantConstructorKeywordRule : WUninitializedRule {
                 if (pendingKeywords.isEmpty() || children.hasChildOfType(WNodeType.MODIFIER_LIST)) return
                 val kwIdx = children.firstChildOfType(WNodeType.KW_CONSTRUCTOR)
                 if (kwIdx < 0) return
-                pendingKeywords[pendingKeywords.size -
-                    1] = PendingKeyword(children.startOffset(kwIdx), children.endOffset(kwIdx))
+                pendingKeywords[pendingKeywords.size - 1] =
+                    PendingKeyword(children.startOffset(kwIdx), children.endOffset(kwIdx))
             }
 
             private fun finalizeClass(children: ChildBuffer, reporter: WReporter) {

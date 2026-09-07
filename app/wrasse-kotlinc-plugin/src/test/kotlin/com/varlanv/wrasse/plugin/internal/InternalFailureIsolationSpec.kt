@@ -74,7 +74,7 @@ class InternalFailureIsolationSpec : BaseSpec({
         crashResult.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.INFO
         crashResult.wrasseDiagnostics[0].message shouldBe
             "$INTERNAL_ERROR_MESSAGE_PREFIX(IllegalStateException: $THROWING_TEST_RULE_CRASH_MESSAGE); " +
-            "wrasse results for this file were skipped"
+                "wrasse results for this file were skipped"
 
         val crashPlusTypeErrorSource = "sample/Sample.kt" to """
             package sample
@@ -137,7 +137,7 @@ class InternalFailureIsolationSpec : BaseSpec({
         crashDiagnostic.severity shouldBe CompilerMessageSeverity.INFO
         crashDiagnostic.message shouldBe
             "$INTERNAL_ERROR_MESSAGE_PREFIX(IllegalStateException: $THROWING_TEST_RULE_CRASH_MESSAGE); " +
-            "wrasse results for this file were skipped"
+                "wrasse results for this file were skipped"
         val cleanDiagnostic = result.wrasseDiagnostics.single { it.location?.path?.endsWith("Clean.kt") == true }
         cleanDiagnostic.severity shouldBe CompilerMessageSeverity.WARNING
         cleanDiagnostic.message shouldBe "wrasse: no-semicolons: Unnecessary semicolon"

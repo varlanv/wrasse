@@ -65,10 +65,8 @@ class DebugPrintRule : WUninitializedRule {
 
             private fun recordSelectorLambdaFlag(ctx: WContext, children: ChildBuffer) {
                 if (ctx.ancestors.peekType() == WNodeType.DOT_QUALIFIED_EXPRESSION) {
-                    selectorLambdaFlags[key(
-                        ctx.startOffset,
-                        ctx.endOffset,
-                    )] = children.hasChildOfType(WNodeType.LAMBDA_ARGUMENT)
+                    selectorLambdaFlags[key(ctx.startOffset, ctx.endOffset)] =
+                        children.hasChildOfType(WNodeType.LAMBDA_ARGUMENT)
                 }
             }
 

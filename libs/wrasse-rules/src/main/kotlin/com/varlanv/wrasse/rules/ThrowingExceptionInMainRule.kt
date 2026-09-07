@@ -76,10 +76,7 @@ class ThrowingExceptionInMainRule : WUninitializedRule {
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
                 val isOverride = WordBoundaryScan.containsWord(modifierText, "override")
                 val hasNonPublicVisibility =
-                    WordBoundaryScan.containsWord(
-                        modifierText,
-                        "private",
-                    ) ||
+                    WordBoundaryScan.containsWord(modifierText, "private") ||
                         WordBoundaryScan.containsWord(modifierText, "protected") ||
                         WordBoundaryScan.containsWord(modifierText, "internal")
 

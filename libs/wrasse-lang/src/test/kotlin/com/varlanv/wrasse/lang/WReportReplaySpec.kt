@@ -182,9 +182,8 @@ class WReportReplaySpec : BaseSpec({
                         ),
                     )
 
-                replayReports(
-                    listOf(patchDir.toString()),
-                ) shouldBe listOf("w: ${sourceFile.toUri()}:3:1 wrasse: rule: x")
+                replayReports(listOf(patchDir.toString())) shouldBe
+                    listOf("w: ${sourceFile.toUri()}:3:1 wrasse: rule: x")
             }
         }
     }
@@ -208,10 +207,8 @@ class WReportReplaySpec : BaseSpec({
                             ),
                         )
 
-                    replayReports(
-                        listOf(patchDir.toString()),
-                        projectDir = rootB,
-                    ) shouldBe listOf("w: ${fileUnderB.toUri()}:1:1 wrasse: rule: x")
+                    replayReports(listOf(patchDir.toString()), projectDir = rootB) shouldBe
+                        listOf("w: ${fileUnderB.toUri()}:1:1 wrasse: rule: x")
                 }
             }
         }
@@ -243,9 +240,8 @@ class WReportReplaySpec : BaseSpec({
                     ),
                 )
 
-                replayReports(
-                    listOf(patchDir.toString()),
-                ) shouldBe listOf("w: ${goodFile.toUri()}:1:1 wrasse: rule: good")
+                replayReports(listOf(patchDir.toString())) shouldBe
+                    listOf("w: ${goodFile.toUri()}:1:1 wrasse: rule: good")
             }
         }
     }

@@ -16,10 +16,8 @@ class ImportRemovalSpanSpec : BaseSpec({
         edit.startOffset shouldBe 16
         edit.endOffset shouldBe 41
         edit.replacement shouldBe ""
-        (source.substring(
-            0,
-            edit.startOffset,
-        ) + source.substring(edit.endOffset)) shouldBe "package sample\n\n\nval x = 1"
+        (source.substring(0, edit.startOffset) + source.substring(edit.endOffset)) shouldBe
+            "package sample\n\n\nval x = 1"
     }
 
     should("delete to end of text when the directive is the last line with no trailing newline") {
@@ -42,10 +40,8 @@ class ImportRemovalSpanSpec : BaseSpec({
         val edit = ImportRemovalSpan.compute(source, start, end).shouldNotBeNull()
 
         edit.startOffset shouldBe 16
-        (source.substring(
-            0,
-            edit.startOffset,
-        ) + source.substring(edit.endOffset)) shouldBe "package sample\n\n\nval x = 1"
+        (source.substring(0, edit.startOffset) + source.substring(edit.endOffset)) shouldBe
+            "package sample\n\n\nval x = 1"
     }
 
     should("bail with no edit when a sibling import shares the line via a separator semicolon") {

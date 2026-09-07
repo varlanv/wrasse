@@ -102,12 +102,9 @@ class WhenEntryBracingRule : WUninitializedRule {
                 }
                 var siblingIdx = 0
                 for (candidate in pending.candidates) {
-                    while (siblingIdx <
-                        children.size &&
-                        !(children.type(siblingIdx) ==
-                            WNodeType.WHEN_ENTRY &&
-                            children.startOffset(siblingIdx) ==
-                            candidate.entryStartOffset)
+                    while (siblingIdx < children.size &&
+                        !(children.type(siblingIdx) == WNodeType.WHEN_ENTRY &&
+                            children.startOffset(siblingIdx) == candidate.entryStartOffset)
                     ) {
                         siblingIdx++
                     }

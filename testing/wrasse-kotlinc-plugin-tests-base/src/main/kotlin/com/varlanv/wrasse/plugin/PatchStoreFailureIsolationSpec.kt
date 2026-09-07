@@ -46,7 +46,7 @@ open class PatchStoreFailureIsolationSpec : BaseSpec({
                     listOf(
                         CompilerMessageSeverity.WARNING to
                             "wrasse: wrasse could not update the fix patch $journal " +
-                            "(IOException: Is a directory); this file's diagnostics are reported but will not be autofixed",
+                                "(IOException: Is a directory); this file's diagnostics are reported but will not be autofixed",
                         CompilerMessageSeverity.WARNING to
                             "wrasse: magic-number: This expression contains a magic number; consider defining it as a well-named constant",
                         CompilerMessageSeverity.WARNING to "wrasse: no-semicolons: Unnecessary semicolon",

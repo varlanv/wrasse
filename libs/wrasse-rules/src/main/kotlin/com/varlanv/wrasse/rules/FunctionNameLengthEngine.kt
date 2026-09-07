@@ -52,12 +52,10 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val maxRule = configs[MAX_LENGTH_ID]?.let { ReportFacade(MAX_LENGTH_ID, it) }
         val minRule = configs[MIN_LENGTH_ID]?.let { ReportFacade(MIN_LENGTH_ID, it) }
-        val maxThreshold = configs[MAX_LENGTH_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: FunctionNameLengthDecision.DEFAULT_MAX_LENGTH
-        val minThreshold = configs[MIN_LENGTH_ID]?.options
-            ?.integer(THRESHOLD)
-            ?.toInt() ?: FunctionNameLengthDecision.DEFAULT_MIN_LENGTH
+        val maxThreshold = configs[MAX_LENGTH_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: FunctionNameLengthDecision.DEFAULT_MAX_LENGTH
+        val minThreshold = configs[MIN_LENGTH_ID]?.options?.integer(THRESHOLD)?.toInt()
+            ?: FunctionNameLengthDecision.DEFAULT_MIN_LENGTH
 
         return object : WBufferedNodeRule {
             override val id = ENGINE_ID

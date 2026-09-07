@@ -54,11 +54,8 @@ class NoUnitReturnRule : WUninitializedRule {
                 if (bodyIndex < 0 || children.type(bodyIndex) != WNodeType.BLOCK) return
 
                 val hasComment =
-                    hasComment(
-                        children,
-                        colonIndex + 1,
-                        typeReferenceIndex,
-                    ) || hasComment(children, typeReferenceIndex + 1, bodyIndex)
+                    hasComment(children, colonIndex + 1, typeReferenceIndex) ||
+                        hasComment(children, typeReferenceIndex + 1, bodyIndex)
 
                 val colonStart = children.startOffset(colonIndex)
                 val typeReferenceEnd = children.endOffset(typeReferenceIndex)

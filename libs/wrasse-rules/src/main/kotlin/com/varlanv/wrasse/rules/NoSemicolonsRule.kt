@@ -78,10 +78,8 @@ class NoSemicolonsRule : WUninitializedRule {
                 if (pendingBareConstructBody) return
                 val parentType = if (ctx.ancestors.isEmpty) null else ctx.ancestors.peekType()
 
-                val isEnumTail = (parentType == WNodeType.CLASS_BODY ||
-                    parentType == WNodeType.ENUM_ENTRY) &&
-                    classBodyOwnerEnumStack.lastOrNull() ==
-                    true
+                val isEnumTail = (parentType == WNodeType.CLASS_BODY || parentType == WNodeType.ENUM_ENTRY) &&
+                    classBodyOwnerEnumStack.lastOrNull() == true
                 val unnecessary = if (isEnumTail) {
                     SemicolonNecessityScan.enumTailIsUnnecessary(ctx.sourceText, ctx.endOffset)
                 } else {

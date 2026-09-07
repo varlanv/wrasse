@@ -157,8 +157,8 @@ class IdempotenceCycleSpec : BaseSpec({
         }
         error.message shouldBe (
         "fix(fix(x)) == fix(x) violated: a second fix pass emitted further edits, expected merge-on-write " +
-        "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
-        "exist, header-only, since emission now rides check mode unconditionally.\n" +
+            "to have removed every file's patch entry (self-cleaning); the patch file itself may still " +
+            "exist, header-only, since emission now rides check mode unconditionally.\n" +
             "Residual patch entries at $patchFile:\n  /tmp/sample/test.kt (1 edits)\n    [4, 4) -> ;\n" +
             "expected:<true> but was:<false>"
         )
@@ -191,9 +191,9 @@ class IdempotenceCycleSpec : BaseSpec({
         }
         error.message shouldBe (
         "fix(fix(x)) produced code that no longer compiles — an applied patch must never break " +
-        "compilation, even when the breakage carries no wrasse diagnostic of its own.\n" +
-        "Non-wrasse compiler errors after applying the fix:\n" +
-        "  ERROR 4:1 Conflicting import: imported name 'Item' is ambiguous.\n" +
+            "compilation, even when the breakage carries no wrasse diagnostic of its own.\n" +
+            "Non-wrasse compiler errors after applying the fix:\n" +
+            "  ERROR 4:1 Conflicting import: imported name 'Item' is ambiguous.\n" +
             "  ERROR 6:9 Unresolved reference 'Item'.\n" +
             "expected:<true> but was:<false>"
         )
@@ -208,9 +208,9 @@ class IdempotenceCycleSpec : BaseSpec({
         }
         error.message shouldBe (
         "Idempotence invariant (D19) violated: after applying autofix, D2 must equal exactly the D1 " +
-        "diagnostics that carried no edits.\n" +
-        "Expected D2 (D1 minus fixed violations):\n  (none)\n" +
-        "Actual D2 (after fix(fix(x))):\n  ERROR wrasse: reintroducing-rule: Unnecessary semicolon\n" +
+            "diagnostics that carried no edits.\n" +
+            "Expected D2 (D1 minus fixed violations):\n  (none)\n" +
+            "Actual D2 (after fix(fix(x))):\n  ERROR wrasse: reintroducing-rule: Unnecessary semicolon\n" +
             "Unexpected elements from index 0\n" +
             "expected:<[]> but was:<[\"ERROR wrasse: reintroducing-rule: Unnecessary semicolon\"]>"
         )
@@ -228,12 +228,12 @@ class IdempotenceCycleSpec : BaseSpec({
         }
         error.message shouldBe (
         "Idempotence invariant (D19) violated: after applying autofix, D2 must equal exactly the D1 " +
-        "diagnostics that carried no edits.\n" +
-        "Expected D2 (D1 minus fixed violations):\n  ERROR wrasse: flag-only-rule: on line3\n" +
-        "Actual D2 (after fix(fix(x))):\n" +
-        "  ERROR wrasse: flag-only-rule: on line3\n" +
-        "  ERROR wrasse: newly-triggered-rule: introduced by the fix\n" +
-        "Unexpected elements from index 1\n" +
+            "diagnostics that carried no edits.\n" +
+            "Expected D2 (D1 minus fixed violations):\n  ERROR wrasse: flag-only-rule: on line3\n" +
+            "Actual D2 (after fix(fix(x))):\n" +
+            "  ERROR wrasse: flag-only-rule: on line3\n" +
+            "  ERROR wrasse: newly-triggered-rule: introduced by the fix\n" +
+            "Unexpected elements from index 1\n" +
             "expected:<[\"ERROR wrasse: flag-only-rule: on line3\"]> but was:" +
             "<[\"ERROR wrasse: flag-only-rule: on line3\", \"ERROR wrasse: newly-triggered-rule: introduced by the fix\"]>"
         )

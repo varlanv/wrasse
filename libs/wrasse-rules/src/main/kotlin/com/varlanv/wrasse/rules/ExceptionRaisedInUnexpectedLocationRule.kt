@@ -61,10 +61,8 @@ class ExceptionRaisedInUnexpectedLocationRule : WUninitializedRule {
             override fun exitNode(ctx: WContext, reporter: WReporter) {
                 if (ctx.type != WNodeType.FUN) return
                 val pending = pendingFuns.removeAt(pendingFuns.size - 1)
-                val message = ExceptionRaisedInUnexpectedLocationDecision.decide(
-                    pending.name ?: "",
-                    pending.hasThrow,
-                ) ?: return
+                val message = ExceptionRaisedInUnexpectedLocationDecision.decide(pending.name ?: "", pending.hasThrow)
+                    ?: return
                 val start = if (pending.nameStart >= 0) pending.nameStart else ctx.startOffset
                 val end = if (pending.nameStart >= 0) pending.nameEnd else ctx.endOffset
                 reporter.report(ruleId, message, start, end, this)

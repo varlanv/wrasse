@@ -78,14 +78,14 @@ class PerfRecorderSpec : BaseSpec({
         recorder.record("file:/a/Two.kt", 3_000_000)
         PerfReport.render("compile main", recorder) shouldBe
             "wrasse performance: compile main (files 2)\n" +
-            "phase                               total    calls        avg        max   share\n" +
-            "  walk                             6.0 ms        1     6.0 ms     6.0 ms   75.0%\n" +
-            "  total                            8.0 ms        1     8.0 ms     8.0 ms  100.0%\n" +
-            "rule                                total    calls        avg        max   share\n" +
-            "  slow                             5.5 ms        2     2.8 ms     4.5 ms   91.7%\n" +
-            "  fast                             0.5 ms        1   500.0 us   500.0 us    8.3%\n" +
-            "slowest files\n" +
-            "      5.0 ms  /a/One.kt\n" +
-            "      3.0 ms  /a/Two.kt\n"
+                "phase                               total    calls        avg        max   share\n" +
+                "  walk                             6.0 ms        1     6.0 ms     6.0 ms   75.0%\n" +
+                "  total                            8.0 ms        1     8.0 ms     8.0 ms  100.0%\n" +
+                "rule                                total    calls        avg        max   share\n" +
+                "  slow                             5.5 ms        2     2.8 ms     4.5 ms   91.7%\n" +
+                "  fast                             0.5 ms        1   500.0 us   500.0 us    8.3%\n" +
+                "slowest files\n" +
+                "      5.0 ms  /a/One.kt\n" +
+                "      3.0 ms  /a/Two.kt\n"
     }
 })

@@ -56,8 +56,8 @@ class WhenEntryBracingDecisionSpec : BaseSpec({
         trailing.replacement shouldBe "\n    }"
 
         val fixed = source.substring(0, leading.startOffset) +
-        leading.replacement +
-        source.substring(leading.endOffset, trailing.startOffset) +
+            leading.replacement +
+            source.substring(leading.endOffset, trailing.startOffset) +
             trailing.replacement +
             source.substring(trailing.endOffset)
         fixed shouldBe "2 -> {\n        \"two\"\n    }"
