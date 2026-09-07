@@ -1749,6 +1749,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val interior = ArrayList<Doc>()
         interior.add(wsBreakAt(children, lparIdx + 1, lparDoc.end, flat = ""))
         var prevType: WNodeType? = null
+        var afterLastArgument = interior.size
         var i = lparIdx + 1
         while (i < rparIdx) {
             val entry = children[i]
@@ -1764,6 +1765,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                 interior.add(Doc.Text(" ", entryDoc.start, entryDoc.start))
             }
             interior.add(entryDoc)
+            if (isListElement(entry)) afterLastArgument = interior.size
             if (entry.type == WNodeType.EOL_COMMENT) {
                 interior.add(Doc.Break(BreakKind.HARD, start = entryDoc.end, end = entryDoc.end))
             } else if (entry.type == WNodeType.COMMA && hasNonWsBetween(children, i + 1, rparIdx)) {
@@ -1772,7 +1774,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             prevType = entry.type
             i++
         }
-        if (argumentCount > 0) addDynamicTrailingComma(interior, children, trailingCommaIdx)
+        if (argumentCount > 0) addDynamicTrailingComma(interior, children, trailingCommaIdx, afterLastArgument)
 
         val lastInterior = interior.last()
         val closingBreak = if (lastInterior is Doc.Break && lastInterior.kind == BreakKind.HARD) {
@@ -1877,7 +1879,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     /**
-     * Appends [Doc.TrailingComma] right after [interior]'s last element when
+     * Inserts [Doc.TrailingComma] into [interior] at [insertIdx] — right after the list's own last
+     * element, which is short of [interior]'s end whenever a comment trails the list — when
      * [FormatStyle.trailingCommas] is enabled: its span reuses [trailingCommaIdx]'s original comma
      * when one already sits at the trailing position, or a zero-width point at the last element's
      * end otherwise. [Layout] alone decides whether it renders, from the enclosing [Doc.Group]'s
@@ -1888,11 +1891,12 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         interior: MutableList<Doc>,
         children: List<ChildEntry>,
         trailingCommaIdx: Int?,
+        insertIdx: Int,
     ) {
         if (!style.trailingCommas) return
-        val anchor = interior.lastOrNull() ?: return
+        val anchor = interior.getOrNull(insertIdx - 1) ?: return
         val existing = trailingCommaIdx?.let { (children[it] as ChildEntry.Resolved).doc }
-        interior.add(Doc.TrailingComma(existing?.start ?: anchor.end, existing?.end ?: anchor.end))
+        interior.add(insertIdx, Doc.TrailingComma(existing?.start ?: anchor.end, existing?.end ?: anchor.end))
     }
 
     private fun hasNonWsBetween(
@@ -1973,7 +1977,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             }
             i++
         }
-        addDynamicTrailingComma(interior, children, trailingCommaIdx)
+        addDynamicTrailingComma(interior, children, trailingCommaIdx, interior.size)
 
         val interiorDoc = Doc.Concat(interior, interior.first().start, interior.last().end)
         val closingBreak = wsBreakAt(children, rparIdx - 1, rparDoc.start, flat = "", kind = breakKind)
@@ -2285,13 +2289,13 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     /**
-     * A [WNodeType.WHEN_ENTRY]'s own [WNodeType.ARROW] anchors [applyTrailingComma] over its
-     * condition list, bailing entirely for: an `else` entry; an entry whose enclosing `when` has
-     * no parenthesized subject ([hasSubject]) — a subject-less entry's grammar has no comma
-     * production at all, so inserting one would break compilation; or an entry containing a
-     * structurally-unrecognized child ([WNodeType.UNKNOWN] — a guard clause has no [WNodeType] of
-     * its own, so this is the only way to detect one). In all three cases the entry is left
-     * untouched.
+     * A [WNodeType.WHEN_ENTRY]'s own [WNodeType.ARROW] delimits the condition list
+     * [resolveWhenConditionList] lays out, bailing entirely for: an `else` entry; an entry whose
+     * enclosing `when` has no parenthesized subject ([hasSubject]) — a subject-less entry's grammar
+     * has no comma production at all, so inserting one would break compilation; or an entry
+     * containing a structurally-unrecognized child ([WNodeType.UNKNOWN] — a guard clause has no
+     * [WNodeType] of its own, so this is the only way to detect one). In all three cases the entry
+     * is left untouched.
      *
      * Independent of that bail (it concerns only the condition list): an `if`/`when`/`try` body
      * after the arrow is placed by [resolveAssignedValueFrame], a multi-line one hugging the
@@ -2309,7 +2313,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             0 ||
             !hasSubject ||
             (0 until arrowIdx).any { children[it].type == WNodeType.KW_ELSE || children[it].type == WNodeType.UNKNOWN }
-        val adjusted = if (bail) children else applyTrailingComma(children, 0, arrowIdx)
+        val adjusted = if (bail) children else resolveWhenConditionList(children, arrowIdx) ?: children
 
         val adjustedArrowIdx = adjusted.indexOfFirst { it.type == WNodeType.ARROW }
         if (adjustedArrowIdx >= 0) {
@@ -2317,6 +2321,50 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             return resolveInitializerFrame(adjusted, WNodeType.WHEN_ENTRY, start, end, adjustedArrowIdx)
         }
         return resolveBraceFrame(rebuildFrame(frame, adjusted), start, end)
+    }
+
+    /**
+     * A `when` entry's condition list wraps like an argument list: one [GroupKind.CONDITIONS]
+     * group with a break after every separating comma — `SOFT`, so the list joins back onto one
+     * line whenever it fits, unless the source already puts two conditions on different lines,
+     * `HARD` then — plus [addDynamicTrailingComma]'s comma-iff-broken for a list of two or more
+     * (a lone condition has no break point of its own, so a comma there would be pure noise).
+     * The list replaces its own children with one entry, followed by a single space and the
+     * entry's own [WNodeType.ARROW], so a broken list still carries `->` on its last condition's
+     * line. Returns `null` — leaving the entry untouched — for a list holding no real element
+     * ([isListElement]) or any comment.
+     */
+    private fun resolveWhenConditionList(children: List<ChildEntry>, arrowIdx: Int): List<ChildEntry>? {
+        if ((0 until arrowIdx).any { children[it].type in COMMENT_TYPES }) return null
+        val elementIndices = (0 until arrowIdx).filter { isListElement(children[it]) }
+        if (elementIndices.isEmpty()) return null
+        val firstIdx = elementIndices.first()
+        val lastIdx = elementIndices.last()
+        val trailingCommaIdx = trailingCommaIndex(children, firstIdx, arrowIdx)
+        val breakKind =
+            if ((firstIdx until lastIdx).any { children[it] is ChildEntry.Ws }) BreakKind.HARD else BreakKind.SOFT
+
+        val interior = ArrayList<Doc>()
+        for (i in firstIdx..lastIdx) {
+            val entry = children[i]
+            if (entry.type == WNodeType.WHITE_SPACE || i == trailingCommaIdx) continue
+            val entryDoc = resolveEntry(entry)
+            interior.add(entryDoc)
+            if (entry.type == WNodeType.COMMA && hasNonWsBetween(children, i + 1, lastIdx + 1)) {
+                interior.add(wsBreakAt(children, i + 1, entryDoc.end, flat = " ", kind = breakKind))
+            }
+        }
+        if (elementIndices.size >= 2) addDynamicTrailingComma(interior, children, trailingCommaIdx, interior.size)
+
+        val listDoc = Doc.Group(Doc.Concat(interior, interior.first().start, interior.last().end), GroupKind.CONDITIONS)
+        val arrowStart = (children[arrowIdx] as ChildEntry.Resolved).doc.start
+        val gap = Doc.Text(" ", interior.last().end, arrowStart)
+        val rewritten = ArrayList<ChildEntry>(children.size)
+        rewritten.addAll(children.subList(0, firstIdx))
+        rewritten.add(ChildEntry.Resolved(children[lastIdx].type, listDoc))
+        rewritten.add(ChildEntry.Resolved(WNodeType.WHITE_SPACE, gap))
+        rewritten.addAll(children.subList(arrowIdx, children.size))
+        return rewritten
     }
 
     private fun rebuildFrame(

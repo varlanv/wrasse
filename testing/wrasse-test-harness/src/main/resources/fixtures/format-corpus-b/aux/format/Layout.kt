@@ -89,13 +89,7 @@ object Layout {
             val bodyDepth = if (doc.indentWhenBroken && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
             val bodyForce = when (doc.kind) {
                 GroupKind.ARGUMENTS -> forced || (doc.forceNestedWhenBroken && chosenMode == Mode.BROKEN)
-                GroupKind.LAMBDA,
-                GroupKind.CONTINUATION,
-                GroupKind.CHAIN,
-                GroupKind.TEMPLATE,
-                GroupKind.CONDITIONS,
-                GroupKind.BARRIER, -> false
-
+                GroupKind.LAMBDA, GroupKind.CONTINUATION, GroupKind.TEMPLATE, GroupKind.BARRIER -> false
                 GroupKind.DEFAULT, GroupKind.FLUID -> forceArguments
             }
             renderNode(sb, doc.body, bodyDepth, column, chosenMode, style, tail, bodyForce)
@@ -113,7 +107,7 @@ object Layout {
         return when (group.kind) {
             GroupKind.BARRIER -> true
 
-            GroupKind.LAMBDA, GroupKind.CONDITIONS -> {
+            GroupKind.LAMBDA -> {
                 val width = flatWidth(group.body)
                 width >= 0 && column + width <= max
             }
@@ -121,14 +115,7 @@ object Layout {
             GroupKind.DEFAULT, GroupKind.ARGUMENTS, GroupKind.TEMPLATE -> {
                 val width = flatWidth(group.body)
                 if (width < 0) return false
-                val stopAtChain = group.kind == GroupKind.ARGUMENTS && group.singleArgument
-                column + width + tailWidth(
-                    tail,
-                    column + width,
-                    brokenEnd(group, indentDepth, style),
-                    style,
-                    stopAtChain,
-                ) <= max
+                column + width + tailWidth(tail, column + width, brokenEnd(group, indentDepth, style), style) <= max
             }
 
             GroupKind.FLUID -> {
@@ -139,19 +126,18 @@ object Layout {
                 column + acc[0] + rest <= max
             }
 
-            GroupKind.CONTINUATION, GroupKind.CHAIN -> {
+            GroupKind.CONTINUATION -> {
                 val acc = IntArray(1)
                 val body = group.body
-                val lambdaEndsAnywhere = group.kind == GroupKind.CONTINUATION
                 var outcome = MEASURE_COMPLETE
                 if (body is Doc.Concat) {
                     val parts = body.parts
                     for (i in 0 until parts.size) {
-                        outcome = measureContinuation(parts[i], acc, i == parts.size - 1, lambdaEndsAnywhere)
+                        outcome = measureContinuation(parts[i], acc, softHard = i == parts.size - 1)
                         if (outcome != MEASURE_COMPLETE) break
                     }
                 } else {
-                    outcome = measureContinuation(body, acc, softHard = true, lambdaEndsAnywhere = lambdaEndsAnywhere)
+                    outcome = measureContinuation(body, acc, softHard = true)
                 }
                 when (outcome) {
                     MEASURE_FORCED -> false
@@ -179,17 +165,13 @@ object Layout {
      * measured group stays flat; stops at the first break. A lambda in the tail that could not
      * stay flat either there or at [brokenEnd] (where the tail would start if the measured group
      * broke instead) is going to break anyway, so only its content up to its own first break
-     * counts; otherwise its whole flat width does, letting the measured group break first. With
-     * [stopAtChain] (the measured group holds one argument) a [GroupKind.CHAIN] group in the tail
-     * counts only up to its own opening break, so a one-argument call standing at the head of a
-     * chain keeps its argument list flat and lets the links after it break instead.
+     * counts; otherwise its whole flat width does, letting the measured group break first.
      */
     private fun tailWidth(
         tail: Tail?,
         afterColumn: Int,
         brokenEnd: Int,
         style: FormatStyle,
-        stopAtChain: Boolean = false,
     ): Int {
         if (tail == null) return 0
         val acc = IntArray(1)
@@ -197,8 +179,7 @@ object Layout {
         while (current != null) {
             for (i in current.from until current.parts.size) {
                 val part = current.parts[i]
-                if (part is Doc.Break ||
-                    !measureTail(part, acc, current.mode, afterColumn, brokenEnd, style, stopAtChain)) {
+                if (part is Doc.Break || !measureTail(part, acc, current.mode, afterColumn, brokenEnd, style)) {
                     return acc[0]
                 }
             }
@@ -214,7 +195,6 @@ object Layout {
         afterColumn: Int,
         brokenEnd: Int,
         style: FormatStyle,
-        stopAtChain: Boolean,
     ): Boolean = when (doc) {
         is Doc.Text -> measureText(doc, acc)
         is Doc.Break -> if (doc.kind == BreakKind.SOFT) {
@@ -229,19 +209,15 @@ object Layout {
             true
         }
 
-        is Doc.Indent -> measureTail(doc.body, acc, mode, afterColumn, brokenEnd, style, stopAtChain)
+        is Doc.Indent -> measureTail(doc.body, acc, mode, afterColumn, brokenEnd, style)
         is Doc.Group -> when {
             doc.kind == GroupKind.LAMBDA -> measureLambdaInTail(doc, acc, afterColumn, brokenEnd, style)
-            (stopAtChain && doc.kind == GroupKind.CHAIN) || doc.forceBreak -> measureUntilBreak(doc.body, acc)
-            else -> {
-                val bodyMode = if (doc.kind == GroupKind.BARRIER) mode else Mode.FLAT
-                measureTail(doc.body, acc, bodyMode, afterColumn, brokenEnd, style, stopAtChain)
-            }
+            doc.forceBreak -> measureUntilBreak(doc.body, acc)
+            doc.kind == GroupKind.BARRIER -> measureTail(doc.body, acc, mode, afterColumn, brokenEnd, style)
+            else -> measureTail(doc.body, acc, Mode.FLAT, afterColumn, brokenEnd, style)
         }
 
-        is Doc.Concat -> measureParts(doc.parts) {
-            measureTail(it, acc, mode, afterColumn, brokenEnd, style, stopAtChain)
-        }
+        is Doc.Concat -> measureParts(doc.parts) { measureTail(it, acc, mode, afterColumn, brokenEnd, style) }
     }
 
     private fun measureLambdaInTail(
@@ -309,7 +285,6 @@ object Layout {
         doc: Doc,
         acc: IntArray,
         softHard: Boolean,
-        lambdaEndsAnywhere: Boolean,
     ): Int = when (doc) {
         is Doc.Text -> if (measureText(doc, acc)) MEASURE_COMPLETE else if (softHard) MEASURE_ENDED else MEASURE_FORCED
         is Doc.Break -> if (doc.kind == BreakKind.SOFT) {
@@ -322,15 +297,9 @@ object Layout {
         }
 
         is Doc.TrailingComma -> MEASURE_COMPLETE
-        is Doc.Indent -> measureContinuation(doc.body, acc, softHard, lambdaEndsAnywhere)
+        is Doc.Indent -> measureContinuation(doc.body, acc, softHard)
         is Doc.Group -> when {
-            !doc.forceBreak -> measureContinuation(
-                doc.body,
-                acc,
-                softHard || (lambdaEndsAnywhere && doc.kind == GroupKind.LAMBDA),
-                lambdaEndsAnywhere,
-            )
-
+            !doc.forceBreak -> measureContinuation(doc.body, acc, softHard || doc.kind == GroupKind.LAMBDA)
             measureUntilBreak(doc.body, acc) -> MEASURE_COMPLETE
             softHard -> MEASURE_ENDED
             else -> MEASURE_FORCED
@@ -339,7 +308,7 @@ object Layout {
             var outcome = MEASURE_COMPLETE
             val parts = doc.parts
             for (i in 0 until parts.size) {
-                outcome = measureContinuation(parts[i], acc, softHard, lambdaEndsAnywhere)
+                outcome = measureContinuation(parts[i], acc, softHard)
                 if (outcome != MEASURE_COMPLETE) break
             }
             outcome

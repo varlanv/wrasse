@@ -20,9 +20,8 @@ class Builder {
 
 val client = Builder()
     .setDefaultRequestConfig(
-        Config.custom().setResponseTimeout(5).build()
+        Config.custom().setResponseTimeout(5).build(),
         // Retries belong to the limiters.
-        ,
     )
     .disableRetries()
     .build()
