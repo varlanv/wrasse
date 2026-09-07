@@ -29,12 +29,16 @@ import com.varlanv.wrasse.model.WCallSite
  * named or the order differs.
  *
  * [isNamedArgument] recognizes an argument written as `name = value` (an identifier, plain or
- * backticked, then `=` that is not `==`); [namedArgumentValueStart] is the same scan, returning
- * the offset where the value begins (right after `=` and any following whitespace) so the exact
+ * backticked, then `=` that is not `==`), skipping whitespace and `//`/`/* */` comments around
+ * the name and around the `=`; [namedArgumentValueStart] is the same scan, returning the offset
+ * where the value begins (right after `=` and any following whitespace or comments) so the exact
  * `name = ` prefix — never more, regardless of what the value itself starts with, parenthesized
  * or not — can be deleted when the call goes positional. [isMixed] is true when a list holds both
  * a named argument and a positional one that is not an element of a vararg parameter — such an
- * element cannot be named, so a call naming everything else is not mixed.
+ * element cannot be named, so a call naming everything else is not mixed. [hasSyntaxMismatch] is
+ * a safety net: true when this syntactic scan disagrees with what FIR itself resolved
+ * ([WCallArgument.isNamed]) for some written argument, in which case the whole call must be left
+ * untouched.
  */
 object NamedArgumentsDecision {
     fun callsInScope(
@@ -146,8 +150,7 @@ object NamedArgumentsDecision {
         start: Int,
         end: Int,
     ): Int? {
-        var i = start
-        while (i < end && sourceText[i].isWhitespace()) i++
+        var i = skipWhitespaceAndComments(sourceText, start, end)
         if (i >= end) return null
         if (sourceText[i] == '`') {
             i++
@@ -158,12 +161,47 @@ object NamedArgumentsDecision {
             if (!sourceText[i].isJavaIdentifierStart()) return null
             while (i < end && sourceText[i].isJavaIdentifierPart()) i++
         }
-        while (i < end && sourceText[i].isWhitespace()) i++
+        i = skipWhitespaceAndComments(sourceText, i, end)
         if (i >= end || sourceText[i] != '=') return null
         if (i + 1 < end && sourceText[i + 1] == '=') return null
         i++
-        while (i < end && sourceText[i].isWhitespace()) i++
+        i = skipWhitespaceAndComments(sourceText, i, end)
         return i
+    }
+
+    private fun skipWhitespaceAndComments(
+        sourceText: CharSequence,
+        start: Int,
+        end: Int,
+    ): Int {
+        var i = start
+        while (i < end) {
+            val c = sourceText[i]
+            when {
+                c.isWhitespace() -> i++
+                c == '/' && i + 1 < end && sourceText[i + 1] == '/' -> {
+                    i += 2
+                    while (i < end && sourceText[i] != '\n') i++
+                }
+
+                c == '/' && i + 1 < end && sourceText[i + 1] == '*' -> {
+                    i += 2
+                    while (i < end && !(sourceText[i] == '*' && i + 1 < end && sourceText[i + 1] == '/')) i++
+                    i = if (i < end) i + 2 else end
+                }
+
+                else -> return i
+            }
+        }
+        return i
+    }
+
+    fun hasSyntaxMismatch(site: WCallSite, written: List<WrittenArgument>): Boolean {
+        for (argument in written) {
+            val mapped = mappedArgument(site, argument.startOffset, argument.endOffset) ?: continue
+            if (mapped.isNamed != argument.isNamed) return true
+        }
+        return false
     }
 
     fun nameEdits(site: WCallSite, written: List<WrittenArgument>): List<WEdit> {

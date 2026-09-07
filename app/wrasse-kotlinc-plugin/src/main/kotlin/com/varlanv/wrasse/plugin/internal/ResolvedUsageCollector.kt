@@ -51,12 +51,17 @@ import org.jetbrains.kotlin.fir.types.type
 import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
 
 private val CALL_SYNTAX_TYPES = setOf(
     KtNodeTypes.CALL_EXPRESSION,
     KtNodeTypes.DOT_QUALIFIED_EXPRESSION,
     KtNodeTypes.SAFE_ACCESS_EXPRESSION,
 )
+
+private class CallAmbiguity(val namingIsAmbiguous: Boolean, val positionalIsAmbiguous: Boolean)
+
+private val NO_AMBIGUITY = CallAmbiguity(namingIsAmbiguous = false, positionalIsAmbiguous = false)
 
 object ResolvedUsageCollector {
     @OptIn(DirectDeclarationsAccess::class)
@@ -65,7 +70,7 @@ object ResolvedUsageCollector {
         collectQualifiedUsages: Boolean = false,
         collectCallSites: Boolean = false,
     ): WResolvedUsage = runCatching {
-        val visitor = UsageVisitor(file.moduleData.session, collectQualifiedUsages, collectCallSites)
+        val visitor = UsageVisitor(file, collectQualifiedUsages, collectCallSites)
         for (annotation in file.annotations) {
             annotation.accept(visitor)
         }
@@ -111,10 +116,11 @@ object ResolvedUsageCollector {
     }
 
     private class UsageVisitor(
-        private val session: FirSession,
+        private val file: FirFile,
         private val collectQualifiedUsages: Boolean,
         private val collectCallSites: Boolean,
     ) : FirVisitorVoid() {
+        private val session: FirSession = file.moduleData.session
         val classifiers = mutableSetOf<String>()
         val callables = mutableSetOf<WCallableUsage>()
         val qualifiedUsages = mutableListOf<WQualifiedUsage>()
@@ -122,7 +128,7 @@ object ResolvedUsageCollector {
         val typeAliases = mutableMapOf<String, String>()
         var hasErrors = false
         private val scopeSession = ScopeSession()
-        private val namingAmbiguityByCallee = HashMap<FirFunctionSymbol<*>, Boolean>()
+        private val ambiguityByCallee = HashMap<FirFunctionSymbol<*>, CallAmbiguity>()
 
         override fun visitElement(element: FirElement) {
             element.acceptChildren(this)
@@ -150,6 +156,7 @@ object ResolvedUsageCollector {
             val symbol = (call.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirFunctionSymbol<*>
                 ?: return
             val parameterSymbols = symbol.valueParameterSymbols
+            val namedSpans = namedArgumentSpans(argumentList)
             val arguments = ArrayList<WCallArgument>()
             for ((expression, parameter) in argumentList.mapping) {
                 val parameterName = parameter.name.asString()
@@ -161,12 +168,14 @@ object ResolvedUsageCollector {
                         parameterName,
                         isVararg = true,
                         parameterIndex,
+                        namedSpans,
                     )
                 } else {
-                    addArgument(arguments, expression, parameterName, parameter.isVararg, parameterIndex)
+                    addArgument(arguments, expression, parameterName, parameter.isVararg, parameterIndex, namedSpans)
                 }
             }
             val callableId = symbol.callableId
+            val ambiguity = ambiguityOf(symbol, callableId)
             callSites.add(
                 WCallSite(
                     callStartOffset = callSource.startOffset,
@@ -178,29 +187,32 @@ object ResolvedUsageCollector {
                     arguments = arguments,
                     isConstructor = symbol is FirConstructorSymbol,
                     parameterCount = parameterSymbols.size,
-                    namingIsAmbiguous = isNamingAmbiguous(symbol, callableId),
+                    namingIsAmbiguous = ambiguity.namingIsAmbiguous,
+                    positionalIsAmbiguous = ambiguity.positionalIsAmbiguous,
                 ),
             )
         }
 
-        private fun isNamingAmbiguous(symbol: FirFunctionSymbol<*>, callableId: CallableId): Boolean {
+        private fun ambiguityOf(symbol: FirFunctionSymbol<*>, callableId: CallableId): CallAmbiguity {
             val original = symbol.originalOrSelf()
-            return namingAmbiguityByCallee.getOrPut(original) { computeNamingAmbiguity(original, symbol, callableId) }
+            return ambiguityByCallee.getOrPut(original) { computeAmbiguity(original, symbol, callableId) }
         }
 
-        private fun computeNamingAmbiguity(
+        private fun computeAmbiguity(
             original: FirFunctionSymbol<*>,
             symbol: FirFunctionSymbol<*>,
             callableId: CallableId,
-        ): Boolean {
+        ): CallAmbiguity {
             val calleeParameterNames = original.valueParameterSymbols.map { it.name.asString() }.toSet()
+            val calleeParameterCount = original.valueParameterSymbols.size
+            val calleeReceiverClassId = receiverClassId(original)
             val classId = callableId.classId
             val candidates: List<FirFunctionSymbol<*>> = when {
                 symbol is FirConstructorSymbol -> {
-                    val ownerClassId = classId ?: return false
+                    val ownerClassId = classId ?: return NO_AMBIGUITY
                     val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(
                         ownerClassId,
-                    ) as? FirClassSymbol<*> ?: return false
+                    ) as? FirClassSymbol<*> ?: return NO_AMBIGUITY
                     classSymbol
                         .unsubstitutedScope(
                             session,
@@ -211,16 +223,12 @@ object ResolvedUsageCollector {
                         .getDeclaredConstructors()
                 }
 
-                classId ==
-                    null -> session.symbolProvider.getTopLevelFunctionSymbols(
-                    callableId.packageName,
-                    callableId.callableName,
-                )
+                classId == null -> topLevelCandidates(callableId)
 
                 else -> {
                     val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(
                         classId,
-                    ) as? FirClassSymbol<*> ?: return false
+                    ) as? FirClassSymbol<*> ?: return NO_AMBIGUITY
                     classSymbol
                         .unsubstitutedScope(
                             session,
@@ -231,17 +239,46 @@ object ResolvedUsageCollector {
                         .getFunctions(callableId.callableName)
                 }
             }
+            var namingIsAmbiguous = false
+            var positionalIsAmbiguous = false
             for (candidate in candidates) {
                 val candidateOriginal = candidate.originalOrSelf()
                 if (candidateOriginal === original) continue
+                if (receiverClassId(candidateOriginal) != calleeReceiverClassId) continue
                 if (candidateOriginal.valueParameterSymbols
                     .map { it.name.asString() }
                     .toSet() == calleeParameterNames) {
-                    return true
+                    namingIsAmbiguous = true
+                }
+                if (candidateOriginal.valueParameterSymbols.size == calleeParameterCount) {
+                    positionalIsAmbiguous = true
+                }
+                if (namingIsAmbiguous && positionalIsAmbiguous) break
+            }
+            return CallAmbiguity(namingIsAmbiguous, positionalIsAmbiguous)
+        }
+
+        private fun topLevelCandidates(callableId: CallableId): List<FirFunctionSymbol<*>> {
+            val packages = LinkedHashSet<FqName>()
+            packages.add(callableId.packageName)
+            packages.add(file.packageDirective.packageFqName)
+            for (import in file.imports) {
+                val resolved = import as? FirResolvedImport ?: continue
+                if (resolved.isAllUnder) {
+                    packages.add(resolved.packageFqName)
+                } else if (resolved.resolvedParentClassId == null && resolved.importedName == callableId.callableName) {
+                    packages.add(resolved.packageFqName)
                 }
             }
-            return false
+            val candidates = ArrayList<FirFunctionSymbol<*>>()
+            for (pkg in packages) {
+                candidates.addAll(session.symbolProvider.getTopLevelFunctionSymbols(pkg, callableId.callableName))
+            }
+            return candidates
         }
+
+        private fun receiverClassId(symbol: FirFunctionSymbol<*>): ClassId? =
+            (symbol.resolvedReceiverTypeRef?.coneType as? ConeClassLikeType)?.lookupTag?.classId
 
         private fun addArgument(
             out: MutableList<WCallArgument>,
@@ -249,6 +286,7 @@ object ResolvedUsageCollector {
             parameterName: String,
             isVararg: Boolean,
             parameterIndex: Int,
+            namedSpans: Set<Long>,
         ) {
             val value = when (expression) {
                 is FirNamedArgumentExpression -> expression.expression
@@ -257,8 +295,35 @@ object ResolvedUsageCollector {
             }
             val source = value.source ?: expression.source ?: return
             if (source.startOffset < 0 || source.endOffset < source.startOffset) return
-            out.add(WCallArgument(source.startOffset, source.endOffset, parameterName, isVararg, parameterIndex))
+            val isNamed = spanKey(source.startOffset, source.endOffset) in namedSpans
+            out.add(
+                WCallArgument(source.startOffset, source.endOffset, parameterName, isVararg, parameterIndex, isNamed),
+            )
         }
+
+        /**
+         * FIR discards [FirNamedArgumentExpression] wrappers while completing a call ([argumentList]'s
+         * own `mapping` never contains one), so whether an argument was written named has to come from
+         * [FirResolvedArgumentList.originalArgumentList] instead: the span of each named wrapper's own
+         * (innermost, past any spread) value expression.
+         */
+        private fun namedArgumentSpans(argumentList: FirResolvedArgumentList): Set<Long> {
+            val original = argumentList.originalArgumentList ?: return emptySet()
+            var spans: MutableSet<Long>? = null
+            for (argument in original.arguments) {
+                if (argument !is FirNamedArgumentExpression) continue
+                val source = innermostExpression(argument.expression).source ?: continue
+                if (source.startOffset < 0 || source.endOffset < source.startOffset) continue
+                if (spans == null) spans = HashSet()
+                spans.add(spanKey(source.startOffset, source.endOffset))
+            }
+            return spans ?: emptySet()
+        }
+
+        private fun innermostExpression(expression: FirExpression): FirExpression =
+            if (expression is FirSpreadArgumentExpression) innermostExpression(expression.expression) else expression
+
+        private fun spanKey(start: Int, end: Int): Long = (start.toLong() shl 32) or (end.toLong() and 0xFFFF_FFFFL)
 
         override fun visitResolvedNamedReference(resolvedNamedReference: FirResolvedNamedReference) {
             collectCallableUsage(resolvedNamedReference)

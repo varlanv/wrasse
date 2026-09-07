@@ -29,9 +29,12 @@ private val TARGET_TYPES = setOf(WNodeType.VALUE_ARGUMENT_LIST)
  * names, and a function type's `invoke` are called positionally whatever the threshold: never
  * named, and names already written are dropped when positional form means the same call. A vararg
  * element and a trailing lambda are never touched. A call whose callee has [WCallSite.namingIsAmbiguous]
- * set is never named — some other visible overload could also accept the fully named call — though
- * its names are still dropped when it goes positional. Inert for a file whose resolution has errors.
- * See [NamedArgumentsDecision].
+ * set is never named — some other visible overload could also accept the fully named call; a call
+ * whose callee has [WCallSite.positionalIsAmbiguous] set never has names dropped — some other
+ * visible overload could also accept the same call written positionally — each flag leaving the
+ * other direction unaffected. A call whose syntactic reading of which arguments are named
+ * disagrees with what FIR itself resolved ([NamedArgumentsDecision.hasSyntaxMismatch]) is left
+ * untouched entirely. Inert for a file whose resolution has errors. See [NamedArgumentsDecision].
  */
 class NamedArgumentsRule : WUninitializedRule {
     override val id: String = "named-arguments"
@@ -117,14 +120,17 @@ class NamedArgumentsRule : WUninitializedRule {
                         ),
                     )
                 }
+                if (NamedArgumentsDecision.hasSyntaxMismatch(site, written)) return
                 val mixed = NamedArgumentsDecision.isMixed(site, written)
                 if (mixed && allowMixed) return
                 if (excluded || NamedArgumentsDecision.parenthesizedParameterCount(site) < threshold) {
-                    val edits = NamedArgumentsDecision.positionalEdits(site, written)
-                    if (edits.isNotEmpty()) {
-                        val message = if (excluded) EXCLUDED_MESSAGE else positionalMessage
-                        reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this, edits = edits)
-                        return
+                    if (!site.positionalIsAmbiguous) {
+                        val edits = NamedArgumentsDecision.positionalEdits(site, written)
+                        if (edits.isNotEmpty()) {
+                            val message = if (excluded) EXCLUDED_MESSAGE else positionalMessage
+                            reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this, edits = edits)
+                            return
+                        }
                     }
                     if (excluded || !mixed) return
                 } else if (!mixed && callEnd !in inScope) {

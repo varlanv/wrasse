@@ -13,7 +13,8 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         name: String,
         vararg: Boolean = false,
         index: Int = 0,
-    ) = WCallArgument(start, end, name, vararg, index)
+        named: Boolean = false,
+    ) = WCallArgument(start, end, name, vararg, index, named)
 
     fun site(
         callStart: Int,
@@ -243,6 +244,36 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             site(0, 5, 1, pkg = "kotlin", cls = "kotlin.Pair", name = "invoke"),
             emptyList(),
         ) shouldBe false
+    }
+
+    should("skip comments, alongside whitespace, around the name and around the = when scanning for a named argument") {
+        fun valueStart(text: String) = NamedArgumentsDecision.namedArgumentValueStart(text, 0, text.length)
+        valueStart("a /* note */ = 1") shouldBe "a /* note */ = 1".indexOf('1')
+        valueStart("/* c */ a = 1") shouldBe "/* c */ a = 1".indexOf('1')
+        valueStart("a = /* note */ 1") shouldBe "a = /* note */ 1".indexOf('1')
+        valueStart("a // note\n = 1") shouldBe "a // note\n = 1".indexOf('1')
+        valueStart("// c\n a = 1") shouldBe "// c\n a = 1".indexOf('1')
+        valueStart("a /* unterminated") shouldBe null
+    }
+
+    should("treat FIR's own naming verdict as authoritative and flag any written argument that disagrees") {
+        val s = site(
+            callStart = 0,
+            callEnd = 20,
+            listStart = 1,
+            arguments = listOf(argument(2, 5, "a", index = 0, named = true)),
+        )
+        NamedArgumentsDecision.hasSyntaxMismatch(s, listOf(WrittenArgument(2, 5, null))) shouldBe true
+        NamedArgumentsDecision.hasSyntaxMismatch(s, listOf(WrittenArgument(2, 5, 2))) shouldBe false
+
+        val positional = site(
+            callStart = 0,
+            callEnd = 20,
+            listStart = 1,
+            arguments = listOf(argument(2, 5, "a", index = 0, named = false)),
+        )
+        NamedArgumentsDecision.hasSyntaxMismatch(positional, listOf(WrittenArgument(2, 5, 2))) shouldBe true
+        NamedArgumentsDecision.hasSyntaxMismatch(positional, listOf(WrittenArgument(2, 5, null))) shouldBe false
     }
 
     should("insert names before written arguments that are positional and map to a non-vararg parameter") {
