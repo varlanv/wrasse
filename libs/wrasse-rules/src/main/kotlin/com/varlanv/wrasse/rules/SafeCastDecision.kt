@@ -36,7 +36,8 @@ object SafeCastDecision {
         val matches =
             if (negated) elseText == identifier && thenText == "null" else thenText == identifier && elseText == "null"
         if (!matches) return null
-        val edits = if (hasComment) emptyList() else listOf(WEdit(replaceStart, replaceEnd, "$identifier as? $typeText"))
+        val edits =
+            if (hasComment) emptyList() else listOf(WEdit(replaceStart, replaceEnd, "$identifier as? $typeText"))
         return SafeCastVerdict(edits)
     }
 }
