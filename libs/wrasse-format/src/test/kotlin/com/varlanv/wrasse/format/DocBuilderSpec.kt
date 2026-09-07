@@ -1254,7 +1254,57 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "(a: Int)"
     }
 
-    should("bail on a subject-less when's entry, never inserting a comma a guard-free grammar wouldn't allow") {
+    fun whenWithTwoConditions(builder: DocBuilder, ctx: WContext) {
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN })
+        leaf(builder, ctx, WNodeType.KW_WHEN, "when")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "x")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.LBRACE, "{")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "aa")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "bb")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        leaf(builder, ctx, WNodeType.COMMA, ",")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.ARROW, "->")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "one")
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN_ENTRY })
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n")
+        leaf(builder, ctx, WNodeType.RBRACE, "}")
+        builder.exitNode(ctx.apply { type = WNodeType.WHEN })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+    }
+
+    should("pack a when entry's conditions onto one line, dropping the newline and the trailing comma") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        whenWithTwoConditions(builder, ctx)
+
+        render(builder, ctx) shouldBe "when (x) {\n    aa, bb -> one\n}"
+    }
+
+    should("break a when entry's condition list before the condition whose arrow no longer fits") {
+        val builder = DocBuilder(formatConfig(maxLineLength = 14))
+        val ctx = WContext(filePath = "test.kt")
+        whenWithTwoConditions(builder, ctx)
+
+        render(builder, ctx) shouldBe "when (x) {\n    aa,\n    bb -> one\n}"
+    }
+
+    should("bail on a subject-less when's entry, leaving the break before its own arrow as written") {
         val builder = DocBuilder(formatConfig())
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })

@@ -83,23 +83,110 @@ object Layout {
 
         is Doc.Group -> if (doc.kind == GroupKind.BARRIER) {
             renderNode(sb, doc.body, indentDepth, column, mode, style, tail, forceArguments = false)
+        } else if (doc.kind == GroupKind.FILL) {
+            renderFill(sb, doc, indentDepth, column, style, tail)
         } else {
             val forced = doc.kind == GroupKind.ARGUMENTS && (doc.forceBreak || (forceArguments && !doc.singleArgument))
             val chosenMode = if (!forced && groupFits(doc, indentDepth, column, style, tail)) Mode.FLAT else Mode.BROKEN
             val bodyDepth = if (doc.indentWhenBroken && chosenMode == Mode.BROKEN) indentDepth + 1 else indentDepth
             val bodyForce = when (doc.kind) {
                 GroupKind.ARGUMENTS -> forced || (doc.forceNestedWhenBroken && chosenMode == Mode.BROKEN)
-                GroupKind.LAMBDA,
-                GroupKind.CONTINUATION,
-                GroupKind.CHAIN,
-                GroupKind.TEMPLATE,
-                GroupKind.CONDITIONS,
-                GroupKind.BARRIER, -> false
+                GroupKind.LAMBDA, GroupKind.CONTINUATION, GroupKind.CHAIN, GroupKind.TEMPLATE, GroupKind.FILL,
+                GroupKind.BARRIER -> false
 
                 GroupKind.DEFAULT, GroupKind.FLUID -> forceArguments
             }
             renderNode(sb, doc.body, bodyDepth, column, chosenMode, style, tail, bodyForce)
         }
+    }
+
+    /**
+     * Renders a [GroupKind.FILL] group: its parts are laid out left to right and every `SOFT`
+     * break decides on its own whether the segment after it — the parts up to the next `SOFT`
+     * break — still fits on the current line, so the group packs as many segments per line as fit
+     * and breaks only before the one that would overflow. Every other part renders in `BROKEN`
+     * mode, with the parts up to the next break as its own tail, so a group nested in a segment
+     * still decides for itself.
+     */
+    private fun renderFill(
+        sb: StringBuilder,
+        group: Doc.Group,
+        indentDepth: Int,
+        column: Int,
+        style: FormatStyle,
+        tail: Tail?,
+    ): Int {
+        val body = group.body
+        val parts = if (body is Doc.Concat) body.parts else listOf(body)
+        val last = parts.size - 1
+        val ownTail = if (last > 0) Tail(parts, 1, Mode.BROKEN, tail) else null
+        var col = column
+        for (i in 0..last) {
+            val part = parts[i]
+            if (part is Doc.Break && part.kind == BreakKind.SOFT) {
+                if (fillSegmentFits(parts, i + 1, col + part.flat.length, style, tail)) {
+                    sb.append(part.flat)
+                    col += part.flat.length
+                } else {
+                    sb.append('\n')
+                    col = appendIndent(sb, indentDepth, style)
+                }
+            } else {
+                val partTail = if (i < last) {
+                    ownTail!!.from = i + 1
+                    ownTail
+                } else {
+                    tail
+                }
+                col = renderNode(sb, part, indentDepth, col, Mode.BROKEN, style, partTail, forceArguments = false)
+            }
+        }
+        return col
+    }
+
+    /**
+     * Whether the fill segment starting at [from] — the [parts] up to the next `SOFT` break —
+     * fits flat when placed at [column]. The last segment carries [fillTailWidth] with it, so
+     * whatever follows the group with no break of its own (a `when` entry's `->`) moves down
+     * together with that segment. A segment with no flat form of its own never fits.
+     */
+    private fun fillSegmentFits(
+        parts: List<Doc>,
+        from: Int,
+        column: Int,
+        style: FormatStyle,
+        tail: Tail?,
+    ): Boolean {
+        var width = 0
+        var i = from
+        while (i < parts.size) {
+            val part = parts[i]
+            if (part is Doc.Break && part.kind == BreakKind.SOFT) break
+            val partWidth = flatWidth(part)
+            if (partWidth < 0) return false
+            width += partWidth
+            i++
+        }
+        val rest = if (i < parts.size) 0 else fillTailWidth(tail)
+        return column + width + rest <= style.maxLineLength
+    }
+
+    /**
+     * Width of [tail] up to its own first break opportunity, a `SOFT` break nested inside a group
+     * included — unlike [tailWidth], which counts such a group at its full flat width. Only what
+     * cannot break away from a fill group's last segment shares that segment's line; the rest of
+     * the tail breaks for itself and takes the overflow first.
+     */
+    private fun fillTailWidth(tail: Tail?): Int {
+        val acc = IntArray(1)
+        var current: Tail? = tail
+        while (current != null) {
+            for (i in current.from until current.parts.size) {
+                if (!measureUntilBreak(current.parts[i], acc)) return acc[0]
+            }
+            current = current.outer
+        }
+        return acc[0]
     }
 
     private fun groupFits(
@@ -111,9 +198,9 @@ object Layout {
     ): Boolean {
         val max = style.maxLineLength
         return when (group.kind) {
-            GroupKind.BARRIER -> true
+            GroupKind.BARRIER, GroupKind.FILL -> true
 
-            GroupKind.LAMBDA, GroupKind.CONDITIONS -> {
+            GroupKind.LAMBDA -> {
                 val width = flatWidth(group.body)
                 width >= 0 && column + width <= max
             }

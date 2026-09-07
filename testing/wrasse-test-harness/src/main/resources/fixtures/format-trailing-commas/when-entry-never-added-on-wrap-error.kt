@@ -1,10 +1,9 @@
 package sample
 
-fun demo(x: Int): String {
+fun demo(x: String): Int {
     return when (x) {
-        1,
-        2 -> "small"
-        else -> "large"
+        "alpha", "bravo", "charlie", "delta" -> 1
+        else -> 0
     }
 }
 

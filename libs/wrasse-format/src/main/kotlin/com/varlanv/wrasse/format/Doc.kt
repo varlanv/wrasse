@@ -56,7 +56,8 @@ sealed interface Doc {
      *   whitespace on those blank lines survive untouched); [Layout] appends the synthesized
      *   indent for the upcoming line after it.
      * - [BreakKind.SOFT] — renders as [flat] if the enclosing `Group` fits flat, or as a newline
-     *   plus the synthesized indent otherwise.
+     *   plus the synthesized indent otherwise; inside a [GroupKind.FILL] group it is decided on
+     *   its own, against the column it stands at.
      *
      * [end] is the original whitespace leaf's true end, which may lie past [start] + [literal]'s
      * length: the trailing run of indentation spaces/tabs after the final `\n` is elided from
@@ -167,9 +168,12 @@ enum class BreakKind {
  *   line instead of leaving `}` joined to the `.` after it. Counted in a preceding group's tail
  *   only up to its own opening break, so a call standing at the head of a chain keeps its argument
  *   list flat and lets the links break instead.
- * - [CONDITIONS] — a `when` entry's comma-separated condition list: fits iff its own flat width
- *   fits, ignoring the tail after its last condition — the body past `->` has break opportunities
- *   of its own and takes the overflow first.
+ * - [FILL] — a comma-separated list that packs as many elements onto a line as fit (a `when`
+ *   entry's condition list): it takes no whole-group flat-vs-broken decision at all. [Layout]
+ *   walks its parts left to right and decides each `SOFT` break on its own, against the column
+ *   that break stands at and the width of the segment following it, so one broken list still
+ *   holds several elements per line. The last segment is measured together with the tail, which
+ *   is how the `->` after a condition list moves down with the condition it follows.
  * - [BARRIER] — an `if`/`when`/`try`/object expression: makes no layout decision of its own
  *   (renders in the enclosing mode, at the ambient depth) and only stops the forcing an enclosing
  *   [ARGUMENTS] group would otherwise push into the argument lists written inside it.
@@ -182,6 +186,6 @@ enum class GroupKind {
     LAMBDA,
     CONTINUATION,
     CHAIN,
-    CONDITIONS,
+    FILL,
     BARRIER,
 }

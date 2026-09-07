@@ -2291,8 +2291,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     /**
      * A [WNodeType.WHEN_ENTRY]'s own [WNodeType.ARROW] delimits the condition list
      * [resolveWhenConditionList] lays out, bailing entirely for: an `else` entry; an entry whose
-     * enclosing `when` has no parenthesized subject ([hasSubject]) — a subject-less entry's grammar
-     * has no comma production at all, so inserting one would break compilation; or an entry
+     * enclosing `when` has no parenthesized subject ([hasSubject]) — comma-separated conditions do
+     * not compile there, so such an entry holds one condition with nothing to pack; or an entry
      * containing a structurally-unrecognized child ([WNodeType.UNKNOWN] — a guard clause has no
      * [WNodeType] of its own, so this is the only way to detect one). In all three cases the entry
      * is left untouched.
@@ -2324,15 +2324,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     /**
-     * A `when` entry's condition list wraps like an argument list: one [GroupKind.CONDITIONS]
-     * group with a break after every separating comma — `SOFT`, so the list joins back onto one
-     * line whenever it fits, unless the source already puts two conditions on different lines,
-     * `HARD` then — plus [addDynamicTrailingComma]'s comma-iff-broken for a list of two or more
-     * (a lone condition has no break point of its own, so a comma there would be pure noise).
-     * The list replaces its own children with one entry, followed by a single space and the
-     * entry's own [WNodeType.ARROW], so a broken list still carries `->` on its last condition's
-     * line. Returns `null` — leaving the entry untouched — for a list holding no real element
-     * ([isListElement]) or any comment.
+     * A `when` entry's condition list is one [GroupKind.FILL] group with a `SOFT` break after
+     * every separating comma: the conditions pack onto a line and only the one that would
+     * overflow starts the next. Newlines the source puts between conditions are gaps like any
+     * other whitespace, never breaks of their own, and the list carries no trailing comma — one
+     * already there is dropped. The list replaces its own children with one entry, followed by a
+     * single space and the entry's own [WNodeType.ARROW], so a wrapped list still carries `->` on
+     * its last condition's line. Returns `null` — leaving the entry untouched — for a list
+     * holding no real element ([isListElement]) or any comment.
      */
     private fun resolveWhenConditionList(children: List<ChildEntry>, arrowIdx: Int): List<ChildEntry>? {
         if ((0 until arrowIdx).any { children[it].type in COMMENT_TYPES }) return null
@@ -2340,23 +2339,19 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (elementIndices.isEmpty()) return null
         val firstIdx = elementIndices.first()
         val lastIdx = elementIndices.last()
-        val trailingCommaIdx = trailingCommaIndex(children, firstIdx, arrowIdx)
-        val breakKind =
-            if ((firstIdx until lastIdx).any { children[it] is ChildEntry.Ws }) BreakKind.HARD else BreakKind.SOFT
 
         val interior = ArrayList<Doc>()
         for (i in firstIdx..lastIdx) {
             val entry = children[i]
-            if (entry.type == WNodeType.WHITE_SPACE || i == trailingCommaIdx) continue
+            if (entry.type == WNodeType.WHITE_SPACE) continue
             val entryDoc = resolveEntry(entry)
             interior.add(entryDoc)
             if (entry.type == WNodeType.COMMA && hasNonWsBetween(children, i + 1, lastIdx + 1)) {
-                interior.add(wsBreakAt(children, i + 1, entryDoc.end, flat = " ", kind = breakKind))
+                interior.add(wsBreakAt(children, i + 1, entryDoc.end, flat = " "))
             }
         }
-        if (elementIndices.size >= 2) addDynamicTrailingComma(interior, children, trailingCommaIdx, interior.size)
 
-        val listDoc = Doc.Group(Doc.Concat(interior, interior.first().start, interior.last().end), GroupKind.CONDITIONS)
+        val listDoc = Doc.Group(Doc.Concat(interior, interior.first().start, interior.last().end), GroupKind.FILL)
         val arrowStart = (children[arrowIdx] as ChildEntry.Resolved).doc.start
         val gap = Doc.Text(" ", interior.last().end, arrowStart)
         val rewritten = ArrayList<ChildEntry>(children.size)

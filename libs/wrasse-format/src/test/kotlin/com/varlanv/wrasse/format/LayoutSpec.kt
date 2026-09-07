@@ -281,6 +281,42 @@ class LayoutSpec : BaseSpec({
         ) shouldBe "a(\n    n = b(\n        1,\n    ),\n    { c(2) },\n)"
     }
 
+    fun fill(vararg items: String): Doc.Group {
+        val interior = ArrayList<Doc>()
+        for ((i, item) in items.withIndex()) {
+            if (i > 0) {
+                interior.add(Doc.Text(","))
+                interior.add(Doc.Break(BreakKind.SOFT, flat = " "))
+            }
+            interior.add(Doc.Text(item))
+        }
+        return Doc.Group(Doc.Concat(interior), GroupKind.FILL)
+    }
+
+    should("render a FILL group flat while its segments fit") {
+        Layout.render(fill("aa", "bb"), style) shouldBe "aa, bb"
+    }
+
+    should("break a FILL group only before the segment that would overflow, packing the rest") {
+        Layout.render(fill("aaa", "bbb", "ccc", "ddd", "eee"), style) shouldBe "aaa, bbb, ccc, ddd,\neee"
+    }
+
+    should("measure a FILL group's last segment together with the tail, moving both down") {
+        val doc = Doc.Concat(listOf(fill("aaa", "bbb", "ccc", "ddd"), Doc.Text(" -> x")))
+        Layout.render(doc, style) shouldBe "aaa, bbb, ccc,\nddd -> x"
+    }
+
+    should("start a FILL segment that has no flat form of its own on its own line") {
+        val multiline = Doc.Group(
+            Doc.Concat(listOf(Doc.Text("m("), Doc.Break(BreakKind.HARD, literal = "\n"), Doc.Text(")"))),
+        )
+        val doc = Doc.Group(
+            Doc.Concat(listOf(Doc.Text("aa"), Doc.Text(","), Doc.Break(BreakKind.SOFT, flat = " "), multiline)),
+            GroupKind.FILL,
+        )
+        Layout.render(doc, style) shouldBe "aa,\nm(\n)"
+    }
+
     should("decide nested groups independently once the outer group's mode is known") {
         val inner = Doc.Group(Doc.Concat(listOf(Doc.Text("inner-a"), Doc.Break(BreakKind.SOFT), Doc.Text("inner-b"))))
         val outer = Doc.Group(
