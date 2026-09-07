@@ -198,6 +198,7 @@ class ImportEngine : WUninitializedRuleGroup {
                     callables = usage.callables,
                     explicitImports = directives,
                     identifierOccurrences = identifierOccurrences,
+                    typeAliases = usage.typeAliases,
                 )
                 for (r in reports) {
                     val report = PendingImportReport(
@@ -240,6 +241,7 @@ class ImportEngine : WUninitializedRuleGroup {
                             kdocSpans = kdocSpans,
                             sourceText = sourceText,
                             resolvedImports = it.resolvedImports,
+                            typeAliases = it.typeAliases,
                         )
                     }
                     pending.add(
@@ -312,6 +314,9 @@ class ImportEngine : WUninitializedRuleGroup {
              * insertions to place, where they land — fused because an insertion's sorted position
              * falls out of the same composed rewrite. Runs even with `import-ordering` disabled,
              * solely to place insertions; no sort-order report is ever emitted in that case.
+             *
+             * Every report whose own edit was folded into the composed rewrite carries that same
+             * rewrite (the plan keeps one copy of an identical edit), so each still shows as fixable.
              *
              * **Truthfulness invariant:** the `import-ordering` report fires if and only if
              * [ImportOrderingDecision.firstOutOfOrder] finds a genuine violation in the file's own,
@@ -388,8 +393,8 @@ class ImportEngine : WUninitializedRuleGroup {
                     reportOrderingIfOutOfOrder(records, reporter)
                     return
                 }
-                for (p in taken) p.edit = null
                 val composedEdit = WEdit(listStart, probeEnd, composed)
+                for (p in taken) p.edit = composedEdit
                 if (ImportOrderingDecision.firstOutOfOrder(records) != null) {
                     reporter.report(
                         IMPORT_ORDERING_ID,

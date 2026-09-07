@@ -723,4 +723,56 @@ class WildcardExpansionDecisionSpec : BaseSpec({
         )
         edit.shouldBeNull()
     }
+
+    should("treat a type alias and its expansion as one name, and still bail on an explicit import of that name") {
+        val sourceText = "          import p.aux.*\n"
+
+        fun decide(
+            explicit: List<ImportRecord>,
+            typeAliases: Map<String, String>,
+        ) = WildcardExpansionDecision.decide(
+            star = star("p.aux", startOffset = 10, endOffset = 24),
+            allStars = listOf(star("p.aux", startOffset = 10, endOffset = 24)),
+            duplicatePackages = emptySet(),
+            explicitImports = explicit,
+            filePackageFqName = "p",
+            classifiers = setOf("p.aux.Boom", "p.real.Boom"),
+            callables = emptySet(),
+            writtenIdentifiers = setOf("Boom"),
+            kdocSpans = emptyList(),
+            sourceText = sourceText,
+            resolvedImports = packageStar("p.aux"),
+            typeAliases = typeAliases,
+        )
+        decide(emptyList(), emptyMap()).shouldBeNull()
+        decide(
+            emptyList(),
+            mapOf("p.aux.Boom" to "p.real.Boom"),
+        ).shouldNotBeNull().replacement shouldBe "import p.aux.Boom"
+        decide(listOf(explicitImport("p.real.Boom")), mapOf("p.aux.Boom" to "p.real.Boom")).shouldBeNull()
+    }
+
+    should("count an identifier written in the file body as covering a KDoc reference to it") {
+        val sourceText = "/** runs [block] on [Other] */\nimport p.aux.*\n"
+        val starStart = sourceText.indexOf("import")
+        val starEnd = starStart + "import p.aux.*".length
+
+        fun decide(
+            written: Set<String>,
+        ) = WildcardExpansionDecision.decide(
+            star = star("p.aux", starStart, starEnd),
+            allStars = listOf(star("p.aux", starStart, starEnd)),
+            duplicatePackages = emptySet(),
+            explicitImports = emptyList(),
+            filePackageFqName = "p",
+            classifiers = setOf("p.aux.Other"),
+            callables = emptySet(),
+            writtenIdentifiers = written,
+            kdocSpans = listOf(0 until starStart - 1),
+            sourceText = sourceText,
+            resolvedImports = packageStar("p.aux"),
+        )
+        decide(setOf("Other")).shouldBeNull()
+        decide(setOf("Other", "block")).shouldNotBeNull().replacement shouldBe "import p.aux.Other"
+    }
 })

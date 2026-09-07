@@ -5,6 +5,9 @@ import com.varlanv.wrasse.model.WFileRule
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WRule
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WStreamRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
@@ -30,6 +33,19 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
         LONG_METHOD_ID,
     )
 
+    override val optionSpecs: Map<String, List<WRuleOptionSpec>> = mapOf(
+        CYCLOMATIC_COMPLEXITY_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Highest cyclomatic complexity a function may have",
+                    default = WRuleOptionValue.Num(CyclomaticComplexityDecision.DEFAULT_THRESHOLD.toLong()),
+                    minimum = 1,
+                ),
+            ),
+    )
+
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val returnCountRule = configs[RETURN_COUNT_ID]?.let { ReportFacade(RETURN_COUNT_ID, it) }
         val throwsCountRule = configs[THROWS_COUNT_ID]?.let { ReportFacade(THROWS_COUNT_ID, it) }
@@ -37,6 +53,9 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
         val cyclomaticComplexityRule = configs[CYCLOMATIC_COMPLEXITY_ID]?.let {
             ReportFacade(CYCLOMATIC_COMPLEXITY_ID, it)
         }
+        val complexityThreshold = configs[CYCLOMATIC_COMPLEXITY_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: CyclomaticComplexityDecision.DEFAULT_THRESHOLD
         val longMethodRule = configs[LONG_METHOD_ID]?.let { ReportFacade(LONG_METHOD_ID, it) }
 
         return object : WStreamRule {
@@ -141,7 +160,7 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                         }
                     }
                     if (cyclomaticComplexityRule != null) {
-                        CyclomaticComplexityDecision.decide(f.complexity, name)?.let {
+                        CyclomaticComplexityDecision.decide(f.complexity, name, complexityThreshold)?.let {
                             reporter.report(
                                 CYCLOMATIC_COMPLEXITY_ID,
                                 it,
@@ -176,5 +195,6 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
         const val NESTED_BLOCK_DEPTH_ID = "nested-block-depth"
         const val CYCLOMATIC_COMPLEXITY_ID = "cyclomatic-complexity"
         const val LONG_METHOD_ID = "long-method"
+        const val THRESHOLD = "threshold"
     }
 }

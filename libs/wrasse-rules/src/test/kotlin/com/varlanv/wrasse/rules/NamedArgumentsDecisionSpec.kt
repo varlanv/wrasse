@@ -103,6 +103,15 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         val skipsFirst = site(0, 30, 1, arguments = listOf(argument(6, 7, "b", index = 1)))
         NamedArgumentsDecision.positionalEdits(skipsFirst, written(2 to 7)) shouldBe emptyList()
 
+        val pastDefaulted = site(
+            0,
+            40,
+            1,
+            arguments = listOf(argument(9, 12, "text", index = 0), argument(27, 32, "ignoreCase", index = 2)),
+            parameterCount = 3,
+        )
+        NamedArgumentsDecision.positionalEdits(pastDefaulted, written(2 to 12, 14 to 32)) shouldBe emptyList()
+
         val vararg = site(0, 30, 1, arguments = listOf(argument(7, 12, "xs", vararg = true, index = 0)))
         NamedArgumentsDecision.positionalEdits(vararg, written(2 to 12)) shouldBe emptyList()
 
@@ -113,6 +122,28 @@ class NamedArgumentsDecisionSpec : BaseSpec({
 
         val allPositional = site(0, 30, 1, arguments = listOf(argument(2, 3, "a", index = 0)))
         NamedArgumentsDecision.positionalEdits(allPositional, written(2 to 3, named = false)) shouldBe emptyList()
+    }
+
+    should("not count a trailing lambda's parameter toward the threshold") {
+        val withLambda = site(
+            0,
+            30,
+            3,
+            arguments = listOf(argument(4, 5, "e", index = 0), argument(7, 30, "message", index = 1)),
+            parameterCount = 2,
+        )
+        NamedArgumentsDecision.parenthesizedParameterCount(withLambda) shouldBe 1
+        val parenthesized = site(
+            0,
+            30,
+            3,
+            arguments = listOf(argument(4, 5, "e", index = 0), argument(7, 29, "message", index = 1)),
+            parameterCount = 2,
+        )
+        NamedArgumentsDecision.parenthesizedParameterCount(parenthesized) shouldBe 2
+        NamedArgumentsDecision.parenthesizedParameterCount(
+            site(0, 5, 3, arguments = emptyList(), parameterCount = 2),
+        ) shouldBe 2
     }
 
     should("recognize plain and backticked named arguments") {

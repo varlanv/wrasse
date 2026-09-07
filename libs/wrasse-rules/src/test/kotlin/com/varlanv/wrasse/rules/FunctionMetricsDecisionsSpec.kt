@@ -40,6 +40,12 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
 
     should("report cyclomatic-complexity just above the threshold") {
         CyclomaticComplexityDecision.decide(15, "foo") shouldNotBe null
+        CyclomaticComplexityDecision.decide(
+            4,
+            "foo",
+            threshold = 3,
+        ) shouldBe "Function 'foo' has a cyclomatic complexity of 4; the maximum allowed is 3"
+        CyclomaticComplexityDecision.decide(3, "foo", threshold = 3) shouldBe null
     }
 
     should("not report long-method at the threshold") {

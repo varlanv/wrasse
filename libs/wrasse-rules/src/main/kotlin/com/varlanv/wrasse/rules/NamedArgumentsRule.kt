@@ -17,17 +17,19 @@ private val TARGET_TYPES = setOf(WNodeType.VALUE_ARGUMENT_LIST)
 /**
  * Names the positional arguments of a call whose arguments include another call with arguments
  * (the whole nested tree of such calls), or of every call with `all-calls: true`. A callee that
- * declares fewer than `threshold` (default 2) parameters goes the other way: its arguments are
+ * declares fewer than `threshold` (default 2) parameters, a trailing lambda's not counted, goes the other way: its arguments are
  * written positionally, so a call of one loses its names when positional form means the same
  * call ([NamedArgumentsDecision.positionalEdits]). A call mixing named and positional arguments
  * is settled in the same pass whatever its nesting — made positional when the callee is below
  * the threshold and that is possible, fully named otherwise — unless `allow-mixed` is true, in
  * which case a mixed call is left exactly as written. The `wrap`
  * option (default true) is read by the printer, not here: with format enabled it lays those calls
- * out one argument per line ([com.varlanv.wrasse.model.FormatStyle.wrapNestedCallArguments]). Never touches a
- * callee in an `excluded-packages` package (`java` and `javax` by default), a callee without
- * stable parameter names, a function type's `invoke`, a vararg element, or a trailing lambda.
- * Inert for a file whose resolution has errors. See [NamedArgumentsDecision].
+ * out one argument per line ([com.varlanv.wrasse.model.FormatStyle.wrapNestedCallArguments]). A callee
+ * in an `excluded-packages` package (`java` and `javax` by default), one without stable parameter
+ * names, and a function type's `invoke` are called positionally whatever the threshold: never
+ * named, and names already written are dropped when positional form means the same call. A vararg
+ * element and a trailing lambda are never touched. Inert for a file whose resolution has errors.
+ * See [NamedArgumentsDecision].
  */
 class NamedArgumentsRule : WUninitializedRule {
     override val id: String = "named-arguments"
@@ -37,7 +39,7 @@ class NamedArgumentsRule : WUninitializedRule {
         WRuleOptionSpec.Optional(
             name = EXCLUDED_PACKAGES,
             type = WRuleOptionType.STRING_LIST,
-            description = "Package prefixes whose callees never get named arguments",
+            description = "Package prefixes whose callees are called positionally: never named, and named arguments dropped when the order allows",
             default = WRuleOptionValue.StrList(listOf("java", "javax")),
         ),
         WRuleOptionSpec.Optional(
@@ -98,7 +100,7 @@ class NamedArgumentsRule : WUninitializedRule {
                 if (ancestors.isEmpty || ancestors.typeAt(ancestors.size - 1) != WNodeType.CALL_EXPRESSION) return
                 val callEnd = ancestors.peekEndOffset()
                 val site = sitesByCallEnd[callEnd] ?: return
-                if (NamedArgumentsDecision.isExcludedCallee(site, excludedPackages)) return
+                val excluded = NamedArgumentsDecision.isExcludedCallee(site, excludedPackages)
                 val written = ArrayList<WrittenArgument>(children.size)
                 for (i in 0 until children.size) {
                     if (children.type(i) != WNodeType.VALUE_ARGUMENT) continue
@@ -110,13 +112,14 @@ class NamedArgumentsRule : WUninitializedRule {
                 }
                 val mixed = NamedArgumentsDecision.isMixed(site, written)
                 if (mixed && allowMixed) return
-                if (site.parameterCount < threshold) {
+                if (excluded || NamedArgumentsDecision.parenthesizedParameterCount(site) < threshold) {
                     val edits = NamedArgumentsDecision.positionalEdits(site, written)
                     if (edits.isNotEmpty()) {
-                        reporter.report(ruleId, positionalMessage, ctx.startOffset, ctx.endOffset, this, edits = edits)
+                        val message = if (excluded) EXCLUDED_MESSAGE else positionalMessage
+                        reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this, edits = edits)
                         return
                     }
-                    if (!mixed) return
+                    if (excluded || !mixed) return
                 } else if (!mixed && callEnd !in inScope) {
                     return
                 }
@@ -134,5 +137,6 @@ class NamedArgumentsRule : WUninitializedRule {
         const val ALLOW_MIXED = "allow-mixed"
         const val WRAP = "wrap"
         const val MESSAGE = "Positional arguments should be named"
+        const val EXCLUDED_MESSAGE = "Arguments of a callee in an excluded package should be positional"
     }
 }

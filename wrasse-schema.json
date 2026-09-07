@@ -61,8 +61,23 @@
                     "description": "Disallow a condition combining 3 or more && / || operators"
                 },
                 "cyclomatic-complexity": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a function whose cyclomatic complexity exceeds 14"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a function whose cyclomatic complexity exceeds the threshold (14 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 14,
+                            "description": "Highest cyclomatic complexity a function may have. Default 14."
+                        }
+                    }
                 },
                 "destructuring-declaration-with-too-many-entries": {
                     "$ref": "#/$defs/ruleConfig",
@@ -253,7 +268,7 @@
                                 "type": "string"
                             },
                             "default": ["java", "javax"],
-                            "description": "Package prefixes whose callees never get named arguments. Default [\"java\", \"javax\"]."
+                            "description": "Package prefixes whose callees are called positionally: never named, and named arguments dropped when the order allows. Default [\"java\", \"javax\"]."
                         },
                         "all-calls": {
                             "type": "boolean",
@@ -264,7 +279,7 @@
                             "type": "integer",
                             "minimum": 1,
                             "default": 2,
-                            "description": "Name the arguments of callees declaring at least this many parameters; arguments of narrower callees are written positionally. Default 2."
+                            "description": "Name the arguments of callees declaring at least this many parameters, a trailing lambda's parameter not counted; arguments of narrower callees are written positionally. Default 2."
                         },
                         "allow-mixed": {
                             "type": "boolean",

@@ -10,7 +10,9 @@ import com.varlanv.wrasse.model.WCallSite
  * [callsInScope] returns the [WCallSite.callEndOffset] of every call whose positional arguments
  * should be named: with [allCalls], every call; otherwise every call that has an argument which
  * is itself a call with arguments, plus — transitively — each such nested call. A callee declaring
- * fewer than [threshold] parameters is never in scope, though its nested calls still are.
+ * fewer than [threshold] parameters is never in scope, though its nested calls still are; a
+ * trailing lambda's parameter is not counted ([parenthesizedParameterCount]), since that argument
+ * is never written inside the parentheses.
  *
  * [isExcludedCallee] is true for a callee whose parameter names must not be written at the call
  * site: one without stable parameter names (a Java method), one in a package listed in
@@ -39,7 +41,9 @@ object NamedArgumentsDecision {
     ): Set<Int> {
         val inScope = HashSet<Int>()
         if (allCalls) {
-            for (site in callSites) if (site.parameterCount >= threshold) inScope.add(site.callEndOffset)
+            for (site in callSites) {
+                if (parenthesizedParameterCount(site) >= threshold) inScope.add(site.callEndOffset)
+            }
             return inScope
         }
         val byCallSpan = HashMap<Long, WCallSite>(callSites.size)
@@ -53,12 +57,17 @@ object NamedArgumentsDecision {
         }
         while (pending.isNotEmpty()) {
             val site = pending.removeFirst()
-            if (site.parameterCount >= threshold) inScope.add(site.callEndOffset)
+            if (parenthesizedParameterCount(site) >= threshold) inScope.add(site.callEndOffset)
             for (nested in nestedCallArguments(site, byCallSpan)) {
                 if (visited.add(nested.callEndOffset)) pending.addLast(nested)
             }
         }
         return inScope
+    }
+
+    fun parenthesizedParameterCount(site: WCallSite): Int {
+        val last = site.arguments.lastOrNull() ?: return site.parameterCount
+        return if (last.endOffset == site.callEndOffset) site.parameterCount - 1 else site.parameterCount
     }
 
     private fun nestedCallArguments(site: WCallSite, byCallSpan: Map<Long, WCallSite>): List<WCallSite> {

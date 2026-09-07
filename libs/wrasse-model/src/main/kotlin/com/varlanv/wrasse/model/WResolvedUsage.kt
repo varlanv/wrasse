@@ -20,6 +20,8 @@ class WResolvedUsage(
     val qualifiedUsages: List<WQualifiedUsage> = emptyList(),
     /** Every resolved call with a parenthesized argument list, collected only when a rule requires call sites — empty when not collected. */
     val callSites: List<WCallSite> = emptyList(),
+    /** Every type alias the file resolved a reference through, alias FQN to the FQN of the class it expands to. */
+    val typeAliases: Map<String, String> = emptyMap(),
 )
 
 /**

@@ -211,7 +211,12 @@ class WrassePlugin(
         val calls = usage.callSites
             .sortedWith(compareBy({ it.callStartOffset }, { it.callEndOffset }))
             .joinToString(prefix = "[", postfix = "]") { dumpCallSite(it) }
-        return "resolved-usage: classifiers=$classifiers callables=$callables imports=$imports qualified=$qualified calls=$calls errors=${usage.hasResolutionErrors}"
+        val aliases = usage.typeAliases.entries
+            .map { "${it.key}->${it.value}" }
+            .sorted()
+            .joinToString(prefix = "[", postfix = "]")
+        return "resolved-usage: classifiers=$classifiers callables=$callables imports=$imports qualified=$qualified " +
+            "calls=$calls aliases=$aliases errors=${usage.hasResolutionErrors}"
     }
 
     private fun dumpCallSite(site: WCallSite): String {

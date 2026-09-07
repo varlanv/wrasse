@@ -42,17 +42,22 @@ object NestedBlockDepthDecision {
 }
 
 /**
- * A function whose McCabe cyclomatic complexity exceeds [MAX_COMPLEXITY] is reported. A nested
+ * A function whose McCabe cyclomatic complexity exceeds the threshold ([DEFAULT_THRESHOLD] unless
+ * configured) is reported. A nested
  * function (local or anonymous) contributes nothing to the enclosing function's complexity — it
  * is evaluated entirely on its own. Scope-function calls are not treated as an extra decision
  * point either, matching [NestedBlockDepthDecision]'s own nesting rule.
  */
 object CyclomaticComplexityDecision {
-    const val MAX_COMPLEXITY = 14
+    const val DEFAULT_THRESHOLD = 14
 
-    fun decide(complexity: Int, functionName: String): String? {
-        if (complexity <= MAX_COMPLEXITY) return null
-        return "Function '$functionName' has a cyclomatic complexity of $complexity; the maximum allowed is $MAX_COMPLEXITY"
+    fun decide(
+        complexity: Int,
+        functionName: String,
+        threshold: Int = DEFAULT_THRESHOLD,
+    ): String? {
+        if (complexity <= threshold) return null
+        return "Function '$functionName' has a cyclomatic complexity of $complexity; the maximum allowed is $threshold"
     }
 }
 

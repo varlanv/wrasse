@@ -12,9 +12,9 @@ private val TARGET_TYPES = setOf(WNodeType.FUN)
 
 /**
  * Reports a function whose block body ([EmptyBlockCheck]) is empty. Exempt: an `open` function
- * (a subclass may still rely on the no-op default), and any member function declared directly
- * inside an interface (a common "optional callback with a no-op default" idiom) — both matching
- * the upstream rule this id derives from.
+ * (a subclass may still rely on the no-op default), an `override` (the declaration is required
+ * by the supertype, so an empty body is the whole implementation), and any member function
+ * declared directly inside an interface (a common "optional callback with a no-op default" idiom).
  */
 class EmptyFunctionBlockRule : WUninitializedRule {
     override val id: String = "empty-function-block"
@@ -44,6 +44,7 @@ class EmptyFunctionBlockRule : WUninitializedRule {
                 val modifierIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierIdx >= 0) children.textSpan(modifierIdx, ctx.sourceText) else ""
                 if (WordScan.containsWord(modifierText, "open")) return
+                if (WordScan.containsWord(modifierText, "override")) return
                 if (isInterfaceMember(ctx)) return
 
                 reporter.report(

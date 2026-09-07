@@ -119,11 +119,20 @@ object WPatchApplier {
 
 fun main(args: Array<String>) {
     require(args.isNotEmpty()) { "Usage: WPatchApplier <patchDir> [<patchDir>...]" }
-    val compileReports = args.flatMap { PerfStore.collect(Path.of(it)) }
+    if (runApplier(args.toList()) != 0) kotlin.system.exitProcess(1)
+}
+
+/**
+ * Applies every patch under each of [patchDirs], printing one line per file, and returns the
+ * process exit code `main` would end with: 0, or 1 after the first file that failed to apply.
+ * Safe to call in-process: it never exits the JVM.
+ */
+fun runApplier(patchDirs: List<String>): Int {
+    val compileReports = patchDirs.flatMap { PerfStore.collect(Path.of(it)) }
     for ((title, recorder) in compileReports) print(PerfReport.render(title, recorder))
     val perf = WPerf.create(active = compileReports.isNotEmpty())
-    for (arg in args) {
-        val result = WPatchApplier.apply(Path.of(arg), perf)
+    for (dir in patchDirs) {
+        val result = WPatchApplier.apply(Path.of(dir), perf)
         for (fileResult in result.files) {
             when (fileResult) {
                 is FileApplyResult.Applied -> {
@@ -134,12 +143,13 @@ fun main(args: Array<String>) {
                 }
                 is FileApplyResult.Failed -> {
                     System.err.println("FAILED: ${fileResult.filePath} - ${fileResult.reason}")
-                    kotlin.system.exitProcess(1)
+                    return 1
                 }
             }
         }
     }
     if (perf is PerfRecorder) print(PerfReport.render("apply", perf))
+    return 0
 }
 
 class ApplyResult(val files: List<FileApplyResult>)

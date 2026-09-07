@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "no-wildcard-imports": { "level": "error" },
+        "import-ordering": { "level": "error" }
+    }
+}

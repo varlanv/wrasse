@@ -66,6 +66,8 @@ object UnusedStarDecision {
         if (attributed.isNotEmpty()) return UnusedStarVerdict.OutOfScope
 
         val coveredNames = explicitImports.mapTo(mutableSetOf()) { it.aliasName ?: it.simpleName }
+
+        coveredNames.addAll(writtenIdentifiers)
         for (other in allStars) {
             if (other === star) continue
             when (StarAttribution.classify(other.packageFqName, resolvedImports, callables)) {

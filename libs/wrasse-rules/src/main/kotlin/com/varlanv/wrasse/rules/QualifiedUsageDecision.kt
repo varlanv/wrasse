@@ -68,11 +68,12 @@ object QualifiedUsageDecision {
         callables: Set<WCallableUsage>,
         explicitImports: List<ImportRecord>,
         identifierOccurrences: List<IdentifierOccurrence>,
+        typeAliases: Map<String, String> = emptyMap(),
     ): List<UnnecessaryFqnReport> {
         val proven = qualifiedUsages.mapNotNull { provenUsage(it, sourceText) }
         if (proven.isEmpty()) return emptyList()
 
-        val collisionIndex = SimpleNameCollisionIndex.build(classifiers, callables)
+        val collisionIndex = SimpleNameCollisionIndex.build(classifiers, callables, typeAliases)
         val reports = mutableListOf<UnnecessaryFqnReport>()
 
         for ((candidateImportFqn, usages) in proven.groupBy { it.candidateImportFqn }) {
@@ -92,6 +93,7 @@ object QualifiedUsageDecision {
                 collisionIndex = collisionIndex,
                 identifierOccurrences = identifierOccurrences,
                 ownSpans = ownSpans,
+                typeAliases = typeAliases,
             )
             ) {
                 continue
@@ -164,10 +166,17 @@ object QualifiedUsageDecision {
         collisionIndex: Map<String, Set<String>>,
         identifierOccurrences: List<IdentifierOccurrence>,
         ownSpans: List<IntRange>,
+        typeAliases: Map<String, String>,
     ): Boolean {
         if (alreadyImported) return true
 
-        if (SimpleNameCollisionIndex.collidesWithOtherFqn(candidateImportFqn, topLevelSimpleName, collisionIndex)) {
+        if (SimpleNameCollisionIndex.collidesWithOtherFqn(
+            candidateImportFqn,
+            topLevelSimpleName,
+            collisionIndex,
+            typeAliases,
+        )
+        ) {
             return false
         }
 

@@ -8,5 +8,5 @@ import sample.aux.Widget
 val w = Widget()
 val s = ACTIVE
 
-// expect-error 3:1 no-wildcard-imports "Replace wildcard import with explicit imports (no autofix for this shape)"
+// expect-error 3:1 no-wildcard-imports "Replace wildcard import with explicit imports"
 // expect-error 3:1 import-ordering "Imports are not sorted"

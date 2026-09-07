@@ -49,14 +49,17 @@ class StarImportRecord(
  *    ambiguity here (including cross-star collisions) bails rather than risk emitting a wrong or
  *    behavior-flipping import.
  * 6. A KDoc `[Name]`/`[qualified.Name]` reference's leading segment isn't covered by an explicit
- *    import's visible name, this star's own attributed names, or any *other* star's own attributed
- *    names ([StarAttribution.kdocReferencesUncovered]) — such references resolve through imports
+ *    import's visible name, this star's own attributed names, any *other* star's own attributed
+ *    names, or an identifier written in the file body (a parameter, local, or declaration the
+ *    KDoc points at) ([StarAttribution.kdocReferencesUncovered]) — such references resolve through imports
  *    invisibly to FIR, so an uncovered one can't be verified safe. Folding in every other star's
  *    attribution (not just this star's own) mirrors [UnusedStarDecision]'s identical loop — without
  *    it, a reference covered only by a sibling star would bail here on pass 1 but stop bailing once
  *    that sibling star is itself expanded into explicit imports on a later pass, violating the D19
  *    idempotence invariant (`fix(fix(x)) != fix(x)`, since pass 2 would then expand what pass 1 left
  *    untouched).
+ * 7. An attributed symbol's simple name is already the visible name of an explicit import with a
+ *    different FQN — the expansion would write two imports of one name.
  *
  * Otherwise the star directive is replaced with one ASCII-sorted `import P.x` per attributed
  * symbol.
@@ -74,6 +77,7 @@ object WildcardExpansionDecision {
         kdocSpans: List<IntRange>,
         sourceText: CharSequence,
         resolvedImports: List<WResolvedImport>,
+        typeAliases: Map<String, String> = emptyMap(),
     ): WEdit? {
         if (star.packageFqName in duplicatePackages) return null
         if (star.packageFqName == filePackageFqName) return null
@@ -100,9 +104,11 @@ object WildcardExpansionDecision {
         val filtered = attributed.filterNot { it in explicitFqns }.toSortedSet()
         if (filtered.isEmpty()) return null
 
-        if (hasSimpleNameCollision(filtered, classifiers, callables)) return null
+        if (hasSimpleNameCollision(filtered, classifiers, callables, typeAliases)) return null
+        if (hasExplicitImportCollision(filtered, explicitImports)) return null
 
         val coveredNames = explicitImports.mapTo(mutableSetOf()) { it.aliasName ?: it.simpleName }
+        coveredNames.addAll(writtenIdentifiers)
         filtered.mapTo(coveredNames) { it.substringAfterLast('.') }
         for (other in allStars) {
             if (other === star) continue
@@ -128,10 +134,18 @@ object WildcardExpansionDecision {
         attributed: Set<String>,
         classifiers: Set<String>,
         callables: Set<WCallableUsage>,
+        typeAliases: Map<String, String>,
     ): Boolean {
-        val index = SimpleNameCollisionIndex.build(classifiers, callables)
+        val index = SimpleNameCollisionIndex.build(classifiers, callables, typeAliases)
         return attributed.any { symbol ->
-            SimpleNameCollisionIndex.collidesWithOtherFqn(symbol, symbol.substringAfterLast('.'), index)
+            SimpleNameCollisionIndex.collidesWithOtherFqn(symbol, symbol.substringAfterLast('.'), index, typeAliases)
+        }
+    }
+
+    private fun hasExplicitImportCollision(attributed: Set<String>, explicitImports: List<ImportRecord>): Boolean {
+        val fqnByVisibleName = explicitImports.associate { (it.aliasName ?: it.simpleName) to it.fqn }
+        return attributed.any { symbol ->
+            fqnByVisibleName[symbol.substringAfterLast('.')]?.let { it != symbol } == true
         }
     }
 }

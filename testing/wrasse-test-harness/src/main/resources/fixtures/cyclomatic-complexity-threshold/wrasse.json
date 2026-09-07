@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "cyclomatic-complexity": { "level": "error", "threshold": 3 }
+    }
+}

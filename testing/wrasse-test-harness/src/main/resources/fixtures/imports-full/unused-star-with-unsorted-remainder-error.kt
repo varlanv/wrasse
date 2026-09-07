@@ -10,6 +10,6 @@ val w = Widget()
 val g = Gadget()
 
 // expect-error 3:1 import-ordering "Imports are not sorted"
-// expect-error 4:1 no-unused-imports "Unused import (no autofix for this shape)"
+// expect-error 4:1 no-unused-imports "Unused import"
 // expect-error 6:1 no-wildcard-imports "Replace wildcard import with explicit imports (no autofix for this shape)"
-// expect-error 6:1 no-unused-imports "Unused import (no autofix for this shape)"
+// expect-error 6:1 no-unused-imports "Unused import"

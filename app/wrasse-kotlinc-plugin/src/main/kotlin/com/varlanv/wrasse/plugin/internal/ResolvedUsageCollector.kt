@@ -71,6 +71,7 @@ object ResolvedUsageCollector {
             resolvedImports = collectResolvedImports(file),
             qualifiedUsages = visitor.qualifiedUsages,
             callSites = visitor.callSites,
+            typeAliases = visitor.typeAliases,
         )
     }.getOrElse {
         WResolvedUsage(
@@ -109,6 +110,7 @@ object ResolvedUsageCollector {
         val callables = mutableSetOf<WCallableUsage>()
         val qualifiedUsages = mutableListOf<WQualifiedUsage>()
         val callSites = mutableListOf<WCallSite>()
+        val typeAliases = mutableMapOf<String, String>()
         var hasErrors = false
 
         override fun visitElement(element: FirElement) {
@@ -126,7 +128,8 @@ object ResolvedUsageCollector {
         private fun collectTypeAliasConstructorUsage(call: FirFunctionCall) {
             val symbol = (call.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol
             if (symbol !is FirConstructorSymbol) return
-            call.resolvedType.abbreviatedType?.let { collectConeType(it) }
+            val constructed = call.resolvedType
+            if (constructed.abbreviatedType != null) collectConeType(constructed)
         }
 
         private fun recordCallSite(call: FirFunctionCall) {
@@ -239,7 +242,11 @@ object ResolvedUsageCollector {
             resolvedQualifier.classId?.let { classifiers.add(it.asFqNameString()) }
             val symbol = resolvedQualifier.symbol
             if (symbol is FirTypeAliasSymbol) {
-                classifiers.add(symbol.classId.asFqNameString())
+                val aliasFqName = symbol.classId.asFqNameString()
+                classifiers.add(aliasFqName)
+                (symbol.resolvedExpandedTypeRef.coneType as? ConeClassLikeType)?.let {
+                    typeAliases[aliasFqName] = it.lookupTag.classId.asFqNameString()
+                }
             }
             if (collectQualifiedUsages) {
                 recordQualifierUsage(resolvedQualifier)
@@ -253,7 +260,14 @@ object ResolvedUsageCollector {
         }
 
         private fun collectConeType(coneType: ConeKotlinType) {
-            coneType.abbreviatedType?.let { collectConeType(it) }
+            val abbreviated = coneType.abbreviatedType
+            if (abbreviated != null) {
+                collectConeType(abbreviated)
+                if (abbreviated is ConeClassLikeType && coneType is ConeClassLikeType) {
+                    typeAliases[abbreviated.lookupTag.classId.asFqNameString()] =
+                        coneType.lookupTag.classId.asFqNameString()
+                }
+            }
             when (coneType) {
                 is ConeErrorType -> hasErrors = true
                 is ConeClassLikeType -> {
