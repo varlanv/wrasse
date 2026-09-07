@@ -270,6 +270,7 @@ fun wrasseMain(
             dumpResolvedUsage = dumpResolvedUsage,
             formatConfig = config.format,
             formatRun = request.formatting,
+            quiet = request.quiet,
             perf = WPerf.create(active = request.debugPerformance),
         ),
     )

@@ -7,8 +7,9 @@ import java.nio.file.Path
 /**
  * The one-shot request file a build tool drops into a compilation's `fixOutputDir` right before a
  * run: one `key=value` per line, `timestamp=<epoch millis>` plus any of `formatting=true` (the
- * diagnostics that carry edits stay quiet) and `debugPerformance=true` (the run records timings,
- * see [PerfRecorder]). The compiler plugin consumes it on start — reads, deletes, and honors it
+ * diagnostics that carry edits stay quiet), `quiet=true` (no diagnostic is printed at all; the
+ * report file still records them for the build tool to replay) and `debugPerformance=true` (the
+ * run records timings, see [PerfRecorder]). The compiler plugin consumes it on start — reads, deletes, and honors it
  * only when the timestamp parses and is at most [MAX_AGE_MILLIS] old. Never throws; anything
  * unreadable or malformed means [RunRequest.NONE].
  */
@@ -21,11 +22,13 @@ object FormatRequest {
         now: Long = System.currentTimeMillis(),
         formatting: Boolean = true,
         debugPerformance: Boolean = false,
+        quiet: Boolean = false,
     ) {
         Files.createDirectories(dir)
         val text = StringBuilder("timestamp=$now\n")
         if (formatting) text.append("formatting=true\n")
         if (debugPerformance) text.append("debugPerformance=true\n")
+        if (quiet) text.append("quiet=true\n")
         Files.write(dir.resolve(FILE_NAME), text.toString().toByteArray(Charsets.UTF_8))
     }
 
@@ -59,11 +62,16 @@ object FormatRequest {
         return RunRequest(
             formatting = values["formatting"] == "true",
             debugPerformance = values["debugPerformance"] == "true",
+            quiet = values["quiet"] == "true",
         )
     }
 }
 
-class RunRequest(val formatting: Boolean, val debugPerformance: Boolean) {
+class RunRequest(
+    val formatting: Boolean,
+    val debugPerformance: Boolean,
+    val quiet: Boolean = false,
+) {
     companion object {
         val NONE = RunRequest(formatting = false, debugPerformance = false)
     }

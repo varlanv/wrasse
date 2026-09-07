@@ -6,4 +6,5 @@ class ViolationReport(
     val startOffset: Int,
     val endOffset: Int,
     val level: RuleLevel,
+    val configuredLevel: RuleLevel = level,
 )

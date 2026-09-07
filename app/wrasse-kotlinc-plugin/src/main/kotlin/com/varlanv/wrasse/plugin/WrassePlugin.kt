@@ -5,10 +5,13 @@ import com.varlanv.wrasse.format.DocBuilder
 import com.varlanv.wrasse.lang.FileEdits
 import com.varlanv.wrasse.lang.NoopPerf
 import com.varlanv.wrasse.lang.PerfStore
+import com.varlanv.wrasse.lang.ReportedDiagnostic
+import com.varlanv.wrasse.lang.ReportedFile
 import com.varlanv.wrasse.lang.Sha256
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.lang.WPatchStore
 import com.varlanv.wrasse.lang.WPerf
+import com.varlanv.wrasse.lang.WReportStore
 import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
 import com.varlanv.wrasse.model.WCallSite
@@ -36,9 +39,11 @@ class WrassePlugin(
     private val dumpResolvedUsage: Boolean = false,
     private val formatConfig: WFormatConfig? = null,
     private val formatRun: Boolean = false,
+    private val quiet: Boolean = false,
     private val perf: WPerf = NoopPerf,
 ) {
     private val patchStore: WPatchStore? = fixOutputDir?.let { WPatchStore(it.resolve(WPatchStore.PATCH_DIR_NAME)) }
+    private val reportStore: WReportStore? = fixOutputDir?.let { WReportStore(it.resolve(WPatchStore.PATCH_DIR_NAME)) }
     private val perfTitle: String = "compile ${fixOutputDir?.fileName ?: "-"}"
 
     fun checkFile(
@@ -85,6 +90,7 @@ class WrassePlugin(
      */
     private fun internalFailureReports(filePath: Path, failure: Throwable): List<ViolationReport> {
         runCatching { patchStore?.clear(filePath.toString()) }
+        runCatching { reportStore?.clear(filePath.toString()) }
         val exceptionType = failure::class.simpleName ?: failure.javaClass.name
         return listOf(
             ViolationReport(
@@ -106,6 +112,64 @@ class WrassePlugin(
             endOffset = 0,
             level = RuleLevel.WARN,
         )
+    }
+
+    private fun reportStoreFailureReport(store: WReportStore, failure: Throwable): ViolationReport {
+        val exceptionType = failure::class.simpleName ?: failure.javaClass.name
+        return ViolationReport(
+            message = "wrasse could not update the diagnostics report ${store.reportFile()} " +
+                "($exceptionType: ${failure.message}); this file's diagnostics are reported but a later lint cannot replay them",
+            startOffset = 0,
+            endOffset = 0,
+            level = RuleLevel.WARN,
+        )
+    }
+
+    private fun reportedFile(
+        filePath: Path,
+        sourceHash: String,
+        sourceText: CharSequence,
+        reports: List<ViolationReport>,
+    ): ReportedFile {
+        val lineStarts = LineIndex(sourceText)
+        val diagnostics = reports.sortedWith(compareBy({ it.startOffset }, { it.endOffset })).map { report ->
+            val level = when (report.configuredLevel) {
+                RuleLevel.ERROR -> ReportedDiagnostic.LEVEL_ERROR
+                else -> ReportedDiagnostic.LEVEL_WARN
+            }
+            ReportedDiagnostic(
+                lineStarts.lineOf(report.startOffset),
+                lineStarts.columnOf(report.startOffset),
+                level,
+                report.message,
+            )
+        }
+        return ReportedFile(filePath.toString(), sourceHash, diagnostics)
+    }
+
+    private class LineIndex(text: CharSequence) {
+        private val starts: IntArray
+
+        init {
+            var count = 1
+            for (i in 0 until text.length) if (text[i] == '\n') count++
+            val array = IntArray(count)
+            var line = 1
+            for (i in 0 until text.length) if (text[i] == '\n') array[line++] = i + 1
+            starts = array
+        }
+
+        fun lineOf(offset: Int): Int {
+            var low = 0
+            var high = starts.size - 1
+            while (low < high) {
+                val mid = (low + high + 1) ushr 1
+                if (starts[mid] <= offset) low = mid else high = mid - 1
+            }
+            return low + 1
+        }
+
+        fun columnOf(offset: Int): Int = offset - starts[lineOf(offset) - 1] + 1
     }
 
     private fun checkFileOrThrow(
@@ -138,6 +202,7 @@ class WrassePlugin(
         }
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
+            val recorded = mutableListOf<ViolationReport>()
 
             override fun report(
                 ruleId: String,
@@ -150,16 +215,15 @@ class WrassePlugin(
                 if (suppressionCollector.index.isSuppressed(ruleId, startOffset, endOffset)) return
                 val declinedAutofix = edits.isEmpty() && ruleId in ruleSet.autofixCapableIds
                 val fullMessage = if (declinedAutofix) "$message$NO_AUTOFIX_MARKER" else message
-                if (!formatRun || edits.isEmpty()) {
-                    reports.add(
-                        ViolationReport(
-                            message = "${rule.id}: $fullMessage",
-                            startOffset = startOffset,
-                            endOffset = endOffset,
-                            level = rule.config.effectiveLevel,
-                        ),
-                    )
-                }
+                val report = ViolationReport(
+                    message = "${rule.id}: $fullMessage",
+                    startOffset = startOffset,
+                    endOffset = endOffset,
+                    level = rule.config.effectiveLevel,
+                    configuredLevel = rule.config.level,
+                )
+                recorded.add(report)
+                if (!quiet && (!formatRun || edits.isEmpty())) reports.add(report)
                 for (edit in edits) {
                     requireWithinOpenAncestor(ctx, ruleId, edit)
                     ctx.editPlan.add(ruleId, edit)
@@ -179,13 +243,23 @@ class WrassePlugin(
         val store = patchStore
         if (store != null) {
             timed("phase:patch-store") {
+                val sourceHash = Sha256.ofText(ctx.sourceText)
                 runCatching {
                     if (finalEdits.isNotEmpty()) {
-                        store.record(FileEdits(filePath.toString(), Sha256.ofText(ctx.sourceText), finalEdits))
+                        store.record(FileEdits(filePath.toString(), sourceHash, finalEdits))
                     } else {
                         store.clear(filePath.toString())
                     }
                 }.onFailure { failure -> reporter.reports.add(patchStoreFailureReport(store, failure)) }
+                reportStore?.let { reports ->
+                    runCatching {
+                        if (reporter.recorded.isEmpty()) {
+                            reports.clear(filePath.toString())
+                        } else {
+                            reports.record(reportedFile(filePath, sourceHash, ctx.sourceText, reporter.recorded))
+                        }
+                    }.onFailure { failure -> reporter.reports.add(reportStoreFailureReport(reports, failure)) }
+                }
             }
         }
         if (perf.enabled) perf.add("count:edits", finalEdits.size.toLong())

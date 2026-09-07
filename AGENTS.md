@@ -32,13 +32,16 @@ Build/test via the Gradle wrapper only (`./gradlew`, never a bare `gradle`).
                                       # if check just ran), then apply the emitted patch (wrasseApply)
 ./gradlew :internal-convention-plugin:test   # build-logic tests (TestKit) — a separate included build,
                                               # NOT reached by the root `build`/`test` tasks above; run explicitly
+./gradlew :app:wrasse-gradle-plugin:test     # functional (TestKit) suite of the published Gradle plugin; publishes
+                                              # the compiler plugin to mavenLocal first, no unit tests by design
 ```
 
 - `-Prepublish` on `wrasseLint`/`wrasseFix` forces `publishToMavenLocal` first — needed after changing
   rule/plugin code before wrasse can lint itself with the new build.
 - `wrasseFix` first runs `wrasseFormatRequest`, which drops a `format-request` file into every
   compilation's `build/wrasse/<compilation>/` (D25); the following check compile then keeps every
-  autofixable diagnostic quiet and still emits the patch. The file is consumed by that compile,
+  autofixable diagnostic quiet and still emits the patch (`quiet=true` in that file keeps every
+  diagnostic quiet — the Gradle plugin's lint and format runs use it and print from the report instead). The file is consumed by that compile,
   ignored after five minutes, and removed by `wrasseApply`. `./gradlew wrasseFix -PwrasseDebugPerformance`
   adds `debugPerformance=true` to it: the compile then records per-phase and per-rule timings into
   `build/wrasse/<compilation>/wrasse-perf.txt` and `wrasseApply` prints them together with its own.
@@ -99,6 +102,10 @@ app/
   wrasse-kotlinc-plugin/    WrassePlugin (dispatch entry point), wrasseMain(); internal/ = pure kotlinc
                             glue (FIR checkers, registrars, CommandLineProcessor) — zero wrasse rule logic
   wrasse-kotlinc-internal-k20 / -k22   version-specific FIR registrar shells, selected at runtime
+  wrasse-gradle-plugin/     the Gradle plugin consumers apply (id `com.varlanv.wrasse`, artifact
+                            `wrasse-gradle-plugin`): ONE Kotlin file, per-project only (parallel, configuration
+                            cache and isolated projects safe), reaches KGP's compile tasks reflectively; adds
+                            wrasseLint / wrasseFormat / wrasseApply and replays `patch/wrasse-report.txt`
 testing/
   common-test/                          BaseSpec (kotest ShouldSpec base), useTempDir
   wrasse-realworld-bench/               generator for synthetic 5k/50k/1M-LOC Gradle projects + bench.sh
@@ -137,7 +144,13 @@ Rules report through `WReporter.report(ruleId, message, startOffset, endOffset, 
 reporter reads `rule.config.effectiveLevel` to pick error vs. warning. Rules that can autofix attach
 `WEdit(start, end, replacement)`s to the report.
 
-### Fix pipeline (offset-patch, D22 merge-on-write)
+### Fix pipeline (offset-patch, D22 merge-on-write) and diagnostics report
+
+Next to the journal, every compile records each diagnostic it reported (configured level, line,
+column, message) in `build/wrasse/<compilation>/patch/wrasse-report.txt` (`WReportStore`, same
+journal-and-compaction scheme, hash-guarded per file). `replayReports` in `wrasse-lang` renders the
+still-current entries exactly as kotlinc prints a diagnostic, which is how the Gradle plugin's
+`wrasseLint` shows the same findings whether the compile ran, was UP-TO-DATE or came from the cache.
 
 `WrassePlugin.checkFile` collects `WEdit`s from the walk and, whenever `fixOutputDir` is set (i.e.
 whenever the plugin is active under `-PwrasseCheck` — there is no separate fix flag; D22), merges

@@ -2100,6 +2100,28 @@ information. Statuses: Accepted · Rejected · Superseded.
   settles it in a single pass — positional below the threshold when the order allows, fully named
   otherwise — and `allow-mixed: true` leaves a mixed call exactly as written.
 
+- **D28 — One Gradle plugin, per-project, with a replayable diagnostics report · Accepted 2026-09-07.**
+  Live use showed the hand-rolled Gradle wiring in each consumer was the unstable part of wrasse:
+  findings vanished on UP-TO-DATE and cached compiles, a config edit did not recompile (D1's
+  cost), the applier forked a JVM per project, and lint/format printed a mix of compiler output and
+  ad-hoc summaries. The fix is a published plugin (`com.varlanv.wrasse`, module
+  `app/wrasse-gradle-plugin`, one Kotlin file, functional tests only) that touches nothing outside
+  the project it is applied to — no root or cross-project state, so parallel execution, the
+  configuration cache and isolated projects hold — and reaches KGP's compile tasks through the
+  applied plugin's class loader by reflection, so it links against no KGP version and works when
+  wrasse is applied at the root while Kotlin is applied per module. Each compile owns
+  `build/wrasse/<compilation>`: `patch/` is a declared output holding the journal (D22) and the new
+  diagnostics report, and the discovered `wrasse.json` is a declared input. The compiler plugin
+  records every diagnostic in that report with the rule's *configured* level (so `warnOnly`
+  demotion does not hide errors from lint); a request file (D25) gained `quiet=true`, which
+  `wrasseLint` and `wrasseFormat` write before their compiles so the compile prints nothing and
+  the task prints the report afterwards, hash-guarded, in kotlinc's own `e: file:///…:line:col`
+  form — identical output whether the compile ran, was UP-TO-DATE or was restored from the cache.
+  `wrasseLint` fails on error-level entries; `wrasseApply` runs in-process and prints what no edit
+  could fix. Rejected: a Worker API action (needs the plugin to link against wrasse-lang), a
+  root-level aggregate task (breaks isolated projects), and replaying from the journal (autofixable
+  findings only, no positions or levels).
+
 ### Build & distribution
 
 - **D14 — JVM 8 bytecode, single JAR across a Kotlin range · Accepted.** §10.

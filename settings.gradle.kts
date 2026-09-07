@@ -40,6 +40,7 @@ include(
     "app:wrasse-kotlinc-plugin",
     "app:wrasse-kotlinc-internal-k20",
     "app:wrasse-kotlinc-internal-k22",
+    "app:wrasse-gradle-plugin",
     "testing:common-test",
     "testing:wrasse-test-harness",
     "testing:wrasse-kotlinc-plugin-tests-base",

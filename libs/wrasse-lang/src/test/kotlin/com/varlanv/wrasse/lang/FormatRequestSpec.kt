@@ -65,4 +65,9 @@ class FormatRequestSpec : BaseSpec({
             FormatRequest.consume(dir.resolve("missing"), now).formatting shouldBe false
         }
     }
+
+    should("carry the quiet flag") {
+        FormatRequest.parse(listOf("timestamp=1000", "quiet=true"), now = 1_000).quiet shouldBe true
+        FormatRequest.parse(listOf("timestamp=1000", "formatting=true"), now = 1_000).quiet shouldBe false
+    }
 })
