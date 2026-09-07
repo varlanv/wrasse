@@ -18,6 +18,7 @@ private val TARGET_TYPES = setOf(WNodeType.IF, WNodeType.IS_EXPRESSION)
  */
 class SafeCastRule : WUninitializedRule {
     override val id: String = "safe-cast"
+    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
@@ -51,14 +52,16 @@ class SafeCastRule : WUninitializedRule {
                 val pending = pendingIfs.lastOrNull() ?: return
 
                 val sig = significantIndices(children)
-                if (sig.size < 2) return
+                if (sig.size != 3) return
                 val leftIdx = sig[0]
                 val opIdx = sig[1]
+                val typeIdx = sig[2]
                 if (children.type(leftIdx) != WNodeType.REFERENCE_EXPRESSION) return
                 if (children.type(opIdx) != WNodeType.OPERATION_REFERENCE) return
 
                 pending.identifier = children.textSpan(leftIdx, ctx.sourceText).toString()
                 pending.negated = children.textSpan(opIdx, ctx.sourceText).toString().startsWith("!")
+                pending.typeText = children.textSpan(typeIdx, ctx.sourceText).toString()
                 pending.hasIsCondition = true
             }
 
@@ -69,7 +72,8 @@ class SafeCastRule : WUninitializedRule {
             ) {
                 val pending = pendingIfs.removeAt(pendingIfs.size - 1)
                 val identifier = pending.identifier
-                if (!pending.hasIsCondition || identifier == null) return
+                val typeText = pending.typeText
+                if (!pending.hasIsCondition || identifier == null || typeText == null) return
 
                 val thenIdx = children.firstChildOfType(WNodeType.THEN)
                 val elseIdx = children.firstChildOfType(WNodeType.ELSE)
@@ -78,8 +82,16 @@ class SafeCastRule : WUninitializedRule {
                 val thenText = singleStatementText(children.textSpan(thenIdx, ctx.sourceText).toString())
                 val elseText = singleStatementText(children.textSpan(elseIdx, ctx.sourceText).toString())
 
-                val message = SafeCastDecision.decide(identifier, pending.negated, thenText, elseText) ?: return
-                reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
+                val verdict = SafeCastDecision.decide(
+                    identifier,
+                    pending.negated,
+                    thenText,
+                    elseText,
+                    typeText,
+                    ctx.startOffset,
+                    ctx.endOffset,
+                ) ?: return
+                reporter.report(ruleId, SafeCastDecision.MESSAGE, ctx.startOffset, ctx.endOffset, this, edits = verdict.edits)
             }
 
             private fun singleStatementText(text: String): String {
@@ -101,6 +113,7 @@ class SafeCastRule : WUninitializedRule {
     private class PendingIf {
         var identifier: String? = null
         var negated: Boolean = false
+        var typeText: String? = null
         var hasIsCondition: Boolean = false
     }
 }

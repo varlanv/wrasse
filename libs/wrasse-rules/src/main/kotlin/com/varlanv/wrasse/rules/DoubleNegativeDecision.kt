@@ -1,35 +1,31 @@
 package com.varlanv.wrasse.rules
 
+import com.varlanv.wrasse.lang.WEdit
+
 /**
- * Counts a chain of consecutive `!` prefix operators (optional whitespace between them) starting
- * exactly at a `PREFIX_EXPRESSION`'s own span. Two or more means the expression is negated more
- * than once and could be simplified — matching the non-resolution-requiring half of the upstream
- * rule this id derives from (its `.not()`/`not()` qualified-call forms are dropped: telling a
- * genuine `Boolean.not()` apart from a user's own same-named function needs resolution).
+ * Verdict logic for a chain of two or more `!` prefix operators — bare (`!!x`) or each layer
+ * wrapped in its own parentheses (`!(!x)`) — compiler-free so it is unit-testable without a
+ * kotlinc dependency. [depth] is the total count of `!` layers the caller already walked down to
+ * reach [operandText] (the first sub-expression that isn't itself a negation); two or more means
+ * the chain can be simplified.
+ *
+ * [editsFor] replaces the caller-supplied span (the outermost `!` chain's own span) with
+ * [operandText] verbatim when [depth] is even (the negations cancel out, any parentheses [
+ * operandText] itself still carries — e.g. around a `&&` — are kept as-is) or with a single leading
+ * `!` in front of it when [depth] is odd.
  */
 object DoubleNegativeDecision {
     const val MESSAGE = "Expression negated more than once; this can be simplified"
 
-    fun exclamationChainLength(
-        sourceText: CharSequence,
-        start: Int,
-        end: Int,
-    ): Int {
-        var i = start
-        var count = 0
-        while (i < end) {
-            when {
-                sourceText[i] == '!' -> {
-                    count++
-                    i++
-                }
+    fun decide(depth: Int): String? = if (depth >= 2) MESSAGE else null
 
-                sourceText[i].isWhitespace() -> i++
-                else -> return count
-            }
-        }
-        return count
+    fun editsFor(
+        depth: Int,
+        replaceStart: Int,
+        replaceEnd: Int,
+        operandText: CharSequence,
+    ): List<WEdit> {
+        val replacement = if (depth % 2 == 0) operandText.toString() else "!$operandText"
+        return listOf(WEdit(replaceStart, replaceEnd, replacement))
     }
-
-    fun decide(chainLength: Int): String? = if (chainLength >= 2) MESSAGE else null
 }
