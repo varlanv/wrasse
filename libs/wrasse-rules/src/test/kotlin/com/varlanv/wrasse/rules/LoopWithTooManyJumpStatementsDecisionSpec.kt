@@ -23,7 +23,7 @@ class LoopWithTooManyJumpStatementsDecisionSpec : BaseSpec({
         LoopWithTooManyJumpStatementsDecision.decide(
             1,
             threshold = 0,
-        ) shouldBe "The loop contains 1 break or continue statements; the maximum allowed is 0"
+        ) shouldBe "The loop contains 1 break or continue statement; the maximum allowed is 0"
         LoopWithTooManyJumpStatementsDecision.decide(0, threshold = 0) shouldBe null
     }
 })

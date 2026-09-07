@@ -4,20 +4,23 @@ package com.varlanv.wrasse.model
  * One parameter a rule accepts under its own `wrasse.json` entry, next to `level` and `exclude`.
  * [name] is the JSON key. A [Required] option must be present whenever the rule is on; an
  * [Optional] one falls back to its [Optional.default] when absent — `null` meaning the option is
- * simply absent from [WRuleOptions] in that case. [minimum] is the smallest value an
- * [WRuleOptionType.INTEGER] option accepts; a smaller one is a configuration error.
+ * simply absent from [WRuleOptions] in that case. [minimum] and [maximum] are the smallest and
+ * largest values an [WRuleOptionType.INTEGER] option accepts; a value outside that range is a
+ * configuration error.
  */
 sealed interface WRuleOptionSpec {
     val name: String
     val type: WRuleOptionType
     val description: String
     val minimum: Long?
+    val maximum: Long?
 
     class Required(
         override val name: String,
         override val type: WRuleOptionType,
         override val description: String,
         override val minimum: Long? = null,
+        override val maximum: Long? = null,
     ) : WRuleOptionSpec
 
     class Optional(
@@ -26,6 +29,7 @@ sealed interface WRuleOptionSpec {
         override val description: String,
         val default: WRuleOptionValue?,
         override val minimum: Long? = null,
+        override val maximum: Long? = null,
     ) : WRuleOptionSpec
 }
 

@@ -126,7 +126,7 @@ class WConfigSpec : BaseSpec({
         "no-semicolons" to
             listOf(
                 WRuleOptionSpec.Optional("allow-inline", WRuleOptionType.BOOLEAN, "", WRuleOptionValue.Bool(false)),
-                WRuleOptionSpec.Optional("max-width", WRuleOptionType.INTEGER, "", null, minimum = 1),
+                WRuleOptionSpec.Optional("max-width", WRuleOptionType.INTEGER, "", null, minimum = 1, maximum = 100),
                 WRuleOptionSpec.Required("prefixes", WRuleOptionType.STRING_LIST, ""),
                 WRuleOptionSpec.Optional("label", WRuleOptionType.STRING, "", WRuleOptionValue.Str("default")),
             ),
@@ -243,6 +243,15 @@ class WConfigSpec : BaseSpec({
         result
             .exceptionOrNull()
             ?.message shouldBe "Option 'max-width' for rule 'no-semicolons' must be at least 1, got 0"
+    }
+
+    should("fail with the full message on an integer option above its maximum") {
+        val result = buildWithOptions(
+            """{"rules":{"no-semicolons":{"level":"error","prefixes":[],"max-width":2147483648}}}""",
+        )
+        result
+            .exceptionOrNull()
+            ?.message shouldBe "Option 'max-width' for rule 'no-semicolons' must be at most 100, got 2147483648"
     }
 
     should("skip option validation for a rule that is off") {

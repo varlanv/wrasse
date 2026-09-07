@@ -36,6 +36,7 @@ class StringShouldBeRawStringRule : WUninitializedRule {
             description = "Highest number of escape sequences a string literal may carry",
             default = WRuleOptionValue.Num(StringShouldBeRawStringDecision.DEFAULT_THRESHOLD.toLong()),
             minimum = 0,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
     )
 

@@ -27,6 +27,14 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
         ReturnCountDecision.decide(1, "foo", threshold = 1) shouldBe null
     }
 
+    should("report return-count with a singular statement at a threshold of zero") {
+        ReturnCountDecision.decide(
+            1,
+            "foo",
+            threshold = 0,
+        ) shouldBe "Function 'foo' has 1 return statement; the maximum allowed is 0"
+    }
+
     should("not report throws-count at the threshold") {
         ThrowsCountDecision.decide(2, "foo") shouldBe null
     }
@@ -42,6 +50,14 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
             threshold = 1,
         ) shouldBe "Function 'foo' has 2 throw statements; the maximum allowed is 1"
         ThrowsCountDecision.decide(1, "foo", threshold = 1) shouldBe null
+    }
+
+    should("report throws-count with a singular statement at a threshold of zero") {
+        ThrowsCountDecision.decide(
+            1,
+            "foo",
+            threshold = 0,
+        ) shouldBe "Function 'foo' has 1 throw statement; the maximum allowed is 0"
     }
 
     should("not report nested-block-depth at the threshold") {

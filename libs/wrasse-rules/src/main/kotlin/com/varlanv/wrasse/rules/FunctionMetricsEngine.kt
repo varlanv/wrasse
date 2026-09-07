@@ -42,6 +42,7 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     description = "Highest number of return statements a function may have",
                     default = WRuleOptionValue.Num(ReturnCountDecision.DEFAULT_THRESHOLD.toLong()),
                     minimum = 0,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
         THROWS_COUNT_ID to
@@ -52,6 +53,7 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     description = "Highest number of throw statements a function may have",
                     default = WRuleOptionValue.Num(ThrowsCountDecision.DEFAULT_THRESHOLD.toLong()),
                     minimum = 0,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
         NESTED_BLOCK_DEPTH_ID to
@@ -62,6 +64,7 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     description = "Deepest nesting level a function's control-flow constructs may reach",
                     default = WRuleOptionValue.Num(NestedBlockDepthDecision.DEFAULT_THRESHOLD.toLong()),
                     minimum = 1,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
         CYCLOMATIC_COMPLEXITY_ID to
@@ -72,6 +75,7 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     description = "Highest cyclomatic complexity a function may have",
                     default = WRuleOptionValue.Num(CyclomaticComplexityDecision.DEFAULT_THRESHOLD.toLong()),
                     minimum = 1,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
         LONG_METHOD_ID to
@@ -82,6 +86,7 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     description = "Highest number of code lines a function may span",
                     default = WRuleOptionValue.Num(LongMethodDecision.DEFAULT_THRESHOLD.toLong()),
                     minimum = 1,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
     )

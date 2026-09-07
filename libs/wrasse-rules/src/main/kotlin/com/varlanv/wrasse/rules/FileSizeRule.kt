@@ -19,6 +19,7 @@ class FileSizeRule : WUninitializedRule {
             description = "Highest number of lines a file may have",
             default = WRuleOptionValue.Num(FileSizeDecision.DEFAULT_THRESHOLD.toLong()),
             minimum = 1,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
     )
 

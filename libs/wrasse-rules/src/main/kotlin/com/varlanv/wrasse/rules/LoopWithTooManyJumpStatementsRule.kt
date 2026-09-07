@@ -35,6 +35,7 @@ class LoopWithTooManyJumpStatementsRule : WUninitializedRule {
             description = "Highest number of break or continue statements a single loop may contain",
             default = WRuleOptionValue.Num(LoopWithTooManyJumpStatementsDecision.DEFAULT_THRESHOLD.toLong()),
             minimum = 0,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
     )
 

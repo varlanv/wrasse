@@ -27,6 +27,7 @@ class DestructuringTooManyEntriesRule : WUninitializedRule {
             description = "Highest number of entries a destructuring declaration may have",
             default = WRuleOptionValue.Num(DestructuringTooManyEntriesDecision.DEFAULT_THRESHOLD.toLong()),
             minimum = 1,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
     )
 

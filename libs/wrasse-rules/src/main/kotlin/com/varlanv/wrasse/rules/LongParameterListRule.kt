@@ -36,6 +36,7 @@ class LongParameterListRule : WUninitializedRule {
             description = "Highest number of parameters a function may declare",
             default = WRuleOptionValue.Num(LongParameterListDecision.DEFAULT_FUNCTION_THRESHOLD.toLong()),
             minimum = 1,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
         WRuleOptionSpec.Optional(
             name = CONSTRUCTOR_THRESHOLD,
@@ -43,6 +44,7 @@ class LongParameterListRule : WUninitializedRule {
             description = "Highest number of parameters a primary or secondary constructor may declare",
             default = WRuleOptionValue.Num(LongParameterListDecision.DEFAULT_CONSTRUCTOR_THRESHOLD.toLong()),
             minimum = 1,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
     )
 

@@ -1,5 +1,8 @@
 package com.varlanv.wrasse.rules
 
+/** Pluralized "statement" for [count]: singular at exactly one, plural otherwise. */
+internal fun statementNoun(count: Int): String = "statement" + if (count == 1) "" else "s"
+
 /**
  * A function with more than the threshold ([DEFAULT_THRESHOLD] unless configured) `return`
  * statements is reported. A function literally named `equals` is exempt (an `equals` override
@@ -16,7 +19,7 @@ object ReturnCountDecision {
     ): String? {
         if (functionName == "equals") return null
         if (count <= threshold) return null
-        return "Function '$functionName' has $count return statements; the maximum allowed is $threshold"
+        return "Function '$functionName' has $count return ${statementNoun(count)}; the maximum allowed is $threshold"
     }
 }
 
@@ -30,7 +33,7 @@ object ThrowsCountDecision {
         threshold: Int = DEFAULT_THRESHOLD,
     ): String? {
         if (count <= threshold) return null
-        return "Function '$functionName' has $count throw statements; the maximum allowed is $threshold"
+        return "Function '$functionName' has $count throw ${statementNoun(count)}; the maximum allowed is $threshold"
     }
 }
 

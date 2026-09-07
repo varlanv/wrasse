@@ -33,6 +33,7 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
                     description = "Highest number of characters a function name may have",
                     default = WRuleOptionValue.Num(FunctionNameLengthDecision.DEFAULT_MAX_LENGTH.toLong()),
                     minimum = 1,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
         MIN_LENGTH_ID to
@@ -43,6 +44,7 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
                     description = "Lowest number of characters a function name may have",
                     default = WRuleOptionValue.Num(FunctionNameLengthDecision.DEFAULT_MIN_LENGTH.toLong()),
                     minimum = 1,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
     )

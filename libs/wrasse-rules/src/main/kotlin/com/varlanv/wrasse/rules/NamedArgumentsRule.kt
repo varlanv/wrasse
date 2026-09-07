@@ -56,6 +56,7 @@ class NamedArgumentsRule : WUninitializedRule {
             description = "Name the arguments of callees declaring at least this many parameters; write those of narrower callees positionally",
             default = WRuleOptionValue.Num(2),
             minimum = 1,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
         WRuleOptionSpec.Optional(
             name = ALLOW_MIXED,

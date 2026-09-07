@@ -32,6 +32,7 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
                     description = "Highest number of functions a class, interface, object, enum, or file may declare",
                     default = WRuleOptionValue.Num(TooManyFunctionsDecision.DEFAULT_THRESHOLD.toLong()),
                     minimum = 1,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
         LARGE_CLASS_ID to
@@ -42,6 +43,7 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
                     description = "Highest number of code lines a class, interface, object, or enum may span",
                     default = WRuleOptionValue.Num(LargeClassDecision.DEFAULT_THRESHOLD.toLong()),
                     minimum = 1,
+                    maximum = Int.MAX_VALUE.toLong(),
                 ),
             ),
     )

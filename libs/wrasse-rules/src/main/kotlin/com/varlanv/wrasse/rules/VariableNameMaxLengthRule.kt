@@ -27,6 +27,7 @@ class VariableNameMaxLengthRule : WUninitializedRule {
             description = "Highest number of characters a property or variable name may have",
             default = WRuleOptionValue.Num(VariableNameMaxLengthDecision.DEFAULT_THRESHOLD.toLong()),
             minimum = 1,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
     )
 

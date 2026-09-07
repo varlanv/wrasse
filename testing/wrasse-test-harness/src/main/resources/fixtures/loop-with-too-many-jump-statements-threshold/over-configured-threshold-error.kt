@@ -6,4 +6,4 @@ fun f() {
     }
 }
 
-// expect-error 4:5 loop-with-too-many-jump-statements "The loop contains 1 break or continue statements; the maximum allowed is 0"
+// expect-error 4:5 loop-with-too-many-jump-statements "The loop contains 1 break or continue statement; the maximum allowed is 0"

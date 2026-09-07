@@ -24,6 +24,11 @@ private val TARGET_TYPES = setOf(WNodeType.BLOCK, WNodeType.FUN)
  * statement is a `THROW` or a `RETURN` carrying a real, unlabeled expression, and the statement is
  * single-line or [WrasseRuleConfig.formatEnabled] is true — with format off, a multi-line
  * statement's continuation lines could not be re-indented safely.
+ *
+ * A candidate `BLOCK` (own parent `FUN`) pushes its own return-keyword counter on enter and pops
+ * it on exit; a `return` keyword increments every counter currently on the stack, so a nested
+ * named or anonymous function's own block counts only what lies inside its own span while a
+ * return keyword still adds to every enclosing candidate block's count too.
  */
 class FunctionExpressionBodyRule : WUninitializedRule {
     override val id: String = "function-expression-body"
@@ -36,21 +41,21 @@ class FunctionExpressionBodyRule : WUninitializedRule {
             override val config = config
             override val targetTypes = TARGET_TYPES
 
-            private var returnKeywordCount = 0
             private var lastReturnKeywordStart = -1
+            private val returnKeywordCounts = mutableListOf<Int>()
             private val pendingBlocks = mutableMapOf<Int, PendingBlock>()
 
             override fun enterNode(ctx: WContext, reporter: WReporter): Boolean {
                 if (ctx.type != WNodeType.BLOCK) return true
                 if (ctx.ancestors.peekType() != WNodeType.FUN) return false
-                returnKeywordCount = 0
+                returnKeywordCounts.add(0)
                 return true
             }
 
             override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
                 if (ctx.type == WNodeType.KW_RETURN && ctx.startOffset != lastReturnKeywordStart) {
                     lastReturnKeywordStart = ctx.startOffset
-                    returnKeywordCount++
+                    for (i in returnKeywordCounts.indices) returnKeywordCounts[i]++
                 }
             }
 
@@ -67,6 +72,7 @@ class FunctionExpressionBodyRule : WUninitializedRule {
             }
 
             private fun finalizeBlock(ctx: WContext, children: ChildBuffer) {
+                val returnKeywordCount = returnKeywordCounts.removeAt(returnKeywordCounts.size - 1)
                 var soleIdx = -1
                 var significantCount = 0
                 for (i in 0 until children.size) {

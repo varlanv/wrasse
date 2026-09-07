@@ -26,6 +26,7 @@ class ComplexConditionRule : WUninitializedRule {
             description = "Lowest number of combined boolean operators a condition may have before it is reported",
             default = WRuleOptionValue.Num(ComplexConditionDecision.DEFAULT_THRESHOLD.toLong()),
             minimum = 1,
+            maximum = Int.MAX_VALUE.toLong(),
         ),
     )
 

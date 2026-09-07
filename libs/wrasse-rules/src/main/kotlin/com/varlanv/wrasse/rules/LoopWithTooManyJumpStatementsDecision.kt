@@ -8,7 +8,7 @@ object LoopWithTooManyJumpStatementsDecision {
         jumpCount: Int,
         threshold: Int = DEFAULT_THRESHOLD,
     ): String? = if (jumpCount > threshold) {
-        "The loop contains $jumpCount break or continue statements; the maximum allowed is $threshold"
+        "The loop contains $jumpCount break or continue ${statementNoun(jumpCount)}; the maximum allowed is $threshold"
     } else {
         null
     }

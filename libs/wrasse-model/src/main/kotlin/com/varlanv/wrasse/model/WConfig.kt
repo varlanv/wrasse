@@ -225,6 +225,14 @@ class WConfig(
                         ),
                     )
                 }
+                val maximum = spec.maximum
+                if (maximum != null && value is WRuleOptionValue.Num && value.value > maximum) {
+                    return Result.failure(
+                        Exception(
+                            "Option '${spec.name}' for rule '$ruleId' must be at most $maximum, got ${value.value}",
+                        ),
+                    )
+                }
                 values[spec.name] = value
             }
             return Result.success(WRuleOptions(values))
