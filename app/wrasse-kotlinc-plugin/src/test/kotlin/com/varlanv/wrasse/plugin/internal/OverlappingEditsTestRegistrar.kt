@@ -1,9 +1,9 @@
 package com.varlanv.wrasse.plugin.internal
 
 import com.varlanv.wrasse.model.RuleLevel
+import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
-import com.varlanv.wrasse.model.WRuleSet
 import com.varlanv.wrasse.plugin.WrassePlugin
 import com.varlanv.wrasse.rules.LongNumericalValuesRule
 import com.varlanv.wrasse.rules.RangeConventionalRule
@@ -18,7 +18,9 @@ import org.jetbrains.kotlin.config.CompilerConfigurationKey
 
 const val OVERLAPPING_EDITS_TEST_PLUGIN_ID = "com.varlanv.wrasse.test.overlap"
 const val OVERLAPPING_EDITS_FIX_OUTPUT_DIR_OPTION = "fixOutputDir"
-private val KEY_OVERLAPPING_EDITS_FIX_OUTPUT_DIR = CompilerConfigurationKey<String>(OVERLAPPING_EDITS_FIX_OUTPUT_DIR_OPTION)
+private val KEY_OVERLAPPING_EDITS_FIX_OUTPUT_DIR = CompilerConfigurationKey<String>(
+    OVERLAPPING_EDITS_FIX_OUTPUT_DIR_OPTION,
+)
 
 /**
  * Real-compile probe support for [OverlappingEditsIsolationSpec]: wires the real
@@ -34,10 +36,7 @@ class OverlappingEditsTestRegistrar : CompilerPluginRegistrar() {
 
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
         val fixOutputDir = configuration[KEY_OVERLAPPING_EDITS_FIX_OUTPUT_DIR]?.let(Paths::get)
-        val activeRules = listOf(
-            RangeConventionalRule() to errorConfig(),
-            LongNumericalValuesRule() to errorConfig(),
-        )
+        val activeRules = listOf(RangeConventionalRule() to errorConfig(), LongNumericalValuesRule() to errorConfig())
         val plugin = WrassePlugin(ruleSet = WRuleSet(activeRules), fixOutputDir = fixOutputDir)
         K22Registrar.register(this, plugin)
     }

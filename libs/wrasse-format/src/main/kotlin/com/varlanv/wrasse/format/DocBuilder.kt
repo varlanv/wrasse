@@ -27,10 +27,7 @@ private val CHAIN_LINK_TYPES = WNodeTypeSet.containing(
 )
 private val BINARY_SPREAD_TYPES = WNodeTypeSet.containing(WNodeType.BINARY_EXPRESSION)
 private val COMMENT_TYPES = WNodeTypeSet.containing(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT)
-private val SUPER_TYPE_SEPARATOR_TYPES = WNodeTypeSet.containing(
-    WNodeType.COMMA,
-    WNodeType.WHITE_SPACE,
-)
+private val SUPER_TYPE_SEPARATOR_TYPES = WNodeTypeSet.containing(WNodeType.COMMA, WNodeType.WHITE_SPACE)
 private val LIST_BRACKET_TYPES = WNodeTypeSet.containing(
     WNodeType.LPAR,
     WNodeType.RPAR,

@@ -24,7 +24,6 @@ import org.jetbrains.kotlin.fir.expressions.FirResolvedQualifier
 import org.jetbrains.kotlin.fir.expressions.FirSpreadArgumentExpression
 import org.jetbrains.kotlin.fir.expressions.FirVarargArgumentsExpression
 import org.jetbrains.kotlin.fir.expressions.impl.FirResolvedArgumentList
-import org.jetbrains.kotlin.fir.moduleData
 import org.jetbrains.kotlin.fir.originalOrSelf
 import org.jetbrains.kotlin.fir.references.FirErrorNamedReference
 import org.jetbrains.kotlin.fir.references.FirPropertyWithExplicitBackingFieldResolvedNamedReference
@@ -199,25 +198,47 @@ object ResolvedUsageCollector {
             val candidates: List<FirFunctionSymbol<*>> = when {
                 symbol is FirConstructorSymbol -> {
                     val ownerClassId = classId ?: return false
-                    val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(ownerClassId) as? FirClassSymbol<*>
-                        ?: return false
-                    classSymbol.unsubstitutedScope(session, scopeSession, withForcedTypeCalculator = false, memberRequiredPhase = null)
+                    val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(
+                        ownerClassId,
+                    ) as? FirClassSymbol<*> ?: return false
+                    classSymbol
+                        .unsubstitutedScope(
+                            session,
+                            scopeSession,
+                            withForcedTypeCalculator = false,
+                            memberRequiredPhase = null,
+                        )
                         .getDeclaredConstructors()
                 }
 
-                classId == null -> session.symbolProvider.getTopLevelFunctionSymbols(callableId.packageName, callableId.callableName)
+                classId ==
+                    null -> session.symbolProvider.getTopLevelFunctionSymbols(
+                    callableId.packageName,
+                    callableId.callableName,
+                )
 
                 else -> {
-                    val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(classId) as? FirClassSymbol<*>
-                        ?: return false
-                    classSymbol.unsubstitutedScope(session, scopeSession, withForcedTypeCalculator = false, memberRequiredPhase = null)
+                    val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(
+                        classId,
+                    ) as? FirClassSymbol<*> ?: return false
+                    classSymbol
+                        .unsubstitutedScope(
+                            session,
+                            scopeSession,
+                            withForcedTypeCalculator = false,
+                            memberRequiredPhase = null,
+                        )
                         .getFunctions(callableId.callableName)
                 }
             }
             for (candidate in candidates) {
                 val candidateOriginal = candidate.originalOrSelf()
                 if (candidateOriginal === original) continue
-                if (candidateOriginal.valueParameterSymbols.map { it.name.asString() }.toSet() == calleeParameterNames) return true
+                if (candidateOriginal.valueParameterSymbols
+                    .map { it.name.asString() }
+                    .toSet() == calleeParameterNames) {
+                    return true
+                }
             }
             return false
         }

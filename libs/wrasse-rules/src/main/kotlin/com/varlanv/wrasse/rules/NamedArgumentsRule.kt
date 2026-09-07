@@ -109,7 +109,11 @@ class NamedArgumentsRule : WUninitializedRule {
                     val start = children.startOffset(i)
                     val end = children.endOffset(i)
                     written.add(
-                        WrittenArgument(start, end, NamedArgumentsDecision.namedArgumentValueStart(ctx.sourceText, start, end)),
+                        WrittenArgument(
+                            start,
+                            end,
+                            NamedArgumentsDecision.namedArgumentValueStart(ctx.sourceText, start, end),
+                        ),
                     )
                 }
                 val mixed = NamedArgumentsDecision.isMixed(site, written)

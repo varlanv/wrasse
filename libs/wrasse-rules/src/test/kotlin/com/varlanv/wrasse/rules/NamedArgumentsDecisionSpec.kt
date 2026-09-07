@@ -78,7 +78,12 @@ class NamedArgumentsDecisionSpec : BaseSpec({
     }
 
     should("drop the names of an all-named call to a narrow callee only when positional form means the same call") {
-        fun named(start: Int, end: Int, nameEnd: Int) = WrittenArgument(start, end, nameEnd)
+        fun named(
+            start: Int,
+            end: Int,
+            nameEnd: Int,
+        ) = WrittenArgument(start, end, nameEnd)
+
         fun positional(start: Int, end: Int) = WrittenArgument(start, end, null)
         val inOrder = site(
             0,
@@ -96,7 +101,10 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             1,
             arguments = listOf(argument(6, 7, "b", index = 1), argument(14, 15, "a", index = 0)),
         )
-        NamedArgumentsDecision.positionalEdits(reordered, listOf(named(2, 7, 6), named(10, 15, 14))) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(
+            reordered,
+            listOf(named(2, 7, 6), named(10, 15, 14)),
+        ) shouldBe emptyList()
 
         val skipsFirst = site(0, 30, 1, arguments = listOf(argument(6, 7, "b", index = 1)))
         NamedArgumentsDecision.positionalEdits(skipsFirst, listOf(named(2, 7, 6))) shouldBe emptyList()
@@ -108,7 +116,10 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             arguments = listOf(argument(9, 12, "text", index = 0), argument(27, 32, "ignoreCase", index = 2)),
             parameterCount = 3,
         )
-        NamedArgumentsDecision.positionalEdits(pastDefaulted, listOf(named(2, 12, 9), named(14, 32, 27))) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(
+            pastDefaulted,
+            listOf(named(2, 12, 9), named(14, 32, 27)),
+        ) shouldBe emptyList()
 
         val vararg = site(0, 30, 1, arguments = listOf(argument(7, 12, "xs", vararg = true, index = 0)))
         NamedArgumentsDecision.positionalEdits(vararg, listOf(named(2, 12, 7))) shouldBe emptyList()
@@ -179,7 +190,8 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         nameEnd shouldBe valueStart
         NamedArgumentsDecision
             .positionalEdits(s, listOf(WrittenArgument(argStart, argEnd, nameEnd)))
-            .map { Triple(it.startOffset, it.endOffset, it.replacement) } shouldBe listOf(Triple(argStart, valueStart, ""))
+            .map { Triple(it.startOffset, it.endOffset, it.replacement) } shouldBe
+            listOf(Triple(argStart, valueStart, ""))
     }
 
     should("call a list mixed only when a named argument meets a positional one outside a vararg") {

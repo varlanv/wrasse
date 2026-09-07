@@ -41,7 +41,8 @@ class OverlappingEditsIsolationSpec : BaseSpec({
             result.diagnostics shouldHaveSize 2
             val sorted = result.diagnostics.sortedBy { it.message }
             sorted[0].severity shouldBe CompilerMessageSeverity.ERROR
-            sorted[0].message shouldBe "wrasse: long-numerical-values: Long numerical literal without underscore separators"
+            sorted[0].message shouldBe
+                "wrasse: long-numerical-values: Long numerical literal without underscore separators"
             sorted[1].severity shouldBe CompilerMessageSeverity.ERROR
             sorted[1].message shouldBe "wrasse: range-conventional: Replace rangeTo call with the .. operator"
 
@@ -97,8 +98,9 @@ private fun compileWithOverlappingEditsRules(
         Files.createDirectories(file.parent)
         Files.write(file, content.toByteArray())
 
-        val registrarClassDir =
-            File(OverlappingEditsTestRegistrar::class.java.protectionDomain.codeSource.location.toURI())
+        val registrarClassDir = File(
+            OverlappingEditsTestRegistrar::class.java.protectionDomain.codeSource.location.toURI(),
+        )
         val servicesFile = OverlappingEditsTestRegistrar::class.java.classLoader
             .getResources("META-INF/services/org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar")
             .toList()
@@ -112,10 +114,11 @@ private fun compileWithOverlappingEditsRules(
         val args = K2JVMCompilerArguments().apply {
             freeArgs = listOf(file.toString())
             pluginClasspaths = arrayOf(registrarClassDir.absolutePath, registrarResourcesDir.absolutePath)
-            pluginOptions = arrayOf(
-                "plugin:$OVERLAPPING_EDITS_TEST_PLUGIN_ID:$OVERLAPPING_EDITS_FIX_OUTPUT_DIR_OPTION=$fixOutputDir",
-                "plugin:$PLUGIN_ID:enabled=false",
-            )
+            pluginOptions =
+                arrayOf(
+                    "plugin:$OVERLAPPING_EDITS_TEST_PLUGIN_ID:$OVERLAPPING_EDITS_FIX_OUTPUT_DIR_OPTION=$fixOutputDir",
+                    "plugin:$PLUGIN_ID:enabled=false",
+                )
             noReflect = true
             noJdk = true
             jvmTarget = "1.8"

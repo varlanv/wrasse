@@ -79,12 +79,13 @@ class FunctionExpressionBodyRule : WUninitializedRule {
 
                 val soleType = children.type(soleIdx)
                 val message = FunctionExpressionBodyDecision.decide(soleType, returnKeywordCount) ?: return
-                pendingBlocks[ctx.startOffset] = PendingBlock(
-                    message = message,
-                    statementType = soleType,
-                    statementStart = children.startOffset(soleIdx),
-                    statementEnd = children.endOffset(soleIdx),
-                )
+                pendingBlocks[ctx.startOffset] =
+                    PendingBlock(
+                        message = message,
+                        statementType = soleType,
+                        statementStart = children.startOffset(soleIdx),
+                        statementEnd = children.endOffset(soleIdx),
+                    )
             }
 
             private fun finalizeFun(
@@ -112,16 +113,15 @@ class FunctionExpressionBodyRule : WUninitializedRule {
                 if (returnTypeIndex(children, blockIdx) < 0) return emptyList()
                 val source = ctx.sourceText
                 val statementText = source.subSequence(pending.statementStart, pending.statementEnd)
-                val expressionText = FunctionExpressionBodyDecision.expressionText(pending.statementType, statementText)
-                    ?: return emptyList()
+                val expressionText = FunctionExpressionBodyDecision.expressionText(
+                    pending.statementType,
+                    statementText,
+                ) ?: return emptyList()
                 if (!config.formatEnabled && hasNewline(source, pending.statementStart, pending.statementEnd)) {
                     return emptyList()
                 }
                 val expressionStart = pending.statementStart + (statementText.length - expressionText.length)
-                return listOf(
-                    WEdit(blockStart, expressionStart, "= "),
-                    WEdit(pending.statementEnd, blockEnd, ""),
-                )
+                return listOf(WEdit(blockStart, expressionStart, "= "), WEdit(pending.statementEnd, blockEnd, ""))
             }
 
             private fun returnTypeIndex(children: ChildBuffer, blockIdx: Int): Int {
