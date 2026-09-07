@@ -7,6 +7,7 @@ import com.varlanv.wrasse.testing.BaseSpec
 import com.varlanv.wrasse.testing.harness.TestSource
 import com.varlanv.wrasse.testing.harness.WrasseTestHarness
 import com.varlanv.wrasse.testing.useTempDir
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.nio.file.Files
 
@@ -98,6 +99,36 @@ open class DiagnosticsReportSpec : BaseSpec({
                     listOf(TestSource(source.path, "package sample\n\nfun main() {\n    println(\"ok\")\n}\n")),
                     workDir,
                 )
+
+                WReportReader.read(
+                    Files.readString(fixOutputDir.resolve("patch").resolve("wrasse-report.txt")),
+                ) shouldBe emptyList()
+            }
+        }
+    }
+
+    should("clear an excluded file's report entry recorded under its projectDir-relative path") {
+        useTempDir { workDir ->
+            useTempDir { fixOutputDir ->
+                val harness = WrasseTestHarness(
+                    wrasseConfig = wrasseConfig,
+                    warnOnly = true,
+                    fixOutputDir = fixOutputDir,
+                    projectDir = workDir,
+                )
+                harness.compile(listOf(source), workDir)
+                WReportReader.read(
+                    Files.readString(fixOutputDir.resolve("patch").resolve("wrasse-report.txt")),
+                ) shouldHaveSize 1
+
+                val excludedHarness = WrasseTestHarness(
+                    wrasseConfig = wrasseConfig,
+                    warnOnly = true,
+                    fixOutputDir = fixOutputDir,
+                    projectDir = workDir,
+                    excludedRoots = listOf(workDir.resolve("src")),
+                )
+                excludedHarness.compile(listOf(source), workDir)
 
                 WReportReader.read(
                     Files.readString(fixOutputDir.resolve("patch").resolve("wrasse-report.txt")),

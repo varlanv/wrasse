@@ -61,7 +61,7 @@ class WrassePlugin(
         val filePath = resolveFilePath(sourceFilePath, fileName)
         if (isUnderExcludedRoot(filePath)) {
             runCatching { patchStore?.clear(filePath.toString()) }
-            runCatching { reportStore?.clear(filePath.toString()) }
+            runCatching { reportStore?.clear(reportFilePath(filePath)) }
             return emptyList()
         }
         val configRelativePath = relativeToConfigDir(filePath)
@@ -103,7 +103,7 @@ class WrassePlugin(
      */
     private fun internalFailureReports(filePath: Path, failure: Throwable): List<ViolationReport> {
         runCatching { patchStore?.clear(filePath.toString()) }
-        runCatching { reportStore?.clear(filePath.toString()) }
+        runCatching { reportStore?.clear(reportFilePath(filePath)) }
         val exceptionType = failure::class.simpleName ?: failure.javaClass.name
         val message = "wrasse internal error while checking this file " +
             "($exceptionType: ${failure.message}); wrasse results for this file were skipped"
@@ -141,25 +141,33 @@ class WrassePlugin(
         filePath: Path,
         sourceHash: String,
         sourceText: CharSequence,
-        reports: List<ViolationReport>,
+        recorded: List<RecordedReport>,
+        survivingGroupIds: Set<Int>,
     ): ReportedFile {
         val lineStarts = LineIndex(sourceText)
-        val diagnostics = reports.sortedWith(compareBy({ it.startOffset }, { it.endOffset })).map { report ->
-            val level = when (report.configuredLevel) {
-                RuleLevel.ERROR -> ReportedDiagnostic.LEVEL_ERROR
-                else -> ReportedDiagnostic.LEVEL_WARN
+        val diagnostics = recorded
+            .sortedWith(compareBy({ it.report.startOffset }, { it.report.endOffset }))
+            .map { recordedReport ->
+                val report = recordedReport.report
+                val level = when (report.configuredLevel) {
+                    RuleLevel.ERROR -> ReportedDiagnostic.LEVEL_ERROR
+                    else -> ReportedDiagnostic.LEVEL_WARN
+                }
+                val fixable = report.hasAutofix && recordedReport.groupId in survivingGroupIds
+                ReportedDiagnostic(
+                    lineStarts.lineOf(report.startOffset),
+                    lineStarts.columnOf(report.startOffset),
+                    report.startOffset,
+                    level,
+                    fixable,
+                    report.message,
+                )
             }
-            ReportedDiagnostic(
-                lineStarts.lineOf(report.startOffset),
-                lineStarts.columnOf(report.startOffset),
-                report.startOffset,
-                level,
-                report.hasAutofix,
-                report.message,
-            )
-        }
         return ReportedFile(reportFilePath(filePath), sourceHash, diagnostics)
     }
+
+    /** One recorded [report] with the [groupId] its edits (if any) were attached under. */
+    private class RecordedReport(val report: ViolationReport, val groupId: Int)
 
     private fun reportFilePath(filePath: Path): String {
         val root = projectDir ?: return filePath.toString()
@@ -221,7 +229,7 @@ class WrassePlugin(
         }
         val reporter = object : WReporter {
             override val reports = mutableListOf<ViolationReport>()
-            val recorded = mutableListOf<ViolationReport>()
+            val recorded = mutableListOf<RecordedReport>()
 
             override fun report(
                 ruleId: String,
@@ -234,6 +242,7 @@ class WrassePlugin(
                 if (suppressionCollector.index.isSuppressed(ruleId, startOffset, endOffset)) return
                 val declinedAutofix = edits.isEmpty() && ruleId in ruleSet.autofixCapableIds
                 val fullMessage = if (declinedAutofix) "$message$NO_AUTOFIX_MARKER" else message
+                val groupId = ctx.editPlan.newGroupId()
                 val report = ViolationReport(
                     message = "${rule.id}: $fullMessage",
                     startOffset = startOffset,
@@ -242,12 +251,11 @@ class WrassePlugin(
                     configuredLevel = rule.config.level,
                     hasAutofix = edits.isNotEmpty(),
                 )
-                recorded.add(report)
+                recorded.add(RecordedReport(report, groupId))
                 if (!quiet && (!formatRun || edits.isEmpty())) reports.add(report)
-                val groupId = ctx.editPlan.newGroupId()
                 for (edit in edits) {
                     requireWithinOpenAncestor(ctx, ruleId, edit)
-                    ctx.editPlan.add(ruleId, edit, groupId)
+                    ctx.editPlan.add(ruleId, edit, groupId, edits.size)
                 }
             }
         }
@@ -261,6 +269,7 @@ class WrassePlugin(
         if (docBuilder != null) timed("phase:format-finish") { docBuilder.finish(ctx, reporter, perf) }
 
         val finalEdits = timed("phase:edit-plan") { ctx.editPlan.finalEdits() }
+        val survivingGroupIds = ctx.editPlan.survivingGroupIds()
         val store = patchStore
         if (store != null) {
             timed("phase:patch-store") {
@@ -275,9 +284,11 @@ class WrassePlugin(
                 reportStore?.let { reports ->
                     runCatching {
                         if (reporter.recorded.isEmpty()) {
-                            reports.clear(filePath.toString())
+                            reports.clear(reportFilePath(filePath))
                         } else {
-                            reports.record(reportedFile(filePath, sourceHash, ctx.sourceText, reporter.recorded))
+                            reports.record(
+                                reportedFile(filePath, sourceHash, ctx.sourceText, reporter.recorded, survivingGroupIds),
+                            )
                         }
                     }.onFailure { failure -> reporter.reports.add(reportStoreFailureReport(reports, failure)) }
                 }

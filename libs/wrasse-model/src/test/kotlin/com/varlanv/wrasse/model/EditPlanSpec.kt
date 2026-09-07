@@ -214,6 +214,32 @@ class EditPlanSpec : BaseSpec({
         plan.droppedEdits().shouldBeEmpty()
     }
 
+    should("not let a multi-edit group's edit be swallowed by an identical singleton from another group") {
+        val plan = EditPlan()
+        plan.add("other", WEdit(10, 11, " {\n"))
+        val braceGroup = plan.newGroupId()
+        plan.add("brace", WEdit(10, 11, " {\n"), braceGroup, groupSize = 2)
+        plan.add("brace", WEdit(40, 41, "\n}"), braceGroup, groupSize = 2)
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 1
+        edits[0].replacement shouldBe " {\n"
+        plan.droppedEdits().map { it.ruleId } shouldBe listOf("brace", "brace")
+        plan.droppedEdits().map { it.startOffset to it.endOffset } shouldBe listOf(10 to 11, 40 to 41)
+    }
+
+    should("still dedup an identical singleton edit two single-edit groups both emit") {
+        val plan = EditPlan()
+        plan.add("rule-a", WEdit(10, 11, " {\n"), groupSize = 1)
+        plan.add("rule-b", WEdit(10, 11, " {\n"), groupSize = 1)
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 1
+        plan.droppedEdits().shouldBeEmpty()
+    }
+
     should("resolve a large non-overlapping plan and keep every edit") {
         val plan = EditPlan()
         for (i in 0 until 5_000) plan.add("rule-$i", WEdit(i * 10, i * 10 + 5, "x"))
@@ -222,5 +248,17 @@ class EditPlanSpec : BaseSpec({
 
         edits shouldHaveSize 5_000
         plan.droppedEdits().shouldBeEmpty()
+    }
+
+    should("resolve a file-spanning kept group against 5,000 later singletons quickly") {
+        val plan = EditPlan()
+        val spanGroup = plan.newGroupId()
+        for (i in 0 until 5_000) plan.add("span", WEdit(i * 10, i * 10 + 5, "x"), spanGroup, groupSize = 5_000)
+        for (i in 0 until 5_000) plan.add("rule-$i", WEdit(i * 10 + 2, i * 10 + 7, "y"))
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 5_000
+        plan.droppedEdits() shouldHaveSize 5_000
     }
 })

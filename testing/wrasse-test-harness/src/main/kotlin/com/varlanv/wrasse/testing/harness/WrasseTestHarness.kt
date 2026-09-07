@@ -20,6 +20,8 @@ class WrasseTestHarness(
     private val multiPlatformCommonSources: Set<String> = emptySet(),
     private val dumpResolvedUsage: Boolean = false,
     private val explicitApiMode: String? = null,
+    private val projectDir: Path? = null,
+    private val excludedRoots: List<Path> = emptyList(),
 ) {
     companion object {
         private val pluginClasspath: String by lazy {
@@ -74,6 +76,12 @@ class WrasseTestHarness(
         }
         if (dumpResolvedUsage) {
             wrassePluginOptions.add("plugin:$PLUGIN_ID:dumpResolvedUsage=true")
+        }
+        if (projectDir != null) {
+            wrassePluginOptions.add("plugin:$PLUGIN_ID:projectDir=$projectDir")
+        }
+        for (excludedRoot in excludedRoots) {
+            wrassePluginOptions.add("plugin:$PLUGIN_ID:excludedRoot=$excludedRoot")
         }
 
         val collector = DiagnosticCollector()
