@@ -148,7 +148,7 @@ enum class BreakKind {
  * - [ARGUMENTS] — a call's parenthesized argument list: fits like [DEFAULT], but renders broken
  *   when its own [Group.forceBreak] is set or when an enclosing [ARGUMENTS] group broke for that
  *   reason — the forcing reaches every argument list nested through plain parts, [DEFAULT] and
- *   [FLUID] groups, and stops at a [LAMBDA], [CONTINUATION] or [BARRIER] group.
+ *   [FLUID] groups, and stops at a [LAMBDA], [CONTINUATION], [CHAIN] or [BARRIER] group.
  * - [TEMPLATE] — a `${...}` string-template entry: fits like [DEFAULT]; stops the forcing an
  *   enclosing [ARGUMENTS] group would otherwise push into argument lists written inside the
  *   template.
@@ -161,6 +161,12 @@ enum class BreakKind {
  *   multi-line trailing lambda, or a multi-line argument list closing the chain, never breaks the
  *   chain around it; a multi-line argument list in the middle does. Fits iff the flat width up to
  *   that point (plus the tail, if nothing ended it) fits.
+ * - [CHAIN] — the links after a dot/safe-access chain's first operand: measured like
+ *   [CONTINUATION], except that a nested [LAMBDA] group ends the measurement only in the body's
+ *   last top-level part, so a multi-line lambda in a non-final link forces every link onto its own
+ *   line instead of leaving `}` joined to the `.` after it. Counted in a preceding group's tail
+ *   only up to its own opening break, so a call standing at the head of a chain keeps its argument
+ *   list flat and lets the links break instead.
  * - [BARRIER] — an `if`/`when`/`try`/object expression: makes no layout decision of its own
  *   (renders in the enclosing mode, at the ambient depth) and only stops the forcing an enclosing
  *   [ARGUMENTS] group would otherwise push into the argument lists written inside it.
@@ -172,5 +178,6 @@ enum class GroupKind {
     FLUID,
     LAMBDA,
     CONTINUATION,
+    CHAIN,
     BARRIER,
 }

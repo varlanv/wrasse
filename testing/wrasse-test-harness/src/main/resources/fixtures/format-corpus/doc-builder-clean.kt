@@ -1,4 +1,4 @@
-package com.varlanv.wrasse.format
+package sample
 
 import com.varlanv.wrasse.lang.NoopPerf
 import com.varlanv.wrasse.lang.WEdit
@@ -2538,3 +2538,6 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         }
     }
 }
+
+// expect-clean
+// fixture-option: trailing-newline

@@ -1,4 +1,4 @@
-package com.varlanv.wrasse.format
+package sample
 
 import com.varlanv.wrasse.lang.StringSlice
 import com.varlanv.wrasse.model.FormatStyle
@@ -465,3 +465,6 @@ object Layout {
 
     private const val NO_FLAT_WIDTH = -1
 }
+
+// expect-clean
+// fixture-option: trailing-newline

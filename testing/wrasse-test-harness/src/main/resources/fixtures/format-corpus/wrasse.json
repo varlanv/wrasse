@@ -1,0 +1,266 @@
+{
+    "format": {
+        "enabled": true
+    },
+    "rules": {
+        "backing-property-naming": {
+            "level": "error"
+        },
+        "boolean-expressions": {
+            "level": "error"
+        },
+        "class-naming": {
+            "level": "error"
+        },
+        "collapse-if": {
+            "level": "error"
+        },
+        "constructor-parameter-naming": {
+            "level": "error"
+        },
+        "custom-label": {
+            "level": "error"
+        },
+        "destructuring-declaration-with-too-many-entries": {
+            "level": "error"
+        },
+        "double-negative": {
+            "level": "error"
+        },
+        "empty-catch-block": {
+            "level": "error"
+        },
+        "empty-default-constructor": {
+            "level": "error"
+        },
+        "empty-do-while-block": {
+            "level": "error"
+        },
+        "empty-else-block": {
+            "level": "error"
+        },
+        "empty-finally-block": {
+            "level": "error"
+        },
+        "empty-for-block": {
+            "level": "error"
+        },
+        "empty-if-block": {
+            "level": "error"
+        },
+        "empty-init-block": {
+            "level": "error"
+        },
+        "empty-kotlin-file": {
+            "level": "error"
+        },
+        "empty-secondary-constructor": {
+            "level": "error"
+        },
+        "empty-try-block": {
+            "level": "error"
+        },
+        "empty-when-block": {
+            "level": "error"
+        },
+        "empty-while-block": {
+            "level": "error"
+        },
+        "enum-entry-naming": {
+            "level": "error"
+        },
+        "equals-null-call": {
+            "level": "error"
+        },
+        "exception-raised-in-unexpected-location": {
+            "level": "error"
+        },
+        "explicit-it-lambda-multiple-parameters": {
+            "level": "error"
+        },
+        "explicit-it-lambda-parameter": {
+            "level": "error"
+        },
+        "extension-functions-same-name": {
+            "level": "error"
+        },
+        "filename": {
+            "level": "off"
+        },
+        "function-name-min-length": {
+            "level": "error"
+        },
+        "function-naming": {
+            "level": "error"
+        },
+        "function-only-returning-constant": {
+            "level": "error"
+        },
+        "function-parameter-naming": {
+            "level": "error"
+        },
+        "getter-setter-fields": {
+            "level": "error"
+        },
+        "global-coroutine-usage": {
+            "level": "error"
+        },
+        "if-else-bracing": {
+            "level": "error",
+            "allow-inline": true
+        },
+        "import-ordering": {
+            "level": "error"
+        },
+        "instance-of-check-for-exception": {
+            "level": "error"
+        },
+        "invalid-range": {
+            "level": "error"
+        },
+        "kdoc-placement": {
+            "level": "error"
+        },
+        "kdoc-references-non-public-property": {
+            "level": "error"
+        },
+        "kdoc-tag-mismatch": {
+            "level": "error"
+        },
+        "lambda-parameter-naming": {
+            "level": "error"
+        },
+        "lambda-return": {
+            "level": "error"
+        },
+        "long-numerical-values": {
+            "level": "error"
+        },
+        "may-be-constant": {
+            "level": "error"
+        },
+        "missing-package-declaration": {
+            "level": "error"
+        },
+        "mixed-condition-operators": {
+            "level": "error"
+        },
+        "modifier-order": {
+            "level": "error"
+        },
+        "nested-classes-visibility": {
+            "level": "error"
+        },
+        "no-consecutive-comments": {
+            "level": "error"
+        },
+        "no-empty-class-body": {
+            "level": "error"
+        },
+        "no-empty-parens-before-trailing-lambda": {
+            "level": "error"
+        },
+        "no-semicolons": {
+            "level": "error"
+        },
+        "no-single-line-block-comment": {
+            "level": "error"
+        },
+        "no-unit-return": {
+            "level": "error"
+        },
+        "no-unnecessary-fqn": {
+            "level": "error"
+        },
+        "no-unused-imports": {
+            "level": "error"
+        },
+        "no-wildcard-imports": {
+            "level": "error"
+        },
+        "not-implemented-declaration": {
+            "level": "error"
+        },
+        "package-naming": {
+            "level": "error"
+        },
+        "print-stack-trace": {
+            "level": "error"
+        },
+        "range-conventional": {
+            "level": "error"
+        },
+        "redundant-constructor-keyword": {
+            "level": "error"
+        },
+        "redundant-to-string-in-template": {
+            "level": "error"
+        },
+        "rethrow-caught-exception": {
+            "level": "error"
+        },
+        "safe-cast": {
+            "level": "error"
+        },
+        "swallowed-exception": {
+            "level": "error"
+        },
+        "sync-in-async": {
+            "level": "error"
+        },
+        "throwing-exception-in-main": {
+            "level": "error"
+        },
+        "throws-count": {
+            "level": "error"
+        },
+        "trailing-newline": {
+            "level": "error"
+        },
+        "trivial-accessors": {
+            "level": "error"
+        },
+        "type-argument-comment": {
+            "level": "error"
+        },
+        "type-parameter-comment": {
+            "level": "error"
+        },
+        "unconditional-jump-statement-in-loop": {
+            "level": "error"
+        },
+        "undocumented-public-function": {
+            "level": "error"
+        },
+        "undocumented-public-property": {
+            "level": "error"
+        },
+        "unnecessary-backticks": {
+            "level": "error"
+        },
+        "unnecessary-part-of-binary-expression": {
+            "level": "error"
+        },
+        "unused-parameter": {
+            "level": "error"
+        },
+        "unused-private-class": {
+            "level": "error"
+        },
+        "use-let": {
+            "level": "error"
+        },
+        "useless-postfix-expression": {
+            "level": "error"
+        },
+        "value-argument-comment": {
+            "level": "error"
+        },
+        "value-parameter-comment": {
+            "level": "error"
+        },
+        "variable-name-max-length": {
+            "level": "error"
+        }
+    }
+}
