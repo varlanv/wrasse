@@ -17,10 +17,13 @@ private val TARGET_TYPES = setOf(WNodeType.PROPERTY)
  * every fact this rule needs — scope, `var`/`const` presence, a getter, non-`@JvmField`
  * annotations, the initializer's own shape — is read from the property's own [ChildBuffer] and
  * [WContext.ancestors] at its own exit, since a `PROPERTY` node can never itself be a direct child
- * of another `PROPERTY`.
+ * of another `PROPERTY`. Autofixed by inserting `const ` right before the `val` keyword whenever
+ * [MayBeConstantDecision.canAutofix] agrees, given whether an `@JvmField` annotation is present and
+ * the property's own written type (`null` when the type is inferred).
  */
 class MayBeConstantRule : WUninitializedRule {
     override val id: String = "may-be-constant"
+    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
@@ -50,7 +53,7 @@ class MayBeConstantRule : WUninitializedRule {
                 val isAlreadyConst = WordBoundaryScan.containsWord(modifierText, "const")
                 val isActual = WordBoundaryScan.containsWord(modifierText, "actual")
                 val isOverride = WordBoundaryScan.containsWord(modifierText, "override")
-                val hasNonJvmFieldAnnotation = hasNonJvmFieldAnnotation(modifierText)
+                val annotations = scanAnnotations(modifierText)
 
                 val nameIdx = children.firstChildOfType(WNodeType.IDENTIFIER)
                 val name = if (nameIdx < 0) {
@@ -67,28 +70,53 @@ class MayBeConstantRule : WUninitializedRule {
                         isActual = isActual,
                         isOverride = isOverride,
                         hasGetter = children.hasChildOfType(WNodeType.PROPERTY_ACCESSOR),
-                        hasNonJvmFieldAnnotation = hasNonJvmFieldAnnotation,
+                        hasNonJvmFieldAnnotation = annotations.hasOtherAnnotation,
                         initializerIsConstant = initializerIsConstant(ctx, children),
                         propertyName = name,
                     ) ?: return
                 val reportStart = if (nameIdx < 0) ctx.startOffset else children.startOffset(nameIdx)
                 val reportEnd = if (nameIdx < 0) ctx.endOffset else children.endOffset(nameIdx)
-                reporter.report(ruleId, message, reportStart, reportEnd, this)
+
+                val valIdx = children.firstChildOfType(WNodeType.KW_VAL)
+                val typeRefIdx = children.firstChildOfType(WNodeType.TYPE_REFERENCE)
+                val declaredType = if (typeRefIdx < 0) {
+                    null
+                } else {
+                    children.textSpan(typeRefIdx, ctx.sourceText).toString()
+                }
+                val canAutofix = valIdx >= 0 &&
+                    nameIdx >= 0 &&
+                    MayBeConstantDecision.canAutofix(annotations.hasJvmField, declaredType)
+                val edits = if (canAutofix) {
+                    val valStart = children.startOffset(valIdx)
+                    val nameStart = children.startOffset(nameIdx)
+                    val gapText = ctx.sourceText.subSequence(valStart, nameStart)
+                    listOf(MayBeConstantDecision.autofixEdit(valStart, nameStart, gapText))
+                } else {
+                    emptyList()
+                }
+                reporter.report(ruleId, message, reportStart, reportEnd, this, edits = edits)
             }
 
-            private fun hasNonJvmFieldAnnotation(modifierText: CharSequence): Boolean {
+            private fun scanAnnotations(modifierText: CharSequence): AnnotationScan {
                 val starts = ArrayList<Int>()
                 var idx = WordBoundaryScan.indexOfChar(modifierText, '@')
                 while (idx >= 0) {
                     starts.add(idx)
                     idx = WordBoundaryScan.indexOfChar(modifierText, '@', idx + 1)
                 }
-                if (starts.isEmpty()) return false
-                val hasJvmField = starts.any { start ->
+                if (starts.isEmpty()) return AnnotationScan(hasOtherAnnotation = false, hasJvmField = false)
+                var hasJvmField = false
+                var hasOtherAnnotation = false
+                for (start in starts) {
                     val end = starts.firstOrNull { it > start } ?: modifierText.length
-                    modifierText.subSequence(start, end).toString().trim() == "@JvmField"
+                    if (modifierText.subSequence(start, end).toString().trim() == "@JvmField") {
+                        hasJvmField = true
+                    } else {
+                        hasOtherAnnotation = true
+                    }
                 }
-                return !hasJvmField
+                return AnnotationScan(hasOtherAnnotation, hasJvmField)
             }
 
             private fun initializerIsConstant(ctx: WContext, children: ChildBuffer): Boolean {
@@ -101,4 +129,6 @@ class MayBeConstantRule : WUninitializedRule {
             }
         }
     }
+
+    private class AnnotationScan(val hasOtherAnnotation: Boolean, val hasJvmField: Boolean)
 }

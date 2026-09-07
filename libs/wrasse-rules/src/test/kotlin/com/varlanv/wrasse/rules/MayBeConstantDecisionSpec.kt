@@ -62,4 +62,52 @@ class MayBeConstantDecisionSpec : BaseSpec({
     should("not report when the initializer is not constant") {
         decide(initializerIsConstant = false) shouldBe null
     }
+
+    should("allow the fix for an inferred type") {
+        MayBeConstantDecision.canAutofix(hasJvmFieldAnnotation = false, declaredType = null) shouldBe true
+    }
+
+    should("allow the fix for each primitive type and String") {
+        for (type in listOf("Boolean", "Byte", "Short", "Int", "Long", "Float", "Double", "Char", "String")) {
+            MayBeConstantDecision.canAutofix(hasJvmFieldAnnotation = false, declaredType = type) shouldBe true
+        }
+    }
+
+    should("decline the fix for a non-primitive declared type") {
+        MayBeConstantDecision.canAutofix(hasJvmFieldAnnotation = false, declaredType = "Any") shouldBe false
+    }
+
+    should("decline the fix for a nullable primitive type") {
+        MayBeConstantDecision.canAutofix(hasJvmFieldAnnotation = false, declaredType = "Int?") shouldBe false
+    }
+
+    should("decline the fix when @JvmField is present, regardless of type") {
+        MayBeConstantDecision.canAutofix(hasJvmFieldAnnotation = true, declaredType = null) shouldBe false
+        MayBeConstantDecision.canAutofix(hasJvmFieldAnnotation = true, declaredType = "Int") shouldBe false
+    }
+
+    should("insert const right before the val keyword, preserving the gap up to the name") {
+        val source = "private val X = 1"
+        val valStart = source.indexOf("val")
+        val nameStart = source.indexOf("X")
+
+        val edit = MayBeConstantDecision.autofixEdit(valStart, nameStart, source.substring(valStart, nameStart))
+
+        edit.startOffset shouldBe valStart
+        edit.endOffset shouldBe nameStart
+        edit.replacement shouldBe "const val "
+        val fixed = source.substring(0, edit.startOffset) + edit.replacement + source.substring(edit.endOffset)
+        fixed shouldBe "private const val X = 1"
+    }
+
+    should("preserve an unusual gap between val and the name verbatim") {
+        val source = "val  /* c */  greeting = 1"
+        val valStart = source.indexOf("val")
+        val nameStart = source.indexOf("greeting")
+
+        val edit = MayBeConstantDecision.autofixEdit(valStart, nameStart, source.substring(valStart, nameStart))
+
+        val fixed = source.substring(0, edit.startOffset) + edit.replacement + source.substring(edit.endOffset)
+        fixed shouldBe "const val  /* c */  greeting = 1"
+    }
 })

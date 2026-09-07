@@ -22,4 +22,32 @@ class NoSingleLineBlockCommentDecisionSpec : BaseSpec({
             followedByCodeOnSameLine = false,
         ) shouldBe null
     }
+
+    should("replace with an EOL comment, trimming one leading and one trailing space") {
+        NoSingleLineBlockCommentDecision.replacement("/* text */") shouldBe "// text"
+    }
+
+    should("trim only one leading space, keeping the rest verbatim") {
+        NoSingleLineBlockCommentDecision.replacement("/*  text  */") shouldBe "//  text "
+    }
+
+    should("add no space when the content already touches the delimiters") {
+        NoSingleLineBlockCommentDecision.replacement("/*text*/") shouldBe "// text"
+    }
+
+    should("preserve an embedded // verbatim") {
+        NoSingleLineBlockCommentDecision.replacement("/* see // note */") shouldBe "// see // note"
+    }
+
+    should("decline an empty comment") {
+        NoSingleLineBlockCommentDecision.replacement("/* */") shouldBe null
+    }
+
+    should("decline a comment with only whitespace content") {
+        NoSingleLineBlockCommentDecision.replacement("/*   */") shouldBe null
+    }
+
+    should("decline the smallest possible empty comment") {
+        NoSingleLineBlockCommentDecision.replacement("/**/") shouldBe null
+    }
 })

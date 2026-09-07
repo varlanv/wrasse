@@ -1,5 +1,6 @@
 package com.varlanv.wrasse.rules
 
+import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.model.ChildBuffer
 import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
@@ -24,9 +25,16 @@ private val TARGET_TYPES = setOf(WNodeType.BINARY_EXPRESSION)
  * flattened through — the same boundary the upstream rule this derives from respects via its own
  * recursive descent. Whatever survives unconsumed by [afterFile] is each chain's own true
  * outermost node, decided and reported there.
+ *
+ * Every merge also asks [MixedConditionOperatorsDecision.wrapEdits] whether the child just folded
+ * in is a maximal `&&` sub-chain sitting as a direct operand of a `||` node; any such wrap, plus
+ * whatever wraps the child itself already carried, rides along in the chain's own [ChainNode.edits]
+ * up to whichever node survives to [afterFile] — see [MixedConditionOperatorsDecision] for why one
+ * pass of local, bottom-up wrap decisions is enough to parenthesize every maximal chain correctly.
  */
 class MixedConditionOperatorsRule : WUninitializedRule {
     override val id: String = "mixed-condition-operators"
+    override val canAutofix: Boolean = true
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
@@ -56,26 +64,36 @@ class MixedConditionOperatorsRule : WUninitializedRule {
 
                 var hasAnd = isAnd
                 var hasOr = !isAnd
-                mergeChild(children, leftIdx) { and, or ->
+                var edits: MutableList<WEdit>? = null
+                edits = mergeChild(children, leftIdx, isAnd, edits) { and, or ->
                     hasAnd = hasAnd || and
                     hasOr = hasOr || or
                 }
-                mergeChild(children, rightIdx) { and, or ->
+                edits = mergeChild(children, rightIdx, isAnd, edits) { and, or ->
                     hasAnd = hasAnd || and
                     hasOr = hasOr || or
                 }
 
-                chains[key(ctx.startOffset, ctx.endOffset)] = ChainNode(ctx.startOffset, ctx.endOffset, hasAnd, hasOr)
+                chains[key(ctx.startOffset, ctx.endOffset)] =
+                    ChainNode(ctx.startOffset, ctx.endOffset, hasAnd, hasOr, isAnd, edits ?: emptyList())
             }
 
             private fun mergeChild(
                 children: ChildBuffer,
                 idx: Int,
+                parentIsAnd: Boolean,
+                editsSoFar: MutableList<WEdit>?,
                 merge: (Boolean, Boolean) -> Unit,
-            ) {
-                if (children.type(idx) != WNodeType.BINARY_EXPRESSION) return
-                val child = chains.remove(key(children.startOffset(idx), children.endOffset(idx))) ?: return
+            ): MutableList<WEdit>? {
+                if (children.type(idx) != WNodeType.BINARY_EXPRESSION) return editsSoFar
+                val child = chains.remove(key(children.startOffset(idx), children.endOffset(idx))) ?: return editsSoFar
                 merge(child.hasAnd, child.hasOr)
+                val wrap = MixedConditionOperatorsDecision.wrapEdits(parentIsAnd, child.isAnd, child.start, child.end)
+                if (child.edits.isEmpty() && wrap.isEmpty()) return editsSoFar
+                val result = editsSoFar ?: mutableListOf()
+                result.addAll(child.edits)
+                result.addAll(wrap)
+                return result
             }
 
             private fun key(start: Int, end: Int): Long = (start.toLong() shl 32) or (end.toLong() and 0xFF_FFF_FFFL)
@@ -83,7 +101,7 @@ class MixedConditionOperatorsRule : WUninitializedRule {
             override fun afterFile(ctx: WContext, reporter: WReporter) {
                 for (chain in chains.values) {
                     val message = MixedConditionOperatorsDecision.decide(chain.hasAnd, chain.hasOr) ?: continue
-                    reporter.report(ruleId, message, chain.start, chain.end, this)
+                    reporter.report(ruleId, message, chain.start, chain.end, this, edits = chain.edits)
                 }
             }
         }
@@ -94,5 +112,7 @@ class MixedConditionOperatorsRule : WUninitializedRule {
         val end: Int,
         val hasAnd: Boolean,
         val hasOr: Boolean,
+        val isAnd: Boolean,
+        val edits: List<WEdit>,
     )
 }
