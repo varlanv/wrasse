@@ -1,7 +1,8 @@
 package com.varlanv.wrasse.plugin
 
+import com.varlanv.wrasse.lang.AppliedEdit
 import com.varlanv.wrasse.lang.FileApplyResult
-import com.varlanv.wrasse.lang.WEdit
+import com.varlanv.wrasse.lang.ReportedDiagnostic
 import com.varlanv.wrasse.testing.BaseSpec
 import com.varlanv.wrasse.testing.harness.TestDiagnostic
 import io.kotest.assertions.throwables.shouldThrow
@@ -27,32 +28,54 @@ private fun diagnostic(
     columnEnd: Int,
 ) = TestDiagnostic(CompilerMessageSeverity.ERROR, message, loc(line, column, lineEnd, columnEnd))
 
+private fun reported(
+    offset: Int,
+    fixable: Boolean,
+    message: String,
+) = ReportedDiagnostic(line = 1, column = offset + 1, offset = offset, ReportedDiagnostic.LEVEL_ERROR, fixable, message)
+
 class IdempotenceCycleSpec : BaseSpec({
-    val sourceText = "line1\nline2\nline3\n"
 
-    should("convert line:column to a character offset assuming LF line endings") {
-        IdempotenceCycle.lineColToOffset(sourceText, 1, 1) shouldBe 0
-        IdempotenceCycle.lineColToOffset(sourceText, 2, 1) shouldBe 6
-        IdempotenceCycle.lineColToOffset(sourceText, 3, 6) shouldBe 17
-    }
-
-    should("reconstruct a diagnostic's offset range from its start and end line:column") {
-        val range = IdempotenceCycle.diagnosticOffsetRange(sourceText, loc(1, 1, 1, 6))
-        range shouldBe 0..5
-    }
-
-    should("fall back to a zero-width range when the location carries no end position") {
-        val range = IdempotenceCycle.diagnosticOffsetRange(sourceText, loc(2, 1, -1, -1))
-        range shouldBe 6..6
-    }
-
-    should("exclude a diagnostic whose range overlaps an emitted edit from the survivor set") {
+    should("exclude a diagnostic whose own report entry says fixable from the survivor set") {
         val fixed = diagnostic("wrasse: fixable-rule: on line1", line = 1, column = 1, lineEnd = 1, columnEnd = 6)
         val flagOnly = diagnostic("wrasse: flag-only-rule: on line3", line = 3, column = 1, lineEnd = 3, columnEnd = 6)
         val survivors = IdempotenceCycle.expectedSurvivorKeys(
-            sourceText,
-            listOf(fixed, flagOnly),
-            listOf(WEdit(0, 5, "")),
+            diagnostics = listOf(fixed, flagOnly),
+            round1ReportedDiagnostics = listOf(
+                reported(offset = 0, fixable = true, message = "fixable-rule: on line1"),
+                reported(offset = 12, fixable = false, message = "flag-only-rule: on line3"),
+            ),
+            appliedEdits = emptyList(),
+            firstPatchedContent = "line1\nline2\nline3\n",
+        )
+        survivors shouldBe listOf("ERROR wrasse: flag-only-rule: on line3")
+    }
+
+    should(
+        "exclude a diagnostic whose offset falls inside another edit's applied span even though its own " +
+            "report entry says not fixable",
+    ) {
+        val absorbed = diagnostic("wrasse: absorbed-rule: on line1", line = 1, column = 4, lineEnd = 1, columnEnd = 5)
+        val survivors = IdempotenceCycle.expectedSurvivorKeys(
+            diagnostics = listOf(absorbed),
+            round1ReportedDiagnostics = listOf(
+                reported(offset = 3, fixable = false, message = "absorbed-rule: on line1"),
+            ),
+            appliedEdits = listOf(AppliedEdit(startOffset = 0, endOffset = 18, replacementLength = 18)),
+            firstPatchedContent = "line1\nline2\nline3\n",
+        )
+        survivors shouldBe emptyList()
+    }
+
+    should("keep a diagnostic whose report entry says not fixable and whose offset sits outside every applied edit") {
+        val flagOnly = diagnostic("wrasse: flag-only-rule: on line3", line = 3, column = 1, lineEnd = 3, columnEnd = 6)
+        val survivors = IdempotenceCycle.expectedSurvivorKeys(
+            diagnostics = listOf(flagOnly),
+            round1ReportedDiagnostics = listOf(
+                reported(offset = 12, fixable = false, message = "flag-only-rule: on line3"),
+            ),
+            appliedEdits = listOf(AppliedEdit(startOffset = 0, endOffset = 5, replacementLength = 5)),
+            firstPatchedContent = "line1\nline2\nline3\n",
         )
         survivors shouldBe listOf("ERROR wrasse: flag-only-rule: on line3")
     }
@@ -63,9 +86,15 @@ class IdempotenceCycleSpec : BaseSpec({
         val fixed = diagnostic("wrasse: fixable-rule: on line1", line = 1, column = 1, lineEnd = 1, columnEnd = 6)
         val flagOnly = diagnostic("wrasse: flag-only-rule: on line3", line = 3, column = 1, lineEnd = 3, columnEnd = 6)
         val survivors = IdempotenceCycle.expectedSurvivorKeys(
-            sourceText,
-            listOf(fixed, fixed, flagOnly, flagOnly),
-            listOf(WEdit(0, 5, "")),
+            diagnostics = listOf(fixed, fixed, flagOnly, flagOnly),
+            round1ReportedDiagnostics = listOf(
+                reported(offset = 0, fixable = true, message = "fixable-rule: on line1"),
+                reported(offset = 6, fixable = true, message = "fixable-rule: on line1"),
+                reported(offset = 12, fixable = false, message = "flag-only-rule: on line3"),
+                reported(offset = 15, fixable = false, message = "flag-only-rule: on line3"),
+            ),
+            appliedEdits = emptyList(),
+            firstPatchedContent = "line1\nline2\nline3\n",
         )
         survivors shouldBe listOf("ERROR wrasse: flag-only-rule: on line3", "ERROR wrasse: flag-only-rule: on line3")
     }

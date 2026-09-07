@@ -1,10 +1,14 @@
 package com.varlanv.wrasse.plugin
 
+import com.varlanv.wrasse.lang.AppliedEdit
+import com.varlanv.wrasse.lang.ApplyResult
 import com.varlanv.wrasse.lang.FileApplyResult
 import com.varlanv.wrasse.lang.FileEdits
-import com.varlanv.wrasse.lang.WEdit
+import com.varlanv.wrasse.lang.ReportedDiagnostic
 import com.varlanv.wrasse.lang.WPatchApplier
 import com.varlanv.wrasse.lang.WPatchReader
+import com.varlanv.wrasse.lang.WReportReader
+import com.varlanv.wrasse.lang.WReportReplay
 import com.varlanv.wrasse.testing.harness.CompilationResult
 import com.varlanv.wrasse.testing.harness.TestDiagnostic
 import com.varlanv.wrasse.testing.harness.TestSource
@@ -13,10 +17,10 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import java.nio.file.Files
 import java.nio.file.Path
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 
 object IdempotenceCycle {
     private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
+    private const val REPORT_FILE_NAME = "wrasse-report.txt"
 
     /**
      * Bound on the further apply-and-recompile rounds a fixture opting into `multi-pass-fix` may
@@ -41,10 +45,18 @@ object IdempotenceCycle {
         val edits = WPatchReader.read(Files.readString(patchFile)).flatMap { it.edits }
         if (edits.isEmpty()) return null
 
-        val expectedSurvivors = expectedSurvivorKeys(source.content, round1.wrasseDiagnostics, edits)
+        val filePath = harness.sourcePath(workDir, source)
+        val round1ReportedDiagnostics = reportedDiagnosticsFor(fixOutputDir, filePath)
 
-        applyPatch(fixOutputDir)
-        val firstPatchedContent = Files.readString(harness.sourcePath(workDir, source))
+        val applyResult = applyPatch(fixOutputDir)
+        val firstPatchedContent = Files.readString(filePath)
+        val expectedSurvivors = expectedSurvivorKeys(
+            round1.wrasseDiagnostics,
+            round1ReportedDiagnostics,
+            appliedEditsFor(applyResult, filePath),
+            firstPatchedContent,
+        )
+
         var latestRound = harness.compile(listOf(TestSource(source.path, firstPatchedContent)) + auxSources, workDir)
         assertNoNewCompileErrors(round1.diagnostics, latestRound.diagnostics)
 
@@ -59,7 +71,7 @@ object IdempotenceCycle {
                 (extraRounds <= MAX_EXTRA_ROUNDS) shouldBe true
             }
             applyPatch(fixOutputDir)
-            val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+            val patchedContent = Files.readString(filePath)
             latestRound = harness.compile(listOf(TestSource(source.path, patchedContent)) + auxSources, workDir)
             assertNoNewCompileErrors(round1.diagnostics, latestRound.diagnostics)
         }
@@ -70,56 +82,57 @@ object IdempotenceCycle {
         return firstPatchedContent
     }
 
-    private fun applyPatch(fixOutputDir: Path) {
+    private fun applyPatch(fixOutputDir: Path): ApplyResult {
         val applyResult = WPatchApplier.apply(fixOutputDir)
         assertPatchFullyApplied(applyResult.files)
+        return applyResult
     }
 
     private fun hasResidualEdits(patchFile: Path): Boolean =
         Files.exists(patchFile) && WPatchReader.read(Files.readString(patchFile)).any { it.edits.isNotEmpty() }
 
+    private fun reportedDiagnosticsFor(fixOutputDir: Path, filePath: Path): List<ReportedDiagnostic> {
+        val reportFile = fixOutputDir.resolve("patch").resolve(REPORT_FILE_NAME)
+        if (!Files.exists(reportFile)) return emptyList()
+        return WReportReader.read(Files.readString(reportFile))
+            .firstOrNull { it.filePath == filePath.toString() }
+            ?.diagnostics
+            ?: emptyList()
+    }
+
+    private fun appliedEditsFor(applyResult: ApplyResult, filePath: Path): List<AppliedEdit> =
+        (applyResult.files.firstOrNull { it.filePath == filePath } as? FileApplyResult.Applied)?.edits ?: emptyList()
+
     fun diagnosticKey(diagnostic: TestDiagnostic): String =
         "${diagnostic.severity} ${diagnostic.message}"
 
-    fun lineColToOffset(
-        sourceText: String,
-        line: Int,
-        column: Int,
-    ): Int {
-        var offset = 0
-        var currentLine = 1
-        while (currentLine < line) {
-            val next = sourceText.indexOf('\n', offset)
-            require(next >= 0) {
-                "line $line is out of range for source with ${sourceText.count { it == '\n' } + 1} line(s)"
-            }
-            offset = next + 1
-            currentLine++
-        }
-        return offset + (column - 1)
-    }
-
-    fun diagnosticOffsetRange(sourceText: String, location: CompilerMessageSourceLocation?): IntRange? {
-        if (location == null) return null
-        val start = lineColToOffset(sourceText, location.line, location.column)
-        val end = if (location.lineEnd >= 1 && location.columnEnd >= 1) {
-            lineColToOffset(sourceText, location.lineEnd, location.columnEnd)
-        } else {
-            start
-        }
-        return if (start <= end) start..end else end..start
-    }
-
+    /**
+     * A round-1 diagnostic is expected to survive round 2 unless [WReportReplay.remap] keeps it out
+     * of [round1ReportedDiagnostics]'s survivors: that drops every `fixable` entry outright, and,
+     * for the rest, one whose own offset falls inside an edit [appliedEdits] actually applied. The
+     * second condition covers what a bare `fixable=0` reading cannot: a finding whose own edit was
+     * folded into a wider one (`format` always emits a single whole-file edit, absorbing every edit
+     * it spliced in) is still genuinely fixed even though its own group never survives per-group
+     * overlap resolution, so its own `fixable` bit alone reads `0`. Matched to [diagnostics] by
+     * de-prefixed message text (the rule id is baked into it, so distinct rules never collide), one
+     * survivor consumed per matching round-1 diagnostic to preserve multiplicity.
+     */
     fun expectedSurvivorKeys(
-        sourceText: String,
         diagnostics: List<TestDiagnostic>,
-        edits: List<WEdit>,
+        round1ReportedDiagnostics: List<ReportedDiagnostic>,
+        appliedEdits: List<AppliedEdit>,
+        firstPatchedContent: CharSequence,
     ): List<String> {
-        val editRanges = edits.map { it.startOffset..it.endOffset }
+        val survivingCounts = WReportReplay.remap(round1ReportedDiagnostics, appliedEdits, firstPatchedContent)
+            .groupingBy { it.message }
+            .eachCount()
+            .toMutableMap()
         return diagnostics.mapNotNull { diagnostic ->
-            val range = diagnosticOffsetRange(sourceText, diagnostic.location)
-            val carriedEdit = range != null && editRanges.any { it.overlapsInclusive(range) }
-            if (carriedEdit) null else diagnosticKey(diagnostic)
+            val message = diagnostic.message.removePrefix("wrasse: ")
+            val remaining = survivingCounts[message] ?: 0
+            if (remaining <= 0) return@mapNotNull null
+            survivingCounts[message] = remaining - 1
+            diagnosticKey(diagnostic)
         }
     }
 
@@ -212,9 +225,6 @@ object IdempotenceCycle {
             actualSorted shouldBe expectedSorted
         }
     }
-
-    private fun IntRange.overlapsInclusive(other: IntRange): Boolean =
-        first <= other.last && other.first <= last
 
     private fun describeApplyResult(result: FileApplyResult): String = when (result) {
         is FileApplyResult.Applied -> "  Applied: ${result.filePath} (${result.editCount} edits)"
