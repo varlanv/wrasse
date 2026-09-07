@@ -47,6 +47,33 @@ class InvalidationSpec : ShouldSpec({
         }
     }
 
+    should("resolve extends past a commented-out entry, and still track the real one as a compile input") {
+        val playground = Playground.create("extends-change-commented")
+        try {
+            playground.module("app", mapOf("sample/Sample.kt" to SEMICOLON_SOURCE))
+            playground.settings()
+            playground.rootFile("base.json", WARN_CONFIG)
+            playground.config(
+                """
+                {
+                    // "extends": "wrong-base.json",
+                    "extends": "base.json"
+                }
+                """.trimIndent(),
+            )
+            val sourceUri = playground.sourceUri("app", "sample/Sample.kt")
+
+            playground.run("wrasseLint").output shouldContain "w: $sourceUri:3:16 wrasse: no-semicolons"
+
+            playground.rootFile("base.json", ERROR_CONFIG)
+            val afterChange = playground.runAndFail("wrasseLint")
+            afterChange.output shouldNotContain "Task :app:compileKotlin UP-TO-DATE"
+            afterChange.output shouldContain "e: $sourceUri:3:16 wrasse: no-semicolons"
+        } finally {
+            playground.delete()
+        }
+    }
+
     should("keep only the findings of files an incremental compile still sees as violating") {
         val playground = Playground.create("incremental")
         try {

@@ -50,7 +50,7 @@ object IdempotenceCycle {
 
         val applyResult = applyPatch(fixOutputDir)
         val firstPatchedContent = Files.readString(filePath)
-        val expectedSurvivors = expectedSurvivorKeys(
+        var expectedSurvivors = expectedSurvivorKeys(
             round1.wrasseDiagnostics,
             round1ReportedDiagnostics,
             appliedEditsFor(applyResult, filePath),
@@ -70,8 +70,16 @@ object IdempotenceCycle {
             ) {
                 (extraRounds <= MAX_EXTRA_ROUNDS) shouldBe true
             }
-            applyPatch(fixOutputDir)
+            val roundReportedDiagnostics = reportedDiagnosticsFor(fixOutputDir, filePath)
+            val roundApplyResult = applyPatch(fixOutputDir)
             val patchedContent = Files.readString(filePath)
+            expectedSurvivors =
+                expectedSurvivorKeys(
+                    latestRound.wrasseDiagnostics,
+                    roundReportedDiagnostics,
+                    appliedEditsFor(roundApplyResult, filePath),
+                    patchedContent,
+                )
             latestRound = harness.compile(listOf(TestSource(source.path, patchedContent)) + auxSources, workDir)
             assertNoNewCompileErrors(round1.diagnostics, latestRound.diagnostics)
         }
@@ -94,10 +102,10 @@ object IdempotenceCycle {
     private fun reportedDiagnosticsFor(fixOutputDir: Path, filePath: Path): List<ReportedDiagnostic> {
         val reportFile = fixOutputDir.resolve("patch").resolve(REPORT_FILE_NAME)
         if (!Files.exists(reportFile)) return emptyList()
-        return WReportReader.read(Files.readString(reportFile))
+        return WReportReader
+            .read(Files.readString(reportFile))
             .firstOrNull { it.filePath == filePath.toString() }
-            ?.diagnostics
-            ?: emptyList()
+            ?.diagnostics ?: emptyList()
     }
 
     private fun appliedEditsFor(applyResult: ApplyResult, filePath: Path): List<AppliedEdit> =
@@ -123,7 +131,8 @@ object IdempotenceCycle {
         appliedEdits: List<AppliedEdit>,
         firstPatchedContent: CharSequence,
     ): List<String> {
-        val survivingCounts = WReportReplay.remap(round1ReportedDiagnostics, appliedEdits, firstPatchedContent)
+        val survivingCounts = WReportReplay
+            .remap(round1ReportedDiagnostics, appliedEdits, firstPatchedContent)
             .groupingBy { it.message }
             .eachCount()
             .toMutableMap()
@@ -163,10 +172,14 @@ object IdempotenceCycle {
         }
     }
 
-    private fun describeResidualEntries(entries: List<FileEdits>): String = entries.joinToString("\n") { file ->
-        "  ${file.filePath} (${file.edits.size} edits)" +
-            file.edits.joinToString("") { "\n    [${it.startOffset}, ${it.endOffset}) -> ${it.replacement.take(400)}" }
-    }.ifEmpty { "  (none)" }
+    private fun describeResidualEntries(entries: List<FileEdits>): String = entries
+        .joinToString("\n") { file ->
+            "  ${file.filePath} (${file.edits.size} edits)" +
+                file.edits.joinToString(
+                    "",
+                ) { "\n    [${it.startOffset}, ${it.endOffset}) -> ${it.replacement.take(400)}" }
+        }
+        .ifEmpty { "  (none)" }
 
     /**
      * Fails if applying the fix introduced a non-wrasse `e:`-severity diagnostic message present in

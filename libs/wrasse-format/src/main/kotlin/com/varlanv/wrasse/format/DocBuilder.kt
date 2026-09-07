@@ -298,6 +298,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             return
         }
         ctx.editPlan.recordDropped(dropped)
+        ctx.editPlan.recordAbsorbed(kept.map { it.groupId })
         val renderStarted = if (perf.enabled) System.nanoTime() else 0L
         val rendered = Layout.render(spliced, style)
         if (perf.enabled) perf.record("phase:format-render", System.nanoTime() - renderStarted)

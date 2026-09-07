@@ -394,7 +394,9 @@ class WrassePlugin(
 
     private fun isUnderExcludedRoot(filePath: Path): Boolean {
         if (excludedRoots.isEmpty()) return false
-        return excludedRoots.any { filePath.startsWith(it) }
+        if (excludedRoots.any { filePath.startsWith(it) }) return true
+        val realFilePath = runCatching { filePath.toRealPath() }.getOrNull() ?: return false
+        return excludedRoots.any { realFilePath.startsWith(it) }
     }
 
     private fun relativeToConfigDir(filePath: Path): Path {

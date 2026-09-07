@@ -8,6 +8,12 @@ import java.nio.file.Path
 
 class WConfigSpec : BaseSpec({
 
+    fun singleLevelResolver(json: String): ExtendsResolver = ExtendsResolver {
+        ConfigValueJsonc.parse(json).map {
+            ExtendsResolution(it, ExtendsResolver { Result.failure(Exception("no further extends configured")) })
+        }
+    }
+
     fun buildConfig(
         json: String,
         configDir: Path? = null,
@@ -26,7 +32,7 @@ class WConfigSpec : BaseSpec({
                 configValue = childValue,
                 ruleIds = setOf("no-semicolons"),
                 warnOnly = false,
-                resolveExtends = { ConfigValueJsonc.parse(baseJson) },
+                resolveExtends = singleLevelResolver(baseJson),
             )
             .getOrThrow()
     }
@@ -50,12 +56,10 @@ class WConfigSpec : BaseSpec({
             .format
             .style
         style("""{"format":{},"rules":{"named-arguments":{"level":"error"}}}""").wrapNestedCallArguments shouldBe true
-        style(
-            """{"format":{},"rules":{"named-arguments":{"level":"error","wrap":false}}}""",
-        ).wrapNestedCallArguments shouldBe false
-        style(
-            """{"format":{},"rules":{"named-arguments":{"level":"off","wrap":true}}}""",
-        ).wrapNestedCallArguments shouldBe false
+        style("""{"format":{},"rules":{"named-arguments":{"level":"error","wrap":false}}}""")
+            .wrapNestedCallArguments shouldBe false
+        style("""{"format":{},"rules":{"named-arguments":{"level":"off","wrap":true}}}""")
+            .wrapNestedCallArguments shouldBe false
         style("""{"format":{},"rules":{"no-semicolons":{"level":"error"}}}""").wrapNestedCallArguments shouldBe false
     }
 
@@ -140,14 +144,13 @@ class WConfigSpec : BaseSpec({
         configValue = ConfigValueJsonc.parse(json).getOrThrow(),
         ruleIds = setOf("no-semicolons"),
         warnOnly = false,
-        resolveExtends = baseJson?.let { base -> { ConfigValueJsonc.parse(base) } },
+        resolveExtends = baseJson?.let { base -> singleLevelResolver(base) },
         ruleOptionSpecs = optionSpecs,
     )
 
     should("parse declared options, applying defaults and leaving a default-less optional absent") {
-        val config = buildWithOptions(
-            """{"rules":{"no-semicolons":{"level":"error","prefixes":["a","b"]}}}""",
-        ).getOrThrow()
+        val config = buildWithOptions("""{"rules":{"no-semicolons":{"level":"error","prefixes":["a","b"]}}}""")
+            .getOrThrow()
         val options = config.rulesConfigs.idToConfig.getValue("no-semicolons").options
         options.boolean("allow-inline") shouldBe false
         options.integerOrNull("max-width") shouldBe null
@@ -306,5 +309,40 @@ class WConfigSpec : BaseSpec({
         )
         config.format.enabled shouldBe true
         config.format.style.indentWidth shouldBe 8
+    }
+
+    should("resolve a second-level extends against the resolver the first level returned, not the leaf's") {
+        var resolverB: ExtendsResolver? = null
+        val resolverA = ExtendsResolver { relativePath ->
+            if (relativePath == "level1") {
+                ConfigValueJsonc
+                    .parse("""{"extends":"level2","rules":{"no-semicolons":{"level":"warn"}}}""")
+                    .map { ExtendsResolution(it, resolverB!!) }
+            } else {
+                Result.failure(Exception("resolverA cannot resolve $relativePath"))
+            }
+        }
+        resolverB = ExtendsResolver { relativePath ->
+            if (relativePath == "level2") {
+                ConfigValueJsonc
+                    .parse("""{"rules":{"no-semicolons":{"level":"error"},"magic-number":{"level":"warn"}}}""")
+                    .map { ExtendsResolution(it, resolverB!!) }
+            } else {
+                Result.failure(Exception("resolverB cannot resolve $relativePath"))
+            }
+        }
+        val childValue = ConfigValueJsonc.parse("""{"extends":"level1","rules":{}}""").getOrThrow()
+
+        val config = WConfig
+            .from(
+                configValue = childValue,
+                ruleIds = setOf("no-semicolons", "magic-number"),
+                warnOnly = false,
+                resolveExtends = resolverA,
+            )
+            .getOrThrow()
+
+        config.rulesConfigs.idToConfig.getValue("no-semicolons").level shouldBe RuleLevel.WARN
+        config.rulesConfigs.idToConfig.getValue("magic-number").level shouldBe RuleLevel.WARN
     }
 })

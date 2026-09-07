@@ -46,6 +46,19 @@ class EditPlanSpec : BaseSpec({
         edits.map { it.replacement } shouldBe listOf("y = ", "x = ")
     }
 
+    should("count a group whose identical edit was merged away as surviving too") {
+        val plan = EditPlan()
+        val firstGroup = plan.newGroupId()
+        plan.add("named-arguments", WEdit(10, 10, "x = "), firstGroup)
+        val secondGroup = plan.newGroupId()
+        plan.add("no-mixed-named-positional-arguments", WEdit(10, 10, "x = "), secondGroup)
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 1
+        plan.survivingGroupIds() shouldBe setOf(firstGroup, secondGroup)
+    }
+
     should("take and remove edits whose span lies within the requested range") {
         val plan = EditPlan()
         plan.add("inner", WEdit(3, 4, "x"))
@@ -248,6 +261,23 @@ class EditPlanSpec : BaseSpec({
 
         edits shouldHaveSize 5_000
         plan.droppedEdits().shouldBeEmpty()
+    }
+
+    should("include a recordAbsorbed group id in survivingGroupIds even though its edit never returns to the plan") {
+        val plan = EditPlan()
+        val absorbedGroup = plan.newGroupId()
+        plan.add("no-semicolons", WEdit(5, 6, ""), absorbedGroup)
+
+        val taken = plan.takeAll()
+        plan.recordAbsorbed(taken.map { it.groupId })
+        val formatGroup = plan.newGroupId()
+        plan.add("format", WEdit(0, 20, "rendered"), formatGroup)
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 1
+        edits[0].replacement shouldBe "rendered"
+        plan.survivingGroupIds() shouldBe setOf(formatGroup, absorbedGroup)
     }
 
     should("resolve a file-spanning kept group against 5,000 later singletons quickly") {

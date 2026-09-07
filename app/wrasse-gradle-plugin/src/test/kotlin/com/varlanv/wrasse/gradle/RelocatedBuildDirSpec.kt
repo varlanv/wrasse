@@ -33,4 +33,31 @@ class RelocatedBuildDirSpec : ShouldSpec({
             playground.delete()
         }
     }
+
+    should("still find the build directory a consumer relocates from its own later afterEvaluate") {
+        val playground = Playground.create("relocated-build-dir-after-evaluate")
+        try {
+            playground.module(
+                "app",
+                mapOf("sample/Sample.kt" to SEMICOLON_SOURCE),
+                afterExtension = """
+                afterEvaluate {
+                    layout.buildDirectory.set(layout.projectDirectory.dir("out"))
+                }
+                """.trimIndent(),
+            )
+            playground.settings()
+            playground.config(WARN_CONFIG)
+            val finding = "w: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 " +
+                "wrasse: no-semicolons: Unnecessary semicolon"
+
+            val lint = playground.run("wrasseLint")
+
+            lint.output.countOf(finding) shouldBe 1
+            Files.readString(playground.dir.resolve("app/out/wrasse/main/patch/wrasse-fixes.txt")) shouldContain "Sample.kt"
+            Files.exists(playground.dir.resolve("app/build")) shouldBe false
+        } finally {
+            playground.delete()
+        }
+    }
 })

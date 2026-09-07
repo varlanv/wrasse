@@ -99,9 +99,8 @@ class TrivialAccessorsRule : WUninitializedRule {
                 val idx = singleSignificant(
                     children,
                 ) { it.isWhitespaceOrComment || it == WNodeType.KW_RETURN } ?: return
-                if (children.type(
-                    idx,
-                ) == WNodeType.REFERENCE_EXPRESSION && children.textSpan(idx, ctx.sourceText).contentEquals("field")) {
+                if (children.type(idx) == WNodeType.REFERENCE_EXPRESSION &&
+                    children.textSpan(idx, ctx.sourceText).contentEquals("field")) {
                     pending.blockMatched = true
                 }
             }
@@ -120,9 +119,8 @@ class TrivialAccessorsRule : WUninitializedRule {
                     !children.textSpan(leftIdx, ctx.sourceText).contentEquals("field")) {
                     return
                 }
-                if (children.type(
-                    opIdx,
-                ) != WNodeType.OPERATION_REFERENCE || !children.textSpan(opIdx, ctx.sourceText).contentEquals("=")) {
+                if (children.type(opIdx) != WNodeType.OPERATION_REFERENCE ||
+                    !children.textSpan(opIdx, ctx.sourceText).contentEquals("=")) {
                     return
                 }
                 if (children.type(rightIdx) !=
@@ -182,9 +180,8 @@ class TrivialAccessorsRule : WUninitializedRule {
                 var i = eqIdx + 1
                 while (i < children.size && children.type(i).isWhitespaceOrComment) i++
                 if (i >= children.size) return false
-                return children.type(
-                    i,
-                ) == WNodeType.REFERENCE_EXPRESSION && children.textSpan(i, sourceText).contentEquals("field")
+                return children.type(i) == WNodeType.REFERENCE_EXPRESSION &&
+                    children.textSpan(i, sourceText).contentEquals("field")
             }
 
             private fun singleSignificant(children: ChildBuffer, ignore: (WNodeType) -> Boolean): Int? {

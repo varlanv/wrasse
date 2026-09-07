@@ -6,6 +6,8 @@ import com.varlanv.wrasse.lang.FileWalkUp
 import com.varlanv.wrasse.lang.FormatRequest
 import com.varlanv.wrasse.lang.RunRequest
 import com.varlanv.wrasse.lang.WPerf
+import com.varlanv.wrasse.model.ExtendsResolution
+import com.varlanv.wrasse.model.ExtendsResolver
 import com.varlanv.wrasse.model.WConfig
 import com.varlanv.wrasse.model.WRuleOptionSpec
 import com.varlanv.wrasse.model.WRuleSet
@@ -319,7 +321,8 @@ private fun loadConfig(
     )
 }
 
-private fun resolveExtendsFrom(baseDir: Path): (String) -> Result<ConfigValue> = { relativePath ->
+/** Resolves each `"extends"` link's path against the directory of the file that named it, not the leaf config's. */
+private fun resolveExtendsFrom(baseDir: Path): ExtendsResolver = ExtendsResolver { relativePath ->
     val resolved = baseDir.resolve(relativePath).normalize()
     if (!resolved.toFile().isFile) {
         Result.failure(Exception("wrasse: extended config not found: $resolved"))
@@ -328,7 +331,7 @@ private fun resolveExtendsFrom(baseDir: Path): (String) -> Result<ConfigValue> =
         ConfigValueJsonc
             .parse(input = text)
             .fold(
-                { Result.success(it) },
+                { Result.success(ExtendsResolution(it, resolveExtendsFrom(resolved.parent))) },
                 { Result.failure(Exception("wrasse: failed to parse $resolved: ${it.message}", it)) },
             )
     }

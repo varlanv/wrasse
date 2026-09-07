@@ -41,8 +41,9 @@ class RequestCleanupSpec : ShouldSpec({
 
             val result = playground.run("wrasseLint", "wrasseFormat")
 
-            val lintIndex = result.output.indexOf("> Task :app:wrasseLintRequest")
-            val formatIndex = result.output.indexOf("> Task :app:wrasseFormatRequest")
+            val taskPaths = result.tasks.map { it.path }
+            val lintIndex = taskPaths.indexOf(":app:wrasseLintRequest")
+            val formatIndex = taskPaths.indexOf(":app:wrasseFormatRequest")
             lintIndex shouldBeGreaterThan -1
             formatIndex shouldBeGreaterThan lintIndex
             Files.readString(playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")) shouldBe CLEAN_SOURCE

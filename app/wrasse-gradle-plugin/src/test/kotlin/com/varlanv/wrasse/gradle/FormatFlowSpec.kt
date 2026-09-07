@@ -64,6 +64,28 @@ class FormatFlowSpec : ShouldSpec({
         }
     }
 
+    should("fail with the same message on an error-level finding it could not fix, before and after the fixable one is applied") {
+        val playground = Playground.create("format-remaining-errors")
+        try {
+            val errorConfig = """{"rules":{"no-semicolons":{"level":"error"},"magic-number":{"level":"error"}}}"""
+            playground.module("app", mapOf("sample/Sample.kt" to source))
+            playground.settings()
+            playground.config(errorConfig)
+            val message = "wrasse found 1 error-level violation(s) in :app"
+            val fixedFile = playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")
+
+            val first = playground.runAndFail("wrasseFormat")
+            first.output shouldContain message
+            Files.readString(fixedFile) shouldBe "package sample\n\nfun main() {\n    println(42)\n}\n"
+
+            val second = playground.runAndFail("wrasseFormat")
+            second.output shouldContain message
+            Files.readString(fixedFile) shouldBe "package sample\n\nfun main() {\n    println(42)\n}\n"
+        } finally {
+            playground.delete()
+        }
+    }
+
     should("apply nothing and leave no request behind when the compile was up to date") {
         val playground = Playground.create("format-uptodate")
         try {

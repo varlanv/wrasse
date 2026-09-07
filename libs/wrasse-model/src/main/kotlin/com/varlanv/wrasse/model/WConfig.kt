@@ -7,6 +7,14 @@ import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.nio.file.PathMatcher
 
+/** Resolves one `"extends"` entry to its parsed value plus the [ExtendsResolver] its own `"extends"` (if any) resolves against. */
+fun interface ExtendsResolver {
+    fun resolve(relativePath: String): Result<ExtendsResolution>
+}
+
+/** One resolved `"extends"` link: its parsed [value] and the [next] resolver for its own `"extends"`, if it has one. */
+class ExtendsResolution(val value: ConfigValue, val next: ExtendsResolver)
+
 class WConfig(
     val exclude: List<PathMatcher>,
     val rulesConfigs: WrasseRulesConfig,
@@ -25,7 +33,7 @@ class WConfig(
             ruleIds: Set<String>,
             warnOnly: Boolean,
             configDir: Path? = null,
-            resolveExtends: ((String) -> Result<ConfigValue>)? = null,
+            resolveExtends: ExtendsResolver? = null,
             explicitApiActive: Boolean = false,
             ruleOptionSpecs: Map<String, List<WRuleOptionSpec>> = emptyMap(),
         ): Result<WConfig> {
@@ -35,7 +43,7 @@ class WConfig(
 
         private fun resolveRaw(
             configValue: ConfigValue,
-            resolveExtends: ((String) -> Result<ConfigValue>)?,
+            resolveExtends: ExtendsResolver?,
             depth: Int,
         ): Result<RawConfig> {
             if (depth > MAX_EXTENDS_DEPTH) {
@@ -53,8 +61,10 @@ class WConfig(
                     if (resolveExtends == null) {
                         return Result.failure(Exception("'extends' is not supported in this context"))
                     }
-                    val baseValue = resolveExtends(extendsProp.value.value).getOrElse { return Result.failure(it) }
-                    resolveRaw(baseValue, resolveExtends, depth + 1).getOrElse { return Result.failure(it) }
+                    val resolution = resolveExtends
+                        .resolve(extendsProp.value.value)
+                        .getOrElse { return Result.failure(it) }
+                    resolveRaw(resolution.value, resolution.next, depth + 1).getOrElse { return Result.failure(it) }
                 }
                 is Property.TypeMismatch -> {
                     return Result.failure(Exception("'extends' must be a string, got ${extendsProp.actual.typeName()}"))

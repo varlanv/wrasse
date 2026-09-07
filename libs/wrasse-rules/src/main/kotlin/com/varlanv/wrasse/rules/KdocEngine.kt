@@ -88,8 +88,7 @@ class KdocEngine : WUninitializedRuleGroup {
             }
 
             override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
-                if (
-                ctx.type ==
+                if (ctx.type ==
                     WNodeType.IDENTIFIER &&
                     pendingClassNames.isNotEmpty() &&
                     pendingClassNames[pendingClassNames.size - 1] ==

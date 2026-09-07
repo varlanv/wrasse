@@ -130,6 +130,11 @@ app/
                             never rewrites sources) and `wrasseFormat` on `wrasseApply`; a build service deletes
                             every request file when the build ends, whatever its outcome; and `wrasseLint`
                             replays only the entries of files its compile tasks still list as sources.
+                            `excludedRoot` is a plain (never real-pathed) absolute path, matched against both
+                            the plain and the real path of each file, so a project reached through a symlink
+                            still excludes generated sources; `wrasseApply` (and so `wrasseFormat`) fails with
+                            the same `wrasse found N error-level violation(s)` message as `wrasseLint` when a
+                            replayed line is error-level, instead of a green build with unfixed errors left.
 testing/
   common-test/                          BaseSpec (kotest ShouldSpec base), useTempDir
   wrasse-realworld-bench/               generator for synthetic 5k/50k/1M-LOC Gradle projects + bench.sh
@@ -178,7 +183,9 @@ as an empty report). `replayReports` in `wrasse-lang` renders the still-current 
 kotlinc prints a diagnostic, which is how the Gradle plugin's `wrasseLint` shows the same findings
 whether the compile ran, was UP-TO-DATE or came from the cache; when `wrasseApply` just rewrote a
 file, `replayReports`/`WReportReplay.collect` remap that file's still-non-fixable entries onto the
-new content (`WReportReplay.remap`, offset shift + dropped-if-inside-a-replaced-span) and persist
+new content (`WReportReplay.remap`: offset shift outside an edit's span, a line-by-line diff of that
+edit's original and replacement text for any span longer than one line, and drop only for a
+single-line span or a line genuinely gone with nothing new in its place) and persist
 them back under the new hash instead of dropping them for looking stale, which is what makes a
 file's non-fixable findings show up on the very same `wrasseFormat` run that fixed its other
 findings, not only the next one. `isCurrent`/replay also fall back to an LF-normalized hash for a

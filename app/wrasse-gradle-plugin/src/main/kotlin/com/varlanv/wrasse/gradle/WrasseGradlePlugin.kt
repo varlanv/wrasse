@@ -1,6 +1,7 @@
 package com.varlanv.wrasse.gradle
 
 import java.io.File
+import java.net.URI
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.concurrent.Callable
@@ -41,6 +42,7 @@ private const val PATCH_FILE = "wrasse-fixes.txt"
 private const val REPORT_FILE = "wrasse-report.txt"
 private const val REQUEST_FILE = "format-request"
 private const val KAPT_STUB_TASK_CLASS = "org.jetbrains.kotlin.gradle.internal.KaptGenerateStubsTask"
+private const val KOTLIN_COMPILE_CLASS = "org.jetbrains.kotlin.gradle.tasks.KotlinCompile"
 private val EXTENDS_ENTRY = Regex("\"extends\"\\s*:\\s*\"([^\"]+)\"")
 private val KOTLIN_PLUGIN_IDS =
     listOf("org.jetbrains.kotlin.jvm", "org.jetbrains.kotlin.multiplatform", "org.jetbrains.kotlin.android")
@@ -93,8 +95,9 @@ class WrasseGradlePlugin @Inject constructor(
         }
         val toolClasspath = project.files(tool)
         val wrasseDir = project.layout.buildDirectory.dir(WRASSE_DIR)
+        var wiredCompiles: TaskCollection<out Task>? = null
         val compilationDirs = wrasseDir.map { dir ->
-            project.tasks.names.filter { isCompileTaskName(it) }.map { File(dir.asFile, compilationName(it)) }
+            (wiredCompiles?.filterNot(::isKaptStub) ?: emptyList()).map { compile -> File(dir.asFile, compilationName(compile.name)) }
         }
         val debugPerformance = project.providers.gradleProperty("wrasseDebugPerformance").map { true }.orElse(false)
 
@@ -121,6 +124,7 @@ class WrasseGradlePlugin @Inject constructor(
             task.toolClasspath.from(toolClasspath)
             task.wrasseDir.set(wrasseDir)
             task.projectDir.set(project.layout.projectDirectory)
+            task.projectPath.set(project.path)
         }
         val lint = project.tasks.register("wrasseLint", WrasseLintTask::class.java) { task ->
             task.group = GROUP
@@ -131,6 +135,7 @@ class WrasseGradlePlugin @Inject constructor(
             task.projectPath.set(project.path)
             task.dependsOn(lintRequest)
         }
+        lint.configure { it.mustRunAfter(apply) }
         project.tasks.register("wrasseFormat") { task ->
             task.group = GROUP
             task.description = "Formats and autofixes this project's sources with wrasse"
@@ -144,6 +149,7 @@ class WrasseGradlePlugin @Inject constructor(
                 val compileClass = kotlinCompileClass(project, pluginId) ?: return@withPlugin
                 wired = true
                 val compiles = project.tasks.withType(compileClass)
+                wiredCompiles = compiles
                 wireCompiles(project, extension, wrasseDir, compiles)
                 compiles.configureEach { it.mustRunAfter(formatRequest, lintRequest) }
                 lint.configure { task ->
@@ -156,10 +162,9 @@ class WrasseGradlePlugin @Inject constructor(
     }
 
     /**
-     * Adds the compiler-plugin args once the project is evaluated, so they land after a consumer's
-     * own `compilerOptions.freeCompilerArgs.set(...)`; the property is final by the time a task
-     * action runs. A kapt stub task inherits the real compile's arguments from the Kotlin Gradle
-     * plugin and is switched off again by an `enabled=false` of its own.
+     * Wires each real compile's compiler-plugin args as a lazy [Provider] (see
+     * [appendFreeCompilerArgs]), evaluated at Gradle's own property-finalization time rather than
+     * here. A kapt stub task gets only `enabled=false`.
      */
     private fun wireCompiles(
         project: Project,
@@ -189,24 +194,26 @@ class WrasseGradlePlugin @Inject constructor(
                 )
             }
             requireCommaFree(project.projectDir.absolutePath)
-            val buildDir = project.layout.buildDirectory.get().asFile
-            val excludedRoot = realPath(buildDir)
-            requireCommaFree(excludedRoot)
             compiles.configureEach { compile ->
                 if (isKaptStub(compile)) {
-                    appendFreeCompilerArgs(compile, listOf("-P", "plugin:$PLUGIN_ID:enabled=false"))
+                    appendFreeCompilerArgs(compile, project.provider { listOf("-P", "plugin:$PLUGIN_ID:enabled=false") })
                     return@configureEach
                 }
-                val fixOutputDir = File(File(buildDir, WRASSE_DIR), compilationName(compile.name)).absolutePath
                 appendFreeCompilerArgs(
                     compile,
-                    listOf(
-                        "-P", "plugin:$PLUGIN_ID:enabled=${extension.enabled.get()}",
-                        "-P", "plugin:$PLUGIN_ID:warnOnly=${extension.warnOnly.get()}",
-                        "-P", "plugin:$PLUGIN_ID:fixOutputDir=$fixOutputDir",
-                        "-P", "plugin:$PLUGIN_ID:excludedRoot=$excludedRoot",
-                        "-P", "plugin:$PLUGIN_ID:projectDir=${project.projectDir.absolutePath}",
-                    ),
+                    project.provider {
+                        val buildDir = project.layout.buildDirectory.get().asFile
+                        val excludedRoot = buildDir.absolutePath
+                        requireCommaFree(excludedRoot)
+                        val fixOutputDir = File(File(buildDir, WRASSE_DIR), compilationName(compile.name)).absolutePath
+                        listOf(
+                            "-P", "plugin:$PLUGIN_ID:enabled=${extension.enabled.get()}",
+                            "-P", "plugin:$PLUGIN_ID:warnOnly=${extension.warnOnly.get()}",
+                            "-P", "plugin:$PLUGIN_ID:fixOutputDir=$fixOutputDir",
+                            "-P", "plugin:$PLUGIN_ID:excludedRoot=$excludedRoot",
+                            "-P", "plugin:$PLUGIN_ID:projectDir=${project.projectDir.absolutePath}",
+                        )
+                    },
                 )
             }
         }
@@ -214,8 +221,7 @@ class WrasseGradlePlugin @Inject constructor(
 }
 
 /**
- * Deletes the request files of this project's compilations when the build ends, whatever its
- * outcome, so a request no compile consumed cannot silence the next build.
+ * Deletes this project's compilations' request files when the build ends, whatever its outcome.
  */
 abstract class WrasseRequestCleanupService :
     BuildService<WrasseRequestCleanupService.Params>,
@@ -266,6 +272,9 @@ abstract class WrasseApplyTask : DefaultTask() {
     @get:Internal
     abstract val projectDir: DirectoryProperty
 
+    @get:Internal
+    abstract val projectPath: Property<String>
+
     @TaskAction
     fun apply() {
         val dir = wrasseDir.get().asFile
@@ -281,6 +290,8 @@ abstract class WrasseApplyTask : DefaultTask() {
         if (lines.any { it.startsWith("FAILED: ") }) {
             throw GradleException("wrasse could not apply every patch under ${dir.absolutePath}")
         }
+        val errors = lines.count { it.startsWith("e: ") }
+        if (errors > 0) throw GradleException("wrasse found $errors error-level violation(s) in ${projectPath.get()}")
     }
 }
 
@@ -307,15 +318,14 @@ abstract class WrasseLintTask : DefaultTask() {
         if (!dir.isDirectory) return
         deleteRequests(dir)
         if (!hasEntries(dir, REPORT_FILE, "diag:")) return
-        val sources = compileSources.files.mapTo(HashSet()) { it.toPath().toUri().toString() }
-        val lines = replay(dir, toolClasspath.files, projectDir.get().asFile).filter { reportedUri(it) in sources }
+        val sources = compileSources.files.mapTo(HashSet()) { it.toPath().normalize() }
+        val lines = replay(dir, toolClasspath.files, projectDir.get().asFile)
+            .filter { line -> reportedPath(line)?.let { it in sources } ?: false }
         for (line in lines) logger.lifecycle(line)
         val errors = lines.count { it.startsWith("e: ") }
         if (errors > 0) throw GradleException("wrasse found $errors error-level violation(s) in ${projectPath.get()}")
     }
 }
-
-private fun isCompileTaskName(taskName: String): Boolean = taskName.startsWith("compile") && taskName.contains("Kotlin")
 
 private fun compilationName(taskName: String): String = when (taskName) {
     "compileKotlin" -> "main"
@@ -335,11 +345,6 @@ private fun requireCommaFree(path: String) {
     }
 }
 
-private fun realPath(file: File): String =
-    runCatching { file.toPath().toRealPath().toString() }
-        .recoverCatching { file.canonicalPath }
-        .getOrDefault(file.absolutePath)
-
 private fun discoverConfig(start: File): File? =
     generateSequence(start) { it.parentFile }
         .flatMap { dir -> sequenceOf(File(dir, "wrasse.json"), File(dir, "wrasse.jsonc")) }
@@ -352,7 +357,7 @@ private fun configChain(config: File?): List<File> {
         val current = next ?: break
         if (!current.isFile || !chain.add(current)) break
         next = EXTENDS_ENTRY
-            .find(current.readText())
+            .find(stripJsonComments(current.readText()))
             ?.groupValues
             ?.get(1)
             ?.let { File(current.parentFile, it).normalize() }
@@ -360,25 +365,67 @@ private fun configChain(config: File?): List<File> {
     return chain.toList()
 }
 
+/** Blanks out `//` and `/* */` comments outside string literals, so [EXTENDS_ENTRY] never matches a commented-out entry. */
+private fun stripJsonComments(text: String): String {
+    val out = StringBuilder(text.length)
+    var i = 0
+    var inString = false
+    while (i < text.length) {
+        val c = text[i]
+        when {
+            inString -> {
+                out.append(c)
+                if (c == '\\' && i + 1 < text.length) {
+                    out.append(text[i + 1])
+                    i++
+                } else if (c == '"') {
+                    inString = false
+                }
+            }
+            c == '"' -> {
+                inString = true
+                out.append(c)
+            }
+            c == '/' && i + 1 < text.length && text[i + 1] == '/' -> {
+                while (i < text.length && text[i] != '\n') i++
+                continue
+            }
+            c == '/' && i + 1 < text.length && text[i + 1] == '*' -> {
+                i += 2
+                while (i + 1 < text.length && !(text[i] == '*' && text[i + 1] == '/')) i++
+                i += 2
+                continue
+            }
+            else -> out.append(c)
+        }
+        i++
+    }
+    return out.toString()
+}
+
 private fun kotlinCompileClass(project: Project, pluginId: String): Class<out Task>? {
     val plugin = project.plugins.findPlugin(pluginId) ?: return null
-    return runCatching { plugin.javaClass.classLoader.loadClass("org.jetbrains.kotlin.gradle.tasks.KotlinCompile") }
-        .getOrNull()
-        ?.asSubclass(Task::class.java)
+    val loaded = runCatching { plugin.javaClass.classLoader.loadClass(KOTLIN_COMPILE_CLASS) }
+        .getOrElse {
+            throw GradleException(
+                "wrasse: could not load $KOTLIN_COMPILE_CLASS from the '$pluginId' plugin's classloader (${it.message})",
+            )
+        }
+    return loaded.asSubclass(Task::class.java)
 }
 
 private fun isKaptStub(task: Task): Boolean =
     generateSequence<Class<*>>(task.javaClass) { it.superclass }.any { it.name == KAPT_STUB_TASK_CLASS }
 
-/**
- * Appends [args] to a Kotlin compile task's `compilerOptions.freeCompilerArgs` without dropping a
- * value the Kotlin Gradle plugin only conventions onto it — which `addAll` does, leaving a kapt
- * stub task, whose arguments are that convention, with no value at all.
- */
-private fun appendFreeCompilerArgs(task: Task, args: List<String>) {
+/** Lazily appends [args] to a compile task's `compilerOptions.freeCompilerArgs` via `ListProperty.appendAll`, preserving any value only conventioned onto it; fails if that API is unavailable. */
+private fun appendFreeCompilerArgs(task: Task, args: Provider<List<String>>) {
     val property = freeCompilerArgs(task)
-    val append = runCatching { property.javaClass.getMethod("appendAll", Iterable::class.java) }.getOrNull()
-    if (append == null) property.addAll(args) else append.invoke(property, args)
+    val append = runCatching { property.javaClass.getMethod("appendAll", Provider::class.java) }.getOrNull()
+        ?: throw GradleException(
+            "wrasse: this project's Gradle version does not support ListProperty.appendAll " +
+                "(added in Gradle 8.7); upgrade Gradle to use wrasse",
+        )
+    append.invoke(property, args)
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -396,11 +443,12 @@ private fun deleteRequests(dir: File) {
     dir.walkTopDown().filter { it.isFile && it.name == REQUEST_FILE }.forEach { it.delete() }
 }
 
-private fun reportedUri(line: String): String {
+private fun reportedPath(line: String): Path? {
     val start = line.indexOf(": ")
     val end = line.indexOf(" wrasse: ")
-    if (start < 0 || end <= start) return ""
-    return line.substring(start + 2, end).substringBeforeLast(':').substringBeforeLast(':')
+    if (start < 0 || end <= start) return null
+    val uri = line.substring(start + 2, end).substringBeforeLast(':').substringBeforeLast(':')
+    return runCatching { Path.of(URI(uri)).normalize() }.getOrNull()
 }
 
 @Suppress("UNCHECKED_CAST")

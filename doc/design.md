@@ -2160,6 +2160,13 @@ information. Statuses: Accepted · Rejected · Superseded.
   compiler stack trace or a mangled option. Finally, the compiler plugin registers nothing when the
   compile has no source roots at all — an incremental compile whose dirty set is empty, e.g. after a
   file is only deleted — instead of failing that compile with "config file not found".
+  *Addendum 2026-09-07 (4):* `WReportReplay.remap` now diffs an applied edit's original and
+  replacement text line by line for any span longer than one line (the `format` rule's whole-file
+  edit) instead of dropping every diagnostic inside it, so a formatted file's other non-fixable
+  findings show up on the very first `wrasseFormat` run instead of only the next one; `wrasseApply`
+  (and so `wrasseFormat`) now fails with `wrasse found N error-level violation(s) in <project path>`
+  when a replayed line is error-level, the same way `wrasseLint` does, instead of a green build with
+  unfixed errors left behind.
 
 ### Build & distribution
 

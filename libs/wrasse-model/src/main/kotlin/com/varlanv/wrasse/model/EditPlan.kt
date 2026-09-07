@@ -89,6 +89,7 @@ class EditPlan {
     private var nextGroupId = 0
     private var lastDropped: List<Dropped> = emptyList()
     private var lastSurvivingGroupIds: Set<Int> = emptySet()
+    private var absorbedGroupIds: Set<Int> = emptySet()
     private val multiEditGroups = HashSet<Int>()
 
     /** A fresh id for grouping every edit of one [WReporter.report] call under [add]'s [groupId] parameter. */
@@ -97,7 +98,8 @@ class EditPlan {
     /**
      * [groupSize] is the number of edits the report attaches under [groupId]; a group of more than
      * one edit is atomic, so an edit equal in span and replacement to an already-collected entry is
-     * merged into it only when neither side's group is atomic.
+     * merged into it only when neither side's group is atomic. A merged-away [groupId] is recorded
+     * the same as [recordAbsorbed], so [survivingGroupIds] still reports its diagnostic as fixed.
      */
     fun add(
         ruleId: String,
@@ -118,7 +120,10 @@ class EditPlan {
             val existing = entries[probe]
             val safeToMerge = existing.groupId == groupId ||
                 (groupId !in multiEditGroups && existing.groupId !in multiEditGroups)
-            if (safeToMerge && existing.edit.replacement == edit.replacement) return
+            if (safeToMerge && existing.edit.replacement == edit.replacement) {
+                absorbedGroupIds = absorbedGroupIds + groupId
+                return
+            }
             probe++
         }
         entries.add(low, entry)
@@ -176,10 +181,19 @@ class EditPlan {
         lastDropped = lastDropped + dropped
     }
 
+    /**
+     * Marks [groupIds] as fixed even though their edits never return to this plan — for a consumer
+     * (`DocBuilder.finish`) that removed entries via [takeAll] and spliced them into its own output
+     * instead of putting them back: seen by the next [finalEdits] call's [survivingGroupIds].
+     */
+    fun recordAbsorbed(groupIds: Collection<Int>) {
+        absorbedGroupIds = absorbedGroupIds + groupIds
+    }
+
     fun finalEdits(): List<WEdit> {
         val (kept, dropped) = resolveOverlaps(entries)
         lastDropped = lastDropped + dropped
-        lastSurvivingGroupIds = kept.mapTo(HashSet()) { it.groupId }
+        lastSurvivingGroupIds = kept.mapTo(HashSet()) { it.groupId } + absorbedGroupIds
         return kept.map { it.edit }
     }
 

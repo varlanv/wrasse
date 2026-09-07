@@ -405,7 +405,8 @@ class ImportEngine : WUninitializedRuleGroup {
                         edits = listOf(composedEdit),
                     )
                 } else {
-                    carrierFor(taken, newFqns, anchorsByFqn).extraEdit = composedEdit
+                    val carrier = carrierFor(taken, newFqns, anchorsByFqn)
+                    if (carrier.edit !== composedEdit) carrier.extraEdit = composedEdit
                 }
             }
 

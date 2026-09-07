@@ -66,10 +66,20 @@ object WReportReplay {
     /**
      * Maps the non-[ReportedDiagnostic.fixable] entries of [diagnostics] through [appliedEdits]
      * (fixable ones were just fixed and are dropped): an offset at or past an edit's
-     * `[startOffset, endOffset)` shifts by `replacementLength - (endOffset - startOffset)`; one
-     * that falls inside that span has no matching position in [newContent] and is dropped too.
-     * Line and column of a surviving offset are recomputed against [newContent] with the same
-     * 1-based convention the compiler plugin records them with.
+     * `[startOffset, endOffset)` shifts by `replacementLength - (endOffset - startOffset)`. One
+     * that falls inside a span whose [AppliedEdit.originalText] is a single line has no matching
+     * position and is dropped, same as before. Inside a span spanning more than one line (the
+     * `format` rule's edit replaces the whole file), [LineDiffMapper] instead diffs
+     * [AppliedEdit.originalText] against [AppliedEdit.replacementText] line by line: an offset on
+     * a line that diffed as unchanged maps to the same column on its matching line in
+     * [newContent]; one on a changed line maps to column 1 of the replacement hunk that line's
+     * change landed in, so it stays visible at an approximate position instead of disappearing —
+     * unless every line in that hunk is empty or itself just another original line relocated
+     * elsewhere by the same edit (nothing new actually took this line's place, as when reordering
+     * imports drops one of them), in which case there is no position left to point at and the
+     * entry is dropped, same as a single-line span. Line and column of a surviving offset are
+     * recomputed against [newContent] with the same 1-based convention the compiler plugin
+     * records them with.
      */
     fun remap(
         diagnostics: List<ReportedDiagnostic>,
@@ -101,10 +111,21 @@ object WReportReplay {
         var shift = 0
         for (edit in ascendingEdits) {
             if (offset < edit.startOffset) break
-            if (offset < edit.endOffset) return null
+            if (offset < edit.endOffset) return mapInsideEdit(offset, edit, shift)
             shift += edit.replacementLength - (edit.endOffset - edit.startOffset)
         }
         return offset + shift
+    }
+
+    private fun mapInsideEdit(
+        offset: Int,
+        edit: AppliedEdit,
+        shiftBeforeEdit: Int,
+    ): Int? {
+        if (!edit.originalText.contains('\n')) return null
+        val relOffset = offset - edit.startOffset
+        val mappedRel = LineDiffMapper.mapOffset(edit.originalText, edit.replacementText, relOffset) ?: return null
+        return edit.startOffset + shiftBeforeEdit + mappedRel
     }
 
     private fun reconcile(
@@ -151,8 +172,10 @@ object WReportReplay {
         return Sha256.ofText(text.replace("\r\n", "\n")) == entry.sourceHash
     }
 
-    private fun resolvePath(filePath: String, projectDir: Path?): Path =
-        if (projectDir != null) projectDir.resolve(filePath) else Path.of(filePath)
+    private fun resolvePath(
+        filePath: String,
+        projectDir: Path?,
+    ): Path = (if (projectDir != null) projectDir.resolve(filePath) else Path.of(filePath)).normalize()
 
     private fun readIfPresent(filePath: String, projectDir: Path?): String? = try {
         readIfPresent(resolvePath(filePath, projectDir))
@@ -192,6 +215,124 @@ private class NewlineIndex(text: CharSequence) {
     }
 
     fun columnOf(offset: Int): Int = offset - starts[lineOf(offset) - 1] + 1
+}
+
+/**
+ * Line-based diff between an edit's original and replacement text, used to map an offset inside
+ * the original through to its counterpart in the replacement (see [WReportReplay.remap]). Common
+ * leading/trailing lines are trimmed first, then the remainder is matched by longest-common-
+ * subsequence, capped by [MAX_LCS_CELLS] so a large, pervasively rewritten file degrades to
+ * hunk-start mapping instead of doing unbounded work.
+ */
+private object LineDiffMapper {
+    private const val MAX_LCS_CELLS = 4_000_000L
+
+    fun mapOffset(
+        original: String,
+        replacement: String,
+        relOffset: Int,
+    ): Int? {
+        val originalLines = original.split('\n')
+        val replacementLines = replacement.split('\n')
+        val originalStarts = lineStarts(originalLines)
+        val replacementStarts = lineStarts(replacementLines)
+        val lineIndex = lineIndexFor(originalStarts, relOffset)
+        val matchedLine = matchLines(originalLines, replacementLines)
+
+        val matchedReplacementIndex = matchedLine[lineIndex]
+        if (matchedReplacementIndex >= 0) {
+            val column = relOffset - originalStarts[lineIndex]
+            return replacementStarts[matchedReplacementIndex] + column
+        }
+        var lastMatched = -1
+        for (i in lineIndex downTo 0) {
+            if (matchedLine[i] >= 0) {
+                lastMatched = matchedLine[i]
+                break
+            }
+        }
+        var nextMatched = replacementLines.size
+        for (i in lineIndex until originalLines.size) {
+            if (matchedLine[i] >= 0) {
+                nextMatched = matchedLine[i]
+                break
+            }
+        }
+        val hunkStart = lastMatched + 1
+        if (hunkStart >= nextMatched) return null
+        val hunkIsWhollyRelocatedLines = (hunkStart until nextMatched).all { bi ->
+            val line = replacementLines[bi]
+            line.isEmpty() || originalLines.any { it == line }
+        }
+        if (hunkIsWhollyRelocatedLines) return null
+        return if (hunkStart < replacementStarts.size) replacementStarts[hunkStart] else replacement.length
+    }
+
+    private fun lineStarts(lines: List<String>): IntArray {
+        val starts = IntArray(lines.size)
+        var pos = 0
+        for (i in lines.indices) {
+            starts[i] = pos
+            pos += lines[i].length + 1
+        }
+        return starts
+    }
+
+    private fun lineIndexFor(starts: IntArray, offset: Int): Int {
+        var low = 0
+        var high = starts.size - 1
+        while (low < high) {
+            val mid = (low + high + 1) ushr 1
+            if (starts[mid] <= offset) low = mid else high = mid - 1
+        }
+        return low
+    }
+
+    private fun matchLines(a: List<String>, b: List<String>): IntArray {
+        val result = IntArray(a.size) { -1 }
+        var prefix = 0
+        val maxPrefix = minOf(a.size, b.size)
+        while (prefix < maxPrefix && a[prefix] == b[prefix]) prefix++
+        for (i in 0 until prefix) result[i] = i
+
+        var suffix = 0
+        val maxSuffix = maxPrefix - prefix
+        while (suffix < maxSuffix && a[a.size - 1 - suffix] == b[b.size - 1 - suffix]) suffix++
+        for (i in 0 until suffix) result[a.size - 1 - i] = b.size - 1 - i
+
+        val midA = a.subList(prefix, a.size - suffix)
+        val midB = b.subList(prefix, b.size - suffix)
+        if (midA.isNotEmpty() && midB.isNotEmpty() && midA.size.toLong() * midB.size.toLong() <= MAX_LCS_CELLS) {
+            for ((ai, bi) in longestCommonSubsequence(midA, midB)) result[prefix + ai] = prefix + bi
+        }
+        return result
+    }
+
+    private fun longestCommonSubsequence(a: List<String>, b: List<String>): List<Pair<Int, Int>> {
+        val n = a.size
+        val m = b.size
+        val dp = Array(n + 1) { IntArray(m + 1) }
+        for (i in n - 1 downTo 0) {
+            for (j in m - 1 downTo 0) {
+                dp[i][j] = if (a[i] == b[j]) dp[i + 1][j + 1] + 1 else maxOf(dp[i + 1][j], dp[i][j + 1])
+            }
+        }
+        val pairs = ArrayList<Pair<Int, Int>>()
+        var i = 0
+        var j = 0
+        while (i < n && j < m) {
+            when {
+                a[i] == b[j] -> {
+                    pairs.add(i to j)
+                    i++
+                    j++
+                }
+                dp[i + 1][j] >= dp[i][j + 1] -> i++
+                else -> j++
+            }
+        }
+        return pairs
+    }
 }
 
 /**

@@ -65,6 +65,71 @@ class WReportReplaySpec : BaseSpec({
 
             WReportReplay.remap(diagnostics, emptyList(), newContent) shouldBe emptyList()
         }
+
+        should("map a diagnostic on an unrelated, unchanged line of a whole-file replacement exactly") {
+            val original = "line1\nline2\nline3\n"
+            val replacement = "line1\nCHANGED\nline3\n"
+            val diagnostics = listOf(ReportedDiagnostic(3, 1, 12, "warn", false, "rule: on line3"))
+            val edits = listOf(AppliedEdit(0, original.length, replacement.length, original, replacement))
+
+            val result = WReportReplay.remap(diagnostics, edits, replacement)
+
+            result shouldHaveSize 1
+            result[0].offset shouldBe 14
+            result[0].line shouldBe 3
+            result[0].column shouldBe 1
+        }
+
+        should("map a diagnostic on a reflowed line to the start of its replacement hunk") {
+            val original = "line1\nold\nline3\n"
+            val replacement = "line1\nnewA\nnewB\nline3\n"
+            val diagnostics = listOf(ReportedDiagnostic(2, 3, 8, "warn", false, "rule: on old"))
+            val edits = listOf(AppliedEdit(0, original.length, replacement.length, original, replacement))
+
+            val result = WReportReplay.remap(diagnostics, edits, replacement)
+
+            result shouldHaveSize 1
+            result[0].offset shouldBe 6
+            result[0].line shouldBe 2
+            result[0].column shouldBe 1
+        }
+
+        should("drop a diagnostic whose line was deleted outright with nothing replacing it") {
+            val original = "line1\nold\nline3\n"
+            val replacement = "line1\nline3\n"
+            val diagnostics = listOf(ReportedDiagnostic(2, 2, 7, "warn", false, "rule: on old"))
+            val edits = listOf(AppliedEdit(0, original.length, replacement.length, original, replacement))
+
+            WReportReplay.remap(diagnostics, edits, replacement) shouldBe emptyList()
+        }
+
+        should("drop a diagnostic on a deleted line even when another edit reorders same-content lines around it") {
+            val original = "import a.Widget\nimport a.Unused\nimport a.Gadget\nimport a.Star\n"
+            val replacement = "import a.Gadget\nimport a.Widget\n"
+            val diagnostics = listOf(ReportedDiagnostic(4, 1, 48, "warn", false, "rule: on star"))
+            val edits = listOf(AppliedEdit(0, original.length, replacement.length, original, replacement))
+
+            WReportReplay.remap(diagnostics, edits, replacement) shouldBe emptyList()
+        }
+
+        should("leave a diagnostic before a multi-line replaced span unshifted and shift one after it") {
+            val newContent = "before\nNEWLINE\nafter\n"
+            val diagnostics = listOf(
+                ReportedDiagnostic(1, 4, 3, "warn", false, "rule: before"),
+                ReportedDiagnostic(4, 4, 20, "warn", false, "rule: after"),
+            )
+            val edits = listOf(AppliedEdit(7, 17, 8, "OLDA\nOLDB\n", "NEWLINE\n"))
+
+            val result = WReportReplay.remap(diagnostics, edits, newContent)
+
+            result shouldHaveSize 2
+            result[0].offset shouldBe 3
+            result[0].line shouldBe 1
+            result[0].column shouldBe 4
+            result[1].offset shouldBe 18
+            result[1].line shouldBe 3
+            result[1].column shouldBe 4
+        }
     }
 
     context("collect with an apply result") {
@@ -78,9 +143,7 @@ class WReportReplaySpec : BaseSpec({
                 val hash = Sha256.ofText(content)
                 val patchDir = dir.resolve("patch")
                 WPatchStore(patchDir).record(FileEdits(sourceFile.toString(), hash, listOf(WEdit(9, 10, ""))))
-                WReportStore(
-                    patchDir,
-                )
+                WReportStore(patchDir)
                     .record(
                         ReportedFile(
                             sourceFile.toString(),
@@ -110,9 +173,7 @@ class WReportReplaySpec : BaseSpec({
                 Files.write(sourceFile, crlfContent.toByteArray(Charsets.UTF_8))
                 val normalizedHash = Sha256.ofText(crlfContent.replace("\r\n", "\n"))
                 val patchDir = dir.resolve("patch")
-                WReportStore(
-                    patchDir,
-                )
+                WReportStore(patchDir)
                     .record(
                         ReportedFile(
                             sourceFile.toString(),
@@ -138,9 +199,7 @@ class WReportReplaySpec : BaseSpec({
                     Files.createDirectories(fileUnderB.parent)
                     Files.writeString(fileUnderB, content)
                     val patchDir = rootA.resolve("patch")
-                    WReportStore(
-                        patchDir,
-                    )
+                    WReportStore(patchDir)
                         .record(
                             ReportedFile(
                                 relativePath,

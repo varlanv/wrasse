@@ -47,11 +47,13 @@ object FixtureLoader {
 
             val extraConfigs = mutableMapOf<String, String>()
             for (jsonFile in Files.list(ruleDir).use {
-                it.filter { p ->
-                    p.isRegularFile() &&
-                        (p.name.endsWith(".json") || p.name.endsWith(".jsonc")) &&
-                        p.name != "wrasse.json"
-                }.toList()
+                it
+                    .filter { p ->
+                        p.isRegularFile() &&
+                            (p.name.endsWith(".json") || p.name.endsWith(".jsonc")) &&
+                            p.name != "wrasse.json"
+                    }
+                    .toList()
             }) {
                 extraConfigs[jsonFile.name] = jsonFile.readText()
             }
@@ -65,13 +67,15 @@ object FixtureLoader {
 
             val fixtureIdsInDir = mutableSetOf<String>()
             for (fixtureFile in Files.list(ruleDir).use {
-                it.filter {
-                    p ->
-                    p.isRegularFile() &&
-                        p.name.endsWith(".kt") &&
-                        !p.name.endsWith(FIXED_SUFFIX) &&
-                        p.parent.name != AUX_DIR_NAME
-                }.toList()
+                it
+                    .filter {
+                        p ->
+                        p.isRegularFile() &&
+                            p.name.endsWith(".kt") &&
+                            !p.name.endsWith(FIXED_SUFFIX) &&
+                            p.parent.name != AUX_DIR_NAME
+                    }
+                    .toList()
             }) {
                 val fixtureId = fixtureFile.nameWithoutExtension
                 fixtureIdsInDir.add(fixtureId)

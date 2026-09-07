@@ -118,7 +118,15 @@ object WPatchApplier {
         }
         if (perf.enabled) perf.record("apply:splice-and-write", System.nanoTime() - writeStarted)
 
-        val appliedEdits = ascending.map { AppliedEdit(it.startOffset, it.endOffset, it.replacement.length) }
+        val appliedEdits = ascending.map {
+            AppliedEdit(
+                it.startOffset,
+                it.endOffset,
+                it.replacement.length,
+                content.substring(it.startOffset, it.endOffset),
+                it.replacement,
+            )
+        }
         return FileApplyResult.Applied(filePath, ascending.size, appliedEdits, HexEncoding.lowerCase(digest.digest()))
     }
 
@@ -206,9 +214,16 @@ sealed class FileApplyResult {
     class Failed(override val filePath: Path, val reason: String) : FileApplyResult()
 }
 
-/** One edit as actually applied to a file: its `[startOffset, endOffset)` span in the pre-apply source and the length of the replacement text that landed in its place. */
+/**
+ * One edit as actually applied to a file: its `[startOffset, endOffset)` span in the pre-apply
+ * source, the [replacementLength] of the text that landed in its place, and (for
+ * [WReportReplay.remap]'s line-diff mapping) the [originalText] the span held and the
+ * [replacementText] it became. Both default to empty for a caller that only needs shifting.
+ */
 class AppliedEdit(
     val startOffset: Int,
     val endOffset: Int,
     val replacementLength: Int,
+    val originalText: String = "",
+    val replacementText: String = "",
 )

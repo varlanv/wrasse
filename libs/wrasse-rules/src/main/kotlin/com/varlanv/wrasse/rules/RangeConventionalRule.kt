@@ -174,9 +174,8 @@ class RangeConventionalRule : WUninitializedRule {
                 rightIdx: Int,
                 hasComment: Boolean,
             ) {
-                if (children.type(
-                    rightIdx,
-                ) != WNodeType.INTEGER_CONSTANT || !children.textSpan(rightIdx, ctx.sourceText).contentEquals("1")) {
+                if (children.type(rightIdx) != WNodeType.INTEGER_CONSTANT ||
+                    !children.textSpan(rightIdx, ctx.sourceText).contentEquals("1")) {
                     return
                 }
                 minusOneExpressions[ctx.startOffset] =
