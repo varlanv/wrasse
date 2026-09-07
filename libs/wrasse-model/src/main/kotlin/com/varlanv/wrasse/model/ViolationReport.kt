@@ -7,4 +7,5 @@ class ViolationReport(
     val endOffset: Int,
     val level: RuleLevel,
     val configuredLevel: RuleLevel = level,
+    val hasAutofix: Boolean = false,
 )

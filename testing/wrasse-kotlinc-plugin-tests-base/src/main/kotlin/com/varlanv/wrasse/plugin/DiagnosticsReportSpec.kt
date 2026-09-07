@@ -49,6 +49,7 @@ open class DiagnosticsReportSpec : BaseSpec({
                         "4:13:warn:magic-number: This expression contains a magic number; consider defining it as a well-named constant",
                         "4:16:error:no-semicolons: Unnecessary semicolon",
                     )
+                entries[0].diagnostics.map { it.fixable } shouldBe listOf(false, true)
                 val sourcePath = harness.sourcePath(workDir, source).toUri()
                 replayReports(
                     listOf(fixOutputDir.toString()),

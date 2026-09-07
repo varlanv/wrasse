@@ -1,10 +1,16 @@
 package com.varlanv.wrasse.lang
 
-/** One diagnostic wrasse reported for a file: 1-based [line]/[column], the rule's configured level (`error` or `warn`), and the message as printed after the `wrasse: ` prefix. */
+/**
+ * One diagnostic wrasse reported for a file: 1-based [line]/[column], its [offset] into the
+ * source, the rule's configured [level] (`error` or `warn`), whether the report carried at least
+ * one autofix edit ([fixable]), and the [message] as printed after the `wrasse: ` prefix.
+ */
 class ReportedDiagnostic(
     val line: Int,
     val column: Int,
+    val offset: Int,
     val level: String,
+    val fixable: Boolean,
     val message: String,
 ) {
     val isError: Boolean get() = level == LEVEL_ERROR
@@ -26,21 +32,28 @@ class ReportedFile(
         for (i in diagnostics.indices) {
             val a = diagnostics[i]
             val b = other.diagnostics[i]
-            if (a.line != b.line || a.column != b.column || a.level != b.level || a.message != b.message) return false
+            if (a.line != b.line || a.column != b.column || a.offset != b.offset ||
+                a.level != b.level || a.fixable != b.fixable || a.message != b.message
+            ) {
+                return false
+            }
         }
         return true
     }
 }
 
+const val REPORT_HEADER = "# wrasse-report v2"
+
 /**
- * Serializes report blocks: `file:`/`hash:` then one `diag:<line>:<column>:<level>:<message>` per
- * diagnostic, the message with `\` and newlines escaped. A tombstone is a block with the hash `-`.
+ * Serializes report blocks: `file:`/`hash:` then one
+ * `diag:<line>:<column>:<offset>:<level>:<fixable 0|1>:<message>` per diagnostic, the message with
+ * `\` and newlines escaped. A tombstone is a block with the hash `-`.
  */
 object WReportWriter {
     const val TOMBSTONE_HASH = "-"
 
     fun writeHeader(out: Appendable) {
-        out.append("# wrasse-report v1\n")
+        out.append(REPORT_HEADER).append('\n')
     }
 
     fun writeAll(out: Appendable, files: Collection<ReportedFile>) {
@@ -58,7 +71,11 @@ object WReportWriter {
                 .append(':')
                 .append(diagnostic.column.toString())
                 .append(':')
+                .append(diagnostic.offset.toString())
+                .append(':')
                 .append(diagnostic.level)
+                .append(':')
+                .append(if (diagnostic.fixable) "1" else "0")
                 .append(':')
                 .append(escape(diagnostic.message))
                 .append('\n')
@@ -73,13 +90,21 @@ object WReportWriter {
     private fun escape(s: String): String = s.replace("\\", "\\\\").replace("\n", "\\n")
 }
 
-/** Reads a report journal: later blocks for a path replace earlier ones and a tombstone forgets the path. */
+/**
+ * Reads a report journal: later blocks for a path replace earlier ones and a tombstone forgets the
+ * path. A file whose first line is not exactly [REPORT_HEADER] — no header at all, or an older or
+ * unrecognized one — is treated as an empty report rather than parsed or rejected, so a report
+ * written by a different wrasse version is simply forgotten instead of misread.
+ */
 object WReportReader {
     class Journal(val entries: List<ReportedFile>, val blockCount: Int)
 
     fun read(input: CharSequence): List<ReportedFile> = readJournal(input).entries
 
     fun readJournal(input: CharSequence): Journal {
+        val lines = input.lineSequence().iterator()
+        if (!lines.hasNext() || lines.next() != REPORT_HEADER) return Journal(emptyList(), 0)
+
         val byPath = LinkedHashMap<String, ReportedFile>()
         var blockCount = 0
         var currentPath: String? = null
@@ -100,7 +125,8 @@ object WReportReader {
             current = ArrayList()
         }
 
-        for (line in input.lineSequence()) {
+        while (lines.hasNext()) {
+            val line = lines.next()
             when {
                 line.startsWith("file:") -> {
                     flush()
@@ -116,16 +142,22 @@ object WReportReader {
     }
 
     private fun parseDiagnostic(body: String): ReportedDiagnostic? {
-        val first = body.indexOf(':')
-        if (first < 0) return null
-        val second = body.indexOf(':', first + 1)
-        if (second < 0) return null
-        val third = body.indexOf(':', second + 1)
-        if (third < 0) return null
-        val line = body.substring(0, first).toIntOrNull() ?: return null
-        val column = body.substring(first + 1, second).toIntOrNull() ?: return null
-        val level = body.substring(second + 1, third)
-        return ReportedDiagnostic(line, column, level, unescape(body.substring(third + 1)))
+        val c1 = body.indexOf(':')
+        if (c1 < 0) return null
+        val c2 = body.indexOf(':', c1 + 1)
+        if (c2 < 0) return null
+        val c3 = body.indexOf(':', c2 + 1)
+        if (c3 < 0) return null
+        val c4 = body.indexOf(':', c3 + 1)
+        if (c4 < 0) return null
+        val c5 = body.indexOf(':', c4 + 1)
+        if (c5 < 0) return null
+        val line = body.substring(0, c1).toIntOrNull() ?: return null
+        val column = body.substring(c1 + 1, c2).toIntOrNull() ?: return null
+        val offset = body.substring(c2 + 1, c3).toIntOrNull() ?: return null
+        val level = body.substring(c3 + 1, c4)
+        val fixable = body.substring(c4 + 1, c5) == "1"
+        return ReportedDiagnostic(line, column, offset, level, fixable, unescape(body.substring(c5 + 1)))
     }
 
     private fun unescape(s: String): String {

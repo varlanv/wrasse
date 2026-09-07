@@ -155,10 +155,20 @@ reporter reads `rule.config.effectiveLevel` to pick error vs. warning. Rules tha
 ### Fix pipeline (offset-patch, D22 merge-on-write) and diagnostics report
 
 Next to the journal, every compile records each diagnostic it reported (configured level, line,
-column, message) in `build/wrasse/<compilation>/patch/wrasse-report.txt` (`WReportStore`, same
-journal-and-compaction scheme, hash-guarded per file). `replayReports` in `wrasse-lang` renders the
-still-current entries exactly as kotlinc prints a diagnostic, which is how the Gradle plugin's
-`wrasseLint` shows the same findings whether the compile ran, was UP-TO-DATE or came from the cache.
+column, offset, whether it carried an autofix, message) in
+`build/wrasse/<compilation>/patch/wrasse-report.txt` (`WReportStore`, same journal-and-compaction
+scheme, hash-guarded per file, format `# wrasse-report v2`; an unrecognized or missing header reads
+as an empty report). `replayReports` in `wrasse-lang` renders the still-current entries exactly as
+kotlinc prints a diagnostic, which is how the Gradle plugin's `wrasseLint` shows the same findings
+whether the compile ran, was UP-TO-DATE or came from the cache; when `wrasseApply` just rewrote a
+file, `replayReports`/`WReportReplay.collect` remap that file's still-non-fixable entries onto the
+new content (`WReportReplay.remap`, offset shift + dropped-if-inside-a-replaced-span) and persist
+them back under the new hash instead of dropping them for looking stale, which is what makes a
+file's non-fixable findings show up on the very same `wrasseFormat` run that fixed its other
+findings, not only the next one. `isCurrent`/replay also fall back to an LF-normalized hash for a
+CRLF checkout, resolve a stored path against the caller-supplied `projectDir` (compiler-plugin
+option, mirroring `excludedRoot`) so a relocated build-cache hit still finds its files, and skip
+(rather than fail) a single entry on an I/O error or invalid path.
 
 `WrassePlugin.checkFile` collects `WEdit`s from the walk and, whenever `fixOutputDir` is set (i.e.
 whenever the plugin is active under `-PwrasseCheck` — there is no separate fix flag; D22), merges

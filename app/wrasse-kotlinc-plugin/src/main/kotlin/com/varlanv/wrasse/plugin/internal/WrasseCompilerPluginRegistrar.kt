@@ -4,6 +4,7 @@ import com.varlanv.wrasse.plugin.KEY_DUMP_RESOLVED_USAGE
 import com.varlanv.wrasse.plugin.KEY_ENABLED
 import com.varlanv.wrasse.plugin.KEY_EXCLUDED_ROOT
 import com.varlanv.wrasse.plugin.KEY_FIX_OUTPUT_DIR
+import com.varlanv.wrasse.plugin.KEY_PROJECT_DIR
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
 import com.varlanv.wrasse.plugin.PLUGIN_ID
 import com.varlanv.wrasse.plugin.WrassePlugin
@@ -34,19 +35,21 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
         val fixOutputDir = configuration[KEY_FIX_OUTPUT_DIR]?.let { Paths.get(it) }
         val dumpResolvedUsage = configuration[KEY_DUMP_RESOLVED_USAGE, false]
         val excludedRoots = configuration.getList(KEY_EXCLUDED_ROOT).map { Paths.get(it).toAbsolutePath().normalize() }
+        val projectDir = configuration[KEY_PROJECT_DIR]?.let { Paths.get(it).toAbsolutePath().normalize() }
         val messageCollector = configuration[CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY] ?: MessageCollector.NONE
         val explicitApiActive = configuration.languageVersionSettings.getFlag(
             AnalysisFlags.explicitApiMode,
         ) != ExplicitApiMode.DISABLED
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
         val plugin = wrasseMain(
-            sourceRoots,
-            warnOnly,
-            fixOutputDir,
-            dumpResolvedUsage,
-            explicitApiActive,
-            excludedRoots,
-            messageCollector,
+            sourceRoots = sourceRoots,
+            warnOnly = warnOnly,
+            fixOutputDir = fixOutputDir,
+            dumpResolvedUsage = dumpResolvedUsage,
+            explicitApiActive = explicitApiActive,
+            excludedRoots = excludedRoots,
+            projectDir = projectDir,
+            messageCollector = messageCollector,
         ).getOrThrow()
 
         val cl = this::class.java.classLoader

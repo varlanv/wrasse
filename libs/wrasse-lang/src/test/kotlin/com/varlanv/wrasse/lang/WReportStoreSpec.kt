@@ -12,7 +12,9 @@ class WReportStoreSpec : BaseSpec({
         line: Int,
         level: String = "error",
         message: String = "no-semicolons: Unnecessary semicolon",
-    ) = ReportedDiagnostic(line, 3, level, message)
+        offset: Int = 0,
+        fixable: Boolean = false,
+    ) = ReportedDiagnostic(line, 3, offset, level, fixable, message)
 
     fun journal(dir: Path): String = Files.readString(dir.resolve("patch").resolve("wrasse-report.txt"))
 
@@ -47,13 +49,21 @@ class WReportStoreSpec : BaseSpec({
         val out = StringBuilder()
         WReportWriter.writeAll(
             out,
-            listOf(ReportedFile("/x.kt", "h", listOf(ReportedDiagnostic(7, 9, "warn", message)))),
+            listOf(ReportedFile("/x.kt", "h", listOf(ReportedDiagnostic(7, 9, 42, "warn", true, message)))),
         )
         val back = WReportReader.read(out)
         back[0].diagnostics[0].message shouldBe message
         back[0].diagnostics[0].line shouldBe 7
         back[0].diagnostics[0].column shouldBe 9
+        back[0].diagnostics[0].offset shouldBe 42
         back[0].diagnostics[0].level shouldBe "warn"
+        back[0].diagnostics[0].fixable shouldBe true
+    }
+
+    should("treat a report with an unknown or missing header as empty") {
+        WReportReader.read("file:/a.kt\nhash:h\ndiag:1:1:0:error:0:x\n") shouldBe emptyList()
+        WReportReader.read("# wrasse-report v1\nfile:/a.kt\nhash:h\ndiag:1:1:error:x\n") shouldBe emptyList()
+        WReportReader.read("") shouldBe emptyList()
     }
 
     should("replay only entries whose file still has the recorded content, in kotlinc's own line format") {
@@ -67,18 +77,18 @@ class WReportStoreSpec : BaseSpec({
                 ReportedFile(
                     current.toString(),
                     Sha256.ofText("val a = 1;\n"),
-                    listOf(ReportedDiagnostic(1, 10, "error", "no-semicolons: Unnecessary semicolon")),
+                    listOf(ReportedDiagnostic(1, 10, 9, "error", true, "no-semicolons: Unnecessary semicolon")),
                 ),
             )
             store.record(
                 ReportedFile(
                     changed.toString(),
                     Sha256.ofText("val b = 2;\n"),
-                    listOf(ReportedDiagnostic(1, 10, "warn", "no-semicolons: Unnecessary semicolon")),
+                    listOf(ReportedDiagnostic(1, 10, 9, "warn", true, "no-semicolons: Unnecessary semicolon")),
                 ),
             )
             store.record(
-                ReportedFile(dir.resolve("Gone.kt").toString(), "h", listOf(ReportedDiagnostic(1, 1, "error", "x"))),
+                ReportedFile(dir.resolve("Gone.kt").toString(), "h", listOf(ReportedDiagnostic(1, 1, 0, "error", false, "x"))),
             )
             Files.writeString(changed, "val b = 2\n")
 

@@ -2129,6 +2129,15 @@ information. Statuses: Accepted · Rejected · Superseded.
   diagnostics, no report or patch entry, and clears any stale ones), and the Gradle plugin passes the
   project's `layout.buildDirectory` as one such root so KSP/kapt-generated sources are never linted
   or reformatted.
+  *Addendum 2026-09-07 (2):* the report format bumped to `# wrasse-report v2` (each diagnostic also
+  carries its offset and whether it was fixable) so that after `wrasseApply` rewrites a file,
+  `WReportReplay.remap` can shift and recompute the line/column of that file's still-non-fixable
+  diagnostics against the new content and persist them under the new hash, instead of `replayReports`
+  dropping the whole entry as stale until the next compile; `isCurrent`/replay also fall back to an
+  LF-normalized hash for a CRLF checkout, resolve a report's stored path against a caller-supplied
+  `projectDir` (a new compiler-plugin option, wired like `excludedRoot`) so a relocated build-cache
+  hit still finds its files, and skip a single unreadable-or-invalid-path entry instead of failing
+  the whole replay.
 
 ### Build & distribution
 

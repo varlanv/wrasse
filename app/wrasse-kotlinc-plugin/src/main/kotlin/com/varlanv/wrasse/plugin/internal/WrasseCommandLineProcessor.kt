@@ -8,6 +8,8 @@ import com.varlanv.wrasse.plugin.KEY_EXCLUDED_ROOT
 import com.varlanv.wrasse.plugin.KEY_EXCLUDED_ROOT_STR
 import com.varlanv.wrasse.plugin.KEY_FIX_OUTPUT_DIR
 import com.varlanv.wrasse.plugin.KEY_FIX_OUTPUT_DIR_STR
+import com.varlanv.wrasse.plugin.KEY_PROJECT_DIR
+import com.varlanv.wrasse.plugin.KEY_PROJECT_DIR_STR
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY
 import com.varlanv.wrasse.plugin.KEY_WARN_ONLY_STR
 import com.varlanv.wrasse.plugin.PLUGIN_ID
@@ -48,6 +50,12 @@ class WrasseCommandLineProcessor : CommandLineProcessor {
             required = false,
             allowMultipleOccurrences = true,
         ),
+        CliOption(
+            KEY_PROJECT_DIR_STR,
+            "<path>",
+            "Project directory the diagnostics report stores file paths relative to",
+            required = false,
+        ),
     )
 
     override fun processOption(
@@ -61,6 +69,7 @@ class WrasseCommandLineProcessor : CommandLineProcessor {
             KEY_FIX_OUTPUT_DIR_STR -> configuration.put(KEY_FIX_OUTPUT_DIR, value)
             KEY_DUMP_RESOLVED_USAGE_STR -> configuration.put(KEY_DUMP_RESOLVED_USAGE, value.toBoolean())
             KEY_EXCLUDED_ROOT_STR -> configuration.add(KEY_EXCLUDED_ROOT, value)
+            KEY_PROJECT_DIR_STR -> configuration.put(KEY_PROJECT_DIR, value)
         }
     }
 }

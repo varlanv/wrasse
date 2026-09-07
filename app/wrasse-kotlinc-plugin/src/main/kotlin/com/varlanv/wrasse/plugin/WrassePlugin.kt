@@ -46,6 +46,7 @@ class WrassePlugin(
     private val perf: WPerf = NoopPerf,
     private val excludedRoots: List<Path> = emptyList(),
     private val messageCollector: MessageCollector = MessageCollector.NONE,
+    private val projectDir: Path? = null,
 ) {
     private val patchStore: WPatchStore? = fixOutputDir?.let { WPatchStore(it.resolve(WPatchStore.PATCH_DIR_NAME)) }
     private val reportStore: WReportStore? = fixOutputDir?.let { WReportStore(it.resolve(WPatchStore.PATCH_DIR_NAME)) }
@@ -151,11 +152,18 @@ class WrassePlugin(
             ReportedDiagnostic(
                 lineStarts.lineOf(report.startOffset),
                 lineStarts.columnOf(report.startOffset),
+                report.startOffset,
                 level,
+                report.hasAutofix,
                 report.message,
             )
         }
-        return ReportedFile(filePath.toString(), sourceHash, diagnostics)
+        return ReportedFile(reportFilePath(filePath), sourceHash, diagnostics)
+    }
+
+    private fun reportFilePath(filePath: Path): String {
+        val root = projectDir ?: return filePath.toString()
+        return runCatching { root.relativize(filePath).toString() }.getOrDefault(filePath.toString())
     }
 
     private class LineIndex(text: CharSequence) {
@@ -232,6 +240,7 @@ class WrassePlugin(
                     endOffset = endOffset,
                     level = rule.config.effectiveLevel,
                     configuredLevel = rule.config.level,
+                    hasAutofix = edits.isNotEmpty(),
                 )
                 recorded.add(report)
                 if (!quiet && (!formatRun || edits.isEmpty())) reports.add(report)

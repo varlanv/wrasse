@@ -236,6 +236,7 @@ fun wrasseMain(
     dumpResolvedUsage: Boolean = false,
     explicitApiActive: Boolean = false,
     excludedRoots: List<Path> = emptyList(),
+    projectDir: Path? = null,
     messageCollector: MessageCollector = MessageCollector.NONE,
 ): Result<WrassePlugin> {
     val uninitializedRules = registeredRules().associateBy { it.id }
@@ -277,6 +278,7 @@ fun wrasseMain(
             quiet = request.quiet,
             perf = WPerf.create(active = request.debugPerformance),
             messageCollector = messageCollector,
+            projectDir = projectDir,
         ),
     )
 }
