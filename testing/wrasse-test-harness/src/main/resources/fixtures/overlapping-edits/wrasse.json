@@ -1,0 +1,9 @@
+{
+    "format": { "enabled": true },
+    "rules": {
+        "range-conventional": { "level": "error" },
+        "long-numerical-values": { "level": "error" },
+        "unnecessary-backticks": { "level": "error" },
+        "import-ordering": { "level": "error" }
+    }
+}

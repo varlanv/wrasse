@@ -7,6 +7,7 @@ object FixtureParser {
     private const val EXPECT_CLEAN = "// expect-clean"
     private const val OPTION_TRAILING_NEWLINE = "// fixture-option: trailing-newline"
     private const val OPTION_WARN_ONLY = "// fixture-option: warn-only"
+    private const val OPTION_MULTI_PASS_FIX = "// fixture-option: multi-pass-fix"
     private val AUX_FILE_PATTERN = Regex("""^//\s*fixture-aux-file:\s*(\S+)$""")
 
     fun parse(source: String): ParsedFixture {
@@ -15,6 +16,7 @@ object FixtureParser {
         var expectClean = false
         var trailingNewline = false
         var warnOnly = false
+        var multiPassFix = false
         val auxFiles = mutableListOf<String>()
         val sourceLines = mutableListOf<String>()
 
@@ -30,6 +32,10 @@ object FixtureParser {
             }
             if (trimmed == OPTION_WARN_ONLY) {
                 warnOnly = true
+                continue
+            }
+            if (trimmed == OPTION_MULTI_PASS_FIX) {
+                multiPassFix = true
                 continue
             }
             val auxMatch = AUX_FILE_PATTERN.matchEntire(trimmed)
@@ -77,6 +83,7 @@ object FixtureParser {
             expectations = expectations,
             expectClean = expectClean,
             warnOnly = warnOnly,
+            multiPassFix = multiPassFix,
             auxFiles = auxFiles,
         )
     }
@@ -87,6 +94,7 @@ class ParsedFixture(
     val expectations: List<ExpectedDiagnostic>,
     val expectClean: Boolean,
     val warnOnly: Boolean = false,
+    val multiPassFix: Boolean = false,
     val auxFiles: List<String> = emptyList(),
 )
 

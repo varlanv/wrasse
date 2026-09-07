@@ -16,7 +16,6 @@ import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.testing.BaseSpec
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.jetbrains.kotlin.K1Deprecation
@@ -201,19 +200,19 @@ class EditPlanCompositionSpec : BaseSpec({
         source.substring(outer.composedStart, outer.composedEnd) shouldBe "(1, 2)"
     }
 
-    should("fail loudly with full rule attribution when two independent rules emit overlapping edits") {
+    should("keep the earlier-starting edit and drop the other when two independent rules overlap") {
         val source = "val x = 123456"
         val ruleA = FixedSpanLeafRule("overlap-rule-a", 8, 12, "AAAA")
         val ruleB = FixedSpanLeafRule("overlap-rule-b", 10, 14, "BBBB")
 
         val ctx = runWalk(source, listOf(ruleA, ruleB))
 
-        val exception = shouldThrow<IllegalStateException> {
-            ctx.editPlan.finalEdits()
-        }
+        val finalEdits = ctx.editPlan.finalEdits()
 
-        exception.message shouldBe
-            "EditPlan: overlapping edits from rule 'overlap-rule-a' (8..12 -> \"AAAA\") " +
-            "and rule 'overlap-rule-b' (10..14 -> \"BBBB\")"
+        finalEdits shouldHaveSize 1
+        finalEdits[0].startOffset shouldBe 8
+        finalEdits[0].endOffset shouldBe 12
+        finalEdits[0].replacement shouldBe "AAAA"
+        ctx.editPlan.droppedEdits().map { it.ruleId } shouldBe listOf("overlap-rule-b")
     }
 })

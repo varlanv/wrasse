@@ -269,10 +269,13 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * Splices every edit still in [WContext.editPlan] into [rootDoc], then renders. Must be called
      * exactly once, after the walk's `afterFile` phase and its deferred
      * [com.varlanv.wrasse.model.WFileRule] phase have both completed, so every rule's final edit is
-     * already in the plan. [DocSplicer.splice] returning `null` means at least one edit could not
-     * be cleanly mapped onto a `Doc` leaf: the format pass is skipped for this compile (no report,
-     * no edit) and the plan is handed back untouched so the declining rules' own edits still reach
-     * the patch.
+     * already in the plan. Overlapping edits are resolved via [EditPlan.resolveOverlaps] first —
+     * [DocSplicer] still assumes disjoint input — so a dropped edit's finding is reported but not
+     * spliced here either; it survives into the next pass same as it would outside format mode.
+     * [DocSplicer.splice] returning `null` means at least one surviving edit could not be cleanly
+     * mapped onto a `Doc` leaf: the format pass is skipped for this compile (no report, no edit)
+     * and the plan is handed back untouched (every taken entry, not just the kept ones) so the
+     * declining rules' own edits still reach the patch.
      */
     fun finish(
         ctx: WContext,
@@ -281,8 +284,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     ) {
         val original = ctx.sourceText.toString()
         val taken = ctx.editPlan.takeAll()
+        val (kept, _) = EditPlan.resolveOverlaps(taken)
         val spliceStarted = if (perf.enabled) System.nanoTime() else 0L
-        val spliced = DocSplicer.splice(rootDoc, taken.map { it.edit })
+        val spliced = DocSplicer.splice(rootDoc, kept.map { it.edit })
         if (perf.enabled) perf.record("phase:format-splice", System.nanoTime() - spliceStarted)
         if (spliced == null) {
             ctx.editPlan.restore(taken)

@@ -17,8 +17,19 @@ import com.varlanv.wrasse.lang.WEdit
  * descending collection sequence — the order in which same-offset insertions must be handed
  * to [com.varlanv.wrasse.lang.WPatchWriter] for the applier to reproduce collection order in
  * the output (later-collected must be spliced first so earlier-collected ends up leftmost).
- * [finalEdits] additionally validates that whatever survives to end-of-walk is pairwise
- * disjoint under that same ordering.
+ *
+ * [finalEdits] resolves any surviving overlap rather than failing, via [resolveOverlaps]:
+ * candidates are ranked by start ascending, then span length descending, then collection
+ * sequence ascending, and kept greedily — an edit is kept unless it overlaps an already-kept
+ * one, otherwise it is dropped. Touching (one edit's end equal to another's start) is not an
+ * overlap. Ranking longer spans first at a shared start means an outer edit wins over one nested
+ * inside it; when two edits share an identical span, the one collected earliest (lowest
+ * sequence, i.e. the first rule to report it during the walk) is kept. Dropped entries are
+ * exposed via [droppedEdits] so the caller can log them; the finding they came from stays
+ * reported regardless, and — since the surviving edit already changed that text — a later pass
+ * over the fixed file re-reports and this time fixes it. `DocBuilder.finish` runs the same
+ * [resolveOverlaps] over its own [takeAll] before splicing, so the printer never sees a pair of
+ * overlapping edits either.
  */
 class EditPlan {
     /** One collected edit, attributed to the rule that reported it and its arrival order. */
@@ -28,8 +39,40 @@ class EditPlan {
         val sequence: Int,
     )
 
+    /** One edit that lost overlap resolution, attributed to its reporting rule. */
+    class Dropped(
+        val ruleId: String,
+        val startOffset: Int,
+        val endOffset: Int,
+    )
+
+    companion object {
+        /** See the class-level overlap-resolution rules. Kept entries are returned in [candidates]' own order. */
+        fun resolveOverlaps(candidates: List<Entry>): Pair<List<Entry>, List<Dropped>> {
+            val resolutionOrder = candidates.sortedWith(
+                compareBy<Entry> { it.edit.startOffset }
+                    .thenByDescending { it.edit.endOffset - it.edit.startOffset }
+                    .thenBy { it.sequence },
+            )
+            val kept = mutableListOf<Entry>()
+            val dropped = mutableListOf<Dropped>()
+            for (candidate in resolutionOrder) {
+                if (kept.any { overlaps(it.edit, candidate.edit) }) {
+                    dropped.add(Dropped(candidate.ruleId, candidate.edit.startOffset, candidate.edit.endOffset))
+                } else {
+                    kept.add(candidate)
+                }
+            }
+            val keptSet = kept.toHashSet()
+            return candidates.filter { it in keptSet } to dropped
+        }
+
+        private fun overlaps(a: WEdit, b: WEdit): Boolean = a.startOffset < b.endOffset && b.startOffset < a.endOffset
+    }
+
     private val entries = mutableListOf<Entry>()
     private var nextSequence = 0
+    private var lastDropped: List<Dropped> = emptyList()
 
     fun add(ruleId: String, edit: WEdit) {
         val entry = Entry(ruleId, edit, nextSequence++)
@@ -82,17 +125,13 @@ class EditPlan {
         return taken
     }
 
+    /** Every edit dropped by the most recent [finalEdits] call, in the order they were dropped. */
+    fun droppedEdits(): List<Dropped> = lastDropped
+
     fun finalEdits(): List<WEdit> {
-        for (i in 0 until entries.size - 1) {
-            val current = entries[i]
-            val next = entries[i + 1]
-            check(next.edit.startOffset >= current.edit.endOffset) {
-                "EditPlan: overlapping edits from rule '${current.ruleId}' " +
-                    "(${current.edit.startOffset}..${current.edit.endOffset} -> \"${current.edit.replacement}\") " +
-                    "and rule '${next.ruleId}' (${next.edit.startOffset}..${next.edit.endOffset} -> \"${next.edit.replacement}\")"
-            }
-        }
-        return entries.map { it.edit }
+        val (kept, dropped) = resolveOverlaps(entries)
+        lastDropped = dropped
+        return kept.map { it.edit }
     }
 
     private fun sameSpan(a: WEdit, b: WEdit): Boolean = a.startOffset == b.startOffset && a.endOffset == b.endOffset

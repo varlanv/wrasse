@@ -2,7 +2,6 @@ package com.varlanv.wrasse.model
 
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.testing.BaseSpec
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -95,17 +94,55 @@ class EditPlanSpec : BaseSpec({
         edits[1].replacement shouldBe "A"
     }
 
-    should("fail loudly with full rule attribution when surviving edits overlap") {
+    should("drop the later-starting edit and keep the earlier one on a partial overlap") {
         val plan = EditPlan()
         plan.add("rule-a", WEdit(5, 10, "AAA"))
         plan.add("rule-b", WEdit(8, 12, "BBB"))
 
-        val exception = shouldThrow<IllegalStateException> {
-            plan.finalEdits()
-        }
+        val edits = plan.finalEdits()
 
-        exception.message shouldBe
-            "EditPlan: overlapping edits from rule 'rule-a' (5..10 -> \"AAA\") and rule 'rule-b' (8..12 -> \"BBB\")"
+        edits shouldHaveSize 1
+        edits[0].replacement shouldBe "AAA"
+        plan.droppedEdits() shouldHaveSize 1
+        plan.droppedEdits()[0].ruleId shouldBe "rule-b"
+        plan.droppedEdits()[0].startOffset shouldBe 8
+        plan.droppedEdits()[0].endOffset shouldBe 12
+    }
+
+    should("drop a nested inner edit and keep the enclosing outer edit") {
+        val plan = EditPlan()
+        plan.add("outer", WEdit(5, 20, "OUTER"))
+        plan.add("inner", WEdit(8, 12, "inner"))
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 1
+        edits[0].replacement shouldBe "OUTER"
+        plan.droppedEdits().map { it.ruleId } shouldBe listOf("inner")
+    }
+
+    should("drop an inner edit nested inside a multi-line outer edit") {
+        val plan = EditPlan()
+        plan.add("outer", WEdit(0, 20, "line one\nline two"))
+        plan.add("inner", WEdit(5, 8, "x"))
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 1
+        edits[0].replacement shouldBe "line one\nline two"
+        plan.droppedEdits().map { it.ruleId } shouldBe listOf("inner")
+    }
+
+    should("keep the earliest-collected edit when two rules emit different replacements for an identical span") {
+        val plan = EditPlan()
+        plan.add("rule-a", WEdit(5, 10, "AAA"))
+        plan.add("rule-b", WEdit(5, 10, "BBB"))
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 1
+        edits[0].replacement shouldBe "AAA"
+        plan.droppedEdits().map { it.ruleId } shouldBe listOf("rule-b")
     }
 
     should("not treat a zero-width insert at the start of a later edit as an overlap") {
@@ -118,5 +155,18 @@ class EditPlanSpec : BaseSpec({
         edits shouldHaveSize 2
         edits[0].replacement shouldBe "X"
         edits[1].replacement shouldBe "YYY"
+        plan.droppedEdits().shouldBeEmpty()
+    }
+
+    should("keep two non-zero-width edits that only touch at a shared boundary") {
+        val plan = EditPlan()
+        plan.add("left", WEdit(0, 5, "LEFT"))
+        plan.add("right", WEdit(5, 10, "RIGHT"))
+
+        val edits = plan.finalEdits()
+
+        edits shouldHaveSize 2
+        edits.map { it.replacement } shouldBe listOf("LEFT", "RIGHT")
+        plan.droppedEdits().shouldBeEmpty()
     }
 })

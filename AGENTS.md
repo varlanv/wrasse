@@ -67,7 +67,9 @@ expectations (see `FixtureParser`):
 
 - `// expect-error <line>:<col> <rule-id> "<message>"` / `// expect-warning ...`
 - `// expect-clean` — file must produce zero diagnostics (mutually exclusive with expect-error/warning)
-- `// fixture-option: trailing-newline` / `// fixture-option: warn-only` — harness options
+- `// fixture-option: trailing-newline` / `// fixture-option: warn-only` / `// fixture-option: multi-pass-fix` — harness options
+  (`multi-pass-fix` lets a fixture whose fix needs a further apply round, because an overlapping edit was dropped,
+  converge in up to five rounds; every other fixture must reach its fixed point in one)
 
 The same fixture set runs against every supported Kotlin minor (2.1–2.4) via the per-minor test
 modules — fixtures are Kotlin-version-agnostic by construction.

@@ -1,1 +1,2 @@
 com.varlanv.wrasse.plugin.internal.ThrowingRuleTestRegistrar
+com.varlanv.wrasse.plugin.internal.OverlappingEditsTestRegistrar

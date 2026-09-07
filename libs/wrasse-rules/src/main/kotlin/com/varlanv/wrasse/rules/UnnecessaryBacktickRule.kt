@@ -19,6 +19,9 @@ private val TARGET_TYPES = setOf(WNodeType.IDENTIFIER)
  * text follows it in the same string, with no delimiter of its own once the backticks are gone,
  * so removal could silently extend the reference into that following text. A long-form entry
  * (`"${\`name\`}"`) has its own explicit closing brace and is never affected.
+ *
+ * Never reported at all inside an import or package directive: a backticked path segment there
+ * is harmless, and that span belongs to the import engine's own rewrite.
  */
 class UnnecessaryBacktickRule : WUninitializedRule {
     override val id: String = "unnecessary-backticks"
@@ -32,6 +35,9 @@ class UnnecessaryBacktickRule : WUninitializedRule {
             override val targetTypes = TARGET_TYPES
 
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
+                if (ctx.hasAncestor(WNodeType.IMPORT_DIRECTIVE) || ctx.hasAncestor(WNodeType.PACKAGE_DIRECTIVE)) {
+                    return
+                }
                 val text = ctx.leafText ?: return
                 val unquoted = UnnecessaryBacktickDecision.unquote(text) ?: return
                 val canFix = !ctx.hasAncestor(WNodeType.SHORT_STRING_TEMPLATE_ENTRY)

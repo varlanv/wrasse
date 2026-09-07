@@ -35,6 +35,7 @@ open class WrasseFixtureSpec : BaseSpec({
                         source,
                         result,
                         fixture.auxSources,
+                        fixture.multiPassFix,
                     )
                     val fixedSource = fixture.fixedSource
                     if (fixedSource != null) {

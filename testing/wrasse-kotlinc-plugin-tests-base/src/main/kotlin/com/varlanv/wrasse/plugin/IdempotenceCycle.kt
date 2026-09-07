@@ -18,6 +18,14 @@ import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 object IdempotenceCycle {
     private const val PATCH_FILE_NAME = "wrasse-fixes.txt"
 
+    /**
+     * Bound on the further apply-and-recompile rounds a fixture opting into `multi-pass-fix` may
+     * need (a dropped overlapping edit, see [com.varlanv.wrasse.model.EditPlan.resolveOverlaps],
+     * is only applied once the surviving edit has cleared the overlap). Every other fixture must
+     * reach its fixed point in one round.
+     */
+    private const val MAX_EXTRA_ROUNDS = 5
+
     fun runIfFixEmitted(
         harness: WrasseTestHarness,
         workDir: Path,
@@ -25,6 +33,7 @@ object IdempotenceCycle {
         source: TestSource,
         round1: CompilationResult,
         auxSources: List<TestSource> = emptyList(),
+        multiPassFix: Boolean = false,
     ): String? {
         val patchFile = fixOutputDir.resolve("patch").resolve(PATCH_FILE_NAME)
         if (!Files.exists(patchFile)) return null
@@ -34,18 +43,40 @@ object IdempotenceCycle {
 
         val expectedSurvivors = expectedSurvivorKeys(source.content, round1.wrasseDiagnostics, edits)
 
+        applyPatch(fixOutputDir)
+        val firstPatchedContent = Files.readString(harness.sourcePath(workDir, source))
+        var latestRound = harness.compile(listOf(TestSource(source.path, firstPatchedContent)) + auxSources, workDir)
+        assertNoNewCompileErrors(round1.diagnostics, latestRound.diagnostics)
+
+        var extraRounds = 0
+        while (multiPassFix && hasResidualEdits(patchFile)) {
+            extraRounds++
+            withClue(
+                "Autofix did not converge to a fixed point within $MAX_EXTRA_ROUNDS extra pass(es) after the " +
+                    "first: a dropped overlapping edit should resolve within a handful of further rounds, not " +
+                    "loop indefinitely.",
+            ) {
+                (extraRounds <= MAX_EXTRA_ROUNDS) shouldBe true
+            }
+            applyPatch(fixOutputDir)
+            val patchedContent = Files.readString(harness.sourcePath(workDir, source))
+            latestRound = harness.compile(listOf(TestSource(source.path, patchedContent)) + auxSources, workDir)
+            assertNoNewCompileErrors(round1.diagnostics, latestRound.diagnostics)
+        }
+
+        assertNoResidualEdits(patchFile)
+        assertExpectedSurvivors(expectedSurvivors, latestRound.wrasseDiagnostics.map { diagnosticKey(it) })
+
+        return firstPatchedContent
+    }
+
+    private fun applyPatch(fixOutputDir: Path) {
         val applyResult = WPatchApplier.apply(fixOutputDir)
         assertPatchFullyApplied(applyResult.files)
-
-        val patchedContent = Files.readString(harness.sourcePath(workDir, source))
-        val round2 = harness.compile(listOf(TestSource(source.path, patchedContent)) + auxSources, workDir)
-
-        assertNoNewCompileErrors(round1.diagnostics, round2.diagnostics)
-        assertNoResidualEdits(patchFile)
-        assertExpectedSurvivors(expectedSurvivors, round2.wrasseDiagnostics.map { diagnosticKey(it) })
-
-        return patchedContent
     }
+
+    private fun hasResidualEdits(patchFile: Path): Boolean =
+        Files.exists(patchFile) && WPatchReader.read(Files.readString(patchFile)).any { it.edits.isNotEmpty() }
 
     fun diagnosticKey(diagnostic: TestDiagnostic): String =
         "${diagnostic.severity} ${diagnostic.message}"
