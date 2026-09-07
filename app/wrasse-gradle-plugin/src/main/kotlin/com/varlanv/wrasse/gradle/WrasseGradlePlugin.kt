@@ -45,7 +45,7 @@ private const val KAPT_STUB_TASK_CLASS = "org.jetbrains.kotlin.gradle.internal.K
 private const val KOTLIN_COMPILE_CLASS = "org.jetbrains.kotlin.gradle.tasks.KotlinCompile"
 private val EXTENDS_ENTRY = Regex("\"extends\"\\s*:\\s*\"([^\"]+)\"")
 private val KOTLIN_PLUGIN_IDS =
-    listOf("org.jetbrains.kotlin.jvm", "org.jetbrains.kotlin.multiplatform", "org.jetbrains.kotlin.android")
+    arrayOf("org.jetbrains.kotlin.jvm", "org.jetbrains.kotlin.multiplatform", "org.jetbrains.kotlin.android")
 
 /**
  * `wrasse { }`: [enabled] runs the compiler plugin in every Kotlin compile (default true);
@@ -446,7 +446,7 @@ private fun deleteRequests(dir: File) {
 private fun reportedPath(line: String): Path? {
     val start = line.indexOf(": ")
     val end = line.indexOf(" wrasse: ")
-    if (start < 0 || end <= start) return null
+    if (start !in 0..<end) return null
     val uri = line.substring(start + 2, end).substringBeforeLast(':').substringBeforeLast(':')
     return runCatching { Path.of(URI(uri)).normalize() }.getOrNull()
 }
