@@ -12,7 +12,9 @@ import com.varlanv.wrasse.lang.WEdit
  * [editsFor] replaces the caller-supplied span (the outermost `!` chain's own span) with
  * [operandText] verbatim when [depth] is even (the negations cancel out, any parentheses [
  * operandText] itself still carries — e.g. around a `&&` — are kept as-is) or with a single leading
- * `!` in front of it when [depth] is odd.
+ * `!` in front of it when [depth] is odd. Bails to a report-only occurrence (empty edit list)
+ * whenever [hasComment] is true: the replacement text is synthesized from the operand span alone,
+ * so a comment anywhere in the chain has nowhere to be preserved.
  */
 object DoubleNegativeDecision {
     const val MESSAGE = "Expression negated more than once; this can be simplified"
@@ -24,7 +26,9 @@ object DoubleNegativeDecision {
         replaceStart: Int,
         replaceEnd: Int,
         operandText: CharSequence,
+        hasComment: Boolean,
     ): List<WEdit> {
+        if (hasComment) return emptyList()
         val replacement = if (depth % 2 == 0) operandText.toString() else "!$operandText"
         return listOf(WEdit(replaceStart, replaceEnd, replacement))
     }

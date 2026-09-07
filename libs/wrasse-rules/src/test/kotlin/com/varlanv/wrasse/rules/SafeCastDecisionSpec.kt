@@ -14,7 +14,8 @@ class SafeCastDecisionSpec : BaseSpec({
         typeText: String = "Int",
         replaceStart: Int = 0,
         replaceEnd: Int = 30,
-    ) = SafeCastDecision.decide(identifier, negated, thenText, elseText, typeText, replaceStart, replaceEnd)
+        hasComment: Boolean = false,
+    ) = SafeCastDecision.decide(identifier, negated, thenText, elseText, typeText, replaceStart, replaceEnd, hasComment)
 
     should("report and rewrite a non-negated is-check to a safe cast") {
         val verdict = decide(replaceStart = 4, replaceEnd = 34)
@@ -53,5 +54,12 @@ class SafeCastDecisionSpec : BaseSpec({
 
     should("not report a negated is-check whose then branch is not null") {
         decide(negated = true, thenText = "number", elseText = "number") shouldBe null
+    }
+
+    should("report but decline the fix when a comment sits inside the matched span") {
+        val verdict = decide(hasComment = true)
+
+        verdict shouldNotBe null
+        verdict!!.edits shouldBe emptyList()
     }
 })

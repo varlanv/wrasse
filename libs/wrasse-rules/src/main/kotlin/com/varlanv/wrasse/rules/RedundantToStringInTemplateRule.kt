@@ -12,11 +12,9 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
 private val TARGET_TYPES = setOf(WNodeType.DOT_QUALIFIED_EXPRESSION)
 
 /**
- * A `${receiver.toString()}` string-template entry whose entire content is one `.toString()` call is reported (see [RedundantToStringInTemplateDecision]) at the
- * whole expression's own span — the template already stringifies its own expression, so the
- * explicit call is redundant. Only the direct `.toString()` slice of the upstream `string-template`
- * rule this derives from is ported here; its sibling "redundant curly braces" concern is a
- * rewrite/format-shaped decision, out of this batch's scope.
+ * A `${receiver.toString()}` string-template entry whose entire content is one `.toString()` call
+ * is reported (see [RedundantToStringInTemplateDecision]) at the whole expression's own span — the
+ * template already stringifies its own expression, so the explicit call is redundant.
  */
 class RedundantToStringInTemplateRule : WUninitializedRule {
     override val id: String = "redundant-to-string-in-template"
@@ -41,15 +39,18 @@ class RedundantToStringInTemplateRule : WUninitializedRule {
                 val opType = children.type(opIdx)
                 if (opType != WNodeType.DOT) return
 
+                val entryEnd = ctx.ancestors.peekEndOffset()
+                val nextChar = if (entryEnd < ctx.sourceText.length) ctx.sourceText[entryEnd] else null
                 val verdict = RedundantToStringInTemplateDecision.decide(
                     receiverType = children.type(receiverIdx),
                     selectorType = children.type(selectorIdx),
                     selectorText = children.textSpan(selectorIdx, ctx.sourceText),
                     receiverText = children.textSpan(receiverIdx, ctx.sourceText),
                     entryStart = ctx.ancestors.peekStartOffset(),
-                    entryEnd = ctx.ancestors.peekEndOffset(),
+                    entryEnd = entryEnd,
                     dotStart = children.startOffset(opIdx),
                     callEnd = children.endOffset(selectorIdx),
+                    nextChar = nextChar,
                 ) ?: return
                 reporter.report(
                     ruleId,

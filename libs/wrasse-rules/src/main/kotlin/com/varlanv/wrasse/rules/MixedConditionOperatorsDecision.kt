@@ -6,15 +6,13 @@ import com.varlanv.wrasse.lang.WEdit
  * Verdict logic for a chain of `&&`/`||` operands mixing both operators, compiler-free so it is
  * unit-testable without a kotlinc dependency.
  *
+ * [decide] reports once both operators appear somewhere in the same chain.
+ *
  * [wrapEdits] parenthesizes a maximal `&&` sub-chain the moment it is found to be a direct operand
  * of a `||` node: [parentIsAnd] is the enclosing node's own operator, [childIsAnd] the merged
  * child's own operator — a wrap is due only when the parent is `||` and the child is `&&`, in
  * which case [childStart]/[childEnd] (the child's own span, already covering every `&&` nested
- * inside it) get an opening and closing paren inserted around them. Kotlin's grammar can never
- * nest a bare `||` as a direct child of `&&` (it would have parsed as the outer operator instead),
- * so the reverse parent/child pairing never arises; an operand already wrapped in explicit
- * parentheses is a `PARENTHESIZED` node rather than `BINARY_EXPRESSION`, so it is never passed
- * here as a merge candidate in the first place.
+ * inside it) get an opening and closing paren inserted around them.
  */
 object MixedConditionOperatorsDecision {
     const val MESSAGE =

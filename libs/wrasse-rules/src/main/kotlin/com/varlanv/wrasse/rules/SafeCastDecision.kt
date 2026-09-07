@@ -15,7 +15,10 @@ class SafeCastVerdict(val edits: List<WEdit>)
  *
  * [decide] replaces the whole `if` expression's span (braces included, when present) with
  * `<identifier> as? <typeText>` — always safe once the branches already match this exact shape,
- * since the subject is used verbatim on both sides of the check.
+ * since the subject is used verbatim on both sides of the check. Bails to a report-only occurrence
+ * (empty [SafeCastVerdict.edits]) whenever [hasComment] is true: the replacement text is
+ * synthesized from the identifier and type alone, so a comment anywhere in the matched span has
+ * nowhere to be preserved.
  */
 object SafeCastDecision {
     const val MESSAGE = "This if/else can be replaced with a safe cast (as?)"
@@ -28,10 +31,12 @@ object SafeCastDecision {
         typeText: String,
         replaceStart: Int,
         replaceEnd: Int,
+        hasComment: Boolean,
     ): SafeCastVerdict? {
         val matches =
             if (negated) elseText == identifier && thenText == "null" else thenText == identifier && elseText == "null"
         if (!matches) return null
-        return SafeCastVerdict(listOf(WEdit(replaceStart, replaceEnd, "$identifier as? $typeText")))
+        val edits = if (hasComment) emptyList() else listOf(WEdit(replaceStart, replaceEnd, "$identifier as? $typeText"))
+        return SafeCastVerdict(edits)
     }
 }

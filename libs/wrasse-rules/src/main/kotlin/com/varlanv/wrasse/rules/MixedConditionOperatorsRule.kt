@@ -18,19 +18,14 @@ private val TARGET_TYPES = setOf(WNodeType.BINARY_EXPRESSION)
  * the chain's own outermost span. Every logical `BINARY_EXPRESSION` stores its own "which
  * operators appear in my own chain so far" flags at its own exit, keyed by its own offsets; a
  * direct child that is itself a logical `BINARY_EXPRESSION` has its flags merged in and removed
- * from the map (never independently reported) regardless of whether its own operator matches —
- * unlike [UnnecessaryPartOfBinaryExpressionRule]'s same-operator-only merge, mixing is exactly
- * the different-operator case. A parenthesized sub-expression, or any non-logical operand, is
- * never itself a recorded chain entry, so it is always treated as one opaque operand and never
- * flattened through — the same boundary the upstream rule this derives from respects via its own
- * recursive descent. Whatever survives unconsumed by [afterFile] is each chain's own true
- * outermost node, decided and reported there.
+ * from the map, never reported independently. A parenthesized sub-expression, or any non-logical
+ * operand, is always treated as one opaque operand and never flattened through. Whatever survives
+ * unconsumed by [afterFile] is each chain's own true outermost node, decided and reported there.
  *
  * Every merge also asks [MixedConditionOperatorsDecision.wrapEdits] whether the child just folded
  * in is a maximal `&&` sub-chain sitting as a direct operand of a `||` node; any such wrap, plus
  * whatever wraps the child itself already carried, rides along in the chain's own [ChainNode.edits]
- * up to whichever node survives to [afterFile] — see [MixedConditionOperatorsDecision] for why one
- * pass of local, bottom-up wrap decisions is enough to parenthesize every maximal chain correctly.
+ * up to whichever node survives to [afterFile].
  */
 class MixedConditionOperatorsRule : WUninitializedRule {
     override val id: String = "mixed-condition-operators"

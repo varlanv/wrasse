@@ -1,9 +1,34 @@
 package com.varlanv.wrasse.rules
 
+import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.matchers.shouldBe
 
 class MayBeConstantDecisionSpec : BaseSpec({
+
+    should("treat a top-level property as eligible") {
+        MayBeConstantDecision.isEligibleScope(WNodeType.FILE, null, null) shouldBe true
+    }
+
+    should("treat a named object's direct member as eligible") {
+        MayBeConstantDecision.isEligibleScope(
+            WNodeType.CLASS_BODY,
+            WNodeType.OBJECT_DECLARATION,
+            WNodeType.FILE,
+        ) shouldBe true
+    }
+
+    should("not treat an anonymous object literal's member as eligible") {
+        MayBeConstantDecision.isEligibleScope(
+            WNodeType.CLASS_BODY,
+            WNodeType.OBJECT_DECLARATION,
+            WNodeType.OBJECT_LITERAL,
+        ) shouldBe false
+    }
+
+    should("not treat a class member as eligible") {
+        MayBeConstantDecision.isEligibleScope(WNodeType.CLASS_BODY, WNodeType.CLASS, WNodeType.FILE) shouldBe false
+    }
 
     fun decide(
         eligibleScope: Boolean = true,

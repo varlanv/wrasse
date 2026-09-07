@@ -81,6 +81,7 @@ class SafeCastRule : WUninitializedRule {
 
                 val thenText = singleStatementText(children.textSpan(thenIdx, ctx.sourceText).toString())
                 val elseText = singleStatementText(children.textSpan(elseIdx, ctx.sourceText).toString())
+                val hasComment = hasCommentChild(children)
 
                 val verdict = SafeCastDecision.decide(
                     identifier,
@@ -90,6 +91,7 @@ class SafeCastRule : WUninitializedRule {
                     typeText,
                     ctx.startOffset,
                     ctx.endOffset,
+                    hasComment,
                 ) ?: return
                 reporter.report(
                     ruleId,
@@ -99,6 +101,14 @@ class SafeCastRule : WUninitializedRule {
                     this,
                     edits = verdict.edits,
                 )
+            }
+
+            private fun hasCommentChild(children: ChildBuffer): Boolean {
+                for (i in 0 until children.size) {
+                    val type = children.type(i)
+                    if (type.isWhitespaceOrComment && type != WNodeType.WHITE_SPACE) return true
+                }
+                return false
             }
 
             private fun singleStatementText(text: String): String {

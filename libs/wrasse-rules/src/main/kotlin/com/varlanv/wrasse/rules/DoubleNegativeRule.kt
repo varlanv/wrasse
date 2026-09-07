@@ -43,15 +43,16 @@ class DoubleNegativeRule : WUninitializedRule {
             ) {
                 when (ctx.type) {
                     WNodeType.PREFIX_EXPRESSION -> finalizePrefix(ctx, children, reporter)
-                    WNodeType.PARENTHESIZED -> finalizeParenthesized(ctx)
+                    WNodeType.PARENTHESIZED -> finalizeParenthesized(ctx, children)
                     else -> {}
                 }
             }
 
-            private fun finalizeParenthesized(ctx: WContext) {
+            private fun finalizeParenthesized(ctx: WContext, children: ChildBuffer) {
                 val inner = carries.removeAt(carries.size - 1) ?: return
+                val hasComment = inner.hasComment || hasCommentChild(children)
                 if (isChainLink(ctx.ancestors.peekType())) {
-                    carries[carries.size - 1] = inner
+                    carries[carries.size - 1] = Carry(inner.depth, inner.operandStart, inner.operandEnd, hasComment)
                 }
             }
 
@@ -69,18 +70,22 @@ class DoubleNegativeRule : WUninitializedRule {
                 val depth: Int
                 val operandStart: Int
                 val operandEnd: Int
+                val innerHasComment: Boolean
                 if (inner != null) {
                     depth = 1 + inner.depth
                     operandStart = inner.operandStart
                     operandEnd = inner.operandEnd
+                    innerHasComment = inner.hasComment
                 } else {
                     depth = 1
                     operandStart = children.startOffset(operandIdx)
                     operandEnd = children.endOffset(operandIdx)
+                    innerHasComment = false
                 }
+                val hasComment = innerHasComment || hasCommentChild(children)
 
                 if (isChainLink(ctx.ancestors.peekType())) {
-                    carries[carries.size - 1] = Carry(depth, operandStart, operandEnd)
+                    carries[carries.size - 1] = Carry(depth, operandStart, operandEnd, hasComment)
                 }
 
                 if (isNestedInsideExclamationChain(ctx)) return
@@ -92,8 +97,22 @@ class DoubleNegativeRule : WUninitializedRule {
                     ctx.startOffset,
                     ctx.endOffset,
                     this,
-                    edits = DoubleNegativeDecision.editsFor(depth, ctx.startOffset, ctx.endOffset, operandText),
+                    edits = DoubleNegativeDecision.editsFor(
+                        depth,
+                        ctx.startOffset,
+                        ctx.endOffset,
+                        operandText,
+                        hasComment,
+                    ),
                 )
+            }
+
+            private fun hasCommentChild(children: ChildBuffer): Boolean {
+                for (i in 0 until children.size) {
+                    val type = children.type(i)
+                    if (type.isWhitespaceOrComment && type != WNodeType.WHITE_SPACE) return true
+                }
+                return false
             }
 
             private fun isChainLink(type: WNodeType) =
@@ -113,5 +132,6 @@ class DoubleNegativeRule : WUninitializedRule {
         val depth: Int,
         val operandStart: Int,
         val operandEnd: Int,
+        val hasComment: Boolean,
     )
 }

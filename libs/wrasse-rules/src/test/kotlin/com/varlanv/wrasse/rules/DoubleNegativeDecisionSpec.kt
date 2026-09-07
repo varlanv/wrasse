@@ -15,7 +15,7 @@ class DoubleNegativeDecisionSpec : BaseSpec({
     }
 
     should("replace an even-depth chain with the operand text alone") {
-        val edits = DoubleNegativeDecision.editsFor(2, 0, 9, "isValid")
+        val edits = DoubleNegativeDecision.editsFor(2, 0, 9, "isValid", hasComment = false)
 
         edits.size shouldBe 1
         val edit = edits.single()
@@ -25,13 +25,13 @@ class DoubleNegativeDecisionSpec : BaseSpec({
     }
 
     should("keep the operand's own parentheses on an even-depth chain") {
-        val edits = DoubleNegativeDecision.editsFor(2, 0, 12, "(a && b)")
+        val edits = DoubleNegativeDecision.editsFor(2, 0, 12, "(a && b)", hasComment = false)
 
         edits.single().replacement shouldBe "(a && b)"
     }
 
     should("replace an odd-depth chain with a single leading exclamation") {
-        val edits = DoubleNegativeDecision.editsFor(3, 0, 10, "isValid")
+        val edits = DoubleNegativeDecision.editsFor(3, 0, 10, "isValid", hasComment = false)
 
         edits.single().replacement shouldBe "!isValid"
     }
@@ -39,7 +39,7 @@ class DoubleNegativeDecisionSpec : BaseSpec({
     should("splice an even-depth replacement into a real source string") {
         val source = "!!isValid"
 
-        val edits = DoubleNegativeDecision.editsFor(2, 0, source.length, "isValid")
+        val edits = DoubleNegativeDecision.editsFor(2, 0, source.length, "isValid", hasComment = false)
         val edit = edits.single()
         val fixed = source.substring(0, edit.startOffset) + edit.replacement + source.substring(edit.endOffset)
 
@@ -49,10 +49,14 @@ class DoubleNegativeDecisionSpec : BaseSpec({
     should("splice an odd-depth replacement into a real source string") {
         val source = "!!!isValid"
 
-        val edits = DoubleNegativeDecision.editsFor(3, 0, source.length, "isValid")
+        val edits = DoubleNegativeDecision.editsFor(3, 0, source.length, "isValid", hasComment = false)
         val edit = edits.single()
         val fixed = source.substring(0, edit.startOffset) + edit.replacement + source.substring(edit.endOffset)
 
         fixed shouldBe "!isValid"
+    }
+
+    should("decline the fix when a comment sits inside the matched span") {
+        DoubleNegativeDecision.editsFor(2, 0, 9, "isValid", hasComment = true) shouldBe emptyList()
     }
 })

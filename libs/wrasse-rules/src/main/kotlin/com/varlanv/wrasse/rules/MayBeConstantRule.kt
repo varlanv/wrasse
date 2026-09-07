@@ -38,15 +38,14 @@ class MayBeConstantRule : WUninitializedRule {
                 reporter: WReporter,
             ) {
                 val ancestors = ctx.ancestors
-                val isTopLevel = ancestors.peekType() == WNodeType.FILE
-                val isObjectMember =
-                    ancestors.peekType() ==
-                        WNodeType.CLASS_BODY &&
-                        ancestors.size >=
-                        2 &&
-                        ancestors.typeAt(ancestors.size - 2) ==
-                        WNodeType.OBJECT_DECLARATION
-                val eligibleScope = isTopLevel || isObjectMember
+                val parentType = ancestors.peekType()
+                val grandparentType = if (ancestors.size >= 2) ancestors.typeAt(ancestors.size - 2) else null
+                val greatGrandparentType = if (ancestors.size >= 3) ancestors.typeAt(ancestors.size - 3) else null
+                val eligibleScope = MayBeConstantDecision.isEligibleScope(
+                    parentType,
+                    grandparentType,
+                    greatGrandparentType,
+                )
 
                 val modifierListIdx = children.firstChildOfType(WNodeType.MODIFIER_LIST)
                 val modifierText = if (modifierListIdx < 0) "" else children.textSpan(modifierListIdx, ctx.sourceText)

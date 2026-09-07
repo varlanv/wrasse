@@ -50,4 +50,17 @@ class NoSingleLineBlockCommentDecisionSpec : BaseSpec({
     should("decline the smallest possible empty comment") {
         NoSingleLineBlockCommentDecision.replacement("/**/") shouldBe null
     }
+
+    should("decline an unterminated block comment at end of file") {
+        NoSingleLineBlockCommentDecision.replacement("/*") shouldBe null
+    }
+
+    should("decline text too short to hold both delimiters") {
+        NoSingleLineBlockCommentDecision.replacement("/**") shouldBe null
+        NoSingleLineBlockCommentDecision.replacement("") shouldBe null
+    }
+
+    should("decline an unterminated block comment with content but no closing delimiter") {
+        NoSingleLineBlockCommentDecision.replacement("/* abc") shouldBe null
+    }
 })

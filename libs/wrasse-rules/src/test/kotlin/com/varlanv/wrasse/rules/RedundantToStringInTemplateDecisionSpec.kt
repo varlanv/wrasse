@@ -16,6 +16,7 @@ class RedundantToStringInTemplateDecisionSpec : BaseSpec({
         entryEnd: Int = 20,
         dotStart: Int = 3,
         callEnd: Int = 19,
+        nextChar: Char? = null,
     ) = RedundantToStringInTemplateDecision.decide(
         receiverType = receiverType,
         selectorType = selectorType,
@@ -25,6 +26,7 @@ class RedundantToStringInTemplateDecisionSpec : BaseSpec({
         entryEnd = entryEnd,
         dotStart = dotStart,
         callEnd = callEnd,
+        nextChar = nextChar,
     )
 
     should("report and shorten a plain identifier receiver to \$name, replacing the whole entry") {
@@ -77,12 +79,78 @@ class RedundantToStringInTemplateDecisionSpec : BaseSpec({
         edit.replacement shouldBe ""
     }
 
-    should("report but decline the fix for a backtick-quoted identifier receiver") {
+    should("report and keep the braces for a backtick-quoted identifier receiver, dropping only the call") {
         val verdict = decide(receiverText = "`my var`")
 
         verdict shouldNotBe null
         val edit = verdict!!.edits.single()
         edit.replacement shouldBe ""
+    }
+
+    should("keep the braces when an identifier character follows the entry") {
+        val verdict = decide(receiverText = "x", entryStart = 5, entryEnd = 25, nextChar = 'a')
+
+        verdict shouldNotBe null
+        val edit = verdict!!.edits.single()
+        edit.startOffset shouldBe 3
+        edit.endOffset shouldBe 19
+        edit.replacement shouldBe ""
+    }
+
+    should("keep the braces when a digit follows the entry") {
+        val verdict = decide(receiverText = "x", nextChar = '2')
+
+        val edit = verdict!!.edits.single()
+        edit.replacement shouldBe ""
+    }
+
+    should("keep the braces when an underscore follows the entry") {
+        val verdict = decide(receiverText = "x", nextChar = '_')
+
+        val edit = verdict!!.edits.single()
+        edit.replacement shouldBe ""
+    }
+
+    should("keep the braces when a non-ASCII letter follows the entry") {
+        val verdict = decide(receiverText = "x", nextChar = 'é')
+
+        val edit = verdict!!.edits.single()
+        edit.replacement shouldBe ""
+    }
+
+    should("still use the shorthand when a dot follows the entry") {
+        val verdict = decide(receiverText = "x", entryStart = 5, entryEnd = 25, nextChar = '.')
+
+        val edit = verdict!!.edits.single()
+        edit.startOffset shouldBe 5
+        edit.endOffset shouldBe 25
+        edit.replacement shouldBe "\$x"
+    }
+
+    should("still use the shorthand at the end of the template") {
+        val verdict = decide(receiverText = "x", entryStart = 5, entryEnd = 25, nextChar = null)
+
+        val edit = verdict!!.edits.single()
+        edit.replacement shouldBe "\$x"
+    }
+
+    should("splice the brace-keeping edit into a real source string when an identifier follows") {
+        val source = "\"\${x.toString()}abc\""
+        val entryEnd = source.indexOf("}") + 1
+        val dotStart = source.indexOf(".toString()")
+        val callEnd = source.indexOf("}")
+
+        val verdict = decide(
+            receiverText = "x",
+            entryEnd = entryEnd,
+            dotStart = dotStart,
+            callEnd = callEnd,
+            nextChar = source[entryEnd],
+        )!!
+        val edit = verdict.edits.single()
+        val fixed = source.substring(0, edit.startOffset) + edit.replacement + source.substring(edit.endOffset)
+
+        fixed shouldBe "\"\${x}abc\""
     }
 
     should("report but decline the fix for a bare this receiver") {

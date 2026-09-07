@@ -7,17 +7,17 @@ import com.varlanv.wrasse.model.WNodeType
 class RedundantToStringInTemplateVerdict(val edits: List<WEdit>)
 
 /**
- * Verdict logic for a `${receiver.toString()}` string-template entry,
- * compiler-free so it is unit-testable without a kotlinc dependency. `super.toString()` is exempt
- * (there is no bare `$super` shorthand to fall back to); the call is matched as literal whole-span
- * text (`toString()`, no arguments, no internal whitespace), matching the upstream rule this
- * derives from exactly.
+ * Verdict logic for a `${receiver.toString()}` string-template entry, compiler-free so it is
+ * unit-testable without a kotlinc dependency. `super.toString()` is exempt (there is no bare
+ * `$super` shorthand to fall back to); the call is matched as literal whole-span text
+ * (`toString()`, no arguments, no internal whitespace).
  *
  * [decide] returns edits — replacing the whole entry with `$receiver` — only for a bare-dot call on
- * a plain, non-backtick identifier: that shorthand is the only rewrite a template's own null-to-
- * `"null"` handling can't distinguish from the original. Any other bare-dot receiver (a dotted
- * chain, a call, a backtick identifier) keeps its `${ }` braces and drops only the `.toString()`
- * call. A bare `this.toString()` is reported with no edit.
+ * a plain, non-backtick identifier whose shorthand would not merge with whatever follows the entry:
+ * [nextChar] (the character right after the entry, or `null` at end of template) must be neither a
+ * valid identifier-part character nor a backtick. Any other case (a dotted-chain, call, or
+ * backtick receiver, or a merge-risking [nextChar]) keeps the `${ }` braces and drops only the
+ * `.toString()` call. A bare `this.toString()` is reported with no edit.
  */
 object RedundantToStringInTemplateDecision {
     const val MESSAGE = "Redundant '.toString()' call in string template"
@@ -31,16 +31,19 @@ object RedundantToStringInTemplateDecision {
         entryEnd: Int,
         dotStart: Int,
         callEnd: Int,
+        nextChar: Char?,
     ): RedundantToStringInTemplateVerdict? {
         if (receiverType == WNodeType.SUPER_EXPRESSION) return null
         if (selectorType != WNodeType.CALL_EXPRESSION) return null
         if (!selectorText.contentEquals("toString()")) return null
 
+        val shorthandWouldMerge = nextChar != null && (Character.isJavaIdentifierPart(nextChar) || nextChar == '`')
         val edits = when {
             receiverType == WNodeType.THIS_EXPRESSION -> emptyList()
             receiverType == WNodeType.REFERENCE_EXPRESSION &&
                 receiverText.isNotEmpty() &&
-                receiverText[0] != '`' -> listOf(WEdit(entryStart, entryEnd, "$" + receiverText))
+                receiverText[0] != '`' &&
+                !shorthandWouldMerge -> listOf(WEdit(entryStart, entryEnd, "$" + receiverText))
             else -> listOf(WEdit(dotStart, callEnd, ""))
         }
         return RedundantToStringInTemplateVerdict(edits)
