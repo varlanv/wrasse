@@ -96,9 +96,11 @@ object PerfStore {
 
     fun collect(root: Path): List<Pair<String, PerfRecorder>> {
         if (!Files.isDirectory(root)) return emptyList()
-        val files = Files.walk(root).use { walk ->
-            walk.filter { Files.isRegularFile(it) && it.fileName.toString() == FILE_NAME }.toList()
-        }
+        val files = Files
+            .walk(root)
+            .use { walk ->
+                walk.filter { Files.isRegularFile(it) && it.fileName.toString() == FILE_NAME }.toList()
+            }
         val reports = ArrayList<Pair<String, PerfRecorder>>(files.size)
         for (file in files) {
             val text = Files.readString(file)

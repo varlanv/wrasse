@@ -32,8 +32,12 @@ class ReportedFile(
         for (i in diagnostics.indices) {
             val a = diagnostics[i]
             val b = other.diagnostics[i]
-            if (a.line != b.line || a.column != b.column || a.offset != b.offset ||
-                a.level != b.level || a.fixable != b.fixable || a.message != b.message
+            if (a.line != b.line ||
+                a.column != b.column ||
+                a.offset != b.offset ||
+                a.level != b.level ||
+                a.fixable != b.fixable ||
+                a.message != b.message
             ) {
                 return false
             }

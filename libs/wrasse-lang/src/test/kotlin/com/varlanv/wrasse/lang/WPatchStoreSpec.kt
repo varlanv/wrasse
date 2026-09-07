@@ -80,9 +80,8 @@ class WPatchStoreSpec : BaseSpec({
             for (round in 0 until 66) store.record(entry("churn.kt", "h$round", WEdit(round, round, "v$round")))
 
             blocks(dir) shouldBe 2
-            WPatchReader
-                .read(journal(dir))
-                .map { "${it.filePath}|${it.sourceHash}" } shouldBe listOf("live.kt|h", "churn.kt|h65")
+            WPatchReader.read(journal(dir)).map { "${it.filePath}|${it.sourceHash}" } shouldBe
+                listOf("live.kt|h", "churn.kt|h65")
         }
     }
 })

@@ -43,8 +43,6 @@ object Sizes {
         SizeSpec("1m", targetLines = 1_000_000, stress = StressSpec.FULL),
     )
 
-    fun byName(
-        name: String,
-    ): SizeSpec = ALL.firstOrNull { it.name == name }
+    fun byName(name: String): SizeSpec = ALL.firstOrNull { it.name == name }
         ?: error("unknown size '$name', expected one of ${ALL.map { it.name }}")
 }

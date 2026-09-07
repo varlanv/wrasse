@@ -68,7 +68,9 @@ class WReportReplaySpec : BaseSpec({
     }
 
     context("collect with an apply result") {
-        should("show a non-fixable finding right after the apply that fixed the other one, and again on a later plain replay") {
+        should(
+            "show a non-fixable finding right after the apply that fixed the other one, and again on a later plain replay",
+        ) {
             useTempDir { dir ->
                 val sourceFile = dir.resolve("Sample.kt")
                 val content = "val x = 1; val y = 42\n"
@@ -76,16 +78,17 @@ class WReportReplaySpec : BaseSpec({
                 val hash = Sha256.ofText(content)
                 val patchDir = dir.resolve("patch")
                 WPatchStore(patchDir).record(FileEdits(sourceFile.toString(), hash, listOf(WEdit(9, 10, ""))))
-                WReportStore(patchDir).record(
-                    ReportedFile(
-                        sourceFile.toString(),
-                        hash,
-                        listOf(
-                            ReportedDiagnostic(1, 10, 9, "error", true, "no-semicolons: Unnecessary semicolon"),
-                            ReportedDiagnostic(1, 20, 19, "warn", false, "magic-number: magic number"),
+                WReportStore(patchDir)
+                    .record(
+                        ReportedFile(
+                            sourceFile.toString(),
+                            hash,
+                            listOf(
+                                ReportedDiagnostic(1, 10, 9, "error", true, "no-semicolons: Unnecessary semicolon"),
+                                ReportedDiagnostic(1, 20, 19, "warn", false, "magic-number: magic number"),
+                            ),
                         ),
-                    ),
-                )
+                    )
 
                 val applyResult = WPatchApplier.apply(patchDir)
                 Files.readString(sourceFile) shouldBe "val x = 1 val y = 42\n"
@@ -105,11 +108,17 @@ class WReportReplaySpec : BaseSpec({
                 Files.write(sourceFile, crlfContent.toByteArray(Charsets.UTF_8))
                 val normalizedHash = Sha256.ofText(crlfContent.replace("\r\n", "\n"))
                 val patchDir = dir.resolve("patch")
-                WReportStore(patchDir).record(
-                    ReportedFile(sourceFile.toString(), normalizedHash, listOf(ReportedDiagnostic(3, 1, 16, "warn", false, "rule: x"))),
-                )
+                WReportStore(patchDir)
+                    .record(
+                        ReportedFile(
+                            sourceFile.toString(),
+                            normalizedHash,
+                            listOf(ReportedDiagnostic(3, 1, 16, "warn", false, "rule: x")),
+                        ),
+                    )
 
-                replayReports(listOf(patchDir.toString())) shouldBe listOf("w: ${sourceFile.toUri()}:3:1 wrasse: rule: x")
+                replayReports(listOf(patchDir.toString())) shouldBe
+                    listOf("w: ${sourceFile.toUri()}:3:1 wrasse: rule: x")
             }
         }
     }
@@ -124,9 +133,14 @@ class WReportReplaySpec : BaseSpec({
                     Files.createDirectories(fileUnderB.parent)
                     Files.writeString(fileUnderB, content)
                     val patchDir = rootA.resolve("patch")
-                    WReportStore(patchDir).record(
-                        ReportedFile(relativePath, Sha256.ofText(content), listOf(ReportedDiagnostic(1, 1, 0, "warn", false, "rule: x"))),
-                    )
+                    WReportStore(patchDir)
+                        .record(
+                            ReportedFile(
+                                relativePath,
+                                Sha256.ofText(content),
+                                listOf(ReportedDiagnostic(1, 1, 0, "warn", false, "rule: x")),
+                            ),
+                        )
 
                     replayReports(listOf(patchDir.toString()), projectDir = rootB) shouldBe
                         listOf("w: ${fileUnderB.toUri()}:1:1 wrasse: rule: x")
@@ -144,12 +158,25 @@ class WReportReplaySpec : BaseSpec({
                 val patchDir = dir.resolve("patch")
                 val store = WReportStore(patchDir)
                 store.record(
-                    ReportedFile(goodFile.toString(), Sha256.ofText(goodContent), listOf(ReportedDiagnostic(1, 1, 0, "warn", false, "rule: good"))),
+                    ReportedFile(
+                        goodFile.toString(),
+                        Sha256.ofText(goodContent),
+                        listOf(ReportedDiagnostic(1, 1, 0, "warn", false, "rule: good")),
+                    ),
                 )
-                store.record(ReportedFile(dir.toString(), "h", listOf(ReportedDiagnostic(1, 1, 0, "warn", false, "rule: dir"))))
-                store.record(ReportedFile("bad\u0000path.kt", "h", listOf(ReportedDiagnostic(1, 1, 0, "warn", false, "rule: invalid"))))
+                store.record(
+                    ReportedFile(dir.toString(), "h", listOf(ReportedDiagnostic(1, 1, 0, "warn", false, "rule: dir"))),
+                )
+                store.record(
+                    ReportedFile(
+                        "bad\u0000path.kt",
+                        "h",
+                        listOf(ReportedDiagnostic(1, 1, 0, "warn", false, "rule: invalid")),
+                    ),
+                )
 
-                replayReports(listOf(patchDir.toString())) shouldBe listOf("w: ${goodFile.toUri()}:1:1 wrasse: rule: good")
+                replayReports(listOf(patchDir.toString())) shouldBe
+                    listOf("w: ${goodFile.toUri()}:1:1 wrasse: rule: good")
             }
         }
     }

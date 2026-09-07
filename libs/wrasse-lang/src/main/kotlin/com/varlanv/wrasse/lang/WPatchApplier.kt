@@ -170,7 +170,10 @@ fun runApplier(patchDirs: List<String>): Int {
  * any `FAILED: ` line as a failure, since apply and replay run in the same pass here.
  */
 @JvmOverloads
-fun applyAndReplay(dirs: List<String>, projectDir: Path? = null): List<String> {
+fun applyAndReplay(
+    dirs: List<String>,
+    projectDir: Path? = null,
+): List<String> {
     val lines = ArrayList<String>()
     for (dir in dirs) {
         val result = WPatchApplier.apply(Path.of(dir))
@@ -204,4 +207,8 @@ sealed class FileApplyResult {
 }
 
 /** One edit as actually applied to a file: its `[startOffset, endOffset)` span in the pre-apply source and the length of the replacement text that landed in its place. */
-class AppliedEdit(val startOffset: Int, val endOffset: Int, val replacementLength: Int)
+class AppliedEdit(
+    val startOffset: Int,
+    val endOffset: Int,
+    val replacementLength: Int,
+)

@@ -88,13 +88,16 @@ class WReportStoreSpec : BaseSpec({
                 ),
             )
             store.record(
-                ReportedFile(dir.resolve("Gone.kt").toString(), "h", listOf(ReportedDiagnostic(1, 1, 0, "error", false, "x"))),
+                ReportedFile(
+                    dir.resolve("Gone.kt").toString(),
+                    "h",
+                    listOf(ReportedDiagnostic(1, 1, 0, "error", false, "x")),
+                ),
             )
             Files.writeString(changed, "val b = 2\n")
 
-            replayReports(
-                listOf(dir.resolve("build").resolve("wrasse").toString()),
-            ) shouldBe listOf("e: ${current.toUri()}:1:10 wrasse: no-semicolons: Unnecessary semicolon")
+            replayReports(listOf(dir.resolve("build").resolve("wrasse").toString())) shouldBe
+                listOf("e: ${current.toUri()}:1:10 wrasse: no-semicolons: Unnecessary semicolon")
         }
     }
 })

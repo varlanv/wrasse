@@ -68,9 +68,11 @@ class WReportStore(private val dir: Path) {
     private fun rewriteCompacted(live: Map<String, ReportedFile>) {
         Files.createDirectories(dir)
         val tmpFile = dir.resolve("$REPORT_FILE_NAME.tmp")
-        Files.newBufferedWriter(tmpFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING).use { out ->
-            WReportWriter.writeAll(out, live.values)
-        }
+        Files
+            .newBufferedWriter(tmpFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+            .use { out ->
+                WReportWriter.writeAll(out, live.values)
+            }
         Files.move(tmpFile, reportFile(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         redundantBlocks = 0
         journalOnDisk = true
@@ -78,10 +80,12 @@ class WReportStore(private val dir: Path) {
 
     private inline fun appendBlock(write: (Appendable) -> Unit) {
         if (!journalOnDisk) Files.createDirectories(dir)
-        Files.newBufferedWriter(reportFile(), StandardOpenOption.CREATE, StandardOpenOption.APPEND).use { out ->
-            if (!journalOnDisk) WReportWriter.writeHeader(out)
-            write(out)
-        }
+        Files
+            .newBufferedWriter(reportFile(), StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+            .use { out ->
+                if (!journalOnDisk) WReportWriter.writeHeader(out)
+                write(out)
+            }
         journalOnDisk = true
     }
 

@@ -278,9 +278,7 @@ class Violations(
     companion object {
         val NONE = Violations()
 
-        fun pick(
-            random: Random,
-        ): Violations = Violations(
+        fun pick(random: Random): Violations = Violations(
             spacing = random.nextInt(3) == 0,
             twoSpaceIndent = random.nextInt(4) == 0,
             missingTrailingComma = random.nextInt(3) == 0,

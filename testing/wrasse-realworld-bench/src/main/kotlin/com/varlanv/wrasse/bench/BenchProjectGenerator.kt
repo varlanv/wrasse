@@ -90,10 +90,8 @@ private fun writeTemplates(
         "gitignore" to ".gitignore",
     )
     for ((name, target) in templates) {
-        val text = loader
-            .getResourceAsStream("bench-template/$name")
-            ?.bufferedReader()
-            ?.readText() ?: error("missing template $name")
+        val text = loader.getResourceAsStream("bench-template/$name")?.bufferedReader()?.readText()
+            ?: error("missing template $name")
         dir
             .resolve(target)
             .writeText(

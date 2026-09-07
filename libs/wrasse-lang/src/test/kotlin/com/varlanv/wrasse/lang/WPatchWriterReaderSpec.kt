@@ -97,10 +97,12 @@ class WPatchWriterReaderSpec : BaseSpec({
 
         should("drop a path on a tombstone or an edit-less block") {
             val text = "file:a.kt\nhash:h1\nedit:0:1:\nfile:b.kt\nhash:h2\nedit:0:1:\nfile:a.kt\nhash:-\nfile:b.kt\nhash:h9\n"
-            WPatchReader.readJournal(text).let {
-                it.blockCount shouldBe 4
-                it.entries shouldBe emptyList()
-            }
+            WPatchReader
+                .readJournal(text)
+                .let {
+                    it.blockCount shouldBe 4
+                    it.entries shouldBe emptyList()
+                }
         }
 
         should("ignore an unterminated final edit line but reject a malformed one earlier") {

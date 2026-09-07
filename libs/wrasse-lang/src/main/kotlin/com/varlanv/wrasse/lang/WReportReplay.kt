@@ -28,32 +28,36 @@ object WReportReplay {
         applyResult: ApplyResult? = null,
     ): List<ReportedFile> {
         if (!Files.isDirectory(wrasseDir)) return emptyList()
-        val appliedByPath = applyResult
-            ?.files
+        val appliedByPath = applyResult?.files
             ?.filterIsInstance<FileApplyResult.Applied>()
-            ?.associateBy { it.filePath.toString() }
-            ?: emptyMap()
+            ?.associateBy { it.filePath.toString() } ?: emptyMap()
         val result = ArrayList<ReportedFile>()
-        Files.walk(wrasseDir).use { paths ->
-            paths
-                .filter { it.fileName.toString() == WReportStore.REPORT_FILE_NAME && Files.isRegularFile(it) }
-                .sorted()
-                .forEach { reportFile ->
-                    val text = readIfPresent(reportFile) ?: return@forEach
-                    val entries = WReportReader.read(text)
-                    if (appliedByPath.isEmpty()) {
-                        for (entry in entries) {
-                            if (entry.diagnostics.isNotEmpty() && isCurrent(entry, projectDir)) result.add(entry)
+        Files
+            .walk(wrasseDir)
+            .use { paths ->
+                paths
+                    .filter { it.fileName.toString() == WReportStore.REPORT_FILE_NAME && Files.isRegularFile(it) }
+                    .sorted()
+                    .forEach { reportFile ->
+                        val text = readIfPresent(reportFile) ?: return@forEach
+                        val entries = WReportReader.read(text)
+                        if (appliedByPath.isEmpty()) {
+                            for (entry in entries) {
+                                if (entry.diagnostics.isNotEmpty() && isCurrent(entry, projectDir)) result.add(entry)
+                            }
+                        } else {
+                            result.addAll(reconcile(reportFile, entries, appliedByPath, projectDir))
                         }
-                    } else {
-                        result.addAll(reconcile(reportFile, entries, appliedByPath, projectDir))
                     }
-                }
-        }
+            }
         return result
     }
 
-    fun render(file: ReportedFile, diagnostic: ReportedDiagnostic, projectDir: Path? = null): String {
+    fun render(
+        file: ReportedFile,
+        diagnostic: ReportedDiagnostic,
+        projectDir: Path? = null,
+    ): String {
         val prefix = if (diagnostic.isError) "e" else "w"
         return "$prefix: ${resolvePath(file.filePath, projectDir)
             .toUri()}:${diagnostic.line}:${diagnostic.column} wrasse: ${diagnostic.message}"
