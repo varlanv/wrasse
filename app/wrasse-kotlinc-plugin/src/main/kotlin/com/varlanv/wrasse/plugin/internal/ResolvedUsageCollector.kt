@@ -11,6 +11,7 @@ import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.KtRealSourceElementKind
 import org.jetbrains.kotlin.KtSourceElement
 import org.jetbrains.kotlin.fir.FirElement
+import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.declarations.FirResolvedImport
@@ -23,12 +24,20 @@ import org.jetbrains.kotlin.fir.expressions.FirResolvedQualifier
 import org.jetbrains.kotlin.fir.expressions.FirSpreadArgumentExpression
 import org.jetbrains.kotlin.fir.expressions.FirVarargArgumentsExpression
 import org.jetbrains.kotlin.fir.expressions.impl.FirResolvedArgumentList
+import org.jetbrains.kotlin.fir.moduleData
+import org.jetbrains.kotlin.fir.originalOrSelf
 import org.jetbrains.kotlin.fir.references.FirErrorNamedReference
 import org.jetbrains.kotlin.fir.references.FirPropertyWithExplicitBackingFieldResolvedNamedReference
 import org.jetbrains.kotlin.fir.references.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.references.FirResolvedErrorReference
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
+import org.jetbrains.kotlin.fir.resolve.ScopeSession
+import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
+import org.jetbrains.kotlin.fir.scopes.getDeclaredConstructors
+import org.jetbrains.kotlin.fir.scopes.getFunctions
+import org.jetbrains.kotlin.fir.scopes.unsubstitutedScope
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirTypeAliasSymbol
@@ -57,7 +66,7 @@ object ResolvedUsageCollector {
         collectQualifiedUsages: Boolean = false,
         collectCallSites: Boolean = false,
     ): WResolvedUsage = runCatching {
-        val visitor = UsageVisitor(collectQualifiedUsages, collectCallSites)
+        val visitor = UsageVisitor(file.moduleData.session, collectQualifiedUsages, collectCallSites)
         for (annotation in file.annotations) {
             annotation.accept(visitor)
         }
@@ -103,6 +112,7 @@ object ResolvedUsageCollector {
     }
 
     private class UsageVisitor(
+        private val session: FirSession,
         private val collectQualifiedUsages: Boolean,
         private val collectCallSites: Boolean,
     ) : FirVisitorVoid() {
@@ -112,6 +122,8 @@ object ResolvedUsageCollector {
         val callSites = mutableListOf<WCallSite>()
         val typeAliases = mutableMapOf<String, String>()
         var hasErrors = false
+        private val scopeSession = ScopeSession()
+        private val namingAmbiguityByCallee = HashMap<FirFunctionSymbol<*>, Boolean>()
 
         override fun visitElement(element: FirElement) {
             element.acceptChildren(this)
@@ -167,8 +179,47 @@ object ResolvedUsageCollector {
                     arguments = arguments,
                     isConstructor = symbol is FirConstructorSymbol,
                     parameterCount = parameterSymbols.size,
+                    namingIsAmbiguous = isNamingAmbiguous(symbol, callableId),
                 ),
             )
+        }
+
+        private fun isNamingAmbiguous(symbol: FirFunctionSymbol<*>, callableId: CallableId): Boolean {
+            val original = symbol.originalOrSelf()
+            return namingAmbiguityByCallee.getOrPut(original) { computeNamingAmbiguity(original, symbol, callableId) }
+        }
+
+        private fun computeNamingAmbiguity(
+            original: FirFunctionSymbol<*>,
+            symbol: FirFunctionSymbol<*>,
+            callableId: CallableId,
+        ): Boolean {
+            val calleeParameterNames = original.valueParameterSymbols.map { it.name.asString() }.toSet()
+            val classId = callableId.classId
+            val candidates: List<FirFunctionSymbol<*>> = when {
+                symbol is FirConstructorSymbol -> {
+                    val ownerClassId = classId ?: return false
+                    val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(ownerClassId) as? FirClassSymbol<*>
+                        ?: return false
+                    classSymbol.unsubstitutedScope(session, scopeSession, withForcedTypeCalculator = false, memberRequiredPhase = null)
+                        .getDeclaredConstructors()
+                }
+
+                classId == null -> session.symbolProvider.getTopLevelFunctionSymbols(callableId.packageName, callableId.callableName)
+
+                else -> {
+                    val classSymbol = session.symbolProvider.getClassLikeSymbolByClassId(classId) as? FirClassSymbol<*>
+                        ?: return false
+                    classSymbol.unsubstitutedScope(session, scopeSession, withForcedTypeCalculator = false, memberRequiredPhase = null)
+                        .getFunctions(callableId.callableName)
+                }
+            }
+            for (candidate in candidates) {
+                val candidateOriginal = candidate.originalOrSelf()
+                if (candidateOriginal === original) continue
+                if (candidateOriginal.valueParameterSymbols.map { it.name.asString() }.toSet() == calleeParameterNames) return true
+            }
+            return false
         }
 
         private fun addArgument(

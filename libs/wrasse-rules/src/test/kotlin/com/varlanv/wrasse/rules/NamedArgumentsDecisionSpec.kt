@@ -78,17 +78,15 @@ class NamedArgumentsDecisionSpec : BaseSpec({
     }
 
     should("drop the names of an all-named call to a narrow callee only when positional form means the same call") {
-        fun written(
-            vararg spans: Pair<Int, Int>,
-            named: Boolean = true,
-        ) = spans.map { (start, end) -> WrittenArgument(start, end, named) }
+        fun named(start: Int, end: Int, nameEnd: Int) = WrittenArgument(start, end, nameEnd)
+        fun positional(start: Int, end: Int) = WrittenArgument(start, end, null)
         val inOrder = site(
             0,
             30,
             1,
             arguments = listOf(argument(6, 7, "a", index = 0), argument(14, 15, "b", index = 1)),
         )
-        NamedArgumentsDecision.positionalEdits(inOrder, written(2 to 7, 10 to 15)).map {
+        NamedArgumentsDecision.positionalEdits(inOrder, listOf(named(2, 7, 6), named(10, 15, 14))).map {
             Triple(it.startOffset, it.endOffset, it.replacement)
         } shouldBe listOf(Triple(2, 6, ""), Triple(10, 14, ""))
 
@@ -98,10 +96,10 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             1,
             arguments = listOf(argument(6, 7, "b", index = 1), argument(14, 15, "a", index = 0)),
         )
-        NamedArgumentsDecision.positionalEdits(reordered, written(2 to 7, 10 to 15)) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(reordered, listOf(named(2, 7, 6), named(10, 15, 14))) shouldBe emptyList()
 
         val skipsFirst = site(0, 30, 1, arguments = listOf(argument(6, 7, "b", index = 1)))
-        NamedArgumentsDecision.positionalEdits(skipsFirst, written(2 to 7)) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(skipsFirst, listOf(named(2, 7, 6))) shouldBe emptyList()
 
         val pastDefaulted = site(
             0,
@@ -110,18 +108,18 @@ class NamedArgumentsDecisionSpec : BaseSpec({
             arguments = listOf(argument(9, 12, "text", index = 0), argument(27, 32, "ignoreCase", index = 2)),
             parameterCount = 3,
         )
-        NamedArgumentsDecision.positionalEdits(pastDefaulted, written(2 to 12, 14 to 32)) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(pastDefaulted, listOf(named(2, 12, 9), named(14, 32, 27))) shouldBe emptyList()
 
         val vararg = site(0, 30, 1, arguments = listOf(argument(7, 12, "xs", vararg = true, index = 0)))
-        NamedArgumentsDecision.positionalEdits(vararg, written(2 to 12)) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(vararg, listOf(named(2, 12, 7))) shouldBe emptyList()
 
         val mixed = site(0, 30, 1, arguments = listOf(argument(2, 3, "a", index = 0), argument(10, 11, "b", index = 1)))
         NamedArgumentsDecision
-            .positionalEdits(mixed, listOf(WrittenArgument(2, 3, false), WrittenArgument(6, 11, true)))
+            .positionalEdits(mixed, listOf(positional(2, 3), named(6, 11, 10)))
             .map { Triple(it.startOffset, it.endOffset, it.replacement) } shouldBe listOf(Triple(6, 10, ""))
 
         val allPositional = site(0, 30, 1, arguments = listOf(argument(2, 3, "a", index = 0)))
-        NamedArgumentsDecision.positionalEdits(allPositional, written(2 to 3, named = false)) shouldBe emptyList()
+        NamedArgumentsDecision.positionalEdits(allPositional, listOf(positional(2, 3))) shouldBe emptyList()
     }
 
     should("not count a trailing lambda's parameter toward the threshold") {
@@ -158,15 +156,41 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         named("`unterminated") shouldBe false
     }
 
+    should("find the value start right after the name = prefix regardless of what the value itself starts with") {
+        fun valueStart(text: String) = NamedArgumentsDecision.namedArgumentValueStart(text, 0, text.length)
+        valueStart("and = (x)") shouldBe "and = (x)".indexOf('(')
+        valueStart("delta = (y) + 1") shouldBe "delta = (y) + 1".indexOf('(')
+        valueStart("block = { 1 }") shouldBe "block = { 1 }".indexOf('{')
+        valueStart("text = \"hello\"") shouldBe "text = \"hello\"".indexOf('"')
+        valueStart("value = @Suppress(\"X\") 5") shouldBe "value = @Suppress(\"X\") 5".indexOf('@')
+        valueStart("value = label@ 5") shouldBe "value = label@ 5".indexOf("label")
+    }
+
+    should("drop only the name = prefix of a parenthesized argument, never its opening paren") {
+        val text = "whenMatchedDelete(and = (1 == 1))"
+        val argStart = text.indexOf("and")
+        val valueStart = text.indexOf("(1 == 1)")
+        val valueInnerStart = valueStart + 1
+        val valueInnerEnd = text.indexOf(")", valueInnerStart)
+        val argEnd = valueInnerEnd + 1
+        val mapped = argument(valueInnerStart, valueInnerEnd, "and", index = 0)
+        val s = site(0, text.length, text.indexOf("("), arguments = listOf(mapped))
+        val nameEnd = NamedArgumentsDecision.namedArgumentValueStart(text, argStart, argEnd)
+        nameEnd shouldBe valueStart
+        NamedArgumentsDecision
+            .positionalEdits(s, listOf(WrittenArgument(argStart, argEnd, nameEnd)))
+            .map { Triple(it.startOffset, it.endOffset, it.replacement) } shouldBe listOf(Triple(argStart, valueStart, ""))
+    }
+
     should("call a list mixed only when a named argument meets a positional one outside a vararg") {
         val plain = site(0, 30, 1, arguments = listOf(argument(2, 3, "a", index = 0), argument(10, 11, "b", index = 1)))
         NamedArgumentsDecision.isMixed(
             plain,
-            listOf(WrittenArgument(2, 3, false), WrittenArgument(6, 11, true)),
+            listOf(WrittenArgument(2, 3, null), WrittenArgument(6, 11, 10)),
         ) shouldBe true
         NamedArgumentsDecision.isMixed(
             plain,
-            listOf(WrittenArgument(2, 3, false), WrittenArgument(10, 11, false)),
+            listOf(WrittenArgument(2, 3, null), WrittenArgument(10, 11, null)),
         ) shouldBe false
         val withVararg = site(
             0,
@@ -176,7 +200,7 @@ class NamedArgumentsDecisionSpec : BaseSpec({
         )
         NamedArgumentsDecision.isMixed(
             withVararg,
-            listOf(WrittenArgument(2, 7, true), WrittenArgument(10, 11, false)),
+            listOf(WrittenArgument(2, 7, 6), WrittenArgument(10, 11, null)),
         ) shouldBe false
     }
 
@@ -221,7 +245,7 @@ class NamedArgumentsDecisionSpec : BaseSpec({
                 argument(20, 29, "block"),
             ),
         )
-        val written = listOf(WrittenArgument(4, 6, false), WrittenArgument(8, 13, true), WrittenArgument(15, 16, false))
+        val written = listOf(WrittenArgument(4, 6, null), WrittenArgument(8, 13, 8), WrittenArgument(15, 16, null))
         val edits = NamedArgumentsDecision.nameEdits(s, written)
         edits.map { Triple(it.startOffset, it.endOffset, it.replacement) } shouldBe listOf(Triple(4, 4, "a = "))
     }

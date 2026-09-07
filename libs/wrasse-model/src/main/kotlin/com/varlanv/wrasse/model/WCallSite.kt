@@ -23,6 +23,12 @@ class WCallSite(
     /** True for a constructor call; [calleeName] is then the class's own short name. */
     val isConstructor: Boolean = false,
     val parameterCount: Int = 0,
+    /**
+     * True when another callable with the same name, same arity and the same set of parameter
+     * names (order may differ) is visible at the call site, making a fully named call ambiguous
+     * between the two. A rule must never add names to such a call; removing names is unaffected.
+     */
+    val namingIsAmbiguous: Boolean = false,
 )
 
 /**

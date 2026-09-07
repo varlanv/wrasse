@@ -29,9 +29,12 @@ import com.varlanv.wrasse.model.WCallSite
  * named or the order differs.
  *
  * [isNamedArgument] recognizes an argument written as `name = value` (an identifier, plain or
- * backticked, then `=` that is not `==`). [isMixed] is true when a list holds both a named
- * argument and a positional one that is not an element of a vararg parameter — such an element
- * cannot be named, so a call naming everything else is not mixed.
+ * backticked, then `=` that is not `==`); [namedArgumentValueStart] is the same scan, returning
+ * the offset where the value begins (right after `=` and any following whitespace) so the exact
+ * `name = ` prefix — never more, regardless of what the value itself starts with, parenthesized
+ * or not — can be deleted when the call goes positional. [isMixed] is true when a list holds both
+ * a named argument and a positional one that is not an element of a vararg parameter — such an
+ * element cannot be named, so a call naming everything else is not mixed.
  */
 object NamedArgumentsDecision {
     fun callsInScope(
@@ -112,9 +115,9 @@ object NamedArgumentsDecision {
         for ((position, argument) in written.withIndex()) {
             val mapped = mappedArgument(site, argument.startOffset, argument.endOffset) ?: return emptyList()
             if (mapped.isVararg || mapped.parameterIndex != position) return emptyList()
-            if (!argument.isNamed) continue
+            val nameEnd = argument.nameEnd ?: continue
             if (edits == null) edits = ArrayList(written.size)
-            edits.add(WEdit(argument.startOffset, mapped.startOffset, ""))
+            edits.add(WEdit(argument.startOffset, nameEnd, ""))
         }
         return edits ?: emptyList()
     }
@@ -136,22 +139,31 @@ object NamedArgumentsDecision {
         sourceText: CharSequence,
         start: Int,
         end: Int,
-    ): Boolean {
+    ): Boolean = namedArgumentValueStart(sourceText, start, end) != null
+
+    fun namedArgumentValueStart(
+        sourceText: CharSequence,
+        start: Int,
+        end: Int,
+    ): Int? {
         var i = start
         while (i < end && sourceText[i].isWhitespace()) i++
-        if (i >= end) return false
+        if (i >= end) return null
         if (sourceText[i] == '`') {
             i++
             while (i < end && sourceText[i] != '`') i++
-            if (i >= end) return false
+            if (i >= end) return null
             i++
         } else {
-            if (!sourceText[i].isJavaIdentifierStart()) return false
+            if (!sourceText[i].isJavaIdentifierStart()) return null
             while (i < end && sourceText[i].isJavaIdentifierPart()) i++
         }
         while (i < end && sourceText[i].isWhitespace()) i++
-        if (i >= end || sourceText[i] != '=') return false
-        return i + 1 >= end || sourceText[i + 1] != '='
+        if (i >= end || sourceText[i] != '=') return null
+        if (i + 1 < end && sourceText[i + 1] == '=') return null
+        i++
+        while (i < end && sourceText[i].isWhitespace()) i++
+        return i
     }
 
     fun nameEdits(site: WCallSite, written: List<WrittenArgument>): List<WEdit> {
@@ -167,9 +179,15 @@ object NamedArgumentsDecision {
     }
 }
 
-/** One argument as written inside a call's parentheses: its span and whether it already carries a `name =`. */
+/**
+ * One argument as written inside a call's parentheses: its span and, when it already carries a
+ * `name =`, [nameEnd] — the offset where the value begins, right after `=` and any following
+ * whitespace; null for a positional argument.
+ */
 class WrittenArgument(
     val startOffset: Int,
     val endOffset: Int,
-    val isNamed: Boolean,
-)
+    val nameEnd: Int?,
+) {
+    val isNamed: Boolean get() = nameEnd != null
+}

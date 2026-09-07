@@ -28,7 +28,9 @@ private val TARGET_TYPES = setOf(WNodeType.VALUE_ARGUMENT_LIST)
  * in an `excluded-packages` package (`java` and `javax` by default), one without stable parameter
  * names, and a function type's `invoke` are called positionally whatever the threshold: never
  * named, and names already written are dropped when positional form means the same call. A vararg
- * element and a trailing lambda are never touched. Inert for a file whose resolution has errors.
+ * element and a trailing lambda are never touched. A call whose callee has [WCallSite.namingIsAmbiguous]
+ * set is never named — some other visible overload could also accept the fully named call — though
+ * its names are still dropped when it goes positional. Inert for a file whose resolution has errors.
  * See [NamedArgumentsDecision].
  */
 class NamedArgumentsRule : WUninitializedRule {
@@ -107,7 +109,7 @@ class NamedArgumentsRule : WUninitializedRule {
                     val start = children.startOffset(i)
                     val end = children.endOffset(i)
                     written.add(
-                        WrittenArgument(start, end, NamedArgumentsDecision.isNamedArgument(ctx.sourceText, start, end)),
+                        WrittenArgument(start, end, NamedArgumentsDecision.namedArgumentValueStart(ctx.sourceText, start, end)),
                     )
                 }
                 val mixed = NamedArgumentsDecision.isMixed(site, written)
@@ -123,6 +125,7 @@ class NamedArgumentsRule : WUninitializedRule {
                 } else if (!mixed && callEnd !in inScope) {
                     return
                 }
+                if (site.namingIsAmbiguous) return
                 val edits = NamedArgumentsDecision.nameEdits(site, written)
                 if (edits.isEmpty()) return
                 reporter.report(ruleId, MESSAGE, ctx.startOffset, ctx.endOffset, this, edits = edits)
