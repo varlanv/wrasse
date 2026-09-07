@@ -1334,7 +1334,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * this is checked as its own, version-shape-independent rule rather than folded into the
      * `VALUE_PARAMETER_LIST` one above; no space just inside `<`/`>` when the enclosing frame is a
      * [WNodeType.TYPE_PARAMETER_LIST]/[WNodeType.TYPE_ARGUMENT_LIST]; `::` tight after always;
-     * `..`/`..<` tight both sides; no space before `?`.
+     * `..`/`..<` tight both sides; no space before `?`; one space on both sides of a declaration's
+     * or named argument's `=`.
      *
      * `null` means preserve whatever was there verbatim — every pair this table doesn't recognize.
      */
@@ -1357,6 +1358,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         if (prevType in KEYWORDS_WANTING_SPACE_AFTER) return " "
         if (nextType == WNodeType.KW_WHERE) return " "
+        if (prevType == WNodeType.EQ || nextType == WNodeType.EQ) return " "
 
         if (frameType == WNodeType.VALUE_ARGUMENT && prevType == WNodeType.MUL) return ""
 
