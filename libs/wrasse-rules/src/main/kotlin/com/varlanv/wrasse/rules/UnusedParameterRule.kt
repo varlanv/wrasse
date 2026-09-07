@@ -66,9 +66,12 @@ class UnusedParameterRule : WUninitializedRule {
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 val ancestors = ctx.ancestors
                 when (ctx.type) {
-                    WNodeType.KW_ABSTRACT, WNodeType.KW_OPEN, WNodeType.KW_OVERRIDE, WNodeType.KW_OPERATOR,
-                    WNodeType.KW_PROTECTED, WNodeType.KW_ACTUAL,
-                    -> if (inOwnModifierList(ancestors, WNodeType.FUN)) markFunModifier(ctx.type)
+                    WNodeType.KW_ABSTRACT,
+                    WNodeType.KW_OPEN,
+                    WNodeType.KW_OVERRIDE,
+                    WNodeType.KW_OPERATOR,
+                    WNodeType.KW_PROTECTED,
+                    WNodeType.KW_ACTUAL, -> if (inOwnModifierList(ancestors, WNodeType.FUN)) markFunModifier(ctx.type)
 
                     WNodeType.KW_EXPECT, WNodeType.KW_EXTERNAL -> {
                         if (inOwnModifierList(ancestors, WNodeType.FUN)) markFunModifier(ctx.type)
