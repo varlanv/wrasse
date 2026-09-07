@@ -46,6 +46,14 @@ private val ANNOTATION_EXEMPT_PARENT_TYPES = WNodeTypeSet.containing(
 )
 private val ASSIGNMENT_OPERATOR_TEXTS = setOf("=", "+=", "-=", "*=", "/=", "%=")
 
+private const val CHAIN_LINK_BREAK_THRESHOLD = 2
+
+private val CONDITION_PAREN_TYPES = WNodeTypeSet.containing(
+    WNodeType.IF,
+    WNodeType.WHILE,
+    WNodeType.DO_WHILE,
+)
+
 private val OWN_LINE_FORCE_TYPES = WNodeTypeSet.containing(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN)
 private val SEMICOLON_BREAK_SCOPE = WNodeTypeSet.containing(WNodeType.BLOCK, WNodeType.WHEN)
 private val HUGGING_VALUE_TYPES = WNodeTypeSet.containing(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
@@ -257,6 +265,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                         frame.isCallWithArguments,
                         frame.endsWithCallWithArguments,
                         frame.hasChainComment,
+                        frame.chainCallLinks,
                     ),
                 )
         }
@@ -396,7 +405,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     ): Doc {
         val rawChildren =
             if (frame.type == WNodeType.FUNCTION_LITERAL) normalizeLambdaBraces(frame.children) else frame.children
-        val annotationAdjusted = adjustAnnotationTrailingGap(rawChildren)
+        val conditionFolded = foldConditionParens(rawChildren, frame.type)
+        val annotationAdjusted = adjustAnnotationTrailingGap(conditionFolded)
         val semicolonAdjusted = convertStatementSeparatorSemicolons(annotationAdjusted, frame.type)
         val children = forceMultilineBraceGaps(semicolonAdjusted, frame.type, frame.branchOfMultilineIf)
         if (children.isEmpty()) return Doc.Concat(emptyList(), start, end)
@@ -431,6 +441,60 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         }
         parts.add(resolveEntry(children[lastIndex]))
         return Doc.Concat(parts, start, end)
+    }
+
+    /**
+     * Collapses `(`, an `if`/`while` condition and `)` into one [Doc.Group] whenever the condition
+     * was written across lines: the condition itself starts on the construct's own line and a
+     * `SOFT` break before `)` decides the rest — the whole condition joins that line when it fits
+     * there together with what follows `)`, and otherwise wraps at its own operators one indent
+     * level in, leaving `)` alone on a line at the construct's own indent. Every multi-line
+     * condition therefore renders the same way, whichever side of it the author's own newline was
+     * written on.
+     *
+     * A no-op for a condition written entirely on one line, for a construct with no
+     * [WNodeType.CONDITION] child of its own (a `for` loop, a `when` subject), and when anything
+     * but whitespace shares the parentheses with the condition.
+     */
+    private fun foldConditionParens(
+        children: List<ChildEntry>,
+        frameType: WNodeType,
+    ): List<ChildEntry> {
+        if (frameType !in CONDITION_PAREN_TYPES) return children
+        val conditionIdx = children.indexOfFirst { it.type == WNodeType.CONDITION }
+        if (conditionIdx < 0) return children
+        val lparIdx = (conditionIdx - 1 downTo 0).firstOrNull { children[it].type == WNodeType.LPAR } ?: return children
+        val rparIdx = (conditionIdx + 1 until children.size)
+            .firstOrNull { children[it].type == WNodeType.RPAR } ?: return children
+        if ((lparIdx + 1 until rparIdx).any { it != conditionIdx && children[it].type != WNodeType.WHITE_SPACE }) {
+            return children
+        }
+        val openGap = children[lparIdx + 1].takeIf { it.type == WNodeType.WHITE_SPACE }
+        if (openGap !is ChildEntry.Ws && children[rparIdx - 1] !is ChildEntry.Ws) return children
+
+        val lparDoc = resolveEntry(children[lparIdx])
+        val rparDoc = resolveEntry(children[rparIdx])
+        val parts = mutableListOf(lparDoc)
+        if (openGap != null) parts.add(elidedWs(openGap))
+        parts.add(resolveEntry(children[conditionIdx]))
+        parts.add(wsBreakAt(children, rparIdx - 1, rparDoc.start, flat = ""))
+        parts.add(rparDoc)
+
+        val folded = ChildEntry.Resolved(
+            WNodeType.CONDITION,
+            Doc.Group(Doc.Concat(parts, lparDoc.start, rparDoc.end)),
+        )
+        val out = ArrayList<ChildEntry>(children.size)
+        out.addAll(children.subList(0, lparIdx))
+        out.add(folded)
+        out.addAll(children.subList(rparIdx + 1, children.size))
+        return out
+    }
+
+    /** A zero-width [Doc.Text] claiming a whitespace [entry]'s own span, for a gap left unrendered. */
+    private fun elidedWs(entry: ChildEntry): Doc.Text = when (entry) {
+        is ChildEntry.Ws -> Doc.Text("", entry.start, entry.start + entry.rawText.length)
+        is ChildEntry.Resolved -> Doc.Text("", entry.doc.start, entry.doc.end)
     }
 
     /**
@@ -1308,6 +1372,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * nesting one deeper per link. The break sits before the operator, flush against the receiver
      * in flat form.
      *
+     * A chain holding [CHAIN_LINK_BREAK_THRESHOLD] or more call links ([chainCallLinks]) is a
+     * [GroupKind.CHAIN] group instead of a [GroupKind.CONTINUATION] one: one link's multi-line
+     * lambda body then breaks every link onto its own line rather than leaving `}` joined to the
+     * `.` after it. A chain with fewer call links keeps a lambda and the links around it together.
+     *
      * A chain with no method call anywhere (`a.b.c`) is normally collapsed onto one line, dropping
      * its own whitespace; a chain carrying a [WNodeType.EOL_COMMENT] in any of its links
      * ([Frame.hasChainComment], propagated up the links) never collapses and takes the break-splicing
@@ -1338,6 +1407,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             it.type == WNodeType.EOL_COMMENT ||
                 (it is ChildEntry.Resolved && it.type in CHAIN_LINK_TYPES && it.hasChainComment)
         }
+        frame.chainCallLinks = chainCallLinks(children, receiverEntry)
 
         if (!receiverHasMethodCall(children, opIdx)) {
             val hasCallAnywhere = children.any { it.type == WNodeType.CALL_EXPRESSION }
@@ -1364,11 +1434,33 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             flat = "",
             spreadTypes = CHAIN_LINK_TYPES,
         )
+        val breaksEveryLink = frame.chainCallLinks >= CHAIN_LINK_BREAK_THRESHOLD
         return if (isRoot) {
-            wrapRoot(parts, start, end, foldHead = frame.chainHeadIsRawString)
+            wrapRoot(
+                parts,
+                start,
+                end,
+                foldHead = frame.chainHeadIsRawString,
+                kind = if (breaksEveryLink) GroupKind.CHAIN else GroupKind.CONTINUATION,
+            )
         } else {
             Doc.Concat(parts, start, end)
         }
+    }
+
+    /**
+     * How many links of this chain call something — this link's own selector plus whatever its
+     * receiver link already counted. A call standing at the chain's head (`Join(users).join(..)`)
+     * is the receiver, not a link, and is never counted.
+     */
+    private fun chainCallLinks(children: List<ChildEntry>, receiverEntry: ChildEntry): Int {
+        val selector = children.lastOrNull { it.type != WNodeType.WHITE_SPACE }
+        val receiverLinks = if (receiverEntry is ChildEntry.Resolved && receiverEntry.type in CHAIN_LINK_TYPES) {
+            receiverEntry.chainCallLinks
+        } else {
+            0
+        }
+        return receiverLinks + if (selector?.type == WNodeType.CALL_EXPRESSION) 1 else 0
     }
 
     private fun receiverHasMethodCall(children: List<ChildEntry>, opIdx: Int): Boolean {
@@ -1446,7 +1538,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     /**
      * Lays out a root chain/binary expression's flattened [parts]: the first operand (everything
-     * before the first break) stays where it is, and the rest forms one [GroupKind.CONTINUATION]
+     * before the first break) stays where it is, and the rest forms one [kind]
+     * ([GroupKind.CONTINUATION] or [GroupKind.CHAIN])
      * group that indents its continuation lines only when broken — so a multi-line first operand
      * leaves the chain's own layout alone and nothing renders one level too deep when the chain
      * stays flat. With [foldHead] (a raw-string first operand) the first operand joins the group
@@ -1458,14 +1551,15 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         start: Int,
         end: Int,
         foldHead: Boolean,
+        kind: GroupKind = GroupKind.CONTINUATION,
     ): Doc {
         val firstBreak = parts.indexOfFirst { it is Doc.Break }
         if (firstBreak <= 0 || foldHead) {
-            return Doc.Group(Doc.Concat(parts, start, end), GroupKind.CONTINUATION, indentWhenBroken = true)
+            return Doc.Group(Doc.Concat(parts, start, end), kind, indentWhenBroken = true)
         }
         val head = Doc.Concat(parts.subList(0, firstBreak), start, parts[firstBreak - 1].end)
         val rest = Doc.Concat(parts.subList(firstBreak, parts.size), parts[firstBreak].start, end)
-        return Doc.Concat(listOf(head, Doc.Group(rest, GroupKind.CONTINUATION, indentWhenBroken = true)), start, end)
+        return Doc.Concat(listOf(head, Doc.Group(rest, kind, indentWhenBroken = true)), start, end)
     }
 
     /**
@@ -2385,6 +2479,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var endsWithCallWithArguments = false
         var branchOfMultilineIf = false
         var hasChainComment = false
+        var chainCallLinks = 0
     }
 
     private sealed interface ChildEntry {
@@ -2404,6 +2499,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val isCallWithArguments: Boolean = false,
             val endsWithCallWithArguments: Boolean = false,
             val hasChainComment: Boolean = false,
+            val chainCallLinks: Int = 0,
         ) : ChildEntry
 
         class Ws(val rawText: CharSequence, val start: Int) : ChildEntry {

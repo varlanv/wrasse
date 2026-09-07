@@ -161,6 +161,11 @@ enum class BreakKind {
  *   multi-line trailing lambda, or a multi-line argument list closing the chain, never breaks the
  *   chain around it; a multi-line argument list in the middle does. Fits iff the flat width up to
  *   that point (plus the tail, if nothing ended it) fits.
+ * - [CHAIN] — the links after the first operand of a dot/safe-access chain holding two or more
+ *   call links: measured like [CONTINUATION], except that a `HARD` break inside a nested [LAMBDA]
+ *   group forces it broken wherever that lambda sits, the closing link included. One link's
+ *   multi-line lambda body therefore puts every link of such a chain on its own line, instead of
+ *   leaving `}` joined to the `.` after it.
  * - [BARRIER] — an `if`/`when`/`try`/object expression: makes no layout decision of its own
  *   (renders in the enclosing mode, at the ambient depth) and only stops the forcing an enclosing
  *   [ARGUMENTS] group would otherwise push into the argument lists written inside it.
@@ -172,5 +177,6 @@ enum class GroupKind {
     FLUID,
     LAMBDA,
     CONTINUATION,
+    CHAIN,
     BARRIER,
 }
