@@ -1450,6 +1450,25 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "class Foo : Bar // keep"
     }
 
+    should("bail on two supertypes that no comma separates, leaving the list as written") {
+        val builder = DocBuilder(formatConfig())
+        val ctx = WContext(filePath = "test.kt")
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        classHeader(builder, ctx, "Foo")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        leaf(builder, ctx, WNodeType.COLON, ":")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        builder.enterNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        superTypeEntry(builder, ctx, "Bar")
+        leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+        superTypeEntry(builder, ctx, "Baz")
+        builder.exitNode(ctx.apply { type = WNodeType.SUPER_TYPE_LIST })
+        builder.exitNode(ctx.apply { type = WNodeType.CLASS })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+
+        render(builder, ctx) shouldBe "class Foo : Bar Baz"
+    }
+
     fun bareAnnotationEntry(
         builder: DocBuilder,
         ctx: WContext,

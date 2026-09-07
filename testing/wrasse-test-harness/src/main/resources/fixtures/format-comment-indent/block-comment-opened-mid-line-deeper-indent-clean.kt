@@ -2,6 +2,8 @@ package sample
 
 fun value(): Int {
     val x = 1 /* note
-        more */
+                    more */
     return x
 }
+
+// expect-clean

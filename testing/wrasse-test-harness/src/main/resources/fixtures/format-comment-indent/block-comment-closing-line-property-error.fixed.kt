@@ -1,7 +1,7 @@
 package sample
 
 fun value(): Int {
-    val x = 1 /* note
-        more */
+    /* note
+        more */ val x = 1
     return x
 }

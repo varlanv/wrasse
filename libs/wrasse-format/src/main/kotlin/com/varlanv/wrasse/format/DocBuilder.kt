@@ -79,7 +79,7 @@ private val DECLARATION_GAP_CONTAINER_TYPES = WNodeTypeSet.containing(
     WNodeType.CLASS_BODY,
     WNodeType.BLOCK,
 )
-private val LEADING_COMMENT_TYPES = WNodeTypeSet.containing(
+private val ANY_COMMENT_TYPES = WNodeTypeSet.containing(
     WNodeType.EOL_COMMENT,
     WNodeType.BLOCK_COMMENT,
     WNodeType.KDOC,
@@ -149,7 +149,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             WNodeType.KDOC, WNodeType.BLOCK_COMMENT -> ChildEntry.Resolved(
                 ctx.type,
                 if (text.containsChar('\n')) {
-                    reindentableComment(text, ctx.startOffset, columnOf(ctx.sourceText, ctx.startOffset))
+                    reindentableComment(text, ctx.startOffset, lineIndentOf(ctx.sourceText, ctx.startOffset))
                 } else {
                     Doc.Text(text, ctx.startOffset, ctx.endOffset)
                 },
@@ -172,11 +172,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         else -> "// " + text.removePrefix("//")
     }
 
-    /** Zero-based column of [offset] on its own line in [source]. */
-    private fun columnOf(source: CharSequence, offset: Int): Int {
-        var i = offset - 1
-        while (i >= 0 && source[i] != '\n') i--
-        return offset - i - 1
+    /** Width of the leading whitespace on the line [offset] sits on in [source]. */
+    private fun lineIndentOf(source: CharSequence, offset: Int): Int {
+        var lineStart = offset - 1
+        while (lineStart >= 0 && source[lineStart] != '\n') lineStart--
+        lineStart++
+        var i = lineStart
+        while (i < offset && (source[i] == ' ' || source[i] == '\t')) i++
+        return i - lineStart
     }
 
     /**
@@ -185,13 +188,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * continuation's leading whitespace from the ambient [Doc.Indent] depth instead of keeping the
      * column the source happened to use. Only that leading whitespace changes: a line whose content
      * starts with `*` gets exactly one space before it, any other line keeps its original indent
-     * relative to the opener's own [openerColumn] (never negative), and a line with no content at
+     * relative to [openerLineIndent], the indentation of the line the opener sits on (never
+     * negative — so re-indenting the same comment again is a no-op), and a line with no content at
      * all is folded into the preceding break's literal so it stays truly empty.
      */
     private fun reindentableComment(
         text: CharSequence,
         start: Int,
-        openerColumn: Int,
+        openerLineIndent: Int,
     ): Doc {
         val firstNewline = text.indexOfChar('\n')
         val parts = ArrayList<Doc>()
@@ -221,7 +225,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val lead = if (text[contentStart] == '*') {
                 " "
             } else {
-                " ".repeat(maxOf(0, contentStart - lineStart - openerColumn))
+                " ".repeat(maxOf(0, contentStart - lineStart - openerLineIndent))
             }
             parts.add(Doc.Text(lead + text.subSequence(contentStart, lineEnd), start + contentStart, start + lineEnd))
             newlines = 0
@@ -246,7 +250,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             rootDoc = doc
         } else {
             val firstChildType = frame.children.firstOrNull()?.type
-            val hasLeadingComment = firstChildType != null && firstChildType in LEADING_COMMENT_TYPES
+            val hasLeadingComment = firstChildType != null && firstChildType in ANY_COMMENT_TYPES
+            val carriesComment = frame.children.any { carriesComment(it) }
             frames
                 .last()
                 .children
@@ -266,6 +271,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                         frame.endsWithCallWithArguments,
                         frame.hasChainComment,
                         frame.chainCallLinks,
+                        carriesComment,
                     ),
                 )
         }
@@ -708,17 +714,32 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         return resolveInitializerFrame(children, WNodeType.FUN, start, end, eqIdx)
     }
 
+    /**
+     * A typealias joined onto one line, its own line breaks dropped ([flattenDoc]). Joining never
+     * crosses a comment: the leading comment run and the gaps inside it keep their breaks, and a
+     * typealias carrying a comment anywhere past that run takes [resolveBraceFrame] instead.
+     */
     private fun resolveTypealiasFrame(
         frame: Frame,
         start: Int,
         end: Int,
     ): Doc {
         val children = frame.children
+        val bodyFrom = children.indexOfFirst { it.type != WNodeType.WHITE_SPACE && it.type !in ANY_COMMENT_TYPES }
+        if (bodyFrom < 0 || (bodyFrom until children.size).any { carriesComment(children[it]) }) {
+            return resolveBraceFrame(frame, start, end)
+        }
         val parts = ArrayList<Doc>()
         for ((i, entry) in children.withIndex()) {
             when {
                 entry is ChildEntry.Ws -> {
-                    parts.add(Doc.Text(" ", entry.start, entry.start + entry.rawText.length))
+                    parts.add(
+                        if (i < bodyFrom) {
+                            resolveEntry(entry)
+                        } else {
+                            Doc.Text(" ", entry.start, entry.start + entry.rawText.length)
+                        },
+                    )
                 }
                 isPlainWhitespace(entry) -> {
                     val ws = (entry as ChildEntry.Resolved).doc
@@ -731,12 +752,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                     }
                     parts.add(Doc.Text(decision ?: " ", ws.start, ws.end))
                 }
+                i < bodyFrom -> parts.add(resolveEntry(entry))
                 else -> parts.add(flattenDoc(resolveEntry(entry)))
             }
         }
         return Doc.Concat(parts, start, end)
     }
 
+    /** Joins [doc] onto one line; never called on a subtree holding a comment ([carriesComment]). */
     private fun flattenDoc(doc: Doc): Doc = when (doc) {
         is Doc.Text -> doc
         is Doc.Break -> Doc.Text(doc.flat, doc.start, doc.end)
@@ -1281,6 +1304,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
     private fun isPlainWhitespace(entry: ChildEntry): Boolean =
         entry is ChildEntry.Resolved && entry.type == WNodeType.WHITE_SPACE
+
+    /** Whether [entry] is a comment or holds one anywhere below it ([ChildEntry.Resolved.carriesComment]). */
+    private fun carriesComment(entry: ChildEntry): Boolean =
+        entry.type in ANY_COMMENT_TYPES || (entry is ChildEntry.Resolved && entry.carriesComment)
 
     /**
      * The horizontal-spacing table for a gap between [prevType] and [nextType] inside [frameType]:
@@ -2008,7 +2035,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * Two or more supertypes: always broken, one per line at one [Doc.Indent] level deeper than the
      * class, comma-separated (reusing each source comma's own span) — never fit-dependent. The first
      * supertype joins the constructor's closing line when [ctorWrapped], otherwise the colon ends
-     * that line and every supertype, including the first, starts its own line.
+     * that line and every supertype, including the first, starts its own line. A pair of entries
+     * that no comma separates bails to [resolveBraceFrame] too, before the lead gap is claimed.
      */
     private fun resolveSuperTypeListFrame(
         frame: Frame,
@@ -2021,6 +2049,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (children.any { it.type in COMMENT_TYPES }) return resolveBraceFrame(frame, start, end)
         val entryIndices = children.indices.filter { children[it].type !in SUPER_TYPE_SEPARATOR_TYPES }
         if (entryIndices.isEmpty()) return resolveBraceFrame(frame, start, end)
+        val commaIndices = entryIndices.zipWithNext().map { (a, b) ->
+            (a + 1 until b).firstOrNull { children[it].type == WNodeType.COMMA }
+                ?: return resolveBraceFrame(frame, start, end)
+        }
 
         frames.lastOrNull()?.ownsSuperTypeListLeadGap = true
 
@@ -2041,10 +2073,6 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val breakKind = if (anyMultilineEntry) BreakKind.HARD else BreakKind.SOFT
             val lead = Doc.Break(breakKind, flat = " ", start = start, end = start)
             return Doc.Group(Doc.Indent(Doc.Concat(listOf(lead, entryDocs[0]), start, end)))
-        }
-
-        val commaIndices = entryIndices.zipWithNext().map { (a, b) ->
-            (a + 1 until b).first { children[it].type == WNodeType.COMMA }
         }
 
         if (ctorWrapped) {
@@ -2500,6 +2528,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val endsWithCallWithArguments: Boolean = false,
             val hasChainComment: Boolean = false,
             val chainCallLinks: Int = 0,
+            val carriesComment: Boolean = false,
         ) : ChildEntry
 
         class Ws(val rawText: CharSequence, val start: Int) : ChildEntry {
