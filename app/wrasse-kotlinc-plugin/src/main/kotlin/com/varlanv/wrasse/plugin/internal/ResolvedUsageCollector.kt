@@ -277,8 +277,9 @@ object ResolvedUsageCollector {
             return candidates
         }
 
-        private fun receiverClassId(symbol: FirFunctionSymbol<*>): ClassId? =
-            (symbol.resolvedReceiverTypeRef?.coneType as? ConeClassLikeType)?.lookupTag?.classId
+        private fun receiverClassId(
+            symbol: FirFunctionSymbol<*>,
+        ): ClassId? = (symbol.resolvedReceiverTypeRef?.coneType as? ConeClassLikeType)?.lookupTag?.classId
 
         private fun addArgument(
             out: MutableList<WCallArgument>,
