@@ -25,4 +25,15 @@ class VariableNameMaxLengthDecisionSpec : BaseSpec({
 
         VariableNameMaxLengthDecision.decide(name, hasOverride = true) shouldBe null
     }
+
+    should("report a name over a configured threshold") {
+        val name = "a".repeat(11)
+
+        VariableNameMaxLengthDecision.decide(
+            name,
+            hasOverride = false,
+            threshold = 10,
+        ) shouldBe "Variable name should be at most 10 characters long"
+        VariableNameMaxLengthDecision.decide("a".repeat(10), hasOverride = false, threshold = 10) shouldBe null
+    }
 })

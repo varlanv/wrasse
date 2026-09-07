@@ -1,17 +1,21 @@
 package com.varlanv.wrasse.rules
 
 /**
- * A condition combining [MAX_OPERATORS] or more `&&`/`||` operators is reported (never fixed —
- * extracting a well-named function or variable is an authored decision). Counting is a plain,
- * non-overlapping substring frequency over the condition's own source text.
+ * A condition combining more `&&`/`||` operators than the threshold ([DEFAULT_THRESHOLD] unless
+ * configured) is reported (never fixed — extracting a well-named function or variable is an
+ * authored decision). Counting is a plain, non-overlapping substring frequency over the
+ * condition's own source text.
  */
 object ComplexConditionDecision {
-    const val MAX_OPERATORS = 3
+    const val DEFAULT_THRESHOLD = 2
 
-    fun decide(conditionText: CharSequence): String? {
+    fun decide(
+        conditionText: CharSequence,
+        threshold: Int = DEFAULT_THRESHOLD,
+    ): String? {
         val operatorCount = frequency(conditionText, "&&") + frequency(conditionText, "||")
-        if (operatorCount < MAX_OPERATORS) return null
-        return "This condition combines $operatorCount boolean operators; the maximum allowed is ${MAX_OPERATORS - 1}"
+        if (operatorCount <= threshold) return null
+        return "This condition combines $operatorCount boolean operators; the maximum allowed is $threshold"
     }
 
     private fun frequency(source: CharSequence, part: String): Int {

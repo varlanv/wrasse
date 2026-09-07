@@ -35,4 +35,12 @@ class ComplexConditionDecisionSpec : BaseSpec({
             "a && b && c && d",
         ) shouldBe "This condition combines 3 boolean operators; the maximum allowed is 2"
     }
+
+    should("report above a configured threshold") {
+        ComplexConditionDecision.decide(
+            "a && b || c",
+            threshold = 1,
+        ) shouldBe "This condition combines 2 boolean operators; the maximum allowed is 1"
+        ComplexConditionDecision.decide("a && b || c", threshold = 2) shouldBe null
+    }
 })

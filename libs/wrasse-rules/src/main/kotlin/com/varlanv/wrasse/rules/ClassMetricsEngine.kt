@@ -5,6 +5,9 @@ import com.varlanv.wrasse.model.WFileRule
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WRule
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WStreamRule
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
@@ -20,9 +23,38 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
 class ClassMetricsEngine : WUninitializedRuleGroup {
     override val ids: Set<String> = setOf(TOO_MANY_FUNCTIONS_ID, LARGE_CLASS_ID)
 
+    override val optionSpecs: Map<String, List<WRuleOptionSpec>> = mapOf(
+        TOO_MANY_FUNCTIONS_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Highest number of functions a class, interface, object, enum, or file may declare",
+                    default = WRuleOptionValue.Num(TooManyFunctionsDecision.DEFAULT_THRESHOLD.toLong()),
+                    minimum = 1,
+                ),
+            ),
+        LARGE_CLASS_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Highest number of code lines a class, interface, object, or enum may span",
+                    default = WRuleOptionValue.Num(LargeClassDecision.DEFAULT_THRESHOLD.toLong()),
+                    minimum = 1,
+                ),
+            ),
+    )
+
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val tooManyFunctionsRule = configs[TOO_MANY_FUNCTIONS_ID]?.let { ReportFacade(TOO_MANY_FUNCTIONS_ID, it) }
         val largeClassRule = configs[LARGE_CLASS_ID]?.let { ReportFacade(LARGE_CLASS_ID, it) }
+        val tooManyFunctionsThreshold = configs[TOO_MANY_FUNCTIONS_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: TooManyFunctionsDecision.DEFAULT_THRESHOLD
+        val largeClassThreshold = configs[LARGE_CLASS_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: LargeClassDecision.DEFAULT_THRESHOLD
 
         return object : WStreamRule {
             override val id = ENGINE_ID
@@ -92,7 +124,7 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
 
             override fun afterFile(ctx: WContext, reporter: WReporter) {
                 if (tooManyFunctionsRule != null) {
-                    TooManyFunctionsDecision.decideFile(topLevelFunctionCount)?.let {
+                    TooManyFunctionsDecision.decideFile(topLevelFunctionCount, tooManyFunctionsThreshold)?.let {
                         reporter.report(TOO_MANY_FUNCTIONS_ID, it, 0, 0, tooManyFunctionsRule)
                     }
                 }
@@ -102,12 +134,14 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
                     val end = if (frame.nameStart >= 0) frame.nameEnd else 0
 
                     if (tooManyFunctionsRule != null) {
-                        TooManyFunctionsDecision.decide(frame.functionCount, frame.kindLabel, name)?.let {
-                            reporter.report(TOO_MANY_FUNCTIONS_ID, it, start, end, tooManyFunctionsRule)
-                        }
+                        TooManyFunctionsDecision
+                            .decide(frame.functionCount, frame.kindLabel, name, tooManyFunctionsThreshold)
+                            ?.let {
+                                reporter.report(TOO_MANY_FUNCTIONS_ID, it, start, end, tooManyFunctionsRule)
+                            }
                     }
                     if (largeClassRule != null) {
-                        LargeClassDecision.decide(frame.distinctCodeLines, name)?.let {
+                        LargeClassDecision.decide(frame.distinctCodeLines, name, largeClassThreshold)?.let {
                             reporter.report(LARGE_CLASS_ID, it, start, end, largeClassRule)
                         }
                     }
@@ -124,5 +158,6 @@ class ClassMetricsEngine : WUninitializedRuleGroup {
         const val ENGINE_ID = "class-metrics-engine"
         const val TOO_MANY_FUNCTIONS_ID = "too-many-functions"
         const val LARGE_CLASS_ID = "large-class"
+        const val THRESHOLD = "threshold"
     }
 }

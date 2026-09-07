@@ -34,6 +34,36 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
     )
 
     override val optionSpecs: Map<String, List<WRuleOptionSpec>> = mapOf(
+        RETURN_COUNT_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Highest number of return statements a function may have",
+                    default = WRuleOptionValue.Num(ReturnCountDecision.DEFAULT_THRESHOLD.toLong()),
+                    minimum = 0,
+                ),
+            ),
+        THROWS_COUNT_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Highest number of throw statements a function may have",
+                    default = WRuleOptionValue.Num(ThrowsCountDecision.DEFAULT_THRESHOLD.toLong()),
+                    minimum = 0,
+                ),
+            ),
+        NESTED_BLOCK_DEPTH_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Deepest nesting level a function's control-flow constructs may reach",
+                    default = WRuleOptionValue.Num(NestedBlockDepthDecision.DEFAULT_THRESHOLD.toLong()),
+                    minimum = 1,
+                ),
+            ),
         CYCLOMATIC_COMPLEXITY_ID to
             listOf(
                 WRuleOptionSpec.Optional(
@@ -41,6 +71,16 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     type = WRuleOptionType.INTEGER,
                     description = "Highest cyclomatic complexity a function may have",
                     default = WRuleOptionValue.Num(CyclomaticComplexityDecision.DEFAULT_THRESHOLD.toLong()),
+                    minimum = 1,
+                ),
+            ),
+        LONG_METHOD_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Highest number of code lines a function may span",
+                    default = WRuleOptionValue.Num(LongMethodDecision.DEFAULT_THRESHOLD.toLong()),
                     minimum = 1,
                 ),
             ),
@@ -53,10 +93,22 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
         val cyclomaticComplexityRule = configs[CYCLOMATIC_COMPLEXITY_ID]?.let {
             ReportFacade(CYCLOMATIC_COMPLEXITY_ID, it)
         }
+        val returnCountThreshold = configs[RETURN_COUNT_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: ReturnCountDecision.DEFAULT_THRESHOLD
+        val throwsCountThreshold = configs[THROWS_COUNT_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: ThrowsCountDecision.DEFAULT_THRESHOLD
+        val nestedBlockDepthThreshold = configs[NESTED_BLOCK_DEPTH_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: NestedBlockDepthDecision.DEFAULT_THRESHOLD
         val complexityThreshold = configs[CYCLOMATIC_COMPLEXITY_ID]?.options
             ?.integer(THRESHOLD)
             ?.toInt() ?: CyclomaticComplexityDecision.DEFAULT_THRESHOLD
         val longMethodRule = configs[LONG_METHOD_ID]?.let { ReportFacade(LONG_METHOD_ID, it) }
+        val longMethodThreshold = configs[LONG_METHOD_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: LongMethodDecision.DEFAULT_THRESHOLD
 
         return object : WStreamRule {
             override val id = ENGINE_ID
@@ -145,17 +197,17 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                     val reportEnd = if (f.nameStart >= 0) f.nameEnd else pending.funEnd
 
                     if (returnCountRule != null) {
-                        ReturnCountDecision.decide(f.returnCount, name)?.let {
+                        ReturnCountDecision.decide(f.returnCount, name, returnCountThreshold)?.let {
                             reporter.report(RETURN_COUNT_ID, it, reportStart, reportEnd, returnCountRule)
                         }
                     }
                     if (throwsCountRule != null) {
-                        ThrowsCountDecision.decide(f.throwCount, name)?.let {
+                        ThrowsCountDecision.decide(f.throwCount, name, throwsCountThreshold)?.let {
                             reporter.report(THROWS_COUNT_ID, it, reportStart, reportEnd, throwsCountRule)
                         }
                     }
                     if (nestedBlockDepthRule != null) {
-                        NestedBlockDepthDecision.decide(f.maxNestingDepth, name)?.let {
+                        NestedBlockDepthDecision.decide(f.maxNestingDepth, name, nestedBlockDepthThreshold)?.let {
                             reporter.report(NESTED_BLOCK_DEPTH_ID, it, reportStart, reportEnd, nestedBlockDepthRule)
                         }
                     }
@@ -171,7 +223,7 @@ class FunctionMetricsEngine : WUninitializedRuleGroup {
                         }
                     }
                     if (longMethodRule != null) {
-                        LongMethodDecision.decide(f.distinctCodeLines, name)?.let {
+                        LongMethodDecision.decide(f.distinctCodeLines, name, longMethodThreshold)?.let {
                             reporter.report(LONG_METHOD_ID, it, reportStart, reportEnd, longMethodRule)
                         }
                     }

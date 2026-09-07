@@ -18,6 +18,15 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
         ReturnCountDecision.decide(50, "equals") shouldBe null
     }
 
+    should("report return-count just above a configured threshold") {
+        ReturnCountDecision.decide(
+            2,
+            "foo",
+            threshold = 1,
+        ) shouldBe "Function 'foo' has 2 return statements; the maximum allowed is 1"
+        ReturnCountDecision.decide(1, "foo", threshold = 1) shouldBe null
+    }
+
     should("not report throws-count at the threshold") {
         ThrowsCountDecision.decide(2, "foo") shouldBe null
     }
@@ -26,12 +35,30 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
         ThrowsCountDecision.decide(3, "foo") shouldBe "Function 'foo' has 3 throw statements; the maximum allowed is 2"
     }
 
+    should("report throws-count just above a configured threshold") {
+        ThrowsCountDecision.decide(
+            2,
+            "foo",
+            threshold = 1,
+        ) shouldBe "Function 'foo' has 2 throw statements; the maximum allowed is 1"
+        ThrowsCountDecision.decide(1, "foo", threshold = 1) shouldBe null
+    }
+
     should("not report nested-block-depth at the threshold") {
         NestedBlockDepthDecision.decide(4, "foo") shouldBe null
     }
 
     should("report nested-block-depth just above the threshold") {
         NestedBlockDepthDecision.decide(5, "foo") shouldNotBe null
+    }
+
+    should("report nested-block-depth just above a configured threshold") {
+        NestedBlockDepthDecision.decide(
+            3,
+            "foo",
+            threshold = 2,
+        ) shouldBe "Function 'foo' is nested too deeply (depth 3); the maximum allowed is 2"
+        NestedBlockDepthDecision.decide(2, "foo", threshold = 2) shouldBe null
     }
 
     should("not report cyclomatic-complexity at the threshold") {
@@ -54,5 +81,14 @@ class FunctionMetricsDecisionsSpec : BaseSpec({
 
     should("report long-method just above the threshold") {
         LongMethodDecision.decide(61, "foo") shouldNotBe null
+    }
+
+    should("report long-method just above a configured threshold") {
+        LongMethodDecision.decide(
+            31,
+            "foo",
+            threshold = 30,
+        ) shouldBe "Function 'foo' is too long (31 lines); the maximum allowed is 30"
+        LongMethodDecision.decide(30, "foo", threshold = 30) shouldBe null
     }
 })

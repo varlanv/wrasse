@@ -57,8 +57,23 @@
             "additionalProperties": false,
             "properties": {
                 "complex-condition": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a condition combining 3 or more && / || operators"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a condition combining more && / || operators than the threshold (2 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 2,
+                            "description": "Highest number of && / || operators a single condition may combine. Default 2."
+                        }
+                    }
                 },
                 "cyclomatic-complexity": {
                     "type": "object",
@@ -80,48 +95,219 @@
                     }
                 },
                 "destructuring-declaration-with-too-many-entries": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a destructuring declaration with more than 3 entries"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a destructuring declaration with more entries than the threshold (3 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 3,
+                            "description": "Highest number of entries a destructuring declaration may have. Default 3."
+                        }
+                    }
                 },
                 "file-size": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a file longer than 2000 lines"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a file longer than the threshold (2000 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 2000,
+                            "description": "Highest number of lines a file may have. Default 2000."
+                        }
+                    }
                 },
                 "function-name-max-length": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a function name longer than 30 characters"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a function name longer than the threshold (30 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 30,
+                            "description": "Highest number of characters a function name may have. Default 30."
+                        }
+                    }
                 },
                 "function-name-min-length": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a function name shorter than 3 characters"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a function name shorter than the threshold (3 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 3,
+                            "description": "Lowest number of characters a function name may have. Default 3."
+                        }
+                    }
                 },
                 "large-class": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a class longer than 600 code lines"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a class longer than the threshold (600 by default) code lines",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 600,
+                            "description": "Highest number of code lines a class, interface, object, or enum may span. Default 600."
+                        }
+                    }
                 },
                 "long-method": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a function longer than 60 code lines"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a function longer than the threshold (60 by default) code lines",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 60,
+                            "description": "Highest number of code lines a function may span. Default 60."
+                        }
+                    }
                 },
                 "long-parameter-list": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow more than 5 function parameters (6 for constructors)"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow more function parameters than the function-threshold (5 by default), or constructor parameters than the constructor-threshold (6 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "function-threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 5,
+                            "description": "Highest number of parameters a function may declare. Default 5."
+                        },
+                        "constructor-threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 6,
+                            "description": "Highest number of parameters a primary or secondary constructor may declare. Default 6."
+                        }
+                    }
                 },
                 "nested-block-depth": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow nesting deeper than 4 levels within a function"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow nesting deeper than the threshold (4 by default) levels within a function",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 4,
+                            "description": "Deepest nesting level a function's control-flow constructs may reach. Default 4."
+                        }
+                    }
                 },
                 "return-count": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a function with more than 2 return statements"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a function with more than the threshold (2 by default) return statements",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 2,
+                            "description": "Highest number of return statements a function may have. Default 2."
+                        }
+                    }
                 },
                 "throws-count": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a function with more than 2 throw statements"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a function with more than the threshold (2 by default) throw statements",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 2,
+                            "description": "Highest number of throw statements a function may have. Default 2."
+                        }
+                    }
                 },
                 "too-many-functions": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow more than 11 functions in a file, class, interface, object, or enum"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow more than the threshold (11 by default) functions in a file, class, interface, object, or enum",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 11,
+                            "description": "Highest number of functions a class, interface, object, enum, or file may declare. Default 11."
+                        }
+                    }
                 },
                 "also-could-be-apply": {
                     "$ref": "#/$defs/ruleConfig",
@@ -184,8 +370,23 @@
                     "description": "Disallow an is-check followed by a cast instead of as?"
                 },
                 "string-should-be-raw-string": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow an escape-heavy string literal better written as a raw string"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a string literal carrying more escape sequences than the threshold (2 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 2,
+                            "description": "Highest number of escape sequences a string literal may carry. Default 2."
+                        }
+                    }
                 },
                 "trim-multiline-raw-string": {
                     "$ref": "#/$defs/ruleConfig",
@@ -484,8 +685,23 @@
                     "description": "Disallow a loop whose entire body is a single unconditional break or return"
                 },
                 "loop-with-too-many-jump-statements": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a loop containing more than one break or continue statement"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a loop containing more break or continue statements than the threshold (1 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 1,
+                            "description": "Highest number of break or continue statements a single loop may contain. Default 1."
+                        }
+                    }
                 },
                 "custom-label": {
                     "$ref": "#/$defs/ruleConfig",
@@ -500,8 +716,23 @@
                     "description": "Disallow a constructor parameter name that is not lowerCamelCase"
                 },
                 "variable-name-max-length": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a property or variable name longer than 64 characters"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Disallow a property or variable name longer than the threshold (64 by default)",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "threshold": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 64,
+                            "description": "Highest number of characters a property or variable name may have. Default 64."
+                        }
+                    }
                 },
                 "magic-number": {
                     "$ref": "#/$defs/ruleConfig",

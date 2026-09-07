@@ -7,6 +7,9 @@ import com.varlanv.wrasse.model.WFileRule
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WRule
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WUninitializedRuleGroup
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
@@ -21,9 +24,38 @@ private val TARGET_TYPES = setOf(WNodeType.FUN)
 class FunctionNameLengthEngine : WUninitializedRuleGroup {
     override val ids: Set<String> = setOf(MAX_LENGTH_ID, MIN_LENGTH_ID)
 
+    override val optionSpecs: Map<String, List<WRuleOptionSpec>> = mapOf(
+        MAX_LENGTH_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Highest number of characters a function name may have",
+                    default = WRuleOptionValue.Num(FunctionNameLengthDecision.DEFAULT_MAX_LENGTH.toLong()),
+                    minimum = 1,
+                ),
+            ),
+        MIN_LENGTH_ID to
+            listOf(
+                WRuleOptionSpec.Optional(
+                    name = THRESHOLD,
+                    type = WRuleOptionType.INTEGER,
+                    description = "Lowest number of characters a function name may have",
+                    default = WRuleOptionValue.Num(FunctionNameLengthDecision.DEFAULT_MIN_LENGTH.toLong()),
+                    minimum = 1,
+                ),
+            ),
+    )
+
     override fun initGroup(configs: Map<String, WrasseRuleConfig>): WRule {
         val maxRule = configs[MAX_LENGTH_ID]?.let { ReportFacade(MAX_LENGTH_ID, it) }
         val minRule = configs[MIN_LENGTH_ID]?.let { ReportFacade(MIN_LENGTH_ID, it) }
+        val maxThreshold = configs[MAX_LENGTH_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: FunctionNameLengthDecision.DEFAULT_MAX_LENGTH
+        val minThreshold = configs[MIN_LENGTH_ID]?.options
+            ?.integer(THRESHOLD)
+            ?.toInt() ?: FunctionNameLengthDecision.DEFAULT_MIN_LENGTH
 
         return object : WBufferedNodeRule {
             override val id = ENGINE_ID
@@ -44,7 +76,7 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
                 val isOperator = WordScan.containsWord(modifiersText, "operator")
 
                 if (minRule != null) {
-                    FunctionNameLengthDecision.decideMin(name, isOverride, isOperator)?.let {
+                    FunctionNameLengthDecision.decideMin(name, isOverride, isOperator, minThreshold)?.let {
                         reporter.report(
                             MIN_LENGTH_ID,
                             it,
@@ -55,7 +87,7 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
                     }
                 }
                 if (maxRule != null) {
-                    FunctionNameLengthDecision.decideMax(name, isOverride, isOperator)?.let {
+                    FunctionNameLengthDecision.decideMax(name, isOverride, isOperator, maxThreshold)?.let {
                         reporter.report(
                             MAX_LENGTH_ID,
                             it,
@@ -77,5 +109,6 @@ class FunctionNameLengthEngine : WUninitializedRuleGroup {
         const val ENGINE_ID = "function-name-length-engine"
         const val MAX_LENGTH_ID = "function-name-max-length"
         const val MIN_LENGTH_ID = "function-name-min-length"
+        const val THRESHOLD = "threshold"
     }
 }

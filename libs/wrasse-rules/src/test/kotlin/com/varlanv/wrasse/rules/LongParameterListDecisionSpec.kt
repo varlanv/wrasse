@@ -83,4 +83,38 @@ class LongParameterListDecisionSpec : BaseSpec({
             isDataClassConstructor = false,
         ) shouldBe "The function has 9 parameters; the maximum allowed is 5"
     }
+
+    should("report a function just above a configured function-threshold") {
+        LongParameterListDecision.decide(
+            ParameterListOwner.FUNCTION,
+            4,
+            isOverride = false,
+            isDataClassConstructor = false,
+            functionThreshold = 3,
+        ) shouldBe "The function has 4 parameters; the maximum allowed is 3"
+        LongParameterListDecision.decide(
+            ParameterListOwner.FUNCTION,
+            3,
+            isOverride = false,
+            isDataClassConstructor = false,
+            functionThreshold = 3,
+        ) shouldBe null
+    }
+
+    should("report a constructor just above a configured constructor-threshold") {
+        LongParameterListDecision.decide(
+            ParameterListOwner.PRIMARY_CONSTRUCTOR,
+            4,
+            isOverride = false,
+            isDataClassConstructor = false,
+            constructorThreshold = 3,
+        ) shouldBe "The constructor has 4 parameters; the maximum allowed is 3"
+        LongParameterListDecision.decide(
+            ParameterListOwner.PRIMARY_CONSTRUCTOR,
+            3,
+            isOverride = false,
+            isDataClassConstructor = false,
+            constructorThreshold = 3,
+        ) shouldBe null
+    }
 })

@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "nested-block-depth": { "level": "error", "threshold": 2 }
+    }
+}

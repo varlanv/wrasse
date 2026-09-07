@@ -44,6 +44,24 @@ class ClassMetricsDecisionsSpec : BaseSpec({
         TooManyFunctionsDecision.decideFile(12) shouldNotBe null
     }
 
+    should("report too-many-functions just above a configured threshold") {
+        TooManyFunctionsDecision.decide(
+            6,
+            "Class",
+            "Foo",
+            threshold = 5,
+        ) shouldBe "Class 'Foo' has 6 functions; the maximum allowed is 5"
+        TooManyFunctionsDecision.decide(5, "Class", "Foo", threshold = 5) shouldBe null
+    }
+
+    should("report too-many-functions for a file just above a configured threshold") {
+        TooManyFunctionsDecision.decideFile(
+            6,
+            threshold = 5,
+        ) shouldBe "File has 6 top-level functions; the maximum allowed is 5"
+        TooManyFunctionsDecision.decideFile(5, threshold = 5) shouldBe null
+    }
+
     should("not report large-class at the threshold") {
         LargeClassDecision.decide(600, "Foo") shouldBe null
     }
@@ -53,5 +71,14 @@ class ClassMetricsDecisionsSpec : BaseSpec({
             601,
             "Foo",
         ) shouldBe "Class 'Foo' is too large (601 lines); the maximum allowed is 600"
+    }
+
+    should("report large-class just above a configured threshold") {
+        LargeClassDecision.decide(
+            101,
+            "Foo",
+            threshold = 100,
+        ) shouldBe "Class 'Foo' is too large (101 lines); the maximum allowed is 100"
+        LargeClassDecision.decide(100, "Foo", threshold = 100) shouldBe null
     }
 })

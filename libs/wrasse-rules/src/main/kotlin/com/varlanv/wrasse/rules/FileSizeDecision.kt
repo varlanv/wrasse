@@ -1,11 +1,14 @@
 package com.varlanv.wrasse.rules
 
-/** A file longer than [MAX_LINES] lines is reported. */
+/** A file longer than the threshold ([DEFAULT_THRESHOLD] unless configured) lines is reported. */
 object FileSizeDecision {
-    const val MAX_LINES = 2_000
+    const val DEFAULT_THRESHOLD = 2_000
 
-    fun decide(lineCount: Int): String? {
-        if (lineCount <= MAX_LINES) return null
-        return "File has $lineCount lines; the maximum allowed is $MAX_LINES"
+    fun decide(
+        lineCount: Int,
+        threshold: Int = DEFAULT_THRESHOLD,
+    ): String? {
+        if (lineCount <= threshold) return null
+        return "File has $lineCount lines; the maximum allowed is $threshold"
     }
 }

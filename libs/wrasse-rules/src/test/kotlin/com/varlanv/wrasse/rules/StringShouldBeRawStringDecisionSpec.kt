@@ -16,4 +16,9 @@ class StringShouldBeRawStringDecisionSpec : BaseSpec({
     should("not report zero escapes") {
         StringShouldBeRawStringDecision.decide(0) shouldBe null
     }
+
+    should("report above a configured threshold") {
+        StringShouldBeRawStringDecision.decide(1, threshold = 0) shouldBe StringShouldBeRawStringDecision.MESSAGE
+        StringShouldBeRawStringDecision.decide(0, threshold = 0) shouldBe null
+    }
 })

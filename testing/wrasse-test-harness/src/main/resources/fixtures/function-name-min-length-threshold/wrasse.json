@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "function-name-min-length": { "level": "error", "threshold": 5 }
+    }
+}

@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "long-method": { "level": "error", "threshold": 5 }
+    }
+}

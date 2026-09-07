@@ -4,6 +4,9 @@ import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeRule
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
@@ -26,9 +29,19 @@ private val ESCAPE_SEQUENCES = charArrayOf('t', '"', '\\', 'n')
  */
 class StringShouldBeRawStringRule : WUninitializedRule {
     override val id: String = "string-should-be-raw-string"
+    override val options: List<WRuleOptionSpec> = listOf(
+        WRuleOptionSpec.Optional(
+            name = THRESHOLD,
+            type = WRuleOptionType.INTEGER,
+            description = "Highest number of escape sequences a string literal may carry",
+            default = WRuleOptionValue.Num(StringShouldBeRawStringDecision.DEFAULT_THRESHOLD.toLong()),
+            minimum = 0,
+        ),
+    )
 
     override fun initRule(config: WrasseRuleConfig): WNodeRule {
         val ruleId = id
+        val threshold = config.options.integer(THRESHOLD).toInt()
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
@@ -41,7 +54,7 @@ class StringShouldBeRawStringRule : WUninitializedRule {
                 if (ctx.ancestors.peekType() == WNodeType.BINARY_EXPRESSION) return false
                 if (isArgumentOfAllowedMethod(ctx)) return false
 
-                val message = StringShouldBeRawStringDecision.decide(countEscapes(text)) ?: return false
+                val message = StringShouldBeRawStringDecision.decide(countEscapes(text), threshold) ?: return false
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
                 return false
             }
@@ -73,5 +86,9 @@ class StringShouldBeRawStringRule : WUninitializedRule {
                 return false
             }
         }
+    }
+
+    private companion object {
+        const val THRESHOLD = "threshold"
     }
 }

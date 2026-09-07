@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "large-class": { "level": "error", "threshold": 5 }
+    }
+}

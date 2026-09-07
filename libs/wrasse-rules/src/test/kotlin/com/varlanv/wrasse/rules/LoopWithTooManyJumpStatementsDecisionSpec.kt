@@ -16,8 +16,14 @@ class LoopWithTooManyJumpStatementsDecisionSpec : BaseSpec({
     should("report more than one jump, with the count inlined") {
         LoopWithTooManyJumpStatementsDecision.decide(
             2,
-        ) shouldBe
-            "The loop contains more than one break or continue statement (found 2); the code should be " +
-            "refactored to increase readability"
+        ) shouldBe "The loop contains 2 break or continue statements; the maximum allowed is 1"
+    }
+
+    should("report just above a configured threshold") {
+        LoopWithTooManyJumpStatementsDecision.decide(
+            1,
+            threshold = 0,
+        ) shouldBe "The loop contains 1 break or continue statements; the maximum allowed is 0"
+        LoopWithTooManyJumpStatementsDecision.decide(0, threshold = 0) shouldBe null
     }
 })

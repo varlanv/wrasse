@@ -1,14 +1,17 @@
 package com.varlanv.wrasse.rules
 
 /**
- * A destructuring declaration (`val (a, b, c, ...) = x`) with more than [MAX_ENTRIES] entries is
- * reported.
+ * A destructuring declaration (`val (a, b, c, ...) = x`) with more than the threshold
+ * ([DEFAULT_THRESHOLD] unless configured) entries is reported.
  */
 object DestructuringTooManyEntriesDecision {
-    const val MAX_ENTRIES = 3
+    const val DEFAULT_THRESHOLD = 3
 
-    fun decide(entryCount: Int): String? {
-        if (entryCount <= MAX_ENTRIES) return null
-        return "Destructuring declaration has $entryCount entries; the maximum allowed is $MAX_ENTRIES"
+    fun decide(
+        entryCount: Int,
+        threshold: Int = DEFAULT_THRESHOLD,
+    ): String? {
+        if (entryCount <= threshold) return null
+        return "Destructuring declaration has $entryCount entries; the maximum allowed is $threshold"
     }
 }

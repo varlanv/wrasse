@@ -5,6 +5,9 @@ import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
@@ -26,9 +29,27 @@ private val TARGET_TYPES = setOf(
  */
 class LongParameterListRule : WUninitializedRule {
     override val id: String = "long-parameter-list"
+    override val options: List<WRuleOptionSpec> = listOf(
+        WRuleOptionSpec.Optional(
+            name = FUNCTION_THRESHOLD,
+            type = WRuleOptionType.INTEGER,
+            description = "Highest number of parameters a function may declare",
+            default = WRuleOptionValue.Num(LongParameterListDecision.DEFAULT_FUNCTION_THRESHOLD.toLong()),
+            minimum = 1,
+        ),
+        WRuleOptionSpec.Optional(
+            name = CONSTRUCTOR_THRESHOLD,
+            type = WRuleOptionType.INTEGER,
+            description = "Highest number of parameters a primary or secondary constructor may declare",
+            default = WRuleOptionValue.Num(LongParameterListDecision.DEFAULT_CONSTRUCTOR_THRESHOLD.toLong()),
+            minimum = 1,
+        ),
+    )
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
+        val functionThreshold = config.options.integer(FUNCTION_THRESHOLD).toInt()
+        val constructorThreshold = config.options.integer(CONSTRUCTOR_THRESHOLD).toInt()
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
@@ -114,10 +135,17 @@ class LongParameterListRule : WUninitializedRule {
                     count,
                     owner.isOverride,
                     owner.isDataClassConstructor,
+                    functionThreshold,
+                    constructorThreshold,
                 ) ?: return
                 reporter.report(ruleId, message, ctx.startOffset, ctx.endOffset, this)
             }
         }
+    }
+
+    private companion object {
+        const val FUNCTION_THRESHOLD = "function-threshold"
+        const val CONSTRUCTOR_THRESHOLD = "constructor-threshold"
     }
 
     private class PendingClass {

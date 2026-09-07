@@ -1,0 +1,5 @@
+{
+    "rules": {
+        "too-many-functions": { "level": "error", "threshold": 3 }
+    }
+}

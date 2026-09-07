@@ -4,6 +4,9 @@ import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeRule
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 
@@ -25,9 +28,19 @@ private val TARGET_TYPES = setOf(
  */
 class LoopWithTooManyJumpStatementsRule : WUninitializedRule {
     override val id: String = "loop-with-too-many-jump-statements"
+    override val options: List<WRuleOptionSpec> = listOf(
+        WRuleOptionSpec.Optional(
+            name = THRESHOLD,
+            type = WRuleOptionType.INTEGER,
+            description = "Highest number of break or continue statements a single loop may contain",
+            default = WRuleOptionValue.Num(LoopWithTooManyJumpStatementsDecision.DEFAULT_THRESHOLD.toLong()),
+            minimum = 0,
+        ),
+    )
 
     override fun initRule(config: WrasseRuleConfig): WNodeRule {
         val ruleId = id
+        val threshold = config.options.integer(THRESHOLD).toInt()
         return object : WNodeRule {
             override val id = ruleId
             override val config = config
@@ -56,7 +69,7 @@ class LoopWithTooManyJumpStatementsRule : WUninitializedRule {
 
             override fun afterFile(ctx: WContext, reporter: WReporter) {
                 for (frame in completed) {
-                    val message = LoopWithTooManyJumpStatementsDecision.decide(frame.jumpCount) ?: continue
+                    val message = LoopWithTooManyJumpStatementsDecision.decide(frame.jumpCount, threshold) ?: continue
                     reporter.report(ruleId, message, frame.loopStart, frame.loopEnd, this)
                 }
             }
@@ -67,5 +80,9 @@ class LoopWithTooManyJumpStatementsRule : WUninitializedRule {
                 else -> 2
             }
         }
+    }
+
+    private companion object {
+        const val THRESHOLD = "threshold"
     }
 }

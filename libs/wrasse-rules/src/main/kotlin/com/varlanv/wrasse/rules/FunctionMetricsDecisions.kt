@@ -1,43 +1,56 @@
 package com.varlanv.wrasse.rules
 
 /**
- * A function with more than [MAX] `return` statements is reported. A function literally named
- * `equals` is exempt (an `equals` override commonly has one `return` per branch by convention).
- * A `return` inside a lambda literal within the function counts toward it — a lambda is
- * transparent, not a frame boundary of its own.
+ * A function with more than the threshold ([DEFAULT_THRESHOLD] unless configured) `return`
+ * statements is reported. A function literally named `equals` is exempt (an `equals` override
+ * commonly has one `return` per branch by convention). A `return` inside a lambda literal within
+ * the function counts toward it — a lambda is transparent, not a frame boundary of its own.
  */
 object ReturnCountDecision {
-    const val MAX = 2
+    const val DEFAULT_THRESHOLD = 2
 
-    fun decide(count: Int, functionName: String): String? {
+    fun decide(
+        count: Int,
+        functionName: String,
+        threshold: Int = DEFAULT_THRESHOLD,
+    ): String? {
         if (functionName == "equals") return null
-        if (count <= MAX) return null
-        return "Function '$functionName' has $count return statements; the maximum allowed is $MAX"
+        if (count <= threshold) return null
+        return "Function '$functionName' has $count return statements; the maximum allowed is $threshold"
     }
 }
 
-/** A function with more than [MAX] `throw` statements is reported. */
+/** A function with more than the threshold ([DEFAULT_THRESHOLD] unless configured) `throw` statements is reported. */
 object ThrowsCountDecision {
-    const val MAX = 2
+    const val DEFAULT_THRESHOLD = 2
 
-    fun decide(count: Int, functionName: String): String? {
-        if (count <= MAX) return null
-        return "Function '$functionName' has $count throw statements; the maximum allowed is $MAX"
+    fun decide(
+        count: Int,
+        functionName: String,
+        threshold: Int = DEFAULT_THRESHOLD,
+    ): String? {
+        if (count <= threshold) return null
+        return "Function '$functionName' has $count throw statements; the maximum allowed is $threshold"
     }
 }
 
 /**
- * A function nesting `if`/`when`/`try`/`for`/`while`/`do-while` deeper than [MAX_DEPTH] is
- * reported. An unbraced `else if` continuation never adds its own depth level; a scope-function
- * call with a trailing lambda (`run`/`let`/`apply`/`with`/`also`/`use`/`forEach`) is never treated
- * as an extra nesting level either.
+ * A function nesting `if`/`when`/`try`/`for`/`while`/`do-while` deeper than the threshold
+ * ([DEFAULT_THRESHOLD] unless configured) is reported. An unbraced `else if` continuation never
+ * adds its own depth level; a scope-function call with a trailing lambda
+ * (`run`/`let`/`apply`/`with`/`also`/`use`/`forEach`) is never treated as an extra nesting level
+ * either.
  */
 object NestedBlockDepthDecision {
-    const val MAX_DEPTH = 4
+    const val DEFAULT_THRESHOLD = 4
 
-    fun decide(maxDepth: Int, functionName: String): String? {
-        if (maxDepth <= MAX_DEPTH) return null
-        return "Function '$functionName' is nested too deeply (depth $maxDepth); the maximum allowed is $MAX_DEPTH"
+    fun decide(
+        maxDepth: Int,
+        functionName: String,
+        threshold: Int = DEFAULT_THRESHOLD,
+    ): String? {
+        if (maxDepth <= threshold) return null
+        return "Function '$functionName' is nested too deeply (depth $maxDepth); the maximum allowed is $threshold"
     }
 }
 
@@ -62,14 +75,19 @@ object CyclomaticComplexityDecision {
 }
 
 /**
- * A function spanning more than [MAX_LINES] distinct source-code lines (excluding blank and
- * comment-only lines) is reported, counted over the whole function including its signature.
+ * A function spanning more than the threshold ([DEFAULT_THRESHOLD] unless configured) distinct
+ * source-code lines (excluding blank and comment-only lines) is reported, counted over the whole
+ * function including its signature.
  */
 object LongMethodDecision {
-    const val MAX_LINES = 60
+    const val DEFAULT_THRESHOLD = 60
 
-    fun decide(lines: Int, functionName: String): String? {
-        if (lines <= MAX_LINES) return null
-        return "Function '$functionName' is too long ($lines lines); the maximum allowed is $MAX_LINES"
+    fun decide(
+        lines: Int,
+        functionName: String,
+        threshold: Int = DEFAULT_THRESHOLD,
+    ): String? {
+        if (lines <= threshold) return null
+        return "Function '$functionName' is too long ($lines lines); the maximum allowed is $threshold"
     }
 }
