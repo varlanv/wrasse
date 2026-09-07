@@ -39,7 +39,8 @@ class MissingPackageDeclarationRule : WUninitializedRule {
                         hasName = (0 until children.size).any {
                             children.type(
                                 it,
-                            ) == WNodeType.DOT_QUALIFIED_EXPRESSION || children.type(it) == WNodeType.REFERENCE_EXPRESSION
+                            ) == WNodeType.DOT_QUALIFIED_EXPRESSION ||
+                                children.type(it) == WNodeType.REFERENCE_EXPRESSION
                         }
                     }
 

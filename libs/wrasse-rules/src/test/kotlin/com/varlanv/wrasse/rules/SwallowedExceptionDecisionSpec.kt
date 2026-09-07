@@ -15,12 +15,7 @@ class SwallowedExceptionDecisionSpec : BaseSpec({
     }
 
     should("not report a referenced caught exception") {
-        SwallowedExceptionDecision.decide(
-            "Exception",
-            "e",
-            isReferenced = true,
-            hasBodyContent = true,
-        ) shouldBe null
+        SwallowedExceptionDecision.decide("Exception", "e", isReferenced = true, hasBodyContent = true) shouldBe null
     }
 
     should("not report when the type is one of the ignored exception types") {
@@ -51,12 +46,7 @@ class SwallowedExceptionDecisionSpec : BaseSpec({
     }
 
     should("not report when the catch body has no content beyond whitespace or comments") {
-        SwallowedExceptionDecision.decide(
-            "Exception",
-            "e",
-            isReferenced = false,
-            hasBodyContent = false,
-        ) shouldBe null
+        SwallowedExceptionDecision.decide("Exception", "e", isReferenced = false, hasBodyContent = false) shouldBe null
     }
 
     should("recognize the parameter name itself as a usage") {
