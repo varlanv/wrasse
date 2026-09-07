@@ -102,7 +102,7 @@ simplification the one-formatter decision buys. No per-rule format toggles exist
 | expression-operand-wrapping | F | operand wrapping in multiline expressions |
 | filename | L | fix requires renaming the file itself |
 | final-newline | F | trailing newline is printer output |
-| function-expression-body | L | body-form rewrite plus type insertion; refactoring-shaped |
+| function-expression-body | F | `{ return e }`/`{ throw e }` → `= e` when the return type is explicit and the statement is single-line (or format is on); other shapes report only |
 | function-literal | F | lambda params/arrow/block layout |
 | function-naming | L | rename cross-file; test/factory heuristics |
 | function-return-type-spacing | F | colon spacing |
@@ -359,6 +359,6 @@ simplification the one-formatter decision buys. No per-rule format toggles exist
 5. **`trivial-accessors` (T)** — must bail on accessors with visibility modifiers or annotations.
 6. **`unused-parameter`/`no-name-shadowing` (L)** — partially covered by kotlinc warnings;
    verify added value before porting.
-7. **`function-expression-body`, `string-template`, `no-single-line-block-comment` (L)** —
-   mechanically fixable but excluded from T per the strict behavior/token contract; candidates
-   if the T bar is ever relaxed.
+7. **`string-template`, `no-single-line-block-comment` (L)** — mechanically fixable but excluded
+   from T per the strict behavior/token contract; candidates if the T bar is ever relaxed
+   (`function-expression-body` has since moved to F with a narrow, explicit-return-type-only fix).

@@ -1,0 +1,6 @@
+{
+    "format": { "enabled": true },
+    "rules": {
+        "function-expression-body": { "level": "error" }
+    }
+}

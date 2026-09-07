@@ -1,7 +1,7 @@
 package sample
 
-fun foo() {
+fun foo(): Nothing {
     throw IllegalStateException("bad")
 }
 
-// expect-error 3:11 function-expression-body "Function body should be replaced with body expression"
+// expect-error 3:20 function-expression-body "Function body should be replaced with body expression"

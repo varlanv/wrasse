@@ -31,4 +31,31 @@ class FunctionExpressionBodyDecisionSpec : BaseSpec({
     should("not report an empty block") {
         FunctionExpressionBodyDecision.decide(null, returnKeywordCount = 0) shouldBe null
     }
+
+    should("build the expression text for a throw statement verbatim") {
+        FunctionExpressionBodyDecision.expressionText(
+            WNodeType.THROW,
+            "throw IllegalStateException(\"bad\")",
+        ) shouldBe "throw IllegalStateException(\"bad\")"
+    }
+
+    should("strip the return keyword and following whitespace from a return statement") {
+        FunctionExpressionBodyDecision.expressionText(WNodeType.RETURN, "return \"foo\"") shouldBe "\"foo\""
+    }
+
+    should("strip a tab following the return keyword") {
+        FunctionExpressionBodyDecision.expressionText(WNodeType.RETURN, "return\t\"foo\"") shouldBe "\"foo\""
+    }
+
+    should("return null for a bare return with no expression") {
+        FunctionExpressionBodyDecision.expressionText(WNodeType.RETURN, "return") shouldBe null
+    }
+
+    should("return null for a labeled return") {
+        FunctionExpressionBodyDecision.expressionText(WNodeType.RETURN, "return@foo \"value\"") shouldBe null
+    }
+
+    should("return null for a statement type that is neither return nor throw") {
+        FunctionExpressionBodyDecision.expressionText(WNodeType.PROPERTY, "val x = 1") shouldBe null
+    }
 })
