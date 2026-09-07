@@ -150,14 +150,10 @@ object IdempotenceCycle {
         }
     }
 
-    private fun describeResidualEntries(entries: List<FileEdits>): String = entries
-        .joinToString("\n") { file ->
-            "  ${file.filePath} (${file.edits.size} edits)" +
-                file.edits.joinToString(
-                    "",
-                ) { "\n    [${it.startOffset}, ${it.endOffset}) -> ${it.replacement.take(400)}" }
-        }
-        .ifEmpty { "  (none)" }
+    private fun describeResidualEntries(entries: List<FileEdits>): String = entries.joinToString("\n") { file ->
+        "  ${file.filePath} (${file.edits.size} edits)" +
+            file.edits.joinToString("") { "\n    [${it.startOffset}, ${it.endOffset}) -> ${it.replacement.take(400)}" }
+    }.ifEmpty { "  (none)" }
 
     /**
      * Fails if applying the fix introduced a non-wrasse `e:`-severity diagnostic message present in
@@ -181,7 +177,9 @@ object IdempotenceCycle {
         }
     }
 
-    private fun nonWrasseErrorMessages(diagnostics: List<TestDiagnostic>): Set<String> = diagnostics
+    private fun nonWrasseErrorMessages(
+        diagnostics: List<TestDiagnostic>,
+    ): Set<String> = diagnostics
         .filter { it.severity.isError && !it.message.startsWith("wrasse:") }
         .map { it.message }
         .toSet()

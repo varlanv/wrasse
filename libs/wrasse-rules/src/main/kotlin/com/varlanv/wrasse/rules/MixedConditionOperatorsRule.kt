@@ -74,8 +74,10 @@ class MixedConditionOperatorsRule : WUninitializedRule {
                     hasOr = hasOr || or
                 }
 
-                chains[key(ctx.startOffset, ctx.endOffset)] =
-                    ChainNode(ctx.startOffset, ctx.endOffset, hasAnd, hasOr, isAnd, edits ?: emptyList())
+                chains[key(
+                    ctx.startOffset,
+                    ctx.endOffset,
+                )] = ChainNode(ctx.startOffset, ctx.endOffset, hasAnd, hasOr, isAnd, edits ?: emptyList())
             }
 
             private fun mergeChild(

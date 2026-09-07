@@ -91,7 +91,14 @@ class SafeCastRule : WUninitializedRule {
                     ctx.startOffset,
                     ctx.endOffset,
                 ) ?: return
-                reporter.report(ruleId, SafeCastDecision.MESSAGE, ctx.startOffset, ctx.endOffset, this, edits = verdict.edits)
+                reporter.report(
+                    ruleId,
+                    SafeCastDecision.MESSAGE,
+                    ctx.startOffset,
+                    ctx.endOffset,
+                    this,
+                    edits = verdict.edits,
+                )
             }
 
             private fun singleStatementText(text: String): String {

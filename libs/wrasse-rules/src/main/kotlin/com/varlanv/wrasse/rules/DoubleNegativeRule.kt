@@ -109,5 +109,9 @@ class DoubleNegativeRule : WUninitializedRule {
         }
     }
 
-    private class Carry(val depth: Int, val operandStart: Int, val operandEnd: Int)
+    private class Carry(
+        val depth: Int,
+        val operandStart: Int,
+        val operandEnd: Int,
+    )
 }

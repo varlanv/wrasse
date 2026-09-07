@@ -22,10 +22,14 @@ object MixedConditionOperatorsDecision {
 
     fun decide(hasAnd: Boolean, hasOr: Boolean): String? = if (hasAnd && hasOr) MESSAGE else null
 
-    fun wrapEdits(parentIsAnd: Boolean, childIsAnd: Boolean, childStart: Int, childEnd: Int): List<WEdit> =
-        if (!parentIsAnd && childIsAnd) {
-            listOf(WEdit(childStart, childStart, "("), WEdit(childEnd, childEnd, ")"))
-        } else {
-            emptyList()
-        }
+    fun wrapEdits(
+        parentIsAnd: Boolean,
+        childIsAnd: Boolean,
+        childStart: Int,
+        childEnd: Int,
+    ): List<WEdit> = if (!parentIsAnd && childIsAnd) {
+        listOf(WEdit(childStart, childStart, "("), WEdit(childEnd, childEnd, ")"))
+    } else {
+        emptyList()
+    }
 }

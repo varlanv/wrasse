@@ -388,8 +388,10 @@ class ConfigValueJsoncSpec : BaseSpec({
         should("not treat comment syntax inside strings as comments") {
             val result = ConfigValueJsonc.parse("""{"url": "http://example.com"}""").getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
-            result.value.get("url", ConfigValue.Str::class.java) shouldBe
-                Property.Val(ConfigValue.Str("http://example.com"))
+            result.value.get(
+                "url",
+                ConfigValue.Str::class.java,
+            ) shouldBe Property.Val(ConfigValue.Str("http://example.com"))
         }
 
         should("handle a single-line comment at end of input without trailing newline") {
@@ -419,11 +421,12 @@ class ConfigValueJsoncSpec : BaseSpec({
         }
 
         should("reject objects nested beyond the maximum depth") {
-            val json = "{\"a\":".repeat(ConfigValueJsonc.MAX_DEPTH + 1) + "1" +
-                "}".repeat(ConfigValueJsonc.MAX_DEPTH + 1)
+            val json = "{\"a\":"
+                .repeat(ConfigValueJsonc.MAX_DEPTH + 1) + "1" + "}".repeat(ConfigValueJsonc.MAX_DEPTH + 1)
             shouldThrow<IllegalArgumentException> {
                 ConfigValueJsonc.parse(json).getOrThrow()
-            }.message shouldBe
+            }
+                .message shouldBe
                 "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH * 5 +
                     1})"
         }
@@ -432,7 +435,8 @@ class ConfigValueJsoncSpec : BaseSpec({
             val json = "[".repeat(ConfigValueJsonc.MAX_DEPTH + 1) + "1" + "]".repeat(ConfigValueJsonc.MAX_DEPTH + 1)
             shouldThrow<IllegalArgumentException> {
                 ConfigValueJsonc.parse(json).getOrThrow()
-            }.message shouldBe
+            }
+                .message shouldBe
                 "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH +
                     1})"
         }
@@ -476,8 +480,10 @@ class ConfigValueJsoncSpec : BaseSpec({
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             val root = result.value
 
-            root.get("\$schema", ConfigValue.Str::class.java) shouldBe
-                Property.Val(ConfigValue.Str("https://example.com/wrasse.schema.json"))
+            root.get(
+                "\$schema",
+                ConfigValue.Str::class.java,
+            ) shouldBe Property.Val(ConfigValue.Str("https://example.com/wrasse.schema.json"))
 
             val exclude = root.get("exclude", ConfigValue.StrArr::class.java)
             exclude.shouldBeInstanceOf<Property.Val<ConfigValue.StrArr>>()
@@ -488,10 +494,14 @@ class ConfigValueJsoncSpec : BaseSpec({
 
             val noSemicolons = rules.value.value.get("no-semicolons", ConfigValue.Obj::class.java)
             noSemicolons.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
-            noSemicolons.value.value.get("enabled", ConfigValue.Bool::class.java) shouldBe
-                Property.Val(ConfigValue.Bool(true))
-            noSemicolons.value.value.get("severity", ConfigValue.Str::class.java) shouldBe
-                Property.Val(ConfigValue.Str("error"))
+            noSemicolons.value.value.get(
+                "enabled",
+                ConfigValue.Bool::class.java,
+            ) shouldBe Property.Val(ConfigValue.Bool(true))
+            noSemicolons.value.value.get(
+                "severity",
+                ConfigValue.Str::class.java,
+            ) shouldBe Property.Val(ConfigValue.Str("error"))
 
             val maxLineLength = rules.value.value.get("max-line-length", ConfigValue.Obj::class.java)
             maxLineLength.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
@@ -501,8 +511,10 @@ class ConfigValueJsoncSpec : BaseSpec({
 
             val format = root.get("format", ConfigValue.Obj::class.java)
             format.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
-            format.value.value.get("outputDir", ConfigValue.Str::class.java) shouldBe
-                Property.Val(ConfigValue.Str(".wrasse-format"))
+            format.value.value.get(
+                "outputDir",
+                ConfigValue.Str::class.java,
+            ) shouldBe Property.Val(ConfigValue.Str(".wrasse-format"))
         }
     }
 

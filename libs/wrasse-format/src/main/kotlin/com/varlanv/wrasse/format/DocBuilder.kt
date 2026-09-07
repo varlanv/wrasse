@@ -71,11 +71,7 @@ private val DECLARATION_GAP_CONTAINER_TYPES = WNodeTypeSet.containing(
     WNodeType.CLASS_BODY,
     WNodeType.BLOCK,
 )
-private val ANY_COMMENT_TYPES = WNodeTypeSet.containing(
-    WNodeType.EOL_COMMENT,
-    WNodeType.BLOCK_COMMENT,
-    WNodeType.KDOC,
-)
+private val ANY_COMMENT_TYPES = WNodeTypeSet.containing(WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT, WNodeType.KDOC)
 private val BLOCK_COMMENT_TYPES = WNodeTypeSet.containing(WNodeType.BLOCK_COMMENT, WNodeType.KDOC)
 private val EOL_COMMENT_EXEMPT_PREFIXES = listOf("//noinspection", "//region", "//endregion", "//language=")
 
@@ -1085,10 +1081,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * qualifies: it puts the supertype on a line of its own, and that gap is a real newline
      * [normalizeChildren] leaves alone.
      */
-    private fun precedesSuperTypeListLead(
-        children: List<ChildEntry>,
-        lastIdx: Int,
-    ): Boolean {
+    private fun precedesSuperTypeListLead(children: List<ChildEntry>, lastIdx: Int): Boolean {
         var i = lastIdx
         while (i >= 0 && (isPlainWhitespace(children[i]) || children[i].type in BLOCK_COMMENT_TYPES)) i--
         return i >= 0 && children[i].type == WNodeType.COLON
@@ -1270,10 +1263,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * space against anything else. `null` when neither side is such a comment — the caller keeps
      * whatever it would have written.
      */
-    private fun blockCommentGap(
-        prevType: WNodeType?,
-        nextType: WNodeType?,
-    ): String? {
+    private fun blockCommentGap(prevType: WNodeType?, nextType: WNodeType?): String? {
         if (prevType == null || nextType == null) return null
         if (prevType !in BLOCK_COMMENT_TYPES && nextType !in BLOCK_COMMENT_TYPES) return null
         if (prevType == WNodeType.LPAR) return ""
@@ -2003,8 +1993,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val entryIndices = children.indices.filter { children[it].type !in SUPER_TYPE_SEPARATOR_TYPES }
         if (entryIndices.isEmpty()) return resolveBraceFrame(frame, start, end)
         val commaIndices = entryIndices.zipWithNext().map { (a, b) ->
-            (a + 1 until b).firstOrNull { children[it].type == WNodeType.COMMA }
-                ?: return resolveBraceFrame(frame, start, end)
+            (a + 1 until
+                b).firstOrNull { children[it].type == WNodeType.COMMA } ?: return resolveBraceFrame(frame, start, end)
         }
 
         frames.lastOrNull()?.ownsSuperTypeListLeadGap = true

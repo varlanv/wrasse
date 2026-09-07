@@ -40,21 +40,15 @@ class MixedConditionOperatorsDecisionSpec : BaseSpec({
     }
 
     should("not wrap when the parent is also &&") {
-        MixedConditionOperatorsDecision.wrapEdits(
-            parentIsAnd = true,
-            childIsAnd = true,
-            childStart = 0,
-            childEnd = 6,
-        ).shouldBeEmpty()
+        MixedConditionOperatorsDecision
+            .wrapEdits(parentIsAnd = true, childIsAnd = true, childStart = 0, childEnd = 6)
+            .shouldBeEmpty()
     }
 
     should("not wrap when the child is not &&") {
-        MixedConditionOperatorsDecision.wrapEdits(
-            parentIsAnd = false,
-            childIsAnd = false,
-            childStart = 0,
-            childEnd = 6,
-        ).shouldBeEmpty()
+        MixedConditionOperatorsDecision
+            .wrapEdits(parentIsAnd = false, childIsAnd = false, childStart = 0, childEnd = 6)
+            .shouldBeEmpty()
     }
 
     should("apply the wrap edits of a && || chain to parenthesize the && sub-chain") {

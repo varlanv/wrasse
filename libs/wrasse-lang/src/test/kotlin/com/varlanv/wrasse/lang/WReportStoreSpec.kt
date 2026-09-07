@@ -96,8 +96,9 @@ class WReportStoreSpec : BaseSpec({
             )
             Files.writeString(changed, "val b = 2\n")
 
-            replayReports(listOf(dir.resolve("build").resolve("wrasse").toString())) shouldBe
-                listOf("e: ${current.toUri()}:1:10 wrasse: no-semicolons: Unnecessary semicolon")
+            replayReports(
+                listOf(dir.resolve("build").resolve("wrasse").toString()),
+            ) shouldBe listOf("e: ${current.toUri()}:1:10 wrasse: no-semicolons: Unnecessary semicolon")
         }
     }
 })

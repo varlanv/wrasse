@@ -78,7 +78,9 @@ class WReportReplaySpec : BaseSpec({
                 val hash = Sha256.ofText(content)
                 val patchDir = dir.resolve("patch")
                 WPatchStore(patchDir).record(FileEdits(sourceFile.toString(), hash, listOf(WEdit(9, 10, ""))))
-                WReportStore(patchDir)
+                WReportStore(
+                    patchDir,
+                )
                     .record(
                         ReportedFile(
                             sourceFile.toString(),
@@ -108,7 +110,9 @@ class WReportReplaySpec : BaseSpec({
                 Files.write(sourceFile, crlfContent.toByteArray(Charsets.UTF_8))
                 val normalizedHash = Sha256.ofText(crlfContent.replace("\r\n", "\n"))
                 val patchDir = dir.resolve("patch")
-                WReportStore(patchDir)
+                WReportStore(
+                    patchDir,
+                )
                     .record(
                         ReportedFile(
                             sourceFile.toString(),
@@ -117,8 +121,9 @@ class WReportReplaySpec : BaseSpec({
                         ),
                     )
 
-                replayReports(listOf(patchDir.toString())) shouldBe
-                    listOf("w: ${sourceFile.toUri()}:3:1 wrasse: rule: x")
+                replayReports(
+                    listOf(patchDir.toString()),
+                ) shouldBe listOf("w: ${sourceFile.toUri()}:3:1 wrasse: rule: x")
             }
         }
     }
@@ -133,7 +138,9 @@ class WReportReplaySpec : BaseSpec({
                     Files.createDirectories(fileUnderB.parent)
                     Files.writeString(fileUnderB, content)
                     val patchDir = rootA.resolve("patch")
-                    WReportStore(patchDir)
+                    WReportStore(
+                        patchDir,
+                    )
                         .record(
                             ReportedFile(
                                 relativePath,
@@ -142,8 +149,10 @@ class WReportReplaySpec : BaseSpec({
                             ),
                         )
 
-                    replayReports(listOf(patchDir.toString()), projectDir = rootB) shouldBe
-                        listOf("w: ${fileUnderB.toUri()}:1:1 wrasse: rule: x")
+                    replayReports(
+                        listOf(patchDir.toString()),
+                        projectDir = rootB,
+                    ) shouldBe listOf("w: ${fileUnderB.toUri()}:1:1 wrasse: rule: x")
                 }
             }
         }
@@ -175,8 +184,9 @@ class WReportReplaySpec : BaseSpec({
                     ),
                 )
 
-                replayReports(listOf(patchDir.toString())) shouldBe
-                    listOf("w: ${goodFile.toUri()}:1:1 wrasse: rule: good")
+                replayReports(
+                    listOf(patchDir.toString()),
+                ) shouldBe listOf("w: ${goodFile.toUri()}:1:1 wrasse: rule: good")
             }
         }
     }

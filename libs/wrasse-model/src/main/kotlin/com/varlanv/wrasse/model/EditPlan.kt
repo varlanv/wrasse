@@ -100,7 +100,11 @@ class EditPlan {
     /** A fresh id for grouping every edit of one [WReporter.report] call under [add]'s [groupId] parameter. */
     fun newGroupId(): Int = nextGroupId++
 
-    fun add(ruleId: String, edit: WEdit, groupId: Int = newGroupId()) {
+    fun add(
+        ruleId: String,
+        edit: WEdit,
+        groupId: Int = newGroupId(),
+    ) {
         val entry = Entry(ruleId, edit, nextSequence++, groupId)
         var low = 0
         var high = entries.size

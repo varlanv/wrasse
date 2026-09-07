@@ -35,8 +35,9 @@ class FormatRequestSpec : BaseSpec({
     }
 
     should("tolerate whitespace around keys and values and lines without =") {
-        FormatRequest.parse(listOf("# comment", " timestamp = $now ", "formatting = true"), now).formatting shouldBe
-            true
+        FormatRequest
+            .parse(listOf("# comment", " timestamp = $now ", "formatting = true"), now)
+            .formatting shouldBe true
     }
 
     should("consume the file: read it, delete it, and return its verdict") {

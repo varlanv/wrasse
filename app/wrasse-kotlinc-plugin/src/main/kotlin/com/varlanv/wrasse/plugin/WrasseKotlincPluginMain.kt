@@ -292,11 +292,9 @@ private fun loadConfig(
 ): Result<WConfig> {
     for (root in sourceRoots) {
         val startDir = if (root.toFile().isFile) root.parent ?: continue else root
-        val configPath = FileWalkUp
-            .find(startDir) { it in configFileNames }
-            .getOrElse {
-                return Result.failure(Exception("wrasse: error searching for config from $root: ${it.message}", it))
-            } ?: continue
+        val configPath = FileWalkUp.find(startDir) { it in configFileNames }.getOrElse {
+            return Result.failure(Exception("wrasse: error searching for config from $root: ${it.message}", it))
+        } ?: continue
         val configDir = configPath.parent
         val text = configPath.toFile().readText()
         val configValue = ConfigValueJsonc

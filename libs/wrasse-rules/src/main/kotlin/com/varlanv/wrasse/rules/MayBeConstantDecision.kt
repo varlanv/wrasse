@@ -26,7 +26,15 @@ import com.varlanv.wrasse.lang.WEdit
  */
 object MayBeConstantDecision {
     private val PRIMITIVE_OR_STRING_TYPES = setOf(
-        "Boolean", "Byte", "Short", "Int", "Long", "Float", "Double", "Char", "String",
+        "Boolean",
+        "Byte",
+        "Short",
+        "Int",
+        "Long",
+        "Float",
+        "Double",
+        "Char",
+        "String",
     )
 
     fun decide(
@@ -56,6 +64,9 @@ object MayBeConstantDecision {
     fun canAutofix(hasJvmFieldAnnotation: Boolean, declaredType: String?): Boolean =
         !hasJvmFieldAnnotation && (declaredType == null || declaredType in PRIMITIVE_OR_STRING_TYPES)
 
-    fun autofixEdit(valKeywordStart: Int, nameStart: Int, textBetween: CharSequence): WEdit =
-        WEdit(valKeywordStart, nameStart, "const $textBetween")
+    fun autofixEdit(
+        valKeywordStart: Int,
+        nameStart: Int,
+        textBetween: CharSequence,
+    ): WEdit = WEdit(valKeywordStart, nameStart, "const $textBetween")
 }

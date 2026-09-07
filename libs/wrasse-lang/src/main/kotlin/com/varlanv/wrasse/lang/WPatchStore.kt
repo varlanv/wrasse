@@ -69,11 +69,9 @@ class WPatchStore(private val dir: Path) {
         Files.createDirectories(dir)
         val patchFile = patchFile()
         val tmpFile = dir.resolve("$PATCH_FILE_NAME.tmp")
-        Files
-            .newBufferedWriter(tmpFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
-            .use { out ->
-                WPatchWriter.writeAll(out, live.values)
-            }
+        Files.newBufferedWriter(tmpFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING).use { out ->
+            WPatchWriter.writeAll(out, live.values)
+        }
         Files.move(tmpFile, patchFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         redundantBlocks = 0
         journalOnDisk = true
@@ -81,12 +79,10 @@ class WPatchStore(private val dir: Path) {
 
     private inline fun appendBlock(write: (Appendable) -> Unit) {
         if (!journalOnDisk) Files.createDirectories(dir)
-        Files
-            .newBufferedWriter(patchFile(), StandardOpenOption.CREATE, StandardOpenOption.APPEND)
-            .use { out ->
-                if (!journalOnDisk) WPatchWriter.writeHeader(out)
-                write(out)
-            }
+        Files.newBufferedWriter(patchFile(), StandardOpenOption.CREATE, StandardOpenOption.APPEND).use { out ->
+            if (!journalOnDisk) WPatchWriter.writeHeader(out)
+            write(out)
+        }
         journalOnDisk = true
     }
 

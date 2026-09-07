@@ -38,8 +38,9 @@ object RedundantToStringInTemplateDecision {
 
         val edits = when {
             receiverType == WNodeType.THIS_EXPRESSION -> emptyList()
-            receiverType == WNodeType.REFERENCE_EXPRESSION && receiverText.isNotEmpty() && receiverText[0] != '`' ->
-                listOf(WEdit(entryStart, entryEnd, "$" + receiverText))
+            receiverType == WNodeType.REFERENCE_EXPRESSION &&
+                receiverText.isNotEmpty() &&
+                receiverText[0] != '`' -> listOf(WEdit(entryStart, entryEnd, "$" + receiverText))
             else -> listOf(WEdit(dotStart, callEnd, ""))
         }
         return RedundantToStringInTemplateVerdict(edits)
