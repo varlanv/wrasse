@@ -24,7 +24,13 @@ class WrasseCommandLineProcessor : CommandLineProcessor {
     override val pluginId: String = PLUGIN_ID
 
     override val pluginOptions: Collection<AbstractCliOption> = listOf(
-        CliOption(KEY_ENABLED_STR, "<true|false>", "Whether the plugin is enabled", required = false),
+        CliOption(
+            KEY_ENABLED_STR,
+            "<true|false>",
+            "Whether the plugin is enabled; the last occurrence wins",
+            required = false,
+            allowMultipleOccurrences = true,
+        ),
         CliOption(
             KEY_WARN_ONLY_STR,
             "<true|false>",

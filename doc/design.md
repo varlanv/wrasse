@@ -2138,6 +2138,28 @@ information. Statuses: Accepted · Rejected · Superseded.
   `projectDir` (a new compiler-plugin option, wired like `excludedRoot`) so a relocated build-cache
   hit still finds its files, and skip a single unreadable-or-invalid-path entry instead of failing
   the whole replay.
+  *Addendum 2026-09-07 (3):* the Gradle plugin's compilation directory is derived from any
+  `compile…Kotlin…` task name — `main`/`test` for the two JVM ones, else the task name minus its
+  `compile` prefix (`kotlinJvm`, `debugKotlinAndroid`) — so multiplatform and Android compilations are
+  wired instead of running with the compiler plugin's own defaults while it sits on their classpath.
+  A kapt stub task, which inherits the real compile's `freeCompilerArgs` as a Gradle *convention*, is
+  recognised by class name and switched off with an `enabled=false` appended after them, so it neither
+  consumes the compile's request (which used to make the real compile print everything a second time)
+  nor writes into the compile's declared output (which used to disable its caching); the append must
+  preserve that convention — plain `addAll` replaces it, leaving the stub with no arguments at all —
+  and `enabled` became repeatable with the last occurrence winning, since kotlinc rejects a repeated
+  single-valued plugin option. A per-project `BuildService` deletes every request file when the build
+  ends, whatever its outcome, so a request no compile consumed can no longer silence the next plain
+  build within the five-minute age window. `wrasseApply` now *depends on* the compile tasks instead of
+  finalizing them (and `wrasseFormat` depends on `wrasseApply`), so a failed compile never rewrites
+  sources from the patch it left behind. `wrasseLint` replays only the entries of files its compile
+  tasks still list as sources, so a file that left a source set stops being reported forever after.
+  Every config in a `wrasse.json`'s `extends` chain is a declared compile input, not just the leaf.
+  A missing config file, and a comma in the project or build path (the compiler splits `-P` options on
+  it), both fail at configuration time with a message naming the path, instead of surfacing as a
+  compiler stack trace or a mangled option. Finally, the compiler plugin registers nothing when the
+  compile has no source roots at all — an incremental compile whose dirty set is empty, e.g. after a
+  file is only deleted — instead of failing that compile with "config file not found".
 
 ### Build & distribution
 

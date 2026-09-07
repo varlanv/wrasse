@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import java.nio.file.Files
 
 class InvalidationSpec : ShouldSpec({
 
@@ -18,6 +19,26 @@ class InvalidationSpec : ShouldSpec({
             playground.run("wrasseLint").output shouldContain "w: $sourceUri:3:16 wrasse: no-semicolons"
 
             playground.config(ERROR_CONFIG)
+            val afterChange = playground.runAndFail("wrasseLint")
+            afterChange.output shouldNotContain "Task :app:compileKotlin UP-TO-DATE"
+            afterChange.output shouldContain "e: $sourceUri:3:16 wrasse: no-semicolons"
+        } finally {
+            playground.delete()
+        }
+    }
+
+    should("recompile when a config the wrasse.json extends changes and report with the new level") {
+        val playground = Playground.create("extends-change")
+        try {
+            playground.module("app", mapOf("sample/Sample.kt" to SEMICOLON_SOURCE))
+            playground.settings()
+            playground.rootFile("base.json", WARN_CONFIG)
+            playground.config("""{"extends":"base.json"}""")
+            val sourceUri = playground.sourceUri("app", "sample/Sample.kt")
+
+            playground.run("wrasseLint").output shouldContain "w: $sourceUri:3:16 wrasse: no-semicolons"
+
+            playground.rootFile("base.json", ERROR_CONFIG)
             val afterChange = playground.runAndFail("wrasseLint")
             afterChange.output shouldNotContain "Task :app:compileKotlin UP-TO-DATE"
             afterChange.output shouldContain "e: $sourceUri:3:16 wrasse: no-semicolons"
@@ -65,6 +86,12 @@ class InvalidationSpec : ShouldSpec({
             val result = playground.run("wrasseLint")
             result.output shouldNotContain "no-semicolons"
             result.output shouldContain "BUILD SUCCESSFUL"
+
+            val buildFile = playground.dir.resolve("app/build.gradle.kts")
+            Files.writeString(buildFile, Files.readString(buildFile).replace("enabled.set(false)", "enabled.set(true)"))
+            val enabled = playground.runAndFail("wrasseLint")
+            enabled.output shouldContain
+                "e: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
         } finally {
             playground.delete()
         }

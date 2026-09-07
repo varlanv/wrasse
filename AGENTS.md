@@ -108,12 +108,28 @@ app/
                             `wrasse-gradle-plugin`): ONE Kotlin file, per-project only (parallel, configuration
                             cache and isolated projects safe), reaches KGP's compile tasks reflectively; adds
                             wrasseLint / wrasseFormat / wrasseApply and replays `patch/wrasse-report.txt`.
-                            Its own wrasse `-P` args are added from `Project.afterEvaluate`, not eagerly, so a
-                            consumer's later `compilerOptions.freeCompilerArgs.set(...)` (common with
-                            `-Xcontext-parameters` etc.) is registered first and wrasse's own `addAll` still
-                            wins at task realization instead of being overwritten; it also passes the project's
-                            `layout.buildDirectory` as a compiler-plugin `excludedRoot` so generated sources
-                            (KSP/kapt output under `build/`) are never linted or rewritten.
+                            Its own wrasse `-P` args are added once the project is evaluated — immediately when
+                            it already is, so a consumer that applies Kotlin or wrasse from its own
+                            `afterEvaluate` is still wired — and not eagerly, so a consumer's later
+                            `compilerOptions.freeCompilerArgs.set(...)` (common with `-Xcontext-parameters` etc.)
+                            is registered first and wrasse's own append still wins at task realization instead of
+                            being overwritten; the append keeps a value KGP only conventions onto the task.
+                            Every `compile*Kotlin*` task owns a `build/wrasse/<compilation>` directory —
+                            `main`/`test` for `compileKotlin`/`compileTestKotlin`, otherwise the task name minus
+                            its `compile` prefix (`kotlinJvm`, `debugKotlinAndroid`) — so multiplatform and
+                            Android compilations are wired like any other; a kapt stub task, which inherits the
+                            real compile's arguments, is detected by class name and switched off with an
+                            `enabled=false` of its own (the option is repeatable, last occurrence wins) so it
+                            neither eats the compile's request nor writes into its declared output. It passes
+                            the project's `layout.buildDirectory` as a compiler-plugin `excludedRoot` so
+                            generated sources (KSP/kapt output under `build/`) are never linted or rewritten,
+                            and its `projectDir` so the report resolves stored paths and `wrasseApply` can
+                            replay what it could not fix. `wrasse.json` and every config it `extends` are
+                            declared compile inputs; a missing config or a comma in the project or build path
+                            fails at configuration time; `wrasseApply` depends on the compiles (a failed compile
+                            never rewrites sources) and `wrasseFormat` on `wrasseApply`; a build service deletes
+                            every request file when the build ends, whatever its outcome; and `wrasseLint`
+                            replays only the entries of files its compile tasks still list as sources.
 testing/
   common-test/                          BaseSpec (kotest ShouldSpec base), useTempDir
   wrasse-realworld-bench/               generator for synthetic 5k/50k/1M-LOC Gradle projects + bench.sh

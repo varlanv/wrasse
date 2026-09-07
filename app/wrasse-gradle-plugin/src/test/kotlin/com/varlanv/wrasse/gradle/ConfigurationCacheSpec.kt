@@ -33,7 +33,9 @@ class ConfigurationCacheSpec : ShouldSpec({
 
             val formatAgain = playground.run("wrasseFormat")
             formatAgain.output shouldContain "Reusing configuration cache."
+            formatAgain.output shouldContain "BUILD SUCCESSFUL"
             formatAgain.output shouldNotContain "Fixed: "
+            Files.readString(playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")) shouldBe CLEAN_SOURCE
         } finally {
             playground.delete()
         }

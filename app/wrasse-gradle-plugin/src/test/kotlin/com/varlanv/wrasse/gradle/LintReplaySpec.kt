@@ -40,6 +40,44 @@ class LintReplaySpec : ShouldSpec({
         }
     }
 
+    should("stop replaying the finding of a file that left the source set") {
+        val playground = Playground.create("source-set-scope")
+        try {
+            playground.module(
+                "app",
+                mapOf("sample/Sample.kt" to SEMICOLON_SOURCE),
+                afterExtension = """
+                kotlin {
+                    sourceSets {
+                        main {
+                            kotlin.srcDir("extra")
+                        }
+                    }
+                }
+                """.trimIndent(),
+            )
+            playground.settings()
+            playground.config(ERROR_CONFIG)
+            playground.rawFile("app", "extra/sample/Extra.kt", "package sample\n\nval extra = 1;\n")
+            val sampleFinding = "e: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+            val extraUri = playground.dir.resolve("app/extra/sample/Extra.kt").toUri().toString()
+            val extraFinding = "e: $extraUri:3:14 wrasse: no-semicolons: Unnecessary semicolon"
+
+            val first = playground.runAndFail("wrasseLint")
+            first.output.countOf(sampleFinding) shouldBe 1
+            first.output.countOf(extraFinding) shouldBe 1
+            first.output shouldContain "wrasse found 2 error-level violation(s) in :app"
+
+            playground.module("app", emptyMap())
+            val second = playground.runAndFail("wrasseLint")
+            second.output.countOf(sampleFinding) shouldBe 1
+            second.output shouldNotContain "Extra.kt"
+            second.output shouldContain "wrasse found 1 error-level violation(s) in :app"
+        } finally {
+            playground.delete()
+        }
+    }
+
     should("treat warn-level findings as passing and still print them") {
         val playground = Playground.create("lint-warn")
         try {

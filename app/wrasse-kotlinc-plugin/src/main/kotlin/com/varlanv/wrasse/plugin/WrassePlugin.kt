@@ -144,20 +144,22 @@ class WrassePlugin(
         reports: List<ViolationReport>,
     ): ReportedFile {
         val lineStarts = LineIndex(sourceText)
-        val diagnostics = reports.sortedWith(compareBy({ it.startOffset }, { it.endOffset })).map { report ->
-            val level = when (report.configuredLevel) {
-                RuleLevel.ERROR -> ReportedDiagnostic.LEVEL_ERROR
-                else -> ReportedDiagnostic.LEVEL_WARN
+        val diagnostics = reports
+            .sortedWith(compareBy({ it.startOffset }, { it.endOffset }))
+            .map { report ->
+                val level = when (report.configuredLevel) {
+                    RuleLevel.ERROR -> ReportedDiagnostic.LEVEL_ERROR
+                    else -> ReportedDiagnostic.LEVEL_WARN
+                }
+                ReportedDiagnostic(
+                    lineStarts.lineOf(report.startOffset),
+                    lineStarts.columnOf(report.startOffset),
+                    report.startOffset,
+                    level,
+                    report.hasAutofix,
+                    report.message,
+                )
             }
-            ReportedDiagnostic(
-                lineStarts.lineOf(report.startOffset),
-                lineStarts.columnOf(report.startOffset),
-                report.startOffset,
-                level,
-                report.hasAutofix,
-                report.message,
-            )
-        }
         return ReportedFile(reportFilePath(filePath), sourceHash, diagnostics)
     }
 

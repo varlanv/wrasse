@@ -11,6 +11,8 @@ internal const val SEMICOLON_SOURCE = "package sample\n\nval answer = 42;\n"
 internal const val CLEAN_SOURCE = "package sample\n\nval answer = 42\n"
 internal const val ERROR_CONFIG = """{"rules":{"no-semicolons":{"level":"error"}}}"""
 internal const val WARN_CONFIG = """{"rules":{"no-semicolons":{"level":"warn"}}}"""
+internal const val MAIN_SOURCE_ROOT = "src/main/kotlin"
+internal const val TEST_SOURCE_ROOT = "src/test/kotlin"
 
 /** A throwaway multi-module consumer build that applies the plugin under test to each module. */
 internal class Playground(val dir: Path) {
@@ -53,10 +55,8 @@ internal class Playground(val dir: Path) {
         extension: String = "",
         afterExtension: String = "",
     ): Path {
-        modules.add(name)
-        val moduleDir = Files.createDirectories(dir.resolve(name))
-        Files.writeString(
-            moduleDir.resolve("build.gradle.kts"),
+        val moduleDir = rawModule(
+            name,
             """
             plugins {
                 kotlin("jvm") version "$KOTLIN_VERSION"
@@ -74,18 +74,37 @@ internal class Playground(val dir: Path) {
         return moduleDir
     }
 
-    fun source(
-        module: String,
-        path: String,
-        content: String,
-    ): Path {
-        val file = dir.resolve(module).resolve("src/main/kotlin").resolve(path)
+    fun rawModule(name: String, script: String): Path {
+        modules.add(name)
+        val moduleDir = Files.createDirectories(dir.resolve(name))
+        Files.writeString(moduleDir.resolve("build.gradle.kts"), script)
+        return moduleDir
+    }
+
+    fun rootFile(relativePath: String, content: String): Path {
+        val file = dir.resolve(relativePath)
         Files.createDirectories(file.parent)
         Files.writeString(file, content)
         return file
     }
 
-    fun sourceUri(module: String, path: String): String = dir.resolve(module).resolve("src/main/kotlin").resolve(path).toUri().toString()
+    fun source(
+        module: String,
+        path: String,
+        content: String,
+        sourceRoot: String = MAIN_SOURCE_ROOT,
+    ): Path {
+        val file = dir.resolve(module).resolve(sourceRoot).resolve(path)
+        Files.createDirectories(file.parent)
+        Files.writeString(file, content)
+        return file
+    }
+
+    fun sourceUri(
+        module: String,
+        path: String,
+        sourceRoot: String = MAIN_SOURCE_ROOT,
+    ): String = dir.resolve(module).resolve(sourceRoot).resolve(path).toUri().toString()
 
     fun rawFile(
         module: String,

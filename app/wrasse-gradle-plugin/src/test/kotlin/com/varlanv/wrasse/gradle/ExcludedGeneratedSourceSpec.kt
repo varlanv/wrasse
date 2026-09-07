@@ -13,7 +13,7 @@ class ExcludedGeneratedSourceSpec : ShouldSpec({
         try {
             playground.module(
                 "app",
-                mapOf("sample/Sample.kt" to SEMICOLON_SOURCE),
+                mapOf("sample/Sample.kt" to "package sample\n\nimport generated.GENERATED\n\nval answer = GENERATED;\n"),
                 afterExtension = """
                 kotlin {
                     sourceSets {
@@ -24,7 +24,7 @@ class ExcludedGeneratedSourceSpec : ShouldSpec({
                 }
                 """.trimIndent(),
             )
-            val generatedContent = "package generated\n\nval generated = 1;\n"
+            val generatedContent = "package generated\n\nconst val GENERATED = 1;\n"
             val generatedPath = "build/generated/src/main/kotlin/generated/Generated.kt"
             playground.rawFile("app", generatedPath, generatedContent)
             playground.settings()
@@ -32,13 +32,16 @@ class ExcludedGeneratedSourceSpec : ShouldSpec({
             val sourceUri = playground.sourceUri("app", "sample/Sample.kt")
 
             val lint = playground.run("wrasseLint")
-            lint.output shouldContain "w: $sourceUri:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+            lint.output shouldContain "BUILD SUCCESSFUL"
+            lint.output shouldContain "w: $sourceUri:5:23 wrasse: no-semicolons: Unnecessary semicolon"
             lint.output shouldNotContain "Generated.kt"
 
             val format = playground.run("wrasseFormat")
+            format.output shouldContain "Fixed: "
             format.output shouldNotContain "Generated.kt"
             Files.readString(playground.dir.resolve("app").resolve(generatedPath)) shouldBe generatedContent
-            Files.readString(playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")) shouldBe CLEAN_SOURCE
+            Files.readString(playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")) shouldBe
+                "package sample\n\nimport generated.GENERATED\n\nval answer = GENERATED\n"
         } finally {
             playground.delete()
         }

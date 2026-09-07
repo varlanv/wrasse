@@ -35,6 +35,35 @@ class FormatFlowSpec : ShouldSpec({
         }
     }
 
+    should("leave the sources untouched when the compile fails, and fix them once it compiles") {
+        val playground = Playground.create("format-failing-compile")
+        try {
+            playground.module(
+                "app",
+                mapOf(
+                    "sample/Sample.kt" to SEMICOLON_SOURCE,
+                    "sample/Bad.kt" to "package sample\n\nval bad: Int = \"text\"\n",
+                ),
+            )
+            playground.settings()
+            playground.config(ERROR_CONFIG)
+            val sample = playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")
+
+            val failed = playground.runAndFail("wrasseFormat")
+            failed.output shouldContain "> Task :app:compileKotlin FAILED"
+            failed.output shouldNotContain "> Task :app:wrasseApply"
+            Files.readString(playground.dir.resolve("app/build/wrasse/main/patch/wrasse-fixes.txt")) shouldContain "Sample.kt"
+            Files.readString(sample) shouldBe SEMICOLON_SOURCE
+
+            playground.source("app", "sample/Bad.kt", "package sample\n\nval bad: Int = 1\n")
+            val fixed = playground.run("wrasseFormat")
+            fixed.output shouldContain "Fixed: "
+            Files.readString(sample) shouldBe CLEAN_SOURCE
+        } finally {
+            playground.delete()
+        }
+    }
+
     should("apply nothing and leave no request behind when the compile was up to date") {
         val playground = Playground.create("format-uptodate")
         try {

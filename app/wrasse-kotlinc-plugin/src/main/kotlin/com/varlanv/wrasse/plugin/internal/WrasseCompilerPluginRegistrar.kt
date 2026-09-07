@@ -41,6 +41,10 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
             AnalysisFlags.explicitApiMode,
         ) != ExplicitApiMode.DISABLED
         val sourceRoots = configuration.javaSourceRoots.map { Paths.get(it) }
+        if (sourceRoots.isEmpty()) {
+            return
+        }
+
         val plugin = wrasseMain(
             sourceRoots = sourceRoots,
             warnOnly = warnOnly,

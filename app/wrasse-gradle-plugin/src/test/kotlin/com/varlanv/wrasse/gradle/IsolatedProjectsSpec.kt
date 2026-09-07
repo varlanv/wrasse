@@ -27,6 +27,7 @@ class IsolatedProjectsSpec : ShouldSpec({
 
             val reused = playground.run("wrasseLint", "--parallel")
             reused.output shouldContain "Reusing configuration cache."
+            reused.output shouldContain "BUILD SUCCESSFUL"
             reused.output shouldNotContain "no-semicolons"
         } finally {
             playground.delete()

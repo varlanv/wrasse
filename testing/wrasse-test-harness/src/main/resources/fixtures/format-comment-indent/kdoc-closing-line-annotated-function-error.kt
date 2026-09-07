@@ -1,9 +1,9 @@
 package sample
 
-annotation class Serializable
+annotation class Marker
 
 /**
    * Doc
- */ @Serializable data class Pair(val a: Int)
+ */ @Marker fun pair(a: Int): Int = a
 
 // expect-error 1:1 format "File is not wrasse-formatted"

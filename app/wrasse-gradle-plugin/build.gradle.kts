@@ -10,7 +10,7 @@ description = "Wrasse Gradle plugin — wires the compiler plugin into every Kot
 
 val catalog = versionCatalogs.named("libs")
 val javaToolchainVersion = catalog.findVersion("javaToolchainVersion").getOrNull()!!.requiredVersion
-val javaTargetVersion = catalog.findVersion("javaTargetVersion").getOrNull()!!.requiredVersion
+val javaTargetVersion = "17"
 val kotlinVersion = catalog.findVersion("kotlinVersion").getOrNull()!!.requiredVersion
 
 repositories {
@@ -82,9 +82,8 @@ tasks.test {
         showStandardStreams = true
         showStackTraces = true
     }
-    systemProperty("wrasse.version", project.version.toString())
     systemProperty("wrasse.kotlinVersion", kotlinVersion)
-    systemProperty("wrasse.javaToolchainVersion", javaToolchainVersion)
+    outputs.upToDateWhen { false }
     dependsOn(
         ":libs:wrasse-lang:publishToMavenLocal",
         ":libs:wrasse-model:publishToMavenLocal",
