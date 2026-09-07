@@ -84,6 +84,7 @@ private val ANY_COMMENT_TYPES = WNodeTypeSet.containing(
     WNodeType.BLOCK_COMMENT,
     WNodeType.KDOC,
 )
+private val BLOCK_COMMENT_TYPES = WNodeTypeSet.containing(WNodeType.BLOCK_COMMENT, WNodeType.KDOC)
 private val EOL_COMMENT_EXEMPT_PREFIXES = listOf("//noinspection", "//region", "//endregion", "//language=")
 
 private val KEYWORDS_WANTING_SPACE_AFTER = WNodeTypeSet.containing(
@@ -1089,12 +1090,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         for (i in children.indices) {
             val entry = children[i]
             val nextIsSuperTypeList = suppressSuperTypeListLeadGap &&
-                children.getOrNull(i - 1)?.type ==
-                WNodeType.COLON &&
                 children.getOrNull(i + 1)?.type ==
                 WNodeType.SUPER_TYPE_LIST
             if (entry is ChildEntry.Ws) {
-                if (nextIsSuperTypeList) {
+                if (nextIsSuperTypeList && children.getOrNull(i - 1)?.type == WNodeType.COLON) {
                     out.add(Doc.Text("", entry.start, entry.start + entry.rawText.length))
                     continue
                 }
@@ -1111,7 +1110,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                 continue
             }
             if (isPlainWhitespace(entry)) {
-                if (nextIsSuperTypeList) {
+                if (nextIsSuperTypeList && precedesSuperTypeListLead(children, i - 1)) {
                     val ws = (entry as ChildEntry.Resolved).doc
                     out.add(Doc.Text("", ws.start, ws.end))
                     continue
@@ -1128,10 +1127,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val next = children.getOrNull(i + 1)
             if (next != null && !isPlainWhitespace(next) && next !is ChildEntry.Ws) {
                 val isSuperTypeListLead = suppressSuperTypeListLeadGap &&
-                    entry.type ==
-                    WNodeType.COLON &&
                     next.type ==
-                    WNodeType.SUPER_TYPE_LIST
+                    WNodeType.SUPER_TYPE_LIST &&
+                    precedesSuperTypeListLead(children, i)
                 val decision = if (isSuperTypeListLead) null else spacingDecision(frameType, entry.type, next.type)
                 val wantsSpace = decision == " " || (decision == null && next.type == WNodeType.EOL_COMMENT)
                 if (wantsSpace) {
@@ -1141,6 +1139,23 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             }
         }
         return out
+    }
+
+    /**
+     * Whether everything from the class's own `:` up to and including [lastIdx] is nothing but
+     * single-line whitespace and [BLOCK_COMMENT_TYPES] comments — the run a
+     * [WNodeType.SUPER_TYPE_LIST]'s own lead break already writes the gap for, so the gap right
+     * after [lastIdx] renders empty instead of doubling it. An [WNodeType.EOL_COMMENT] never
+     * qualifies: it puts the supertype on a line of its own, and that gap is a real newline
+     * [normalizeChildren] leaves alone.
+     */
+    private fun precedesSuperTypeListLead(
+        children: List<ChildEntry>,
+        lastIdx: Int,
+    ): Boolean {
+        var i = lastIdx
+        while (i >= 0 && (isPlainWhitespace(children[i]) || children[i].type in BLOCK_COMMENT_TYPES)) i--
+        return i >= 0 && children[i].type == WNodeType.COLON
     }
 
     /**
@@ -1313,6 +1328,24 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         entry.type in ANY_COMMENT_TYPES || (entry is ChildEntry.Resolved && entry.carriesComment)
 
     /**
+     * The gap a [BLOCK_COMMENT_TYPES] comment keeps to the token beside it on the same line, for a
+     * frame that rebuilds its own interior and would otherwise drop the whitespace written there:
+     * none right after the `(` it opens from, none before the `,` or `)` that follows it, one
+     * space against anything else. `null` when neither side is such a comment — the caller keeps
+     * whatever it would have written.
+     */
+    private fun blockCommentGap(
+        prevType: WNodeType?,
+        nextType: WNodeType?,
+    ): String? {
+        if (prevType == null || nextType == null) return null
+        if (prevType !in BLOCK_COMMENT_TYPES && nextType !in BLOCK_COMMENT_TYPES) return null
+        if (prevType == WNodeType.LPAR) return ""
+        if (nextType == WNodeType.COMMA || nextType == WNodeType.RPAR) return ""
+        return " "
+    }
+
+    /**
      * The horizontal-spacing table for a gap between [prevType] and [nextType] inside [frameType]:
      * no space before a comma, one space after (none before a closing delimiter); colon spacing
      * keyed on the enclosing declaration ([COLON_WANTS_SPACE_BOTH_SIDES] — one space both sides —
@@ -1408,9 +1441,12 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * `.` after it. A chain with fewer call links keeps a lambda and the links around it together.
      *
      * A chain with no method call anywhere (`a.b.c`) is normally collapsed onto one line, dropping
-     * its own whitespace; a chain carrying a [WNodeType.EOL_COMMENT] in any of its links
+     * its own whitespace; a chain carrying a comment of any kind in any of its links
      * ([Frame.hasChainComment], propagated up the links) never collapses and takes the break-splicing
-     * path instead, where [spliceBreak]'s break after that comment is `HARD`.
+     * path instead, so the whitespace the author wrote around that comment survives exactly as a
+     * chain that does call something keeps it. [spliceBreak]'s break after an
+     * [WNodeType.EOL_COMMENT] is `HARD`; after a block comment it stays `SOFT`, so such a chain
+     * still renders on one line whenever it fits.
      *
      * When the receiver is a raw multi-line string and the whole expression is exactly
      * `<receiver>.trimIndent()` ([substituteTrimIndentReceiver]), the receiver's resolved `Doc` is
@@ -1434,7 +1470,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                 receiverEntry.type in CHAIN_LINK_TYPES &&
                 receiverEntry.chainHeadIsRawString)
         frame.hasChainComment = children.any {
-            it.type == WNodeType.EOL_COMMENT ||
+            it.type in ANY_COMMENT_TYPES ||
                 (it is ChildEntry.Resolved && it.type in CHAIN_LINK_TYPES && it.hasChainComment)
         }
         frame.chainCallLinks = chainCallLinks(children, receiverEntry)
@@ -1716,7 +1752,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
      * presence in the rendered output follows this same [Doc.Group]'s own broken-vs-flat choice
      * rather than the source. A list holding nothing but comments gets no trailing comma at all,
      * and when the last thing inside the parentheses is a comment its own closing break doubles as
-     * the list's, so `)` lands on the line right below it.
+     * the list's, so `)` lands on the line right below it. A block comment keeps the gap
+     * [blockCommentGap] asks for to whatever stands beside it, which the rebuilt interior — it
+     * emits a gap only after `(`, after a comma and after an end-of-line comment — would otherwise
+     * drop.
      */
     private fun resolveArgumentListFrame(
         frame: Frame,
@@ -1751,6 +1790,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         val interior = ArrayList<Doc>()
         interior.add(wsBreakAt(children, lparIdx + 1, lparDoc.end, flat = ""))
+        var prevType: WNodeType? = null
         var i = lparIdx + 1
         while (i < rparIdx) {
             val entry = children[i]
@@ -1762,12 +1802,16 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             if (entry.type == WNodeType.EOL_COMMENT && interior.lastOrNull() !is Doc.Break) {
                 interior.add(Doc.Break(BreakKind.HARD, start = entryDoc.start, end = entryDoc.start))
             }
+            if (interior.lastOrNull() !is Doc.Break && blockCommentGap(prevType, entry.type) == " ") {
+                interior.add(Doc.Text(" ", entryDoc.start, entryDoc.start))
+            }
             interior.add(entryDoc)
             if (entry.type == WNodeType.EOL_COMMENT) {
                 interior.add(Doc.Break(BreakKind.HARD, start = entryDoc.end, end = entryDoc.end))
             } else if (entry.type == WNodeType.COMMA && hasNonWsBetween(children, i + 1, rparIdx)) {
                 interior.add(wsBreakAt(children, i + 1, entryDoc.end, flat = " "))
             }
+            prevType = entry.type
             i++
         }
         if (argumentCount > 0) addDynamicTrailingComma(interior, children, trailingCommaIdx)
