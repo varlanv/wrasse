@@ -32,6 +32,11 @@ class WhenEntryBracingVerdict(
  * Unaffected by [decideEntry]'s `formatEnabled` — it decides whether this `when` is in scope at
  * all, not how an in-scope entry gets edited.
  *
+ * [entrySpansMultipleLines] is the per-entry analogue of `if-else-bracing`'s own chain-level
+ * `allow-inline` gate ([IfElseBracingDecision.chainSpansMultipleLines]): a `when` entry has no
+ * chain to be part of, so the same "leave a bare branch alone when it sits on one source line"
+ * intent is applied to the entry's own span instead of a whole chain.
+ *
  * [decideEntry] returns a report-only bail (empty [WhenEntryBracingVerdict.edits]) whenever
  * [WhenEntryBracingCandidate.hasAdjacentComment] is set, or the entry's own bare-expression text
  * already spans multiple lines and [formatEnabled] is `false` — with the printer active,
@@ -44,6 +49,12 @@ class WhenEntryBracingVerdict(
 object WhenEntryBracingDecision {
     fun shouldBraceEntries(anyEntryHasBlockBody: Boolean, anyEntryHasMultilineBody: Boolean): Boolean =
         anyEntryHasBlockBody && anyEntryHasMultilineBody
+
+    fun entrySpansMultipleLines(
+        sourceText: CharSequence,
+        entryStart: Int,
+        entryEnd: Int,
+    ): Boolean = sourceText.subSequence(entryStart, entryEnd).contains('\n')
 
     fun decideEntry(
         sourceText: CharSequence,

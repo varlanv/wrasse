@@ -29,10 +29,7 @@ class EmptyKotlinFileRule : WUninitializedRule {
                 children: ChildBuffer,
                 reporter: WReporter,
             ) {
-                for (i in 0 until children.size) {
-                    if (children.type(i) == WNodeType.PACKAGE_DIRECTIVE) continue
-                    if (children.textSpan(i, ctx.sourceText).isNotBlank()) return
-                }
+                if (!EmptyKotlinFileCheck.isEmpty(ctx, children)) return
                 reporter.report(ruleId, "Empty Kotlin file detected. This file can be removed", 0, 0, this)
             }
         }

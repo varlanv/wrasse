@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "missing-package-declaration": { "level": "error" },
+        "empty-kotlin-file": { "level": "error" }
+    }
+}

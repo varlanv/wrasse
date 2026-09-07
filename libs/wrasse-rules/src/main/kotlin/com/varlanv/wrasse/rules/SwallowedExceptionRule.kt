@@ -7,6 +7,7 @@ import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.model.isWhitespaceOrComment
 
 private val TARGET_TYPES = setOf(WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST)
 
@@ -16,7 +17,10 @@ private val TARGET_TYPES = setOf(WNodeType.CATCH, WNodeType.VALUE_PARAMETER_LIST
  * anywhere in the catch's subtree — `ancestors.peekType() == REFERENCE_EXPRESSION` — counts as a
  * use regardless of depth, mirroring the unbounded subtree scan the upstream rule this derives
  * from performs; a nested catch clause's own references are attributed only to that nested
- * clause (the innermost currently open frame), never leaking up to an enclosing catch.
+ * clause (the innermost currently open frame), never leaking up to an enclosing catch. A catch
+ * body that is nothing but whitespace/comments beyond the parameter list is never reported — that
+ * shape is `empty-catch-block`'s to claim — tracked by the first non-brace, non-whitespace-or-
+ * comment leaf offset at or after the parameter list's own end.
  */
 class SwallowedExceptionRule : WUninitializedRule {
     override val id: String = "swallowed-exception"
@@ -39,11 +43,12 @@ class SwallowedExceptionRule : WUninitializedRule {
 
                     WNodeType.VALUE_PARAMETER_LIST -> {
                         if (ctx.ancestors.peekType() == WNodeType.CATCH && pendingCatches.isNotEmpty()) {
+                            val pending = pendingCatches.last()
+                            pending.paramListEnd = ctx.endOffset
                             val facts = CatchParameterText.parse(
                                 ctx.sourceText.subSequence(ctx.startOffset, ctx.endOffset),
                             )
                             if (facts != null) {
-                                val pending = pendingCatches.last()
                                 pending.name = facts.name
                                 pending.typeText = facts.typeText
                                 pending.nameStart = ctx.startOffset + facts.nameStart
@@ -58,10 +63,19 @@ class SwallowedExceptionRule : WUninitializedRule {
             }
 
             override fun onChildLeaf(ctx: WContext, reporter: WReporter) {
+                val pending = pendingCatches.lastOrNull() ?: return
+                if (!pending.hasBodyContent &&
+                    pending.paramListEnd >= 0 &&
+                    ctx.startOffset >= pending.paramListEnd &&
+                    ctx.type != WNodeType.LBRACE &&
+                    ctx.type != WNodeType.RBRACE &&
+                    !ctx.type.isWhitespaceOrComment
+                ) {
+                    pending.hasBodyContent = true
+                }
                 if (ctx.type != WNodeType.IDENTIFIER || ctx.ancestors.peekType() != WNodeType.REFERENCE_EXPRESSION) {
                     return
                 }
-                val pending = pendingCatches.lastOrNull() ?: return
                 val name = pending.name ?: return
                 val text = IdentifierCasing.unquote(ctx.leafString() ?: "")
                 if (SwallowedExceptionDecision.isUsageText(text, name)) pending.used = true
@@ -71,7 +85,12 @@ class SwallowedExceptionRule : WUninitializedRule {
                 if (ctx.type != WNodeType.CATCH) return
                 val pending = pendingCatches.removeAt(pendingCatches.size - 1)
                 val name = pending.name ?: return
-                val message = SwallowedExceptionDecision.decide(pending.typeText ?: "", name, pending.used) ?: return
+                val message = SwallowedExceptionDecision.decide(
+                    pending.typeText ?: "",
+                    name,
+                    pending.used,
+                    pending.hasBodyContent,
+                ) ?: return
                 reporter.report(ruleId, message, pending.nameStart, pending.nameEnd, this)
             }
         }
@@ -83,5 +102,7 @@ class SwallowedExceptionRule : WUninitializedRule {
         var nameStart = -1
         var nameEnd = -1
         var used = false
+        var paramListEnd = -1
+        var hasBodyContent = false
     }
 }

@@ -109,6 +109,7 @@ class NestedClassesVisibilityRule : WUninitializedRule {
                         decl.hasPublic,
                         decl.hasEnum,
                         decl.hasCompanion,
+                        config.explicitApiActive,
                     ) ?: continue
                     reporter.report(ruleId, message, children.startOffset(i), children.endOffset(i), this)
                 }

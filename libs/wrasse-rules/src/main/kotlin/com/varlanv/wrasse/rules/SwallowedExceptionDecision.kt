@@ -6,7 +6,8 @@ package com.varlanv.wrasse.rules
  * rule this derives from: only the "never referenced at all" case is checked — its sibling case
  * ("referenced only via a derived field, e.g. `e.message`, while rethrowing a new exception that
  * never carries `e` itself as a cause") is dropped, strictly fewer reports, never a false
- * positive relative to upstream.
+ * positive relative to upstream. Silent whenever [hasBodyContent] is `false` — a catch body that
+ * is nothing but whitespace/comments is `empty-catch-block`'s shape to report, not this rule's.
  */
 object SwallowedExceptionDecision {
     const val MESSAGE = "The caught exception is swallowed. The original exception could be lost."
@@ -22,7 +23,9 @@ object SwallowedExceptionDecision {
         typeText: String,
         catchParameterName: String,
         isReferenced: Boolean,
+        hasBodyContent: Boolean,
     ): String? {
+        if (!hasBodyContent) return null
         if (IGNORED_TYPES.any { typeText.contains(it, ignoreCase = true) }) return null
         if (AllowedExceptionName.isAllowed(catchParameterName)) return null
         return if (isReferenced) null else MESSAGE

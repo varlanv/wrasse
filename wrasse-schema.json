@@ -569,8 +569,22 @@
                     "description": "Require a trailing newline at end of file"
                 },
                 "when-entry-bracing": {
-                    "$ref": "#/$defs/ruleConfig",
-                    "description": "Require braces around a bare when-entry body when some sibling entry is already braced and some entry has a multiline body"
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Require braces around a bare when-entry body when some sibling entry is already braced and some entry has a multiline body",
+                    "properties": {
+                        "level": {
+                            "$ref": "#/$defs/level"
+                        },
+                        "exclude": {
+                            "$ref": "#/$defs/exclude"
+                        },
+                        "allow-inline": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Leave a bare when-entry body alone when it sits on one source line. Default false: every bare candidate entry is braced."
+                        }
+                    }
                 },
                 "undocumented-public-class": {
                     "$ref": "#/$defs/ruleConfig",
@@ -736,7 +750,7 @@
                 },
                 "magic-number": {
                     "$ref": "#/$defs/ruleConfig",
-                    "description": "Disallow a numeric literal other than -1, 0, 1, or 2 outside an exempt position"
+                    "description": "Disallow a numeric literal other than -1, 0, 1, or 2 outside an exempt position. A literal passed as a named argument is not reported."
                 },
                 "function-parameter-naming": {
                     "$ref": "#/$defs/ruleConfig",

@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "swallowed-exception": { "level": "error" },
+        "empty-catch-block": { "level": "error" }
+    }
+}

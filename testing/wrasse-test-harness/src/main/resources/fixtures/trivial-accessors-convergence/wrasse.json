@@ -1,0 +1,7 @@
+{
+    "rules": {
+        "trivial-accessors": { "level": "error" },
+        "property-naming": { "level": "error" },
+        "may-be-constant": { "level": "error" }
+    }
+}

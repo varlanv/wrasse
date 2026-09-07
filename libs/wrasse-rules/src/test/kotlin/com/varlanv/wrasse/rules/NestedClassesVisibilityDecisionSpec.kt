@@ -11,6 +11,7 @@ class NestedClassesVisibilityDecisionSpec : BaseSpec({
             hasPublic = true,
             hasEnum = false,
             hasCompanion = false,
+            explicitApiActive = false,
         ) shouldBe NestedClassesVisibilityDecision.MESSAGE
     }
 
@@ -20,6 +21,7 @@ class NestedClassesVisibilityDecisionSpec : BaseSpec({
             hasPublic = true,
             hasEnum = false,
             hasCompanion = false,
+            explicitApiActive = false,
         ) shouldBe null
     }
 
@@ -29,6 +31,7 @@ class NestedClassesVisibilityDecisionSpec : BaseSpec({
             hasPublic = false,
             hasEnum = false,
             hasCompanion = false,
+            explicitApiActive = false,
         ) shouldBe null
     }
 
@@ -38,6 +41,7 @@ class NestedClassesVisibilityDecisionSpec : BaseSpec({
             hasPublic = true,
             hasEnum = true,
             hasCompanion = false,
+            explicitApiActive = false,
         ) shouldBe null
     }
 
@@ -47,6 +51,17 @@ class NestedClassesVisibilityDecisionSpec : BaseSpec({
             hasPublic = true,
             hasEnum = false,
             hasCompanion = true,
+            explicitApiActive = false,
+        ) shouldBe null
+    }
+
+    should("not report under explicit API mode even when every other condition qualifies") {
+        NestedClassesVisibilityDecision.decide(
+            ownerQualifies = true,
+            hasPublic = true,
+            hasEnum = false,
+            hasCompanion = false,
+            explicitApiActive = true,
         ) shouldBe null
     }
 })

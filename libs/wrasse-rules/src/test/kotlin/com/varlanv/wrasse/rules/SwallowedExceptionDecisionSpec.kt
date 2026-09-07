@@ -10,23 +10,53 @@ class SwallowedExceptionDecisionSpec : BaseSpec({
             "Exception",
             "e",
             isReferenced = false,
+            hasBodyContent = true,
         ) shouldBe SwallowedExceptionDecision.MESSAGE
     }
 
     should("not report a referenced caught exception") {
-        SwallowedExceptionDecision.decide("Exception", "e", isReferenced = true) shouldBe null
+        SwallowedExceptionDecision.decide(
+            "Exception",
+            "e",
+            isReferenced = true,
+            hasBodyContent = true,
+        ) shouldBe null
     }
 
     should("not report when the type is one of the ignored exception types") {
-        SwallowedExceptionDecision.decide("NumberFormatException", "e", isReferenced = false) shouldBe null
+        SwallowedExceptionDecision.decide(
+            "NumberFormatException",
+            "e",
+            isReferenced = false,
+            hasBodyContent = true,
+        ) shouldBe null
     }
 
     should("not report when the type merely contains an ignored exception type's name") {
-        SwallowedExceptionDecision.decide("MyNumberFormatExceptionWrapper", "e", isReferenced = false) shouldBe null
+        SwallowedExceptionDecision.decide(
+            "MyNumberFormatExceptionWrapper",
+            "e",
+            isReferenced = false,
+            hasBodyContent = true,
+        ) shouldBe null
     }
 
     should("not report when the parameter name is an allowed exemption") {
-        SwallowedExceptionDecision.decide("Exception", "ignored", isReferenced = false) shouldBe null
+        SwallowedExceptionDecision.decide(
+            "Exception",
+            "ignored",
+            isReferenced = false,
+            hasBodyContent = true,
+        ) shouldBe null
+    }
+
+    should("not report when the catch body has no content beyond whitespace or comments") {
+        SwallowedExceptionDecision.decide(
+            "Exception",
+            "e",
+            isReferenced = false,
+            hasBodyContent = false,
+        ) shouldBe null
     }
 
     should("recognize the parameter name itself as a usage") {

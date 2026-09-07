@@ -5,6 +5,9 @@ import com.varlanv.wrasse.model.WBufferedNodeRule
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleOptionType
+import com.varlanv.wrasse.model.WRuleOptionValue
 import com.varlanv.wrasse.model.WUninitializedRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.model.isWhitespaceOrComment
@@ -16,6 +19,11 @@ private val TARGET_TYPES = setOf(WNodeType.WHEN, WNodeType.WHEN_ENTRY)
  * one entry with a block body, or at least one entry whose body doesn't start on the same line as
  * its own `ARROW`. A `when` where every entry is bare and single-line is left completely untouched
  * (no report, no fix).
+ *
+ * With the `allow-inline` option at its default `false`, every bare candidate entry in an in-scope
+ * `when` is braced. With `allow-inline: true`, an entry that, as physically written, sits entirely
+ * on one source line is left alone — the per-entry analogue of `if-else-bracing`'s own chain-level
+ * `allow-inline` (see [WhenEntryBracingDecision.entrySpansMultipleLines]).
  *
  * Never touches (no report, no fix): an already-braced entry (first significant child after
  * `ARROW` is a `BLOCK`); an empty block entry (`1 -> {}` is legal Kotlin).
@@ -43,9 +51,19 @@ private val TARGET_TYPES = setOf(WNodeType.WHEN, WNodeType.WHEN_ENTRY)
 class WhenEntryBracingRule : WUninitializedRule {
     override val id: String = "when-entry-bracing"
     override val canAutofix: Boolean = true
+    override val options: List<WRuleOptionSpec> = listOf(
+        WRuleOptionSpec.Optional(
+            name = ALLOW_INLINE,
+            type = WRuleOptionType.BOOLEAN,
+            description = "Leave a bare when-entry body alone when it sits on one source line",
+            default = WRuleOptionValue.Bool(false),
+        ),
+    )
 
     override fun initRule(config: WrasseRuleConfig): WBufferedNodeRule {
         val ruleId = id
+        val allowInline = config.options.boolean(ALLOW_INLINE)
+        val message = if (allowInline) MESSAGE_MULTILINE else MESSAGE
         return object : WBufferedNodeRule {
             override val id = ruleId
             override val config = config
@@ -121,6 +139,11 @@ class WhenEntryBracingRule : WUninitializedRule {
                     return
                 }
 
+                if (allowInline &&
+                    !WhenEntryBracingDecision.entrySpansMultipleLines(ctx.sourceText, ctx.startOffset, contentEnd)) {
+                    return
+                }
+
                 pending.candidates.add(
                     PendingCandidate(
                         entryStartOffset = ctx.startOffset,
@@ -151,7 +174,7 @@ class WhenEntryBracingRule : WUninitializedRule {
                     INDENT_WIDTH,
                     config.formatEnabled,
                 )
-                reporter.report(ruleId, MESSAGE, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
+                reporter.report(ruleId, message, verdict.reportStart, verdict.reportEnd, this, edits = verdict.edits)
             }
 
             private fun hasCommentImmediatelyAfter(
@@ -215,6 +238,8 @@ class WhenEntryBracingRule : WUninitializedRule {
 
     private companion object {
         const val INDENT_WIDTH = 4
+        const val ALLOW_INLINE = "allow-inline"
         const val MESSAGE = "Missing braces on when-entry body"
+        const val MESSAGE_MULTILINE = "Missing braces on multi-line when-entry body"
     }
 }
