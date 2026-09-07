@@ -287,7 +287,13 @@ class WrassePlugin(
                             reports.clear(reportFilePath(filePath))
                         } else {
                             reports.record(
-                                reportedFile(filePath, sourceHash, ctx.sourceText, reporter.recorded, survivingGroupIds),
+                                reportedFile(
+                                    filePath,
+                                    sourceHash,
+                                    ctx.sourceText,
+                                    reporter.recorded,
+                                    survivingGroupIds,
+                                ),
                             )
                         }
                     }.onFailure { failure -> reporter.reports.add(reportStoreFailureReport(reports, failure)) }
