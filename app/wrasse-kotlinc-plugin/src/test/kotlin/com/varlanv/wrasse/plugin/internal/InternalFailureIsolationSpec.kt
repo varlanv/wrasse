@@ -22,10 +22,12 @@ private const val INTERNAL_ERROR_MESSAGE_PREFIX = "wrasse: wrasse internal error
 
 /**
  * Proves the D24 amendment (design.md §12): any `Throwable` from wrasse's own code during
- * `WrassePlugin.checkFile` is caught at the file boundary, reported as one warning naming the
- * failure, and never costs the user their build — kotlinc keeps compiling, its own diagnostics
- * and wrasse's diagnostics for every other file survive untouched, and no partially-collected
- * edit set ever reaches the fix patch.
+ * `WrassePlugin.checkFile` is caught at the file boundary, reported once naming the failure
+ * through the compiler's `MessageCollector` at `INFO` severity (never as a `WrasseErrors`
+ * diagnostic, so `-Werror`/`allWarningsAsErrors` can never turn it into a build failure), and
+ * never costs the user their build — kotlinc keeps compiling, its own diagnostics and wrasse's
+ * diagnostics for every other file survive untouched, and no partially-collected edit set ever
+ * reaches the fix patch.
  *
  * Drives a real `K2JVMCompiler` invocation with [ThrowingTestRule] wired in through
  * [ThrowingRuleTestRegistrar] (a second `CompilerPluginRegistrar` found only via this module's
@@ -40,23 +42,22 @@ private const val INTERNAL_ERROR_MESSAGE_PREFIX = "wrasse: wrasse internal error
  * compiler state internally, so two real compiles racing in the same JVM can misattribute or
  * drop each other's diagnostics — an embeddable-compiler limitation, not a wrasse one.
  *
- * The first `should` block runs two compiles rather than one: a real, independently-confirmed
- * kotlinc characteristic (reproduced too against the production single-registrar harness, see
- * design.md §14) silently drops a `warn`-level wrasse diagnostic whenever the same compile also
- * carries an `error`-severity diagnostic, on any file. That's an existing constraint on every
- * `warn`-level wrasse rule, not something this fix introduces or could paper over by changing this
- * one diagnostic's severity (the task requires `warn`, deliberately, so a wrasse bug never fails
- * the build by itself). The two compiles instead prove the two required properties separately:
- * the crash's own warning and message (no accompanying error), and — independently — that a real
- * compile error still surfaces normally (`COMPILATION_ERROR`, never `INTERNAL_ERROR`) on a file
- * that also has the crash.
+ * The first `should` block runs two compiles to prove two properties independently: the crash's
+ * own message (no accompanying error), and that a real compile error still surfaces normally
+ * (`COMPILATION_ERROR`, never `INTERNAL_ERROR`) on a file that also has the crash. The second
+ * compile does not also assert the crash's own message is present: it never is, the same
+ * file-level suppression design.md §14 records for a genuine `WrasseErrors` `warn`
+ * diagnostic on a file with a real compiler error applies here too, unaffected by this fix.
+ * Reporting through the `MessageCollector` directly only stops `-Werror`/`allWarningsAsErrors`
+ * from turning an *emitted* message into a build failure; it does not change whether one is
+ * emitted at all for such a file.
  */
 class InternalFailureIsolationSpec : BaseSpec({
     testExecutionMode = TestExecutionMode.Sequential
 
     should(
-        "warn once with the exception type and message, skip this file's own wrasse diagnostics, " +
-            "and still let kotlinc report its own compile error for the same file",
+        "report once at info severity with the exception type and message, skip this file's own " +
+            "wrasse diagnostics, and still let kotlinc report its own compile error for the same file",
     ) {
         val crashingSource = "sample/Sample.kt" to """
             package sample
@@ -70,7 +71,7 @@ class InternalFailureIsolationSpec : BaseSpec({
         val crashResult = compileWithThrowingRule(listOf(crashingSource))
 
         crashResult.wrasseDiagnostics shouldHaveSize 1
-        crashResult.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.WARNING
+        crashResult.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.INFO
         crashResult.wrasseDiagnostics[0].message shouldBe
             "$INTERNAL_ERROR_MESSAGE_PREFIX(IllegalStateException: $THROWING_TEST_RULE_CRASH_MESSAGE); " +
             "wrasse results for this file were skipped"
@@ -95,6 +96,23 @@ class InternalFailureIsolationSpec : BaseSpec({
         } shouldBe true
     }
 
+    should("never fail a compile that treats warnings as errors") {
+        val crashingSource = "sample/Sample.kt" to """
+            package sample
+
+            private val wrasseCrashTestMarker = 0
+
+            fun sample(): Int = 1
+            """
+            .trimIndent()
+
+        val result = compileWithThrowingRule(listOf(crashingSource), allWarningsAsErrors = true)
+
+        result.exitCode shouldBe ExitCode.OK
+        result.wrasseDiagnostics shouldHaveSize 1
+        result.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.INFO
+    }
+
     should("not suppress a second file's normal wrasse diagnostics when the first file's rule throws") {
         val crashing = "sample/Crash.kt" to """
             package sample
@@ -116,7 +134,7 @@ class InternalFailureIsolationSpec : BaseSpec({
 
         result.wrasseDiagnostics shouldHaveSize 2
         val crashDiagnostic = result.wrasseDiagnostics.single { it.location?.path?.endsWith("Crash.kt") == true }
-        crashDiagnostic.severity shouldBe CompilerMessageSeverity.WARNING
+        crashDiagnostic.severity shouldBe CompilerMessageSeverity.INFO
         crashDiagnostic.message shouldBe
             "$INTERNAL_ERROR_MESSAGE_PREFIX(IllegalStateException: $THROWING_TEST_RULE_CRASH_MESSAGE); " +
             "wrasse results for this file were skipped"
@@ -142,7 +160,7 @@ class InternalFailureIsolationSpec : BaseSpec({
             val result = compileWithThrowingRule(listOf(source), fixOutputDir = fixOutputDir, withEditingRule = true)
 
             result.wrasseDiagnostics shouldHaveSize 1
-            result.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.WARNING
+            result.wrasseDiagnostics[0].severity shouldBe CompilerMessageSeverity.INFO
 
             val patchFile = fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")
             if (Files.exists(patchFile)) {
@@ -187,6 +205,7 @@ private fun compileWithThrowingRule(
     sources: List<Pair<String, String>>,
     fixOutputDir: Path? = null,
     withEditingRule: Boolean = false,
+    allWarningsAsErrors: Boolean = false,
 ): ThrowingRuleCompileResult {
     val workDir = Files.createTempDirectory("wrasse-throwing-rule-")
     try {
@@ -226,6 +245,7 @@ private fun compileWithThrowingRule(
             destination = workDir.resolve("out").toString()
             classpath = stdlibPath
             noStdlib = true
+            this.allWarningsAsErrors = allWarningsAsErrors
         }
 
         val exitCode = compiler.exec(collector, Services.EMPTY, args)

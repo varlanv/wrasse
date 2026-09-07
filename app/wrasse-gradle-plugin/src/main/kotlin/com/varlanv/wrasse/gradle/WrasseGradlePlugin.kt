@@ -119,6 +119,11 @@ class WrasseGradlePlugin : Plugin<Project> {
         }
     }
 
+    /**
+     * Adds the compiler-plugin args from [Project.afterEvaluate] so they land after a consumer's
+     * own `compilerOptions.freeCompilerArgs.set(...)`; the property is final by the time a task
+     * action runs.
+     */
     private fun wireCompiles(
         project: Project,
         extension: WrasseExtension,
@@ -133,15 +138,22 @@ class WrasseGradlePlugin : Plugin<Project> {
             val fixOutputDir = File(wrasseDir, compilationName(compile.name) ?: return@configureEach)
             compile.outputs.dir(File(fixOutputDir, PATCH_DIR)).withPropertyName("wrassePatch")
             compile.inputs.file(extension.configFile).optional().withPathSensitivity(PathSensitivity.NONE).withPropertyName("wrasseConfig")
-            freeCompilerArgs(compile).addAll(
-                extension.enabled.zip(extension.warnOnly) { enabled, warnOnly ->
-                    listOf(
-                        "-P", "plugin:$PLUGIN_ID:enabled=$enabled",
-                        "-P", "plugin:$PLUGIN_ID:warnOnly=$warnOnly",
-                        "-P", "plugin:$PLUGIN_ID:fixOutputDir=${fixOutputDir.absolutePath}",
-                    )
-                },
-            )
+        }
+        project.afterEvaluate {
+            val buildDirPath = project.layout.buildDirectory.get().asFile.absolutePath
+            compiles.configureEach { compile ->
+                val fixOutputDir = File(wrasseDir, compilationName(compile.name) ?: return@configureEach)
+                freeCompilerArgs(compile).addAll(
+                    extension.enabled.zip(extension.warnOnly) { enabled, warnOnly ->
+                        listOf(
+                            "-P", "plugin:$PLUGIN_ID:enabled=$enabled",
+                            "-P", "plugin:$PLUGIN_ID:warnOnly=$warnOnly",
+                            "-P", "plugin:$PLUGIN_ID:fixOutputDir=${fixOutputDir.absolutePath}",
+                            "-P", "plugin:$PLUGIN_ID:excludedRoot=$buildDirPath",
+                        )
+                    },
+                )
+            }
         }
     }
 }

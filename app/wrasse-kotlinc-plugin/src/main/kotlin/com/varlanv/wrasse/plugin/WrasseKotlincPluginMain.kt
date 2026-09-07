@@ -108,6 +108,7 @@ import com.varlanv.wrasse.rules.WhenEntryBracingRule
 import com.varlanv.wrasse.rules.WhenMustHaveElseRule
 import java.nio.file.Path
 import org.jetbrains.kotlin.backend.common.push
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 
 private val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
@@ -234,6 +235,8 @@ fun wrasseMain(
     fixOutputDir: Path? = null,
     dumpResolvedUsage: Boolean = false,
     explicitApiActive: Boolean = false,
+    excludedRoots: List<Path> = emptyList(),
+    messageCollector: MessageCollector = MessageCollector.NONE,
 ): Result<WrassePlugin> {
     val uninitializedRules = registeredRules().associateBy { it.id }
     val groups = registeredRuleGroups()
@@ -266,12 +269,14 @@ fun wrasseMain(
             ruleSet = WRuleSet(activeRules, activeGroups),
             fixOutputDir = fixOutputDir,
             globalExclude = config.exclude,
+            excludedRoots = excludedRoots,
             configDir = config.configDir,
             dumpResolvedUsage = dumpResolvedUsage,
             formatConfig = config.format,
             formatRun = request.formatting,
             quiet = request.quiet,
             perf = WPerf.create(active = request.debugPerformance),
+            messageCollector = messageCollector,
         ),
     )
 }

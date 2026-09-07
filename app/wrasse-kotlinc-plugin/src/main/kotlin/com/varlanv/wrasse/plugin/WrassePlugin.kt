@@ -28,6 +28,9 @@ import com.varlanv.wrasse.rules.SuppressionCollectorRule
 import java.nio.file.Path
 import java.nio.file.PathMatcher
 import org.jetbrains.kotlin.KtLightSourceElement
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 
 private const val NO_AUTOFIX_MARKER = " (no autofix for this shape)"
 
@@ -41,6 +44,8 @@ class WrassePlugin(
     private val formatRun: Boolean = false,
     private val quiet: Boolean = false,
     private val perf: WPerf = NoopPerf,
+    private val excludedRoots: List<Path> = emptyList(),
+    private val messageCollector: MessageCollector = MessageCollector.NONE,
 ) {
     private val patchStore: WPatchStore? = fixOutputDir?.let { WPatchStore(it.resolve(WPatchStore.PATCH_DIR_NAME)) }
     private val reportStore: WReportStore? = fixOutputDir?.let { WReportStore(it.resolve(WPatchStore.PATCH_DIR_NAME)) }
@@ -53,6 +58,11 @@ class WrassePlugin(
         resolvedUsage: ((collectQualifiedUsages: Boolean, collectCallSites: Boolean) -> WResolvedUsage)? = null,
     ): List<ViolationReport> {
         val filePath = resolveFilePath(sourceFilePath, fileName)
+        if (isUnderExcludedRoot(filePath)) {
+            runCatching { patchStore?.clear(filePath.toString()) }
+            runCatching { reportStore?.clear(filePath.toString()) }
+            return emptyList()
+        }
         val configRelativePath = relativeToConfigDir(filePath)
         if (matchesAny(globalExclude, configRelativePath)) {
             return emptyList()
@@ -85,22 +95,23 @@ class WrassePlugin(
      * A wrasse bug (a rule/engine/printer throwing) must never cost the user their build — see
      * design.md §12's D24 amendment to D18. On catch: this file's entire in-progress
      * [ViolationReport] list and [com.varlanv.wrasse.model.EditPlan] are discarded (never
-     * partially applied or partially reported) in favor of one attributed warning, and the
-     * compile proceeds so kotlinc's own checkers still run and report normally.
+     * partially applied or partially reported) in favor of one attributed message reported
+     * directly through the compiler's [MessageCollector] at [CompilerMessageSeverity.INFO] (never
+     * as a [ViolationReport], so `-Werror`/`allWarningsAsErrors` can never turn it into a build
+     * failure), and the compile proceeds so kotlinc's own checkers still run and report normally.
      */
     private fun internalFailureReports(filePath: Path, failure: Throwable): List<ViolationReport> {
         runCatching { patchStore?.clear(filePath.toString()) }
         runCatching { reportStore?.clear(filePath.toString()) }
         val exceptionType = failure::class.simpleName ?: failure.javaClass.name
-        return listOf(
-            ViolationReport(
-                message = "wrasse internal error while checking this file " +
-                    "($exceptionType: ${failure.message}); wrasse results for this file were skipped",
-                startOffset = 0,
-                endOffset = 0,
-                level = RuleLevel.WARN,
-            ),
+        val message = "wrasse internal error while checking this file " +
+            "($exceptionType: ${failure.message}); wrasse results for this file were skipped"
+        messageCollector.report(
+            CompilerMessageSeverity.INFO,
+            "wrasse: $message",
+            CompilerMessageLocation.create(filePath.toString(), 1, 1, null),
         )
+        return emptyList()
     }
 
     private fun patchStoreFailureReport(store: WPatchStore, failure: Throwable): ViolationReport {
@@ -349,6 +360,11 @@ class WrassePlugin(
     private fun matchesAny(matchers: List<PathMatcher>, configRelativePath: Path): Boolean {
         if (matchers.isEmpty()) return false
         return matchers.any { it.matches(configRelativePath) }
+    }
+
+    private fun isUnderExcludedRoot(filePath: Path): Boolean {
+        if (excludedRoots.isEmpty()) return false
+        return excludedRoots.any { filePath.startsWith(it) }
     }
 
     private fun relativeToConfigDir(filePath: Path): Path {

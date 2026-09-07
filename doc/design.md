@@ -2121,6 +2121,14 @@ information. Statuses: Accepted · Rejected · Superseded.
   could fix. Rejected: a Worker API action (needs the plugin to link against wrasse-lang), a
   root-level aggregate task (breaks isolated projects), and replaying from the journal (autofixable
   findings only, no positions or levels).
+  *Addendum 2026-09-07:* wrasse's own `-P` args are added from `Project.afterEvaluate` rather than
+  eagerly, so a consumer's own later `compilerOptions.freeCompilerArgs.set(...)` — registered first
+  in the common case — does not silently overwrite them at task realization (Gradle finalizes that
+  property before any `doFirst` runs, so an execution-time fixup cannot work); a new compiler-plugin
+  option, `excludedRoot` (repeatable, absolute directory), makes the plugin skip a file entirely (no
+  diagnostics, no report or patch entry, and clears any stale ones), and the Gradle plugin passes the
+  project's `layout.buildDirectory` as one such root so KSP/kapt-generated sources are never linted
+  or reformatted.
 
 ### Build & distribution
 

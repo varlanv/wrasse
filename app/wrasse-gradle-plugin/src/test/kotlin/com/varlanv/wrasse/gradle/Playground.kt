@@ -51,6 +51,7 @@ internal class Playground(val dir: Path) {
         name: String,
         sources: Map<String, String>,
         extension: String = "",
+        afterExtension: String = "",
     ): Path {
         modules.add(name)
         val moduleDir = Files.createDirectories(dir.resolve(name))
@@ -65,6 +66,8 @@ internal class Playground(val dir: Path) {
             wrasse {
                 $extension
             }
+
+            $afterExtension
             """.trimIndent(),
         )
         for ((path, content) in sources) source(name, path, content)
@@ -83,6 +86,17 @@ internal class Playground(val dir: Path) {
     }
 
     fun sourceUri(module: String, path: String): String = dir.resolve(module).resolve("src/main/kotlin").resolve(path).toUri().toString()
+
+    fun rawFile(
+        module: String,
+        relativePath: String,
+        content: String,
+    ): Path {
+        val file = dir.resolve(module).resolve(relativePath)
+        Files.createDirectories(file.parent)
+        Files.writeString(file, content)
+        return file
+    }
 
     fun runner(vararg args: String): GradleRunner = GradleRunner.create()
         .withPluginClasspath()

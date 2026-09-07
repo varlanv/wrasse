@@ -107,7 +107,13 @@ app/
   wrasse-gradle-plugin/     the Gradle plugin consumers apply (id `com.varlanv.wrasse`, artifact
                             `wrasse-gradle-plugin`): ONE Kotlin file, per-project only (parallel, configuration
                             cache and isolated projects safe), reaches KGP's compile tasks reflectively; adds
-                            wrasseLint / wrasseFormat / wrasseApply and replays `patch/wrasse-report.txt`
+                            wrasseLint / wrasseFormat / wrasseApply and replays `patch/wrasse-report.txt`.
+                            Its own wrasse `-P` args are added from `Project.afterEvaluate`, not eagerly, so a
+                            consumer's later `compilerOptions.freeCompilerArgs.set(...)` (common with
+                            `-Xcontext-parameters` etc.) is registered first and wrasse's own `addAll` still
+                            wins at task realization instead of being overwritten; it also passes the project's
+                            `layout.buildDirectory` as a compiler-plugin `excludedRoot` so generated sources
+                            (KSP/kapt output under `build/`) are never linted or rewritten.
 testing/
   common-test/                          BaseSpec (kotest ShouldSpec base), useTempDir
   wrasse-realworld-bench/               generator for synthetic 5k/50k/1M-LOC Gradle projects + bench.sh

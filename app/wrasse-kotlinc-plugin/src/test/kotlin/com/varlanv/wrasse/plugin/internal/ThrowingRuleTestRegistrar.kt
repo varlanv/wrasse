@@ -11,11 +11,13 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.plugin.WrassePlugin
 import com.varlanv.wrasse.rules.NoSemicolonsRule
 import java.nio.file.Paths
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.compiler.plugin.AbstractCliOption
 import org.jetbrains.kotlin.compiler.plugin.CliOption
 import org.jetbrains.kotlin.compiler.plugin.CommandLineProcessor
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
+import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.CompilerConfigurationKey
 
@@ -76,20 +78,20 @@ class ThrowingRuleTestRegistrar : CompilerPluginRegistrar() {
         }
         activeRules.add(ThrowingTestRule() to warnConfig())
 
-        val plugin = WrassePlugin(ruleSet = WRuleSet(activeRules), fixOutputDir = fixOutputDir)
+        val messageCollector = configuration[CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY] ?: MessageCollector.NONE
+        val plugin = WrassePlugin(
+            ruleSet = WRuleSet(activeRules),
+            fixOutputDir = fixOutputDir,
+            messageCollector = messageCollector,
+        )
         K22Registrar.register(this, plugin)
     }
 
     /**
-     * Both rules run at `warn`: the crash's own synthetic [com.varlanv.wrasse.model.ViolationReport]
-     * is always `RuleLevel.WARN` regardless of the crashing rule's configured level (see
-     * `WrassePlugin.internalFailureReports`), so mixing an `error`-level rule into the same
-     * multi-file compile as the crash would mean two different [com.varlanv.wrasse.model.RuleLevel]s
-     * riding the same custom `WrasseErrors` diagnostic container across different files — an
-     * unrelated `KtDiagnosticFactoryToRendererMap`/severity-grouping interaction (confirmed by
-     * direct compiler experimentation) drops the lower-severity one in that shape. Keeping both at
-     * the same level sidesteps that entirely, so the test stays about wrasse's own crash-isolation
-     * behavior.
+     * Both rules run at `warn`: [ThrowingTestRule]'s own crash never reaches `WrasseErrors` at all
+     * — `WrassePlugin.internalFailureReports` reports it directly through the compiler's
+     * `MessageCollector` at `INFO` severity — so this level choice only concerns
+     * [NoSemicolonsRule]'s own diagnostic, kept consistent across both rules for simplicity.
      */
     private fun warnConfig(): WrasseRuleConfig = WrasseRuleConfig(
         level = RuleLevel.WARN,
