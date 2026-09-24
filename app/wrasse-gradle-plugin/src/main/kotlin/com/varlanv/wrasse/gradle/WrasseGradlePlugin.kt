@@ -42,7 +42,7 @@ private const val PATCH_FILE = "wrasse-fixes.txt"
 private const val REPORT_FILE = "wrasse-report.txt"
 private const val REQUEST_FILE = "format-request"
 private const val KAPT_STUB_TASK_CLASS = "org.jetbrains.kotlin.gradle.internal.KaptGenerateStubsTask"
-private const val KOTLIN_COMPILE_CLASS = "org.jetbrains.kotlin.gradle.tasks.KotlinCompile"
+private const val KOTLIN_COMPILE_CLASS = "org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile"
 private val EXTENDS_ENTRY = Regex("\"extends\"\\s*:\\s*\"([^\"]+)\"")
 private val KOTLIN_PLUGIN_IDS =
     arrayOf("org.jetbrains.kotlin.jvm", "org.jetbrains.kotlin.multiplatform", "org.jetbrains.kotlin.android")

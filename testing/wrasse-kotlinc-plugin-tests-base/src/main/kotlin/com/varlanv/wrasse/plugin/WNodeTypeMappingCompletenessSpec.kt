@@ -1,4 +1,4 @@
-@file:OptIn(K1Deprecation::class, CompilerConfiguration.Internals::class)
+@file:OptIn(K1Deprecation::class, CompilerConfiguration.Internals::class, CoreEnvironmentDeprecation::class)
 
 package com.varlanv.wrasse.plugin
 
@@ -16,6 +16,7 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.CoreEnvironmentDeprecation
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
@@ -163,7 +164,7 @@ open class WNodeTypeMappingCompletenessSpec : BaseSpec({
             setupIdeaStandaloneExecution()
             val environment = KotlinCoreEnvironment.createForParallelTests(
                 disposable,
-                CompilerConfiguration(),
+                mappingCompilerConfiguration(),
                 EnvironmentConfigFiles.JVM_CONFIG_FILES,
             )
             val psiFactory = KtPsiFactory(environment.project)
@@ -217,6 +218,14 @@ open class WNodeTypeMappingCompletenessSpec : BaseSpec({
         }
     }
 })
+
+private fun mappingCompilerConfiguration(): CompilerConfiguration {
+    val factory = runCatching {
+        Class.forName("org.jetbrains.kotlin.cli.CompilerConfigurationCreationKt")
+            .getMethod("create", CompilerConfiguration.Companion::class.java)
+    }.getOrNull()
+    return if (factory == null) CompilerConfiguration() else factory.invoke(null, CompilerConfiguration) as CompilerConfiguration
+}
 
 private class UnknownCollectorRule(private val unknownOffsets: MutableList<Int>) : WStreamRule {
     override val id = "mapping-completeness-collector"

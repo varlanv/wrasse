@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.CompilerConfigurationKey
+import org.jetbrains.kotlin.config.MessageCollectorAccess
 
 const val THROWING_TEST_RULE_CRASH_MARKER = "wrasseCrashTestMarker"
 const val THROWING_TEST_RULE_CRASH_MESSAGE = "boom from throwing test rule"
@@ -63,7 +64,7 @@ class ThrowingTestRule : WUninitializedRule {
  * never goes through [com.varlanv.wrasse.plugin.wrasseMain]. The production registrar rides
  * along on the same compile but is neutralized via its own `enabled=false` plugin option.
  */
-@OptIn(ExperimentalCompilerApi::class)
+@OptIn(ExperimentalCompilerApi::class, MessageCollectorAccess::class)
 class ThrowingRuleTestRegistrar : CompilerPluginRegistrar() {
     override val supportsK2: Boolean = true
     override val pluginId: String = THROWING_TEST_PLUGIN_ID

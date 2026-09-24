@@ -375,8 +375,11 @@ object ResolvedUsageCollector {
         }
 
         override fun visitResolvedQualifier(resolvedQualifier: FirResolvedQualifier) {
-            resolvedQualifier.classId?.let { classifiers.add(it.asFqNameString()) }
-            val symbol = resolvedQualifier.symbol
+            val classId = resolvedQualifier.relativeClassFqName?.let {
+                ClassId(resolvedQualifier.packageFqName, it, false)
+            }
+            classId?.let { classifiers.add(it.asFqNameString()) }
+            val symbol = classId?.let { session.symbolProvider.getClassLikeSymbolByClassId(it) }
             if (symbol is FirTypeAliasSymbol) {
                 val aliasFqName = symbol.classId.asFqNameString()
                 classifiers.add(aliasFqName)
@@ -422,7 +425,8 @@ object ResolvedUsageCollector {
         }
 
         private fun recordQualifierUsage(resolvedQualifier: FirResolvedQualifier) {
-            val classId = resolvedQualifier.classId ?: return
+            val relativeName = resolvedQualifier.relativeClassFqName ?: return
+            val classId = ClassId(resolvedQualifier.packageFqName, relativeName, false)
             recordUsage(resolvedQualifier.source, classId, WQualifiedUsageKind.QUALIFIER)
         }
 
