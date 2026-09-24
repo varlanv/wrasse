@@ -39,7 +39,7 @@ class WrasseCompilerPluginRegistrar20(private val prebuilt: WrassePlugin? = null
                 fixOutputDir = fixOutputDir,
                 dumpResolvedUsage = dumpResolvedUsage,
                 explicitApiActive = explicitApiActive,
-            ).getOrThrow()
+            )
 
         FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar20(plugin))
     }

@@ -5,6 +5,7 @@ import java.io.OutputStreamWriter
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.security.DigestOutputStream
 import java.security.MessageDigest
@@ -35,10 +36,10 @@ object WPatchApplier {
         val results = mutableListOf<FileApplyResult>()
         for (patchFile in patchFiles) {
             val readStarted = if (perf.enabled) System.nanoTime() else 0L
-            val allEdits = WPatchReader.read(Files.readString(patchFile))
+            val allEdits = WPatchReader.read(Files.readAllBytes(patchFile).decodeToString())
             if (perf.enabled) perf.record("apply:read-journal", System.nanoTime() - readStarted)
             for (fileEdits in allEdits) {
-                val filePath = Path.of(fileEdits.filePath)
+                val filePath = Paths.get(fileEdits.filePath)
                 val fileStarted = if (perf.enabled) System.nanoTime() else 0L
                 val result = applyToFile(filePath, fileEdits, perf)
                 results.add(result)
@@ -144,11 +145,11 @@ fun main(args: Array<String>) {
  * Safe to call in-process: it never exits the JVM.
  */
 fun runApplier(patchDirs: List<String>): Int {
-    val compileReports = patchDirs.flatMap { PerfStore.collect(Path.of(it)) }
+    val compileReports = patchDirs.flatMap { PerfStore.collect(Paths.get(it)) }
     for ((title, recorder) in compileReports) print(PerfReport.render(title, recorder))
     val perf = WPerf.create(active = compileReports.isNotEmpty())
     for (dir in patchDirs) {
-        val result = WPatchApplier.apply(Path.of(dir), perf)
+        val result = WPatchApplier.apply(Paths.get(dir), perf)
         for (fileResult in result.files) {
             when (fileResult) {
                 is FileApplyResult.Applied -> {
@@ -184,7 +185,7 @@ fun applyAndReplay(
 ): List<String> {
     val lines = ArrayList<String>()
     for (dir in dirs) {
-        val result = WPatchApplier.apply(Path.of(dir))
+        val result = WPatchApplier.apply(Paths.get(dir))
         for (fileResult in result.files) {
             when (fileResult) {
                 is FileApplyResult.Applied -> lines.add("Fixed: ${fileResult.filePath} (${fileResult.editCount} edits)")

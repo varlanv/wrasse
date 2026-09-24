@@ -6,6 +6,7 @@ plugins {
 description = "Wrasse compiler plugin — the published JAR users add to kotlinCompilerPluginClasspath."
 
 dependencies {
+    implementation(libs.koper.lang)
     implementation(projects.libs.wrasseModel)
     implementation(projects.libs.wrasseKotlincAdapter)
     implementation(projects.libs.wrasseRules)

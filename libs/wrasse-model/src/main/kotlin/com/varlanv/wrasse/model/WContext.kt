@@ -2,6 +2,7 @@ package com.varlanv.wrasse.model
 
 import com.varlanv.wrasse.lang.StringSlice
 import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * Mutable traversal context passed to every rule callback during a SAX-style walk.
@@ -19,7 +20,7 @@ class WContext(
     /** Absolute path to the source file being walked. */
     val filePath: String,
     /** [filePath] relative to the directory of the effective `wrasse.json`, or [filePath] itself when there is none — what `exclude` globs match against. */
-    val configRelativeFilePath: Path = Path.of(filePath),
+    val configRelativeFilePath: Path = Paths.get(filePath),
 ) {
     /** Full source text of the file, set once by the adapter before the walk begins. */
     var sourceText: CharSequence = ""
@@ -56,7 +57,6 @@ class WContext(
             if (!isLeaf) return null
             return leafTextCache ?: StringSlice(sourceText, startOffset, endOffset).also { leafTextCache = it }
         }
-
         @JvmSynthetic set(value) {
             leafTextCache = value
             isLeaf = value != null

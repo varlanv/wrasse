@@ -9,175 +9,175 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 class ConfigValueJsoncSpec : BaseSpec({
     context("string values") {
         should("parse a simple string") {
-            val result = ConfigValueJsonc.parse("\"hello\"").getOrThrow()
+            val result = ConfigValueJsonc.parse("\"hello\"")
             result shouldBe ConfigValue.Str("hello")
         }
 
         should("parse an empty string") {
-            val result = ConfigValueJsonc.parse("\"\"").getOrThrow()
+            val result = ConfigValueJsonc.parse("\"\"")
             result shouldBe ConfigValue.Str("")
         }
 
         should("parse a string with basic escape sequences") {
-            val result = ConfigValueJsonc.parse("\"a\\\"b\\\\c\\/d\"").getOrThrow()
+            val result = ConfigValueJsonc.parse("\"a\\\"b\\\\c\\/d\"")
             result shouldBe ConfigValue.Str("a\"b\\c/d")
         }
 
         should("parse a string with whitespace escape sequences") {
-            val result = ConfigValueJsonc.parse("\"\\t\\n\\r\"").getOrThrow()
+            val result = ConfigValueJsonc.parse("\"\\t\\n\\r\"")
             result shouldBe ConfigValue.Str("\t\n\r")
         }
 
         should("parse a string with backspace and form feed escapes") {
-            val result = ConfigValueJsonc.parse("\"\\b\\f\"").getOrThrow()
+            val result = ConfigValueJsonc.parse("\"\\b\\f\"")
             result shouldBe ConfigValue.Str("\b\u000C")
         }
 
         should("parse a string with a unicode escape") {
-            val result = ConfigValueJsonc.parse("\"\\u0041\"").getOrThrow()
+            val result = ConfigValueJsonc.parse("\"\\u0041\"")
             result shouldBe ConfigValue.Str("A")
         }
 
         should("parse a string with a non-ASCII unicode escape") {
-            val result = ConfigValueJsonc.parse("\"\\u00E9\"").getOrThrow()
+            val result = ConfigValueJsonc.parse("\"\\u00E9\"")
             result shouldBe ConfigValue.Str("é")
         }
 
         should("parse a string containing spaces and punctuation") {
-            val result = ConfigValueJsonc.parse("\"hello world! @#\$%\"").getOrThrow()
+            val result = ConfigValueJsonc.parse("\"hello world! @#\$%\"")
             result shouldBe ConfigValue.Str("hello world! @#\$%")
         }
 
         should("reject an unterminated string") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("\"hello").getOrThrow()
+                ConfigValueJsonc.parse("\"hello")
             }.message shouldBe "Unterminated string (line 1, column 7)"
         }
 
         should("reject an invalid escape sequence") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("\"\\x\"").getOrThrow()
+                ConfigValueJsonc.parse("\"\\x\"")
             }.message shouldBe "Invalid escape: \\x (line 1, column 3)"
         }
 
         should("reject an unescaped control character") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("\"hello" + "\u0001" + "world\"").getOrThrow()
+                ConfigValueJsonc.parse("\"hello" + "\u0001" + "world\"")
             }.message shouldBe "Unescaped control character in string (line 1, column 7)"
         }
 
         should("reject an incomplete unicode escape") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("\"\\u00\"").getOrThrow()
+                ConfigValueJsonc.parse("\"\\u00\"")
             }.message shouldBe "Incomplete unicode escape (line 1, column 3)"
         }
 
         should("reject an invalid unicode escape") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("\"\\uZZZZ\"").getOrThrow()
+                ConfigValueJsonc.parse("\"\\uZZZZ\"")
             }.message shouldBe "Invalid unicode escape: \\uZZZZ (line 1, column 3)"
         }
     }
 
     context("number values") {
         should("parse zero") {
-            ConfigValueJsonc.parse("0").getOrThrow() shouldBe ConfigValue.Num(0)
+            ConfigValueJsonc.parse("0") shouldBe ConfigValue.Num(0)
         }
 
         should("parse a positive integer") {
-            ConfigValueJsonc.parse("42").getOrThrow() shouldBe ConfigValue.Num(42)
+            ConfigValueJsonc.parse("42") shouldBe ConfigValue.Num(42)
         }
 
         should("parse a negative integer") {
-            ConfigValueJsonc.parse("-7").getOrThrow() shouldBe ConfigValue.Num(-7)
+            ConfigValueJsonc.parse("-7") shouldBe ConfigValue.Num(-7)
         }
 
         should("parse a large integer") {
-            ConfigValueJsonc.parse("9999999999").getOrThrow() shouldBe ConfigValue.Num(9_999_999_999L)
+            ConfigValueJsonc.parse("9999999999") shouldBe ConfigValue.Num(9_999_999_999L)
         }
 
         should("parse a decimal number as Dbl") {
-            ConfigValueJsonc.parse("3.14").getOrThrow() shouldBe ConfigValue.Dbl(3.14)
+            ConfigValueJsonc.parse("3.14") shouldBe ConfigValue.Dbl(3.14)
         }
 
         should("parse zero with decimal as Dbl") {
-            ConfigValueJsonc.parse("0.5").getOrThrow() shouldBe ConfigValue.Dbl(0.5)
+            ConfigValueJsonc.parse("0.5") shouldBe ConfigValue.Dbl(0.5)
         }
 
         should("parse a negative decimal as Dbl") {
-            ConfigValueJsonc.parse("-0.001").getOrThrow() shouldBe ConfigValue.Dbl(-0.001)
+            ConfigValueJsonc.parse("-0.001") shouldBe ConfigValue.Dbl(-0.001)
         }
 
         should("parse a number with exponent as Dbl") {
-            ConfigValueJsonc.parse("1e10").getOrThrow() shouldBe ConfigValue.Dbl(1e10)
+            ConfigValueJsonc.parse("1e10") shouldBe ConfigValue.Dbl(1e10)
         }
 
         should("parse a number with uppercase exponent as Dbl") {
-            ConfigValueJsonc.parse("1E10").getOrThrow() shouldBe ConfigValue.Dbl(1e10)
+            ConfigValueJsonc.parse("1E10") shouldBe ConfigValue.Dbl(1e10)
         }
 
         should("parse a number with positive exponent sign") {
-            ConfigValueJsonc.parse("1e+2").getOrThrow() shouldBe ConfigValue.Dbl(1e2)
+            ConfigValueJsonc.parse("1e+2") shouldBe ConfigValue.Dbl(1e2)
         }
 
         should("parse a number with negative exponent sign") {
-            ConfigValueJsonc.parse("1e-2").getOrThrow() shouldBe ConfigValue.Dbl(1e-2)
+            ConfigValueJsonc.parse("1e-2") shouldBe ConfigValue.Dbl(1e-2)
         }
 
         should("parse a decimal with exponent") {
-            ConfigValueJsonc.parse("1.5e3").getOrThrow() shouldBe ConfigValue.Dbl(1.5e3)
+            ConfigValueJsonc.parse("1.5e3") shouldBe ConfigValue.Dbl(1.5e3)
         }
 
         should("reject leading zeros") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("01").getOrThrow()
+                ConfigValueJsonc.parse("01")
             }.message shouldBe "Leading zeros not allowed (line 1, column 2)"
         }
 
         should("reject a bare minus sign") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("-").getOrThrow()
+                ConfigValueJsonc.parse("-")
             }.message shouldBe "Unexpected end in number (line 1, column 2)"
         }
 
         should("reject a decimal point without following digit") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("1.").getOrThrow()
+                ConfigValueJsonc.parse("1.")
             }.message shouldBe "Expected digit after '.' (line 1, column 3)"
         }
 
         should("reject an exponent without following digit") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("1e").getOrThrow()
+                ConfigValueJsonc.parse("1e")
             }.message shouldBe "Expected digit in exponent (line 1, column 3)"
         }
     }
 
     context("boolean values") {
         should("parse true") {
-            ConfigValueJsonc.parse("true").getOrThrow() shouldBe ConfigValue.Bool(true)
+            ConfigValueJsonc.parse("true") shouldBe ConfigValue.Bool(true)
         }
 
         should("parse false") {
-            ConfigValueJsonc.parse("false").getOrThrow() shouldBe ConfigValue.Bool(false)
+            ConfigValueJsonc.parse("false") shouldBe ConfigValue.Bool(false)
         }
     }
 
     context("null value") {
         should("parse null") {
-            ConfigValueJsonc.parse("null").getOrThrow() shouldBe ConfigValue.Null
+            ConfigValueJsonc.parse("null") shouldBe ConfigValue.Null
         }
     }
 
     context("objects") {
         should("parse an empty object") {
-            val result = ConfigValueJsonc.parse("{}").getOrThrow()
+            val result = ConfigValueJsonc.parse("{}")
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("any", ConfigValue.Str::class.java) shouldBe Property.Missing
         }
 
         should("parse an object with a single string value") {
-            val result = ConfigValueJsonc.parse("""{"key": "value"}""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""{"key": "value"}""")
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("key", ConfigValue.Str::class.java) shouldBe Property.Val(ConfigValue.Str("value"))
         }
@@ -185,7 +185,6 @@ class ConfigValueJsoncSpec : BaseSpec({
         should("parse an object with multiple value types") {
             val result = ConfigValueJsonc
                 .parse("""{"s": "hello", "n": 42, "b": true, "d": 1.5, "nil": null}""")
-                .getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             val props = result.value
             props.get("s", ConfigValue.Str::class.java) shouldBe Property.Val(ConfigValue.Str("hello"))
@@ -196,7 +195,7 @@ class ConfigValueJsoncSpec : BaseSpec({
         }
 
         should("parse nested objects") {
-            val result = ConfigValueJsonc.parse("""{"outer": {"inner": "deep"}}""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""{"outer": {"inner": "deep"}}""")
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             val outer = result.value.get("outer", ConfigValue.Obj::class.java)
             outer.shouldBeInstanceOf<Property.Val<ConfigValue.Obj>>()
@@ -204,58 +203,58 @@ class ConfigValueJsoncSpec : BaseSpec({
         }
 
         should("overwrite duplicate keys keeping the last value") {
-            val result = ConfigValueJsonc.parse("""{"a": 1, "a": 2}""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""{"a": 1, "a": 2}""")
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(2))
         }
 
         should("return Missing for absent keys") {
-            val result = ConfigValueJsonc.parse("""{"a": 1}""").getOrThrow() as ConfigValue.Obj
+            val result = ConfigValueJsonc.parse("""{"a": 1}""") as ConfigValue.Obj
             result.value.get("b", ConfigValue.Str::class.java) shouldBe Property.Missing
         }
 
         should("return TypeMismatch for wrong value type") {
-            val result = ConfigValueJsonc.parse("""{"a": 1}""").getOrThrow() as ConfigValue.Obj
+            val result = ConfigValueJsonc.parse("""{"a": 1}""") as ConfigValue.Obj
             result.value.get("a", ConfigValue.Str::class.java) shouldBe Property.TypeMismatch(ConfigValue.Num(1))
         }
 
         should("reject an unterminated object") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("""{"a": 1""").getOrThrow()
+                ConfigValueJsonc.parse("""{"a": 1""")
             }.message shouldBe "Unterminated object (line 1, column 8)"
         }
 
         should("reject a non-string key") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("""{42: "value"}""").getOrThrow()
+                ConfigValueJsonc.parse("""{42: "value"}""")
             }.message shouldBe "Expected string key, got '4' (line 1, column 2)"
         }
 
         should("reject a missing colon") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("""{"a" 1}""").getOrThrow()
+                ConfigValueJsonc.parse("""{"a" 1}""")
             }.message shouldBe "Expected ':' (line 1, column 6)"
         }
     }
 
     context("arrays") {
         should("parse an empty array as StrArr with empty list") {
-            val result = ConfigValueJsonc.parse("[]").getOrThrow()
+            val result = ConfigValueJsonc.parse("[]")
             result shouldBe ConfigValue.StrArr(emptyList())
         }
 
         should("parse a string array as StrArr") {
-            val result = ConfigValueJsonc.parse("""["a", "b", "c"]""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""["a", "b", "c"]""")
             result shouldBe ConfigValue.StrArr(listOf("a", "b", "c"))
         }
 
         should("parse an integer array as NumArr") {
-            val result = ConfigValueJsonc.parse("[1, 2, 3]").getOrThrow()
+            val result = ConfigValueJsonc.parse("[1, 2, 3]")
             result shouldBe ConfigValue.NumArr(listOf(1L, 2L, 3L))
         }
 
         should("parse an object array as ObjArr") {
-            val result = ConfigValueJsonc.parse("""[{"x": 1}, {"x": 2}]""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""[{"x": 1}, {"x": 2}]""")
             result.shouldBeInstanceOf<ConfigValue.ObjArr>()
             val arr = result.value
             arr shouldHaveSize 2
@@ -264,40 +263,40 @@ class ConfigValueJsoncSpec : BaseSpec({
         }
 
         should("parse a boolean array as BoolArr") {
-            val result = ConfigValueJsonc.parse("[true, false, true]").getOrThrow()
+            val result = ConfigValueJsonc.parse("[true, false, true]")
             result shouldBe ConfigValue.BoolArr(listOf(true, false, true))
         }
 
         should("parse a double array as DblArr") {
-            val result = ConfigValueJsonc.parse("[1.5, 2.5]").getOrThrow()
+            val result = ConfigValueJsonc.parse("[1.5, 2.5]")
             result shouldBe ConfigValue.DblArr(listOf(1.5, 2.5))
         }
 
         should("parse a null array as NullArr") {
-            val result = ConfigValueJsonc.parse("[null, null]").getOrThrow()
+            val result = ConfigValueJsonc.parse("[null, null]")
             result shouldBe ConfigValue.NullArr(listOf(ConfigValue.Null, ConfigValue.Null))
         }
 
         should("reject a mixed-type array") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("""[1, "two", true, null]""").getOrThrow()
+                ConfigValueJsonc.parse("""[1, "two", true, null]""")
             }.message shouldBe "Mixed array element types (line 1, column 23)"
         }
 
         should("parse a single-element string array as StrArr") {
-            val result = ConfigValueJsonc.parse("""["only"]""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""["only"]""")
             result shouldBe ConfigValue.StrArr(listOf("only"))
         }
 
         should("reject nested arrays") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("[[1, 2], [3, 4]]").getOrThrow()
+                ConfigValueJsonc.parse("[[1, 2], [3, 4]]")
             }.message shouldBe "Mixed array element types (line 1, column 17)"
         }
 
         should("reject an unterminated array") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("[1, 2").getOrThrow()
+                ConfigValueJsonc.parse("[1, 2")
             }.message shouldBe "Unterminated array (line 1, column 6)"
         }
     }
@@ -312,7 +311,6 @@ class ConfigValueJsoncSpec : BaseSpec({
                     """
                         .trimIndent(),
                 )
-                .getOrThrow()
             result shouldBe ConfigValue.Str("hello")
         }
 
@@ -328,7 +326,6 @@ class ConfigValueJsoncSpec : BaseSpec({
                     """
                         .trimIndent(),
                 )
-                .getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
             result.value.get("b", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(2))
@@ -343,7 +340,6 @@ class ConfigValueJsoncSpec : BaseSpec({
                     """
                         .trimIndent(),
                 )
-                .getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("key", ConfigValue.Str::class.java) shouldBe Property.Val(ConfigValue.Str("value"))
         }
@@ -362,50 +358,49 @@ class ConfigValueJsoncSpec : BaseSpec({
                     """
                         .trimIndent(),
                 )
-                .getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
         }
 
         should("allow trailing comma in objects") {
-            val result = ConfigValueJsonc.parse("""{"a": 1, "b": 2,}""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""{"a": 1, "b": 2,}""")
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
             result.value.get("b", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(2))
         }
 
         should("allow trailing comma in arrays") {
-            val result = ConfigValueJsonc.parse("""[1, 2, 3,]""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""[1, 2, 3,]""")
             result shouldBe ConfigValue.NumArr(listOf(1L, 2L, 3L))
         }
 
         should("reject unterminated block comments") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("/* never closed").getOrThrow()
+                ConfigValueJsonc.parse("/* never closed")
             }.message shouldBe "Unterminated block comment (line 1, column 15)"
         }
 
         should("not treat comment syntax inside strings as comments") {
-            val result = ConfigValueJsonc.parse("""{"url": "http://example.com"}""").getOrThrow()
+            val result = ConfigValueJsonc.parse("""{"url": "http://example.com"}""")
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("url", ConfigValue.Str::class.java) shouldBe
                 Property.Val(ConfigValue.Str("http://example.com"))
         }
 
         should("handle a single-line comment at end of input without trailing newline") {
-            val result = ConfigValueJsonc.parse("42 // trailing").getOrThrow()
+            val result = ConfigValueJsonc.parse("42 // trailing")
             result shouldBe ConfigValue.Num(42)
         }
     }
 
     context("whitespace handling") {
         should("parse a value surrounded by whitespace") {
-            val result = ConfigValueJsonc.parse("  \t\n\r  42  \n  ").getOrThrow()
+            val result = ConfigValueJsonc.parse("  \t\n\r  42  \n  ")
             result shouldBe ConfigValue.Num(42)
         }
 
         should("parse an object with varied whitespace") {
-            val result = ConfigValueJsonc.parse("  { \n \"a\" \t : \r\n 1 \n } \n").getOrThrow()
+            val result = ConfigValueJsonc.parse("  { \n \"a\" \t : \r\n 1 \n } \n")
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
         }
@@ -414,7 +409,7 @@ class ConfigValueJsoncSpec : BaseSpec({
     context("nesting depth") {
         should("parse structures nested exactly at the maximum depth") {
             val json = "{\"a\":".repeat(ConfigValueJsonc.MAX_DEPTH) + "1" + "}".repeat(ConfigValueJsonc.MAX_DEPTH)
-            val result = ConfigValueJsonc.parse(json).getOrThrow()
+            val result = ConfigValueJsonc.parse(json)
             result.shouldBeInstanceOf<ConfigValue.Obj>()
         }
 
@@ -423,7 +418,7 @@ class ConfigValueJsoncSpec : BaseSpec({
                 "1" +
                 "}".repeat(ConfigValueJsonc.MAX_DEPTH + 1)
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse(json).getOrThrow()
+                ConfigValueJsonc.parse(json)
             }.message shouldBe
                 "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH * 5 +
                     1})"
@@ -432,7 +427,7 @@ class ConfigValueJsoncSpec : BaseSpec({
         should("reject arrays nested beyond the maximum depth") {
             val json = "[".repeat(ConfigValueJsonc.MAX_DEPTH + 1) + "1" + "]".repeat(ConfigValueJsonc.MAX_DEPTH + 1)
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse(json).getOrThrow()
+                ConfigValueJsonc.parse(json)
             }.message shouldBe
                 "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH +
                     1})"
@@ -441,7 +436,7 @@ class ConfigValueJsoncSpec : BaseSpec({
         should("track depth independently for parallel branches") {
             val inner = "{\"x\":1}"
             val json = """{"a": $inner, "b": $inner}"""
-            val result = ConfigValueJsonc.parse(json).getOrThrow()
+            val result = ConfigValueJsonc.parse(json)
             result.shouldBeInstanceOf<ConfigValue.Obj>()
         }
     }
@@ -473,7 +468,7 @@ class ConfigValueJsoncSpec : BaseSpec({
                 }
                 """
                 .trimIndent()
-            val result = ConfigValueJsonc.parse(json).getOrThrow()
+            val result = ConfigValueJsonc.parse(json)
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             val root = result.value
 
@@ -510,25 +505,25 @@ class ConfigValueJsoncSpec : BaseSpec({
     context("error cases") {
         should("reject empty input") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("").getOrThrow()
+                ConfigValueJsonc.parse("")
             }.message shouldBe "Empty input (line 1, column 1)"
         }
 
         should("reject whitespace-only input") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("   \n\t  ").getOrThrow()
+                ConfigValueJsonc.parse("   \n\t  ")
             }.message shouldBe "Empty input (line 2, column 4)"
         }
 
         should("reject trailing content after a valid value") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("42 24").getOrThrow()
+                ConfigValueJsonc.parse("42 24")
             }.message shouldBe "Unexpected trailing content (line 1, column 4)"
         }
 
         should("reject an unexpected character at root level") {
             shouldThrow<IllegalArgumentException> {
-                ConfigValueJsonc.parse("@").getOrThrow()
+                ConfigValueJsonc.parse("@")
             }.message shouldBe "Unexpected character '@' (line 1, column 1)"
         }
     }

@@ -43,7 +43,7 @@ class WReportStore(private val dir: Path) {
     private fun loaded(): LinkedHashMap<String, ReportedFile> {
         entries?.let { return it }
         val text = try {
-            Files.readString(reportFile())
+            Files.readAllBytes(reportFile()).decodeToString()
         } catch (_: NoSuchFileException) {
             null
         }

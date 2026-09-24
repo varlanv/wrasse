@@ -7,14 +7,14 @@ class ConfigValueJsonc private constructor(private val input: String) {
     companion object {
         const val MAX_DEPTH = 20
 
-        fun parse(input: String): Result<ConfigValue> = runCatching {
+        fun parse(input: String): ConfigValue {
             val parser = ConfigValueJsonc(input)
             parser.skipWsAndComments()
             if (parser.pos >= input.length) parser.error("Empty input")
             val value = parser.readValue()
             parser.skipWsAndComments()
             if (parser.pos < input.length) parser.error("Unexpected trailing content")
-            value
+            return value
         }
     }
 
@@ -156,27 +156,35 @@ class ConfigValueJsonc private constructor(private val input: String) {
                         '"' -> {
                             sb.append('"')
                         }
+
                         '\\' -> {
                             sb.append('\\')
                         }
+
                         '/' -> {
                             sb.append('/')
                         }
+
                         'b' -> {
                             sb.append('\b')
                         }
+
                         'f' -> {
                             sb.append('\u000C')
                         }
+
                         'n' -> {
                             sb.append('\n')
                         }
+
                         'r' -> {
                             sb.append('\r')
                         }
+
                         't' -> {
                             sb.append('\t')
                         }
+
                         'u' -> {
                             if (pos + 4 >= input.length) error("Incomplete unicode escape")
                             val hex = input.substring(pos + 1, pos + 5)

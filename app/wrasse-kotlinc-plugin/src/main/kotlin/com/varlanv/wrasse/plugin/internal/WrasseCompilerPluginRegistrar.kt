@@ -53,7 +53,7 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
             excludedRoots = excludedRoots,
             projectDir = projectDir,
             messageCollector = messageCollector,
-        ).getOrThrow()
+        )
 
         val cl = this::class.java.classLoader
         when {

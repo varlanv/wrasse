@@ -43,7 +43,7 @@ class WPatchStore(private val dir: Path) {
     private fun loaded(): LinkedHashMap<String, FileEdits> {
         entries?.let { return it }
         val text = try {
-            Files.readString(patchFile())
+            Files.readAllBytes(patchFile()).decodeToString()
         } catch (_: NoSuchFileException) {
             null
         }

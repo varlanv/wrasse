@@ -5,6 +5,7 @@ import java.io.UncheckedIOException
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * Replays the diagnostics recorded under a `build/wrasse` tree in the form kotlinc prints them,
@@ -175,7 +176,7 @@ object WReportReplay {
     private fun resolvePath(
         filePath: String,
         projectDir: Path?,
-    ): Path = (if (projectDir != null) projectDir.resolve(filePath) else Path.of(filePath)).normalize()
+    ): Path = (if (projectDir != null) projectDir.resolve(filePath) else Paths.get(filePath)).normalize()
 
     private fun readIfPresent(filePath: String, projectDir: Path?): String? = try {
         readIfPresent(resolvePath(filePath, projectDir))
@@ -184,7 +185,7 @@ object WReportReplay {
     }
 
     private fun readIfPresent(path: Path): String? = try {
-        Files.readString(path)
+        Files.readAllBytes(path).decodeToString()
     } catch (_: IOException) {
         null
     } catch (_: UncheckedIOException) {
@@ -350,7 +351,7 @@ fun replayReports(
 ): List<String> {
     val lines = ArrayList<String>()
     for (dir in wrasseDirs) {
-        for (file in WReportReplay.collect(Path.of(dir), projectDir, applyResult)) {
+        for (file in WReportReplay.collect(Paths.get(dir), projectDir, applyResult)) {
             for (diagnostic in file.diagnostics) lines.add(WReportReplay.render(file, diagnostic, projectDir))
         }
     }

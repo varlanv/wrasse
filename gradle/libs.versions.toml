@@ -8,6 +8,7 @@ kotestVersion = "6.2.2"
 kotlinVersion = "2.4.0"
 versionCatalogPluginVersion = "1.1.0"
 jmhPluginVersion = "0.7.3"
+koperVersion = "0.0.1-SNAPSHOT"
 
 [libraries]
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlinVersion" }
@@ -17,6 +18,7 @@ kotlin-kotest-junit5Runner = { module = "io.kotest:kotest-runner-junit5-jvm", ve
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlinVersion" }
 org-json = "org.json:json:20260522"
 wrasse-compiler-plugin = { module = "com.varlanv.wrasse:compiler-plugin", version.ref = "wrasseVersion" }
+koper-lang = { module = "com.varlanv.koper:lang", version.ref = "koperVersion" }
 
 [plugins]
 internalConvention = { id = "com.varlanv.wrasse.gradle.internal-gradle-convention-plugin" }

@@ -4,6 +4,7 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.stream.Collectors
 
 /**
  * The recording [WPerf]: one [Entry] per key with count, total and max, in first-seen order.
@@ -97,11 +98,11 @@ object PerfStore {
     fun collect(root: Path): List<Pair<String, PerfRecorder>> {
         if (!Files.isDirectory(root)) return emptyList()
         val files = Files.walk(root).use { walk ->
-            walk.filter { Files.isRegularFile(it) && it.fileName.toString() == FILE_NAME }.toList()
+            walk.filter { Files.isRegularFile(it) && it.fileName.toString() == FILE_NAME }.collect(Collectors.toList())
         }
         val reports = ArrayList<Pair<String, PerfRecorder>>(files.size)
         for (file in files) {
-            val text = Files.readString(file)
+            val text = Files.readAllBytes(file).decodeToString()
             val newline = text.indexOf('\n')
             val header = if (newline < 0) text else text.substring(0, newline)
             val title = header.removePrefix("# ")

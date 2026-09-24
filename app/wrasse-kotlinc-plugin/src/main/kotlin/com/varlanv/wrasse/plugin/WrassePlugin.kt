@@ -2,35 +2,16 @@ package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
 import com.varlanv.wrasse.format.DocBuilder
-import com.varlanv.wrasse.lang.FileEdits
-import com.varlanv.wrasse.lang.NoopPerf
-import com.varlanv.wrasse.lang.PerfStore
-import com.varlanv.wrasse.lang.ReportedDiagnostic
-import com.varlanv.wrasse.lang.ReportedFile
-import com.varlanv.wrasse.lang.Sha256
-import com.varlanv.wrasse.lang.WEdit
-import com.varlanv.wrasse.lang.WPatchStore
-import com.varlanv.wrasse.lang.WPerf
-import com.varlanv.wrasse.lang.WReportStore
-import com.varlanv.wrasse.model.RuleLevel
-import com.varlanv.wrasse.model.ViolationReport
-import com.varlanv.wrasse.model.WCallSite
-import com.varlanv.wrasse.model.WCallableUsage
-import com.varlanv.wrasse.model.WContext
-import com.varlanv.wrasse.model.WFormatConfig
-import com.varlanv.wrasse.model.WQualifiedUsage
-import com.varlanv.wrasse.model.WReporter
-import com.varlanv.wrasse.model.WResolvedImport
-import com.varlanv.wrasse.model.WResolvedUsage
-import com.varlanv.wrasse.model.WRule
-import com.varlanv.wrasse.model.WRuleSet
+import com.varlanv.wrasse.lang.*
+import com.varlanv.wrasse.model.*
 import com.varlanv.wrasse.rules.SuppressionCollectorRule
-import java.nio.file.Path
-import java.nio.file.PathMatcher
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import java.nio.file.Path
+import java.nio.file.PathMatcher
+import java.nio.file.Paths
 
 private const val NO_AUTOFIX_MARKER = " (no autofix for this shape)"
 
@@ -224,7 +205,8 @@ class WrassePlugin(
         val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
         val needsCallSites = dumpResolvedUsage || ruleSet.requiresCallSites
         if (resolvedUsage != null &&
-            (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages || needsCallSites)) {
+            (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages || needsCallSites)
+        ) {
             ctx.resolvedUsage = timed("phase:resolved-usage") { resolvedUsage(needsQualifiedUsages, needsCallSites) }
         }
         val reporter = object : WReporter {
@@ -321,8 +303,7 @@ class WrassePlugin(
         val imports = usage.resolvedImports.map(::dumpImport).sorted().joinToString(prefix = "[", postfix = "]")
         val qualified = usage.qualifiedUsages
             .sortedWith(compareBy({ it.startOffset }, { it.endOffset }))
-            .map(::dumpQualifiedUsage)
-            .joinToString(prefix = "[", postfix = "]")
+            .joinToString(prefix = "[", postfix = "]", transform = ::dumpQualifiedUsage)
         val calls = usage.callSites
             .sortedWith(compareBy({ it.callStartOffset }, { it.callEndOffset }))
             .joinToString(prefix = "[", postfix = "]") { dumpCallSite(it) }
@@ -386,7 +367,7 @@ class WrassePlugin(
     private fun resolveFilePath(
         sourceFilePath: String,
         fileName: String,
-    ): Path = runCatching { Path.of(sourceFilePath).toAbsolutePath().normalize() }.getOrElse { Path.of(fileName) }
+    ): Path = runCatching { Paths.get(sourceFilePath).toAbsolutePath().normalize() }.getOrElse { Paths.get(fileName) }
 
     private fun matchesAny(matchers: List<PathMatcher>, configRelativePath: Path): Boolean {
         if (matchers.isEmpty()) return false

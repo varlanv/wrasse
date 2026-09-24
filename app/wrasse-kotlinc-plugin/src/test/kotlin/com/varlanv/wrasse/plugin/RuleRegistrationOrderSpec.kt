@@ -43,7 +43,7 @@ class RuleRegistrationOrderSpec : BaseSpec({
             "unused-private-class, use-let, useless-postfix-expression, variable-name-max-length, when-entry-bracing, " +
             "and when-must-have-else as single-id rules",
     ) {
-        val ids = registeredRules().map { it.id }
+        val ids = Static.registeredRules.map { it.id }
 
         ids shouldBe
             listOf(
@@ -141,7 +141,7 @@ class RuleRegistrationOrderSpec : BaseSpec({
             "engine, class-metrics engine, kdoc engine, empty-block engine, and comment-position engine groups " +
             "with exactly their own ids",
     ) {
-        val groups = registeredRuleGroups()
+        val groups = Static.registeredRuleGroups
 
         groups.map { it.ids } shouldBe
             listOf(

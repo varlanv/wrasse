@@ -2,6 +2,7 @@ package com.varlanv.wrasse.lang
 
 import com.varlanv.wrasse.testing.BaseSpec
 import com.varlanv.wrasse.testing.useTempDir
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -29,7 +30,7 @@ class FileWalkUpSpec : BaseSpec({
         should("find file in start directory") {
             useTempDir { root ->
                 val file = Files.createFile(root.resolve("wrasse.json"))
-                FileWalkUp.findNamed(root, "wrasse.json").getOrThrow() shouldBe file.toRealPath()
+                FileWalkUp.findNamed(root, "wrasse.json") shouldBe file.toRealPath()
             }
         }
 
@@ -37,7 +38,7 @@ class FileWalkUpSpec : BaseSpec({
             useTempDir { root ->
                 val file = Files.createFile(root.resolve("wrasse.json"))
                 val child = Files.createDirectory(root.resolve("sub"))
-                FileWalkUp.findNamed(child, "wrasse.json").getOrThrow() shouldBe file.toRealPath()
+                FileWalkUp.findNamed(child, "wrasse.json") shouldBe file.toRealPath()
             }
         }
 
@@ -45,7 +46,7 @@ class FileWalkUpSpec : BaseSpec({
             useTempDir { root ->
                 val file = Files.createFile(root.resolve("wrasse.json"))
                 val child = Files.createDirectories(root.resolve("a/b"))
-                FileWalkUp.findNamed(child, "wrasse.json").getOrThrow() shouldBe file.toRealPath()
+                FileWalkUp.findNamed(child, "wrasse.json") shouldBe file.toRealPath()
             }
         }
 
@@ -54,30 +55,28 @@ class FileWalkUpSpec : BaseSpec({
                 Files.createFile(root.resolve("wrasse.json"))
                 val child = Files.createDirectory(root.resolve("sub"))
                 val nearer = Files.createFile(child.resolve("wrasse.json"))
-                FileWalkUp.findNamed(child, "wrasse.json").getOrThrow() shouldBe nearer.toRealPath()
+                FileWalkUp.findNamed(child, "wrasse.json") shouldBe nearer.toRealPath()
             }
         }
 
         should("return null when file does not exist anywhere") {
             useTempDir { root ->
                 val child = Files.createDirectories(root.resolve("a/b/c"))
-                FileWalkUp.findNamed(child, "wrasse.json").getOrThrow().shouldBeNull()
+                FileWalkUp.findNamed(child, "wrasse.json").shouldBeNull()
             }
         }
 
         should("not match directories with the target name") {
             useTempDir { root ->
                 Files.createDirectory(root.resolve("wrasse.json"))
-                FileWalkUp.findNamed(root, "wrasse.json").getOrThrow().shouldBeNull()
+                FileWalkUp.findNamed(root, "wrasse.json").shouldBeNull()
             }
         }
 
         should("return failure for nonexistent start directory") {
             useTempDir { root ->
                 val noSuchDir = root.resolve("does-not-exist")
-                val result = FileWalkUp.findNamed(noSuchDir, "wrasse.json")
-                val ex = result.exceptionOrNull()
-                ex.shouldBeInstanceOf<NoSuchFileException>()
+                val ex = shouldThrow<NoSuchFileException> { FileWalkUp.findNamed(noSuchDir, "wrasse.json") }
                 ex.message shouldBe noSuchDir.toString()
             }
         }
@@ -87,7 +86,7 @@ class FileWalkUpSpec : BaseSpec({
                 val real = Files.createDirectories(root.resolve("real"))
                 Files.createFile(real.resolve("wrasse.json"))
                 val link = Files.createSymbolicLink(root.resolve("link"), real)
-                FileWalkUp.findNamed(link, "wrasse.json").getOrThrow() shouldBe real.resolve("wrasse.json").toRealPath()
+                FileWalkUp.findNamed(link, "wrasse.json") shouldBe real.resolve("wrasse.json").toRealPath()
             }
         }
     }
@@ -96,7 +95,7 @@ class FileWalkUpSpec : BaseSpec({
         should("find file matching predicate in start directory") {
             useTempDir { root ->
                 val file = Files.createFile(root.resolve("wrasse.json"))
-                FileWalkUp.find(root) { it == "wrasse.json" }.getOrThrow() shouldBe file.toRealPath()
+                FileWalkUp.find(root) { it == "wrasse.json" } shouldBe file.toRealPath()
             }
         }
 
@@ -106,7 +105,7 @@ class FileWalkUpSpec : BaseSpec({
                 Files.createFile(root.resolve("wrasse.jsonc"))
                 Files.createFile(root.resolve("wrasse.json"))
                 val names = setOf("wrasse.jsonc", "wrasse.json")
-                val result = FileWalkUp.find(root) { it in names }.getOrThrow()!!
+                val result = FileWalkUp.find(root) { it in names }!!
                 (result.fileName.toString() in names) shouldBe true
             }
         }
@@ -115,30 +114,28 @@ class FileWalkUpSpec : BaseSpec({
             useTempDir { root ->
                 val file = Files.createFile(root.resolve("wrasse.json"))
                 val child = Files.createDirectory(root.resolve("sub"))
-                FileWalkUp.find(child) { it == "wrasse.json" }.getOrThrow() shouldBe file.toRealPath()
+                FileWalkUp.find(child) { it == "wrasse.json" } shouldBe file.toRealPath()
             }
         }
 
         should("return null when no file matches predicate") {
             useTempDir { root ->
                 Files.createFile(root.resolve("other.txt"))
-                FileWalkUp.find(root) { it == "wrasse.json" }.getOrThrow().shouldBeNull()
+                FileWalkUp.find(root) { it == "wrasse.json" }.shouldBeNull()
             }
         }
 
         should("not match directories") {
             useTempDir { root ->
                 Files.createDirectory(root.resolve("wrasse.json"))
-                FileWalkUp.find(root) { it == "wrasse.json" }.getOrThrow().shouldBeNull()
+                FileWalkUp.find(root) { it == "wrasse.json" }.shouldBeNull()
             }
         }
 
         should("return failure for nonexistent start directory") {
             useTempDir { root ->
                 val noSuchDir = root.resolve("does-not-exist")
-                val result = FileWalkUp.find(noSuchDir) { true }
-                val ex = result.exceptionOrNull()
-                ex.shouldBeInstanceOf<NoSuchFileException>()
+                val ex = shouldThrow<NoSuchFileException> { FileWalkUp.find(noSuchDir) { true } }
                 ex.message shouldBe noSuchDir.toString()
             }
         }
