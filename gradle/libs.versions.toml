@@ -7,6 +7,7 @@ jmhPluginVersion = "0.7.3"
 koperVersion = "0.0.1-SNAPSHOT"
 kotestVersion = "6.2.5"
 kotlinVersion = "2.4.20"
+shadowPluginVersion = "9.6.1"
 versionCatalogPluginVersion = "1.1.1"
 wrasseVersion = "0.0.1-SNAPSHOT"
 
@@ -21,6 +22,7 @@ org-json = "org.json:json:20260814"
 wrasse-compiler-plugin = { module = "com.varlanv.wrasse:compiler-plugin", version.ref = "wrasseVersion" }
 
 [plugins]
+shadow = { id = "com.gradleup.shadow", version.ref = "shadowPluginVersion" }
 internalConvention = { id = "com.varlanv.wrasse.gradle.internal-gradle-convention-plugin" }
 jmhPlugin = { id = "me.champeau.jmh", version.ref = "jmhPluginVersion" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinVersion" }

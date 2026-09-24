@@ -39,29 +39,29 @@ class FormatRequestSpec : BaseSpec({
             true
     }
 
-    should("consume the file: read it, delete it, and return its verdict") {
+    should("keep a fresh request available for repeated compiles") {
         useTempDir { dir ->
             FormatRequest.write(dir, now, debugPerformance = true)
             Files.exists(dir.resolve(FormatRequest.FILE_NAME)) shouldBe true
-            val request = FormatRequest.consume(dir, now + 1)
+            val request = FormatRequest.read(dir, now + 1)
             request.formatting shouldBe true
             request.debugPerformance shouldBe true
-            Files.exists(dir.resolve(FormatRequest.FILE_NAME)) shouldBe false
-            FormatRequest.consume(dir, now + 1).formatting shouldBe false
+            Files.exists(dir.resolve(FormatRequest.FILE_NAME)) shouldBe true
+            FormatRequest.read(dir, now + 1).formatting shouldBe true
         }
     }
 
-    should("consume a stale file as no request and still delete it") {
+    should("ignore a stale request") {
         useTempDir { dir ->
             FormatRequest.write(dir, now)
-            FormatRequest.consume(dir, now + FormatRequest.MAX_AGE_MILLIS + 1).formatting shouldBe false
-            Files.exists(dir.resolve(FormatRequest.FILE_NAME)) shouldBe false
+            FormatRequest.read(dir, now + FormatRequest.MAX_AGE_MILLIS + 1).formatting shouldBe false
+            Files.exists(dir.resolve(FormatRequest.FILE_NAME)) shouldBe true
         }
     }
 
     should("return no request for a directory that does not exist") {
         useTempDir { dir ->
-            FormatRequest.consume(dir.resolve("missing"), now).formatting shouldBe false
+            FormatRequest.read(dir.resolve("missing"), now).formatting shouldBe false
         }
     }
 

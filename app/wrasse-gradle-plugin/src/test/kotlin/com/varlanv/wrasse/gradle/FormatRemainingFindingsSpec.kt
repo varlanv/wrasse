@@ -10,7 +10,7 @@ class FormatRemainingFindingsSpec : ShouldSpec({
     val config = """{"rules":{"no-semicolons":{"level":"error"},"magic-number":{"level":"warn"}}}"""
     val source = "package sample\n\nfun main() {\n    println(42);\n}\n"
 
-    should("show the non-fixable finding on the very first format run, and again right after on lint") {
+    should("keep non-fixable findings quiet during format and show them on lint") {
         val playground = Playground.create("format-remaining")
         try {
             playground.module("app", mapOf("sample/Sample.kt" to source))
@@ -23,7 +23,7 @@ class FormatRemainingFindingsSpec : ShouldSpec({
 
             val first = playground.run("wrasseFormat")
             first.output.countOf("Fixed: $fixedPath (1 edits)") shouldBe 1
-            first.output.countOf(finding) shouldBe 1
+            first.output shouldNotContain finding
             Files.readString(playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")) shouldBe
                 "package sample\n\nfun main() {\n    println(42)\n}\n"
 
@@ -34,7 +34,7 @@ class FormatRemainingFindingsSpec : ShouldSpec({
         }
     }
 
-    should("show a non-fixable warning but not the semicolon the printer already absorbed, when it rewrote the whole file") {
+    should("keep non-fixable warnings quiet when the printer rewrote the whole file") {
         val playground = Playground.create("format-remaining-whole-file")
         try {
             val formatConfig =
@@ -44,15 +44,13 @@ class FormatRemainingFindingsSpec : ShouldSpec({
             playground.settings()
             playground.config(formatConfig)
             val sourceUri = playground.sourceUri("app", "sample/Sample.kt")
-            val approximateFinding = "w: $sourceUri:4:1 wrasse: magic-number: This expression contains a magic number; " +
-                "consider defining it as a well-named constant"
             val exactFinding = "w: $sourceUri:4:13 wrasse: magic-number: This expression contains a magic number; " +
                 "consider defining it as a well-named constant"
             val fixedFile = playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")
 
             val first = playground.run("wrasseFormat")
             first.output.countOf("Fixed: $fixedFile (1 edits)") shouldBe 1
-            first.output.countOf(approximateFinding) shouldBe 1
+            first.output shouldNotContain "wrasse: magic-number"
             first.output shouldNotContain "no-semicolons"
             Files.readString(fixedFile) shouldBe "package sample\n\nfun main() {\n    println(42)\n    println(\"hi\")\n}\n"
 

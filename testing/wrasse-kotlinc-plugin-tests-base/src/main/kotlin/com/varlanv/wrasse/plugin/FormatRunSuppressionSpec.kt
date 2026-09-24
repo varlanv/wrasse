@@ -9,11 +9,6 @@ import com.varlanv.wrasse.testing.useTempDir
 import io.kotest.matchers.shouldBe
 import java.nio.file.Files
 
-/**
- * A format run (a fresh `format-request` in the compilation's `fixOutputDir`) keeps every
- * diagnostic that carries edits quiet — they are about to be applied — while diagnostics without
- * edits still print; the patch is emitted regardless and the request file is consumed.
- */
 open class FormatRunSuppressionSpec : BaseSpec({
 
     val wrasseConfig = """{"rules":{"no-semicolons":{"level":"error"},"magic-number":{"level":"error"}}}"""
@@ -32,7 +27,7 @@ open class FormatRunSuppressionSpec : BaseSpec({
     val magicNumberMessage =
         "wrasse: magic-number: This expression contains a magic number; consider defining it as a well-named constant"
 
-    should("keep autofixable diagnostics quiet during a format run, still emit their edits, and consume the request") {
+    should("keep autofixable diagnostics quiet during a format run, still emit their edits, and retain the request") {
         useTempDir { workDir ->
             useTempDir { fixOutputDir ->
                 FormatRequest.write(fixOutputDir)
@@ -40,7 +35,7 @@ open class FormatRunSuppressionSpec : BaseSpec({
                 val result = harness.compile(listOf(source), workDir)
 
                 result.wrasseDiagnostics.map { it.message } shouldBe listOf(magicNumberMessage)
-                Files.exists(fixOutputDir.resolve(FormatRequest.FILE_NAME)) shouldBe false
+                Files.exists(fixOutputDir.resolve(FormatRequest.FILE_NAME)) shouldBe true
                 val edits = WPatchReader
                     .read(Files.readString(fixOutputDir.resolve("patch").resolve("wrasse-fixes.txt")))
                     .flatMap { it.edits }
@@ -60,7 +55,7 @@ open class FormatRunSuppressionSpec : BaseSpec({
                 val result = harness.compile(listOf(source), workDir)
 
                 result.wrasseDiagnostics.map { it.message } shouldBe listOf(magicNumberMessage, semicolonMessage)
-                Files.exists(fixOutputDir.resolve(FormatRequest.FILE_NAME)) shouldBe false
+                Files.exists(fixOutputDir.resolve(FormatRequest.FILE_NAME)) shouldBe true
             }
         }
     }

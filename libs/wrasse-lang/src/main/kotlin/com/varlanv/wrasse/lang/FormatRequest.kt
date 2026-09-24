@@ -4,15 +4,6 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 
-/**
- * The one-shot request file a build tool drops into a compilation's `fixOutputDir` right before a
- * run: one `key=value` per line, `timestamp=<epoch millis>` plus any of `formatting=true` (the
- * diagnostics that carry edits stay quiet), `quiet=true` (no diagnostic is printed at all; the
- * report file still records them for the build tool to replay) and `debugPerformance=true` (the
- * run records timings, see [PerfRecorder]). The compiler plugin consumes it on start — reads, deletes, and honors it
- * only when the timestamp parses and is at most [MAX_AGE_MILLIS] old. Never throws; anything
- * unreadable or malformed means [RunRequest.NONE].
- */
 object FormatRequest {
     const val FILE_NAME = "format-request"
     const val MAX_AGE_MILLIS = 5L * 60 * 1_000
@@ -32,7 +23,7 @@ object FormatRequest {
         Files.write(dir.resolve(FILE_NAME), text.toString().toByteArray(Charsets.UTF_8))
     }
 
-    fun consume(
+    fun read(
         dir: Path,
         now: Long = System.currentTimeMillis(),
     ): RunRequest {
@@ -41,11 +32,6 @@ object FormatRequest {
             Files.readAllLines(path)
         } catch (_: IOException) {
             return RunRequest.NONE
-        }
-        try {
-            Files.deleteIfExists(path)
-        } catch (_: IOException) {
-            return parse(lines, now)
         }
         return parse(lines, now)
     }

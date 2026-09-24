@@ -11,13 +11,12 @@ class FormatFlowSpec : ShouldSpec({
     val config = """{"rules":{"no-semicolons":{"level":"error"},"magic-number":{"level":"warn"}}}"""
     val source = "package sample\n\nfun main() {\n    println(42);\n}\n"
 
-    should("rewrite the source, keep the fixed finding quiet, replay what remains, and be a no-op the second time") {
+    should("rewrite the source quietly and be a no-op the second time") {
         val playground = Playground.create("format")
         try {
             playground.module("app", mapOf("sample/Sample.kt" to source))
             playground.settings()
             playground.config(config)
-            val sourceUri = playground.sourceUri("app", "sample/Sample.kt")
 
             val first = playground.run("wrasseFormat")
             first.output shouldNotContain "no-semicolons"
@@ -28,7 +27,7 @@ class FormatFlowSpec : ShouldSpec({
 
             val second = playground.run("wrasseFormat")
             second.output shouldNotContain "Fixed: "
-            second.output.countOf("w: $sourceUri:4:13 wrasse: magic-number: This expression contains a magic number; consider defining it as a well-named constant") shouldBe 1
+            second.output shouldNotContain "wrasse: magic-number"
             second.output shouldContain "BUILD SUCCESSFUL"
         } finally {
             playground.delete()
@@ -64,7 +63,7 @@ class FormatFlowSpec : ShouldSpec({
         }
     }
 
-    should("fail with the same message on an error-level finding it could not fix, before and after the fixable one is applied") {
+    should("format successfully and leave error-level lint findings for wrasseLint") {
         val playground = Playground.create("format-remaining-errors")
         try {
             val errorConfig = """{"rules":{"no-semicolons":{"level":"error"},"magic-number":{"level":"error"}}}"""
@@ -74,13 +73,18 @@ class FormatFlowSpec : ShouldSpec({
             val message = "wrasse found 1 error-level violation(s) in :app"
             val fixedFile = playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")
 
-            val first = playground.runAndFail("wrasseFormat")
-            first.output shouldContain message
+            val first = playground.run("wrasseFormat")
+            first.output shouldNotContain message
+            first.output shouldNotContain "wrasse: magic-number"
             Files.readString(fixedFile) shouldBe "package sample\n\nfun main() {\n    println(42)\n}\n"
 
-            val second = playground.runAndFail("wrasseFormat")
-            second.output shouldContain message
+            val second = playground.run("wrasseFormat")
+            second.output shouldNotContain message
+            second.output shouldNotContain "wrasse: magic-number"
             Files.readString(fixedFile) shouldBe "package sample\n\nfun main() {\n    println(42)\n}\n"
+
+            val lint = playground.runAndFail("wrasseLint")
+            lint.output shouldContain message
         } finally {
             playground.delete()
         }

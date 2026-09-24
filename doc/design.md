@@ -2067,6 +2067,10 @@ information. Statuses: Accepted · Rejected · Superseded.
   patch may travel this way — only what is printed — because an UP-TO-DATE compile silently
   ignores the file. Writer: `wrasseFormatRequest` in this repo's convention plugin, ordered
   before every compile task and run by `wrasseFix`; other builds write the same two lines.
+  *Amended 2026-09-25:* the request remains readable throughout the build. Kapt stub compilation
+  can read it before the real multiplatform compile, so deleting it on first use makes that real
+  compile print formatting findings. `wrasseApply` and the build-end cleanup service remove it;
+  the timestamp still limits an interrupted build.
 - **D26 — Leaf forwarding is opt-in by type (`ChildLeafHandler`) · Accepted 2026-09-05.** A
   `WNodeRule` used to inherit a no-op `onChildLeaf` and, because a buffered rule's `enterNode`
   defaults to `true`, every active node rule was called once per descendant leaf — 64 of 78 node
@@ -2167,6 +2171,13 @@ information. Statuses: Accepted · Rejected · Superseded.
   (and so `wrasseFormat`) now fails with `wrasse found N error-level violation(s) in <project path>`
   when a replayed line is error-level, the same way `wrasseLint` does, instead of a green build with
   unfixed errors left behind.
+  *Amended 2026-09-25:* `wrasseFormat` keeps all wrasse diagnostics quiet and does not fail on
+  lint-only findings; `wrasseLint` remains the gate for them. Format apply tasks queue their patches
+  in a build-scoped service. The service applies them only after every task succeeds, so a failure
+  in another module cannot leave already-formatted sources behind. Standalone `wrasseApply` still
+  reports and fails on remaining error-level findings. The published compiler plugin shades its
+  runtime dependencies into one artifact so a consumer project with matching dependency
+  coordinates cannot substitute its own unpublished module into the compiler plugin classpath.
 - **D29 — Operator chains break per precedence class; a nested operand is its own group ·
   Accepted 2026-09-07.** The printer used to give every nested binary expression that was not
   `&&`/`||`/`?:` a flat layout that kept whatever line break the source had at its operator, and

@@ -168,7 +168,7 @@ fun wrasseMain(
             .toMap()
         if (configs.isNotEmpty()) activeGroups.push(group to configs)
     }
-    val request = if (fixOutputDir != null) FormatRequest.consume(fixOutputDir) else RunRequest.NONE
+    val request = if (fixOutputDir != null) FormatRequest.read(fixOutputDir) else RunRequest.NONE
     return WrassePlugin(
         ruleSet = WRuleSet(activeRules, activeGroups),
         fixOutputDir = fixOutputDir,

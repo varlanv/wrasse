@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.internalConvention)
+    alias(libs.plugins.shadow)
     `maven-publish`
 }
 
@@ -19,13 +20,27 @@ dependencies {
     testImplementation(libs.kotlin.compiler.embeddable)
 }
 
+shadow {
+    addShadowVariantIntoJavaComponent = false
+}
+
+tasks.jar {
+    archiveClassifier.set("thin")
+}
+
+tasks.shadowJar {
+    archiveClassifier.set("")
+    relocate("com.varlanv.koper", "com.varlanv.wrasse.internal.shaded.koper")
+    mergeServiceFiles()
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {
             groupId = "com.varlanv.wrasse"
             artifactId = "compiler-plugin"
             version = project.version.toString()
-            from(components["java"])
+            from(components["shadow"])
         }
     }
 }

@@ -64,7 +64,7 @@ open class DebugPerformanceSpec : BaseSpec({
                 recorder["count:reports"]!!.total shouldBe 3
                 recorder["count:lines"]!!.total shouldBe 4
                 recorder.entries().any { it.key.startsWith("file:") && it.key.endsWith("Sample.kt") } shouldBe true
-                Files.exists(fixOutputDir.resolve(FormatRequest.FILE_NAME)) shouldBe false
+                Files.exists(fixOutputDir.resolve(FormatRequest.FILE_NAME)) shouldBe true
             }
         }
     }

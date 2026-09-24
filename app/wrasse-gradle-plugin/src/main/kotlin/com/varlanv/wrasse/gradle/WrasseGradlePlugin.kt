@@ -18,6 +18,7 @@ import org.gradle.api.file.Directory
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.logging.Logging
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
@@ -33,6 +34,8 @@ import org.gradle.api.tasks.UntrackedTask
 import org.gradle.build.event.BuildEventsListenerRegistry
 import org.gradle.tooling.events.FinishEvent
 import org.gradle.tooling.events.OperationCompletionListener
+import org.gradle.tooling.events.task.TaskFailureResult
+import org.gradle.tooling.events.task.TaskFinishEvent
 
 private const val PLUGIN_ID = "com.varlanv.wrasse"
 private const val GROUP = "wrasse"
@@ -106,6 +109,11 @@ class WrasseGradlePlugin @Inject constructor(
             WrasseRequestCleanupService::class.java,
         ) { spec -> spec.parameters.compilationDirs.set(compilationDirs) }
         listeners.onTaskCompletion(cleanup)
+        val formatCoordinator = project.gradle.sharedServices.registerIfAbsent(
+            "wrasse-format-coordinator",
+            WrasseFormatCoordinator::class.java,
+        ) {}
+        listeners.onTaskCompletion(formatCoordinator)
 
         fun request(name: String, formatting: Boolean, description: String) =
             project.tasks.register(name, WrasseRequestTask::class.java) { task ->
@@ -118,13 +126,19 @@ class WrasseGradlePlugin @Inject constructor(
         val formatRequest = request("wrasseFormatRequest", true, "Marks the next wrasse compiles of this project as a format run")
         val lintRequest = request("wrasseLintRequest", false, "Marks the next wrasse compiles of this project as a lint run")
         formatRequest.configure { it.mustRunAfter(lintRequest) }
-        val apply = project.tasks.register("wrasseApply", WrasseApplyTask::class.java) { task ->
+        fun applyTask(name: String) = project.tasks.register(name, WrasseApplyTask::class.java) { task ->
             task.group = GROUP
             task.description = "Applies the wrasse patches recorded by this project's compiles"
             task.toolClasspath.from(toolClasspath)
             task.wrasseDir.set(wrasseDir)
             task.projectDir.set(project.layout.projectDirectory)
             task.projectPath.set(project.path)
+        }
+        val apply = applyTask("wrasseApply")
+        val formatApply = applyTask("wrasseFormatApply")
+        formatApply.configure { task ->
+            task.formatCoordinator.set(formatCoordinator)
+            task.usesService(formatCoordinator)
         }
         val lint = project.tasks.register("wrasseLint", WrasseLintTask::class.java) { task ->
             task.group = GROUP
@@ -135,11 +149,11 @@ class WrasseGradlePlugin @Inject constructor(
             task.projectPath.set(project.path)
             task.dependsOn(lintRequest)
         }
-        lint.configure { it.mustRunAfter(apply) }
+        lint.configure { it.mustRunAfter(apply, formatApply) }
         project.tasks.register("wrasseFormat") { task ->
             task.group = GROUP
             task.description = "Formats and autofixes this project's sources with wrasse"
-            task.dependsOn(formatRequest, apply)
+            task.dependsOn(formatRequest, formatApply)
         }
 
         var wired = false
@@ -157,6 +171,7 @@ class WrasseGradlePlugin @Inject constructor(
                     task.compileSources.from(Callable { compiles.map { compile -> sourcesOf(compile) } })
                 }
                 apply.configure { it.dependsOn(compiles) }
+                formatApply.configure { it.dependsOn(compiles) }
             }
         }
     }
@@ -164,7 +179,7 @@ class WrasseGradlePlugin @Inject constructor(
     /**
      * Wires each real compile's compiler-plugin args as a lazy [Provider] (see
      * [appendFreeCompilerArgs]), evaluated at Gradle's own property-finalization time rather than
-     * here. A kapt stub task gets only `enabled=false`.
+     * here.
      */
     private fun wireCompiles(
         project: Project,
@@ -238,7 +253,41 @@ abstract class WrasseRequestCleanupService :
     }
 }
 
-@UntrackedTask(because = "the request file is consumed by the compile that follows")
+abstract class WrasseFormatCoordinator :
+    BuildService<BuildServiceParameters.None>,
+    OperationCompletionListener,
+    AutoCloseable {
+    private data class PendingApply(val dir: File, val classpath: Set<File>, val projectDir: File)
+
+    private val pending = mutableListOf<PendingApply>()
+    private var failed = false
+
+    @Synchronized
+    fun enqueue(dir: File, classpath: Set<File>, projectDir: File) {
+        pending.add(PendingApply(dir, classpath, projectDir))
+    }
+
+    @Synchronized
+    override fun onFinish(event: FinishEvent) {
+        if (event is TaskFinishEvent && event.result is TaskFailureResult) failed = true
+    }
+
+    override fun close() {
+        val queued = synchronized(this) { if (failed) emptyList() else pending.toList() }
+        val logger = Logging.getLogger(WrasseFormatCoordinator::class.java)
+        for (apply in queued.sortedBy { it.dir.absolutePath }) {
+            if (!apply.dir.isDirectory) continue
+            deleteRequests(apply.dir)
+            val lines = patchLines(apply.dir, apply.classpath, apply.projectDir)
+            for (line in lines.filterNot { it.startsWith("w: ") || it.startsWith("e: ") }) logger.lifecycle(line)
+            if (lines.any { it.startsWith("FAILED: ") }) {
+                throw GradleException("wrasse could not apply every patch under ${apply.dir.absolutePath}")
+            }
+        }
+    }
+}
+
+@UntrackedTask(because = "the request file is read by the compiles that follow")
 abstract class WrasseRequestTask : DefaultTask() {
     @get:Internal
     abstract val compilationDirs: ListProperty<File>
@@ -275,17 +324,21 @@ abstract class WrasseApplyTask : DefaultTask() {
     @get:Internal
     abstract val projectPath: Property<String>
 
+    @get:Internal
+    abstract val formatCoordinator: Property<WrasseFormatCoordinator>
+
     @TaskAction
     fun apply() {
         val dir = wrasseDir.get().asFile
         if (!dir.isDirectory) return
         val root = projectDir.get().asFile
-        deleteRequests(dir)
-        val lines = when {
-            hasEntries(dir, PATCH_FILE, "file:") -> applyAndReplay(dir, toolClasspath.files, root)
-            hasEntries(dir, REPORT_FILE, "diag:") -> replay(dir, toolClasspath.files, root)
-            else -> emptyList()
+        val coordinator = formatCoordinator.orNull
+        if (coordinator != null) {
+            coordinator.enqueue(dir, toolClasspath.files, root)
+            return
         }
+        deleteRequests(dir)
+        val lines = patchLines(dir, toolClasspath.files, root)
         for (line in lines) logger.lifecycle(line)
         if (lines.any { it.startsWith("FAILED: ") }) {
             throw GradleException("wrasse could not apply every patch under ${dir.absolutePath}")
@@ -293,6 +346,12 @@ abstract class WrasseApplyTask : DefaultTask() {
         val errors = lines.count { it.startsWith("e: ") }
         if (errors > 0) throw GradleException("wrasse found $errors error-level violation(s) in ${projectPath.get()}")
     }
+}
+
+private fun patchLines(dir: File, classpath: Set<File>, projectDir: File): List<String> = when {
+    hasEntries(dir, PATCH_FILE, "file:") -> applyAndReplay(dir, classpath, projectDir)
+    hasEntries(dir, REPORT_FILE, "diag:") -> replay(dir, classpath, projectDir)
+    else -> emptyList()
 }
 
 @UntrackedTask(because = "it prints findings recorded by compiles and must run every time")
