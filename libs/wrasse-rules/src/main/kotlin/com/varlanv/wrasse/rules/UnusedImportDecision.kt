@@ -16,29 +16,17 @@ class ImportRecord(
     val endOffset: Int,
 )
 
-/**
- * Pure verdict logic for `no-unused-imports`, compiler-free so it is unit-testable without
- * a kotlinc dependency. Every ambiguity resolves toward "used" (bail-on-ambiguity, design.md
- * §6): a classifier or callable is matched by exact FQN or by FQN-prefix (covers nested
- * classes, constructors, companion/static-like members, and enum entries); a callable import
- * whose FQN itself names a member (`import a.b.Obj.member` — object vals/funs, enum entries,
- * Java statics) is matched by the *parent* of the FQN against `classFqName` plus the FQN's
- * simple name against `name` (that member's own usage never carries `classFqName == fqn`, since
- * `fqn` already includes the member); and as a last, conservative resort, the import's visible
- * name is looked up as a whole word inside every recorded comment/KDoc span of the file (KDoc
- * references are invisible to FIR).
- */
 object UnusedImportDecision {
     fun isUnused(
         import: ImportRecord,
         classifiers: Set<String>,
         callables: Set<WCallableUsage>,
         sourceText: CharSequence,
-        commentSpans: List<IntRange>,
+        kdocSpans: List<IntRange>,
     ): Boolean {
         if (matchesClassifier(import.fqn, classifiers)) return false
         if (matchesCallable(import.fqn, callables)) return false
-        if (mentionedInComments(import.aliasName ?: import.simpleName, sourceText, commentSpans)) return false
+        if (mentionedInKdoc(import.aliasName ?: import.simpleName, sourceText, kdocSpans)) return false
         return true
     }
 
@@ -61,14 +49,15 @@ object UnusedImportDecision {
         }
     }
 
-    private fun mentionedInComments(
+    private fun mentionedInKdoc(
         name: String,
         sourceText: CharSequence,
-        commentSpans: List<IntRange>,
+        kdocSpans: List<IntRange>,
     ): Boolean {
-        if (commentSpans.isEmpty()) return false
-        return commentSpans.any { span ->
-            WordScan.containsWord(StringSlice(sourceText, span.first, span.last + 1), name)
+        return kdocSpans.any { span ->
+            span.first >= 0 && span.first + 2 <= span.last && span.last < sourceText.length &&
+                sourceText[span.first] == '/' && sourceText[span.first + 1] == '*' && sourceText[span.first + 2] == '*' &&
+                WordScan.containsWord(StringSlice(sourceText, span.first, span.last + 1), name)
         }
     }
 

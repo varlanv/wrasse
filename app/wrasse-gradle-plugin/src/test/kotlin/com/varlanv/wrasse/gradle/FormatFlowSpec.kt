@@ -106,4 +106,29 @@ class FormatFlowSpec : ShouldSpec({
             playground.delete()
         }
     }
+
+    should("remove an import used only in commented-out code from an up-to-date compile patch") {
+        val playground = Playground.create("format-commented-import")
+        try {
+            val source = "package sample\n\nimport kotlin.text.Regex\n\nfun sample() {\n    // val regex = Regex(\"a\")\n}\n"
+            val expected = "package sample\n\n\nfun sample() {\n    // val regex = Regex(\"a\")\n}\n"
+            playground.module("app", mapOf("sample/Sample.kt" to source))
+            playground.settings()
+            playground.config("""{"rules":{"no-unused-imports":{"level":"error"}}}""")
+
+            val checked = playground.run("compileKotlin")
+            checked.output shouldContain "wrasse: no-unused-imports: Unused import"
+
+            val formatted = playground.run("wrasseFormat")
+            formatted.output shouldContain "Task :app:compileKotlin UP-TO-DATE"
+            formatted.output shouldContain "Fixed: "
+            Files.readString(playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")) shouldBe expected
+
+            val again = playground.run("wrasseFormat")
+            again.output shouldNotContain "Fixed: "
+            Files.readString(playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")) shouldBe expected
+        } finally {
+            playground.delete()
+        }
+    }
 })

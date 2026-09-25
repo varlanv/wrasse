@@ -26,7 +26,7 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  * when available, placed standalone otherwise (see [resolveImportListChanges] and
  * [ImportInsertionDecision]).
  *
- * A single walk-side assembly collects directives, star imports, comment/KDoc spans, written
+ * A single walk-side assembly collects directives, star imports, written
  * identifiers, the package FQN, and (only when `no-unnecessary-fqn` is enabled) every written
  * identifier's own offset. The pure decision objects ([UnusedImportDecision], [UnusedStarDecision],
  * [WildcardExpansionDecision], [StarAttribution], [ImportOrderingDecision], [ImportRemovalSpan],
@@ -65,7 +65,6 @@ class ImportEngine : WUninitializedRuleGroup {
             private val directives = mutableListOf<ImportRecord>()
             private val starImports = mutableListOf<StarImportRecord>()
             private val directiveSpans = mutableListOf<Pair<Int, Int>>()
-            private val commentSpans = mutableListOf<IntRange>()
             private val kdocSpans = mutableListOf<IntRange>()
             private val writtenIdentifiers = mutableSetOf<String>()
             private val identifierOccurrences = mutableListOf<IdentifierOccurrence>()
@@ -116,13 +115,11 @@ class ImportEngine : WUninitializedRuleGroup {
             override fun visitLeaf(ctx: WContext, reporter: WReporter) {
                 when (ctx.type) {
                     WNodeType.EOL_COMMENT, WNodeType.BLOCK_COMMENT -> {
-                        commentSpans.add(ctx.startOffset until ctx.endOffset)
                         if (listStart >= 0 && listEnd < 0) hasCommentInList = true
                         return
                     }
 
                     WNodeType.KDOC -> {
-                        commentSpans.add(ctx.startOffset until ctx.endOffset)
                         kdocSpans.add(ctx.startOffset until ctx.endOffset)
                         if (listStart >= 0 && listEnd < 0) hasCommentInList = true
                         return
@@ -267,7 +264,7 @@ class ImportEngine : WUninitializedRuleGroup {
                         classifiers = usage.classifiers,
                         callables = usage.callables,
                         sourceText = sourceText,
-                        commentSpans = commentSpans,
+                        kdocSpans = kdocSpans,
                     )
                     if (unused) {
                         val edit = ImportRemovalSpan.compute(sourceText, import.startOffset, import.endOffset)

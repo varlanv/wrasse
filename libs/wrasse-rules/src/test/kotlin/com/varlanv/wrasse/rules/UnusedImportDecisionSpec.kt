@@ -19,13 +19,13 @@ private fun record(
 
 class UnusedImportDecisionSpec : BaseSpec({
 
-    should("mark unused when nothing matches by classifier, callable, or comment") {
+    should("mark unused when nothing matches by classifier, callable, or KDoc") {
         val unused = UnusedImportDecision.isUnused(
             import = record("kotlin.text.Regex"),
             classifiers = setOf("kotlin.Int"),
             callables = emptySet(),
             sourceText = "package sample",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe true
     }
@@ -36,7 +36,7 @@ class UnusedImportDecisionSpec : BaseSpec({
             classifiers = setOf("kotlin.text.Regex"),
             callables = emptySet(),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe false
     }
@@ -47,7 +47,7 @@ class UnusedImportDecisionSpec : BaseSpec({
             classifiers = setOf("sample.aux.Outer.Nested"),
             callables = emptySet(),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe false
     }
@@ -58,7 +58,7 @@ class UnusedImportDecisionSpec : BaseSpec({
             classifiers = setOf("sample.aux.OuterThing"),
             callables = emptySet(),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe true
     }
@@ -69,7 +69,7 @@ class UnusedImportDecisionSpec : BaseSpec({
             classifiers = emptySet(),
             callables = setOf(WCallableUsage(packageFqName = "kotlin", classFqName = "kotlin.Pair", name = "Pair")),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe false
     }
@@ -86,7 +86,7 @@ class UnusedImportDecisionSpec : BaseSpec({
                 ),
             ),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe false
     }
@@ -97,7 +97,7 @@ class UnusedImportDecisionSpec : BaseSpec({
             classifiers = emptySet(),
             callables = setOf(WCallableUsage(packageFqName = "kotlin.math", classFqName = null, name = "abs")),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe false
     }
@@ -108,7 +108,7 @@ class UnusedImportDecisionSpec : BaseSpec({
             classifiers = emptySet(),
             callables = setOf(WCallableUsage(packageFqName = "kotlin.other", classFqName = null, name = "abs")),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe true
     }
@@ -121,7 +121,7 @@ class UnusedImportDecisionSpec : BaseSpec({
                 WCallableUsage(packageFqName = "sample.aux", classFqName = "sample.aux.Obj", name = "member"),
             ),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe false
     }
@@ -134,7 +134,7 @@ class UnusedImportDecisionSpec : BaseSpec({
                 WCallableUsage(packageFqName = "sample.aux", classFqName = "sample.aux.Color", name = "RED"),
             ),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe false
     }
@@ -147,67 +147,79 @@ class UnusedImportDecisionSpec : BaseSpec({
                 WCallableUsage(packageFqName = "sample.aux", classFqName = "sample.aux.OtherObj", name = "member"),
             ),
             sourceText = "",
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe true
     }
 
-    should("mark used when the simple name appears as a whole word inside a recorded comment span") {
-        val text = "// See [kotlin.text.Regex] for details."
+    should("mark used when the simple name appears as a whole word inside KDoc") {
+        val text = "/** See [kotlin.text.Regex] for details. */"
         val unused = UnusedImportDecision.isUnused(
             import = record("kotlin.text.Regex"),
             classifiers = emptySet(),
             callables = emptySet(),
             sourceText = text,
-            commentSpans = listOf(0 until text.length),
+            kdocSpans = listOf(0 until text.length),
         )
         unused shouldBe false
     }
 
-    should("mark unused when the simple name only occurs inside a longer identifier in a comment") {
-        val text = "// See RegexOption for details."
+    should("remove an import referenced only by commented-out code") {
+        val text = "// val value = Regex(\"a\")"
         val unused = UnusedImportDecision.isUnused(
             import = record("kotlin.text.Regex"),
             classifiers = emptySet(),
             callables = emptySet(),
             sourceText = text,
-            commentSpans = listOf(0 until text.length),
+            kdocSpans = listOf(0 until text.length),
         )
         unused shouldBe true
     }
 
-    should("check the alias name in comments instead of the simple name when an alias is present") {
-        val text = "// see myAbs here"
+    should("mark unused when the simple name only occurs inside a longer identifier in KDoc") {
+        val text = "/** See RegexOption for details. */"
+        val unused = UnusedImportDecision.isUnused(
+            import = record("kotlin.text.Regex"),
+            classifiers = emptySet(),
+            callables = emptySet(),
+            sourceText = text,
+            kdocSpans = listOf(0 until text.length),
+        )
+        unused shouldBe true
+    }
+
+    should("check the alias name in KDoc instead of the simple name when an alias is present") {
+        val text = "/** see myAbs here */"
         val unused = UnusedImportDecision.isUnused(
             import = record("kotlin.math.abs", aliasName = "myAbs"),
             classifiers = emptySet(),
             callables = emptySet(),
             sourceText = text,
-            commentSpans = listOf(0 until text.length),
+            kdocSpans = listOf(0 until text.length),
         )
         unused shouldBe false
     }
 
-    should("mark used when a space-containing (backtick-derived) simple name appears as a whole phrase in a comment") {
-        val text = "// see the weird fun helper for details"
+    should("mark used when a space-containing (backtick-derived) simple name appears as a whole phrase in KDoc") {
+        val text = "/** see the weird fun helper for details */"
         val unused = UnusedImportDecision.isUnused(
             import = record("sample.aux.weird fun"),
             classifiers = emptySet(),
             callables = emptySet(),
             sourceText = text,
-            commentSpans = listOf(0 until text.length),
+            kdocSpans = listOf(0 until text.length),
         )
         unused shouldBe false
     }
 
-    should("mark unused when a space-containing simple name is only a prefix of a longer word run in a comment") {
-        val text = "// see the weird function for details"
+    should("mark unused when a space-containing simple name is only a prefix of a longer word run in KDoc") {
+        val text = "/** see the weird function for details */"
         val unused = UnusedImportDecision.isUnused(
             import = record("sample.aux.weird fun"),
             classifiers = emptySet(),
             callables = emptySet(),
             sourceText = text,
-            commentSpans = listOf(0 until text.length),
+            kdocSpans = listOf(0 until text.length),
         )
         unused shouldBe true
     }
@@ -219,7 +231,7 @@ class UnusedImportDecisionSpec : BaseSpec({
             classifiers = emptySet(),
             callables = emptySet(),
             sourceText = text,
-            commentSpans = emptyList(),
+            kdocSpans = emptyList(),
         )
         unused shouldBe true
     }

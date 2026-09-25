@@ -691,6 +691,11 @@ still accurate — but the three-`WStreamRule` shape, the `afterFile`-registrati
 and the `EditPlan.takeEditsIn` self-composition it describes no longer exist. `ImportEngine` (the
 as-built paragraph at the end of this section) folds all three into one decision-maker.
 
+*Amended 2026-09-25:* only KDoc spans count for the comment fallback. Plain line and block
+comments can contain code that has been commented out; matching an import name there kept unused
+imports forever, including during format runs. KDoc retains the conservative fallback for links
+that FIR does not resolve.
+
 **As-built (`no-unused-imports` removal fix):** every unused-import report carries a deletion
 `WEdit` *when one can be emitted safely* — computed by a small pure function (`ImportRemovalSpan`,
 unit-tested without a compiler, returns `WEdit?`) from `ctx.sourceText` and the directive's own
