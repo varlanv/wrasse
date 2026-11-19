@@ -24,13 +24,11 @@ internal class Playground(val dir: Path) {
             """
             pluginManagement {
                 repositories {
-                    mavenLocal()
                     gradlePluginPortal()
                 }
             }
             dependencyResolutionManagement {
                 repositories {
-                    mavenLocal()
                     mavenCentral()
                 }
             }

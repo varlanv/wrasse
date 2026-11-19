@@ -73,7 +73,7 @@ class MultiplatformFormatSpec : ShouldSpec({
             )
             playground.source("lang", "sample/Common.kt", "package sample\n\nfun common()  =  1\n", "src/commonMain/kotlin")
             playground.source("lang", "sample/Jvm.kt", "package sample\n\nfun jvm()  =  2\n", "src/jvmMain/kotlin")
-            playground.settings("group=com.varlanv.koper\nversion=0.0.1-SNAPSHOT\n")
+            playground.settings("group=com.varlanv.wrasse\nversion=0.1.0\n")
             playground.config("""{"format":{"enabled":true}}""")
 
             playground.run("clean")

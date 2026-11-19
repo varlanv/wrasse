@@ -16,7 +16,7 @@ Reproduce with `testing/wrasse-realworld-bench` (generator, `bench.sh`, `report.
 - Project setup is what a real project has: local build cache on, `kotlin.incremental=true`,
   in-process compiler, 8 GB daemon heap.
 - Tools, latest at the time, all with their defaults:
-  - wrasse `0.0.1-SNAPSHOT` (this repo at the report's commit), formatter on, every shipped rule on
+  - wrasse `0.1.0` (this repo at the report's commit), formatter on, every shipped rule on
     except `undocumented-public-*` and `forbidden-expression-body-functions`; that includes the
     FIR-backed rules (`no-unused-imports`, `no-unnecessary-fqn`, `named-arguments`,
     `forbidden-calls`), run as `compileKotlin -PwrasseCheck` (+ `wrasseApply` to format).

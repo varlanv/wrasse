@@ -1,6 +1,5 @@
 package com.varlanv.wrasse.plugin
 
-import com.varlanv.koper.lang.collection.calculateHashMapCapacity
 import com.varlanv.wrasse.lang.*
 import com.varlanv.wrasse.model.*
 import com.varlanv.wrasse.rules.*
@@ -132,7 +131,7 @@ internal object Static {
     internal val uninitializedRules = registeredRules.associateBy { it.id }
     internal val allRuleIds = uninitializedRules.keys + registeredRuleGroups.flatMap { it.ids }
 
-    internal val ruleOptionSpecs: Map<String, List<WRuleOptionSpec>> = HashMap<String, List<WRuleOptionSpec>>(calculateHashMapCapacity(128)).apply {
+    internal val ruleOptionSpecs: Map<String, List<WRuleOptionSpec>> = HashMap<String, List<WRuleOptionSpec>>(256).apply {
         for ((ruleId, rule) in uninitializedRules) put(ruleId, rule.options)
         for (group in registeredRuleGroups) for (ruleId in group.ids) put(ruleId, group.optionSpecs[ruleId] ?: emptyList())
     }

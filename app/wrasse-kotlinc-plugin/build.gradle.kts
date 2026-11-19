@@ -7,7 +7,6 @@ plugins {
 description = "Wrasse compiler plugin — the published JAR users add to kotlinCompilerPluginClasspath."
 
 dependencies {
-    implementation(libs.koper.lang)
     implementation(projects.libs.wrasseModel)
     implementation(projects.libs.wrasseKotlincAdapter)
     implementation(projects.libs.wrasseRules)
@@ -30,7 +29,6 @@ tasks.jar {
 
 tasks.shadowJar {
     archiveClassifier.set("")
-    relocate("com.varlanv.koper", "com.varlanv.wrasse.internal.shaded.koper")
     mergeServiceFiles()
 }
 

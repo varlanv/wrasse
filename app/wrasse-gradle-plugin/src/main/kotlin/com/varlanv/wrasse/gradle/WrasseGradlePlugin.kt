@@ -3,7 +3,10 @@ package com.varlanv.wrasse.gradle
 import java.io.File
 import java.net.URI
 import java.net.URLClassLoader
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.Callable
 import javax.inject.Inject
 import org.gradle.api.DefaultTask
@@ -11,8 +14,6 @@ import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.attributes.Category
-import org.gradle.api.attributes.Usage
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.Directory
 import org.gradle.api.file.DirectoryProperty
@@ -39,6 +40,7 @@ import org.gradle.tooling.events.task.TaskFinishEvent
 
 private const val PLUGIN_ID = "com.varlanv.wrasse"
 private const val GROUP = "wrasse"
+private const val BUNDLED_RESOURCE = "/wrasse/compiler-plugin.jar"
 private const val WRASSE_DIR = "wrasse"
 private const val PATCH_DIR = "patch"
 private const val PATCH_FILE = "wrasse-fixes.txt"
@@ -54,13 +56,12 @@ private val KOTLIN_PLUGIN_IDS =
  * `wrasse { }`: [enabled] runs the compiler plugin in every Kotlin compile (default true);
  * [warnOnly] keeps error-level findings from failing the compile itself, leaving `wrasseLint` as
  * the gate (default true); [configFile] is the `wrasse.json` the compiles depend on, found by
- * walking up from the project directory; [version] is the compiler plugin artifact version.
+ * walking up from the project directory.
  */
 abstract class WrasseExtension {
     abstract val enabled: Property<Boolean>
     abstract val warnOnly: Property<Boolean>
     abstract val configFile: RegularFileProperty
-    abstract val version: Property<String>
 }
 
 /**
@@ -79,24 +80,17 @@ class WrasseGradlePlugin @Inject constructor(
         val extension = project.extensions.create("wrasse", WrasseExtension::class.java)
         extension.enabled.convention(true)
         extension.warnOnly.convention(true)
-        extension.version.convention(WrasseVersion.VALUE)
         extension.configFile.convention(project.layout.file(project.provider { discoverConfig(project.projectDir) }))
 
-        val tool = project.configurations.register("wrasseTool") { config ->
-            config.isCanBeConsumed = false
-            config.isCanBeResolved = true
-            config.attributes { attributes ->
-                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
-                attributes.attribute(
-                    Category.CATEGORY_ATTRIBUTE,
-                    project.objects.named(Category::class.java, Category.LIBRARY),
-                )
-            }
-            config.defaultDependencies {
-                it.add(project.dependencies.create("com.varlanv.wrasse:compiler-plugin:${extension.version.get()}"))
-            }
+        val extract = project.tasks.register("wrasseExtractCompilerPlugin", WrasseExtractTask::class.java) { task ->
+            task.group = GROUP
+            task.description = "Unpacks the bundled wrasse compiler plugin into the shared Gradle user home cache"
+            task.sha256.set(BundledCompilerPlugin.SHA256)
+            task.target.set(
+                File(project.gradle.gradleUserHomeDir, "caches/wrasse/${BundledCompilerPlugin.SHA256}/wrasse-compiler-plugin.jar"),
+            )
         }
-        val toolClasspath = project.files(tool)
+        val toolClasspath = project.files(extract.flatMap { it.target }).builtBy(extract)
         val wrasseDir = project.layout.buildDirectory.dir(WRASSE_DIR)
         var wiredCompiles: TaskCollection<out Task>? = null
         val compilationDirs = wrasseDir.map { dir ->
@@ -164,7 +158,7 @@ class WrasseGradlePlugin @Inject constructor(
                 wired = true
                 val compiles = project.tasks.withType(compileClass)
                 wiredCompiles = compiles
-                wireCompiles(project, extension, wrasseDir, compiles)
+                wireCompiles(project, extension, wrasseDir, compiles, toolClasspath)
                 compiles.configureEach { it.mustRunAfter(formatRequest, lintRequest) }
                 lint.configure { task ->
                     task.dependsOn(compiles)
@@ -186,11 +180,9 @@ class WrasseGradlePlugin @Inject constructor(
         extension: WrasseExtension,
         wrasseDir: Provider<Directory>,
         compiles: TaskCollection<out Task>,
+        toolClasspath: FileCollection,
     ) {
-        project.dependencies.addProvider(
-            "kotlinCompilerPluginClasspath",
-            extension.version.map { "com.varlanv.wrasse:compiler-plugin:$it" },
-        )
+        project.dependencies.add("kotlinCompilerPluginClasspath", toolClasspath)
         val configChain = project.provider { configChain(extension.configFile.orNull?.asFile) }
         compiles.configureEach { compile ->
             if (isKaptStub(compile)) return@configureEach
@@ -231,6 +223,35 @@ class WrasseGradlePlugin @Inject constructor(
                     },
                 )
             }
+        }
+    }
+}
+
+@UntrackedTask(because = "Idempotent write into a cache shared by every project and build; an existing file is final")
+abstract class WrasseExtractTask : DefaultTask() {
+    @get:Input
+    abstract val sha256: Property<String>
+
+    @get:Internal
+    abstract val target: Property<File>
+
+    @TaskAction
+    fun extract() {
+        val file = target.get()
+        if (file.isFile) return
+        val resource = WrasseExtractTask::class.java.getResourceAsStream(BUNDLED_RESOURCE)
+            ?: throw GradleException("wrasse: bundled compiler plugin $BUNDLED_RESOURCE is missing from the Gradle plugin jar")
+        file.parentFile.mkdirs()
+        val temp = Files.createTempFile(file.parentFile.toPath(), "wrasse-compiler-plugin", ".tmp")
+        try {
+            resource.use { Files.copy(it, temp, StandardCopyOption.REPLACE_EXISTING) }
+            try {
+                Files.move(temp, file.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(temp, file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            Files.deleteIfExists(temp)
         }
     }
 }

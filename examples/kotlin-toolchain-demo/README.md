@@ -29,7 +29,7 @@ settings:
   kotlin:
     compilerPlugins:
       - id: com.varlanv.wrasse
-        dependency: com.varlanv.wrasse:compiler-plugin:0.0.1-SNAPSHOT
+        dependency: com.varlanv.wrasse:compiler-plugin:0.1.0
         options:
           warnOnly: true
           fixOutputDir: build/wrasse/app

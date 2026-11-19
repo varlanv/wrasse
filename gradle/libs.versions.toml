@@ -4,15 +4,14 @@ javaTargetVersion = "1.8"
 # JDK version used to compile
 javaToolchainVersion = "26"
 jmhPluginVersion = "0.7.3"
-koperVersion = "0.0.1-SNAPSHOT"
 kotestVersion = "6.2.5"
 kotlinVersion = "2.4.20"
+pluginPublishVersion = "2.0.0"
 shadowPluginVersion = "9.6.1"
 versionCatalogPluginVersion = "1.1.1"
-wrasseVersion = "0.0.1-SNAPSHOT"
+wrasseVersion = "0.1.0"
 
 [libraries]
-koper-lang = { module = "com.varlanv.koper:lang", version.ref = "koperVersion" }
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlinVersion" }
 kotlin-gradle-main = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlinVersion" }
 kotlin-kotest-assertions = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotestVersion" }
@@ -22,6 +21,7 @@ org-json = "org.json:json:20260814"
 wrasse-compiler-plugin = { module = "com.varlanv.wrasse:compiler-plugin", version.ref = "wrasseVersion" }
 
 [plugins]
+pluginPublish = { id = "com.gradle.plugin-publish", version.ref = "pluginPublishVersion" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadowPluginVersion" }
 internalConvention = { id = "com.varlanv.wrasse.gradle.internal-gradle-convention-plugin" }
 jmhPlugin = { id = "me.champeau.jmh", version.ref = "jmhPluginVersion" }

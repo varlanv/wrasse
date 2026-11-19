@@ -32,8 +32,9 @@ Build/test via the Gradle wrapper only (`./gradlew`, never a bare `gradle`).
                                       # if check just ran), then apply the emitted patch (wrasseApply)
 ./gradlew :internal-convention-plugin:test   # build-logic tests (TestKit) — a separate included build,
                                               # NOT reached by the root `build`/`test` tasks above; run explicitly
-./gradlew :app:wrasse-gradle-plugin:test     # functional (TestKit) suite of the published Gradle plugin; publishes
-                                              # the compiler plugin to mavenLocal first, no unit tests by design
+./gradlew :app:wrasse-gradle-plugin:test     # functional (TestKit) suite of the published Gradle plugin; the compiler
+                                              # plugin shadow jar is embedded in the plugin jar, no unit tests by design
+./gradlew :app:wrasse-gradle-plugin:publishPlugins   # publish to the Gradle Plugin Portal (non-SNAPSHOT version, portal key/secret)
 ```
 
 - `-Prepublish` on `wrasseLint`/`wrasseFix` forces `publishToMavenLocal` first — needed after changing
@@ -106,7 +107,8 @@ app/
   wrasse-kotlinc-internal-k20 / -k22   version-specific FIR registrar shells, selected at runtime
   wrasse-gradle-plugin/     the Gradle plugin consumers apply (id `com.varlanv.wrasse`, artifact
                             `wrasse-gradle-plugin`): ONE Kotlin file, per-project only (parallel, configuration
-                            cache and isolated projects safe), reaches KGP's compile tasks reflectively; adds
+                            cache and isolated projects safe), embeds the compiler-plugin shadow jar as a resource and unpacks it once per machine into
+                            `<gradleUserHome>/caches/wrasse/<sha256>/` (`wrasseExtractCompilerPlugin`); reaches KGP's compile tasks reflectively; adds
                             wrasseLint / wrasseFormat / wrasseApply and replays `patch/wrasse-report.txt`.
                             Its own wrasse `-P` args are added once the project is evaluated — immediately when
                             it already is, so a consumer that applies Kotlin or wrasse from its own

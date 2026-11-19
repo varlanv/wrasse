@@ -19,7 +19,7 @@ kotlin {
 val wrassePlugin: Configuration by configurations.creating
 
 dependencies {
-    wrassePlugin("com.varlanv.wrasse:compiler-plugin:0.0.1-SNAPSHOT")
+    wrassePlugin("com.varlanv.wrasse:compiler-plugin:0.1.0")
 }
 
 val wrasseCheck = providers.gradleProperty("wrasseCheck").isPresent

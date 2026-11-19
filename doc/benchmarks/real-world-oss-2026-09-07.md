@@ -9,7 +9,7 @@ wrasse wired in. Reproduce with the runner described at the bottom (`oss-trial/p
   Kotlin toolchain is whatever each project's build resolves from the same fixed JDK list
   (Temurin 21 for both). Two unrelated Gradle daemons (~9 GB RSS, other projects) were running on
   the machine throughout and were never sampled or stopped.
-- wrasse `0.0.1-SNAPSHOT` from `~/.m2` (repo commit `d67876a`, jars published 09:01 the same day),
+- wrasse `0.1.0` from `~/.m2` (repo commit `d67876a`, jars published 09:01 the same day),
   applied through the Gradle plugin `com.varlanv.wrasse` (`wrasseLint` / `wrasseFormat`), with the
   same `wrasse.json` for both projects: `format.enabled=true` plus 16 rules
   (`no-semicolons`, `named-arguments`, `no-wildcard-imports`, `trailing-newline`,

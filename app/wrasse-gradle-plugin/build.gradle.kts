@@ -1,12 +1,13 @@
+import java.security.MessageDigest
 import kotlin.jvm.optionals.getOrNull
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
     `java-gradle-plugin`
-    `maven-publish`
+    alias(libs.plugins.pluginPublish)
 }
 
-description = "Wrasse Gradle plugin — wires the compiler plugin into every Kotlin compile and adds wrasseLint/wrasseFormat/wrasseApply."
+description = "Wrasse Gradle plugin — applies Wrasse formatter&linter tool as kotlin compiler plugin into every Kotlin compile task"
 
 val catalog = versionCatalogs.named("libs")
 val javaToolchainVersion = catalog.findVersion("javaToolchainVersion").getOrNull()!!.requiredVersion
@@ -46,32 +47,50 @@ tasks.withType<JavaCompile>().configureEach {
     }
 }
 
-val generateWrasseVersion by tasks.registering {
-    val version = project.version.toString()
-    val outDir = layout.buildDirectory.dir("generated/wrasse-version")
-    inputs.property("version", version)
+val compilerPluginJar = configurations.create("compilerPluginJar") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+val generateBundledCompilerPlugin = tasks.register("generateBundledCompilerPlugin") {
+    val jars = compilerPluginJar
+    val outDir = layout.buildDirectory.dir("generated/wrasse-bundled")
+    inputs.files(jars)
     outputs.dir(outDir)
     doLast {
-        val file = outDir.get().file("com/varlanv/wrasse/gradle/WrasseVersion.kt").asFile
+        val digest = MessageDigest.getInstance("SHA-256").digest(jars.singleFile.readBytes())
+        val sha256 = digest.joinToString("") { byte -> "%02x".format(byte) }
+        val file = outDir.get().file("com/varlanv/wrasse/gradle/BundledCompilerPlugin.kt").asFile
         file.parentFile.mkdirs()
-        file.writeText("package com.varlanv.wrasse.gradle\n\ninternal object WrasseVersion {\n    const val VALUE = \"$version\"\n}\n")
+        file.writeText("package com.varlanv.wrasse.gradle\n\ninternal object BundledCompilerPlugin {\n    const val SHA256 = \"$sha256\"\n}\n")
     }
 }
-kotlin.sourceSets.named("main") { kotlin.srcDir(generateWrasseVersion) }
+kotlin.sourceSets.named("main") { kotlin.srcDir(generateBundledCompilerPlugin) }
+
+tasks.processResources {
+    from(compilerPluginJar) {
+        rename { "compiler-plugin.jar" }
+        into("wrasse")
+    }
+}
 
 dependencies {
+    compilerPluginJar(project(path = ":app:wrasse-kotlinc-plugin", configuration = "shadowRuntimeElements"))
     testImplementation(gradleTestKit())
     testImplementation(libs.kotlin.kotest.assertions)
     testImplementation(libs.kotlin.kotest.junit5Runner)
 }
 
 gradlePlugin {
+    website.set("https://github.com/varlanv/wrasse")
+    vcsUrl.set("https://github.com/varlanv/wrasse.git")
     plugins {
         create("wrasse") {
             id = "com.varlanv.wrasse"
             implementationClass = "com.varlanv.wrasse.gradle.WrasseGradlePlugin"
             displayName = "Wrasse"
             description = project.description
+            tags.set(listOf("kotlin", "lint", "format", "linter", "formatter"))
         }
     }
 }
@@ -84,14 +103,29 @@ tasks.test {
     }
     systemProperty("wrasse.kotlinVersion", kotlinVersion)
     outputs.upToDateWhen { false }
-    dependsOn(
-        ":libs:wrasse-lang:publishToMavenLocal",
-        ":libs:wrasse-model:publishToMavenLocal",
-        ":libs:wrasse-rules:publishToMavenLocal",
-        ":libs:wrasse-format:publishToMavenLocal",
-        ":libs:wrasse-kotlinc-adapter:publishToMavenLocal",
-        ":app:wrasse-kotlinc-internal-k20:publishToMavenLocal",
-        ":app:wrasse-kotlinc-internal-k22:publishToMavenLocal",
-        ":app:wrasse-kotlinc-plugin:publishToMavenLocal",
-    )
+}
+
+publishing {
+    publications.withType<MavenPublication>().configureEach {
+        pom {
+            name.set("Wrasse")
+            description.set(project.description)
+            url.set("https://github.com/varlanv/wrasse")
+            licenses {
+                license {
+                    name.set("MIT License")
+                    url.set("https://opensource.org/licenses/MIT")
+                }
+            }
+            developers {
+                developer {
+                    name.set("Vladyslav Varlan")
+                }
+            }
+            scm {
+                url.set("https://github.com/varlanv/wrasse")
+                connection.set("scm:git:https://github.com/varlanv/wrasse.git")
+            }
+        }
+    }
 }
