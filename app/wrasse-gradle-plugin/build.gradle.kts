@@ -1,4 +1,5 @@
 import java.security.MessageDigest
+import org.gradle.plugin.compatibility.compatibility
 import kotlin.jvm.optionals.getOrNull
 
 plugins {
@@ -91,6 +92,12 @@ gradlePlugin {
             displayName = "Wrasse"
             description = project.description
             tags.set(listOf("kotlin", "lint", "format", "linter", "formatter"))
+            compatibility {
+                features {
+                    configurationCache.set(true)
+                    isolatedProjects.set(true)
+                }
+            }
         }
     }
 }
