@@ -4,10 +4,13 @@ import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.model.FormatStyle
 import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
+import com.varlanv.wrasse.model.WCallArgument
+import com.varlanv.wrasse.model.WCallSite
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFormatConfig
 import com.varlanv.wrasse.model.WNodeType
 import com.varlanv.wrasse.model.WReporter
+import com.varlanv.wrasse.model.WResolvedUsage
 import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.testing.BaseSpec
@@ -409,6 +412,368 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
         render(builder, ctx) shouldBe "(\n    veryLongArgOne,\n    veryLongArgTwo,\n)"
+    }
+
+    fun varargCallSite(
+        argumentCount: Int,
+        parameterCount: Int = 1,
+    ) = WCallSite(
+        callStartOffset = 0,
+        callEndOffset = LIST_END,
+        calleePackageFqName = "sample",
+        calleeClassFqName = null,
+        calleeName = "f",
+        hasStableParameterNames = true,
+        arguments = List(argumentCount) { WCallArgument(it * 2 + 1, it * 2 + 2, "xs", isVararg = true) },
+        parameterCount = parameterCount,
+        hasOnlyVarargParameter = parameterCount == 1,
+    )
+
+    fun resolvedUsageOf(
+        vararg sites: WCallSite,
+    ) = WResolvedUsage(
+        classifiers = emptySet(),
+        callables = emptySet(),
+        hasResolutionErrors = false,
+        resolvedImports = emptyList(),
+        callSites = sites.toList(),
+    )
+
+    fun renderCall(
+        usage: WResolvedUsage?,
+        args: List<String>,
+        spreadFirst: Boolean = false,
+    ): String {
+        val builder = DocBuilder(formatConfig(maxLineLength = 15))
+        val ctx = WContext(filePath = "test.kt")
+        ctx.resolvedUsage = usage
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT_LIST })
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        args.forEachIndexed { index, arg ->
+            if (index > 0) {
+                leaf(builder, ctx, WNodeType.COMMA, ",")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+            }
+            builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+            if (spreadFirst && index == 0) leaf(builder, ctx, WNodeType.MUL, "*")
+            leaf(builder, ctx, WNodeType.IDENTIFIER, arg)
+            builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        }
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(
+            ctx.apply {
+                type = WNodeType.VALUE_ARGUMENT_LIST
+                startOffset = 0
+                endOffset = LIST_END
+            },
+        )
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+        return render(builder, ctx)
+    }
+
+    should("fill the elements of a broken argument list whose call resolves to a lone vararg parameter") {
+        val usage = resolvedUsageOf(varargCallSite(argumentCount = 3))
+
+        renderCall(usage, listOf("aaaa", "bbbb", "cccc")) shouldBe "(\n    aaaa, bbbb,\n    cccc,\n)"
+    }
+
+    should("keep one argument per line when no resolved call matches the argument list") {
+        renderCall(null, listOf("aaaa", "bbbb", "cccc")) shouldBe "(\n    aaaa,\n    bbbb,\n    cccc,\n)"
+    }
+
+    should("keep one argument per line when the callee declares a parameter besides the vararg") {
+        val usage = resolvedUsageOf(varargCallSite(argumentCount = 3, parameterCount = 2))
+
+        renderCall(usage, listOf("aaaa", "bbbb", "cccc")) shouldBe "(\n    aaaa,\n    bbbb,\n    cccc,\n)"
+    }
+
+    should("keep one argument per line when an argument is spread") {
+        val usage = resolvedUsageOf(varargCallSite(argumentCount = 3))
+
+        renderCall(usage, listOf("aaaa", "bbbb", "cccc"), spreadFirst = true) shouldBe
+            "(\n    *aaaa,\n    bbbb,\n    cccc,\n)"
+    }
+
+    should("keep a fitting argument list of a lone vararg call on one line") {
+        val usage = resolvedUsageOf(varargCallSite(argumentCount = 3))
+
+        renderCall(usage, listOf("a", "b", "c")) shouldBe "(a, b, c)"
+    }
+
+    fun matrixSite(
+        argumentCount: Int,
+        hasOnlyVarargParameter: Boolean = true,
+        callEnd: Int = LIST_END,
+    ) = WCallSite(
+        callStartOffset = 0,
+        callEndOffset = callEnd,
+        calleePackageFqName = "sample",
+        calleeClassFqName = null,
+        calleeName = "table",
+        hasStableParameterNames = true,
+        arguments = List(argumentCount) { WCallArgument(it * 2 + 1, it * 2 + 2, "xs", isVararg = true) },
+        parameterCount = if (hasOnlyVarargParameter) 1 else 2,
+        hasOnlyVarargParameter = hasOnlyVarargParameter,
+    )
+
+    class MatrixRun(val rendered: String, val ctx: WContext) {
+        val directive get() = ctx.matrixDirectives.all().single()
+    }
+
+    fun plainArgument(
+        builder: DocBuilder,
+        ctx: WContext,
+        text: String,
+    ) {
+        builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        leaf(builder, ctx, WNodeType.IDENTIFIER, text)
+        builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+    }
+
+    fun plainArguments(vararg texts: String): List<(DocBuilder, WContext) -> Unit> = texts.map { text ->
+        { builder: DocBuilder, ctx: WContext -> plainArgument(builder, ctx, text) }
+    }
+
+    fun matrixCall(
+        directiveText: String?,
+        arguments: List<(DocBuilder, WContext) -> Unit>,
+        site: WCallSite? = matrixSite(arguments.size),
+        trailingLambda: Boolean = false,
+        trailingCommas: Boolean = true,
+        regionOverDirective: Boolean = false,
+        separator: (DocBuilder, WContext) -> Unit = { _, _ -> },
+    ): MatrixRun {
+        val builder = DocBuilder(formatConfig(maxLineLength = 15, trailingCommas = trailingCommas))
+        val ctx = WContext(filePath = "test.kt")
+        ctx.resolvedUsage = site?.let { resolvedUsageOf(it) }
+        val listStart = (directiveText?.length ?: 0) + 2
+        if (directiveText != null) {
+            ctx.matrixDirectives.add(directiveText, 0, directiveText.length, 0, "$directiveText\ntable(x)")
+        }
+        if (regionOverDirective) ctx.formatRegions.addSpan(0, 5)
+        builder.enterNode(ctx.apply { type = WNodeType.FILE })
+        builder.enterNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
+        builder.enterNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        ctx.startOffset = CALLEE_START
+        ctx.endOffset = CALLEE_START + 5
+        leaf(builder, ctx, WNodeType.IDENTIFIER, "table")
+        builder.exitNode(ctx.apply { type = WNodeType.REFERENCE_EXPRESSION })
+        builder.enterNode(
+            ctx.apply {
+                type = WNodeType.VALUE_ARGUMENT_LIST
+                startOffset = listStart
+                endOffset = LIST_END
+            },
+        )
+        leaf(builder, ctx, WNodeType.LPAR, "(")
+        separator(builder, ctx)
+        arguments.forEachIndexed { index, argument ->
+            if (index > 0) {
+                leaf(builder, ctx, WNodeType.COMMA, ",")
+                leaf(builder, ctx, WNodeType.WHITE_SPACE, " ")
+            }
+            argument(builder, ctx)
+        }
+        leaf(builder, ctx, WNodeType.RPAR, ")")
+        builder.exitNode(
+            ctx.apply {
+                type = WNodeType.VALUE_ARGUMENT_LIST
+                startOffset = listStart
+                endOffset = LIST_END
+            },
+        )
+        if (trailingLambda) {
+            builder.enterNode(ctx.apply { type = WNodeType.LAMBDA_ARGUMENT })
+            leaf(builder, ctx, WNodeType.LBRACE, "{")
+            leaf(builder, ctx, WNodeType.RBRACE, "}")
+            builder.exitNode(ctx.apply { type = WNodeType.LAMBDA_ARGUMENT })
+        }
+        builder.exitNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
+        builder.exitNode(ctx.apply { type = WNodeType.FILE })
+        ctx.sourceText = "x".repeat(LIST_END)
+        val recorder = RecordingReporter()
+        builder.finish(ctx, recorder)
+        return MatrixRun(recorder.lastEdit?.replacement ?: error("DocBuilder reported no edit"), ctx)
+    }
+
+    val directive2 = "// wrasse matrix:2"
+
+    should("lay the arguments of a claimed vararg call out in aligned rows of the directive size") {
+        val run = matrixCall(directive2, plainArguments("aa", "b", "c", "ddd"))
+
+        run.rendered shouldBe "table(\n    aa, b,\n    c,  ddd,\n)"
+        run.directive.claimed shouldBe true
+        run.directive.failure shouldBe null
+    }
+
+    should("lay a matrix out although the list would fit on one line") {
+        val run = matrixCall("// wrasse matrix:2", plainArguments("a", "b"))
+
+        run.rendered shouldBe "table(\n    a, b,\n)"
+    }
+
+    should("lay a matrix out of one row when the size equals the argument count") {
+        matrixCall("// wrasse matrix:4", plainArguments("a", "bb", "c", "d")).rendered shouldBe
+            "table(\n    a, bb, c, d,\n)"
+    }
+
+    should("end the last row without a comma when trailing commas are off") {
+        matrixCall(directive2, plainArguments("a", "b", "c", "d"), trailingCommas = false).rendered shouldBe
+            "table(\n    a, b,\n    c, d\n)"
+    }
+
+    should("keep an empty argument list empty and skip the count checks") {
+        val empty = matrixCall("// wrasse matrix:7", emptyList(), site = matrixSite(0))
+
+        empty.rendered shouldBe "table()"
+        empty.directive.failure shouldBe null
+    }
+
+    should("join an empty argument list written over several lines") {
+        val run = matrixCall(
+            directive2,
+            emptyList(),
+            site = matrixSite(0),
+            separator = { builder, ctx -> leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n  ") },
+        )
+
+        run.rendered shouldBe "table()"
+    }
+
+    should("keep the ordinary layout of a call nothing targets") {
+        matrixCall(null, plainArguments("aa", "b")).rendered shouldBe "table(aa, b)"
+    }
+
+    should("record each way a directive is rejected and leave the call to the ordinary layout") {
+        fun failureOf(
+            arguments: List<(DocBuilder, WContext) -> Unit>,
+            site: WCallSite? = matrixSite(arguments.size),
+            trailingLambda: Boolean = false,
+            directiveText: String = directive2,
+        ): String? = matrixCall(directiveText, arguments, site, trailingLambda).directive.failure
+
+        val four = plainArguments("a", "b", "c", "d")
+        val target = matrixCall(directive2, four).directive
+
+        failureOf(four, site = null) shouldBe MatrixMessages.unresolvedCallee(target)
+        failureOf(four, site = matrixSite(4, hasOnlyVarargParameter = false)) shouldBe
+            MatrixMessages.notSingleVarargCallee(target, "table")
+        failureOf(four, trailingLambda = true) shouldBe MatrixMessages.trailingLambda(target)
+        failureOf(four, site = matrixSite(4, callEnd = LIST_END + 5)) shouldBe MatrixMessages.unresolvedCallee(target)
+        failureOf(plainArguments("a", "b", "c")) shouldBe MatrixMessages.countNotDivisible(target, 2, 3)
+        failureOf(plainArguments("a")) shouldBe MatrixMessages.sizeExceedsCount(target, 2, 1)
+        failureOf(four, directiveText = "// wrasse matrix:abc") shouldBe
+            MatrixMessages.sizeProblem(matrixCall("// wrasse matrix:abc", four).directive)
+    }
+
+    should("reject a spread argument") {
+        val spread = { builder: DocBuilder, ctx: WContext ->
+            builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+            leaf(builder, ctx, WNodeType.MUL, "*")
+            leaf(builder, ctx, WNodeType.IDENTIFIER, "xs")
+            builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        }
+        val run = matrixCall(directive2, listOf(spread) + plainArguments("b"))
+
+        run.directive.failure shouldBe MatrixMessages.spreadArgument(run.directive)
+    }
+
+    should("reject a named argument") {
+        val named = { builder: DocBuilder, ctx: WContext ->
+            builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+            leaf(builder, ctx, WNodeType.IDENTIFIER, "xs")
+            leaf(builder, ctx, WNodeType.EQ, "=")
+            leaf(builder, ctx, WNodeType.IDENTIFIER, "a")
+            builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        }
+        val run = matrixCall(directive2, listOf(named) + plainArguments("b"))
+
+        run.directive.failure shouldBe MatrixMessages.namedArgument(run.directive)
+    }
+
+    should("reject a comment between the arguments") {
+        val comment = { builder: DocBuilder, ctx: WContext ->
+            leaf(builder, ctx, WNodeType.BLOCK_COMMENT, "/* c */")
+        }
+        val run = matrixCall(directive2, plainArguments("a") + comment + plainArguments("b"))
+
+        run.directive.failure shouldBe MatrixMessages.comment(run.directive)
+    }
+
+    should("reject an element that cannot be rendered on one line") {
+        val multiline = { builder: DocBuilder, ctx: WContext ->
+            builder.enterNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+            builder.enterNode(ctx.apply { type = WNodeType.BLOCK })
+            leaf(builder, ctx, WNodeType.IDENTIFIER, "a")
+            leaf(builder, ctx, WNodeType.WHITE_SPACE, "\n    ")
+            leaf(builder, ctx, WNodeType.IDENTIFIER, "b")
+            builder.exitNode(ctx.apply { type = WNodeType.BLOCK })
+            builder.exitNode(ctx.apply { type = WNodeType.VALUE_ARGUMENT })
+        }
+        val run = matrixCall(directive2, listOf(multiline) + plainArguments("c"))
+
+        run.directive.failure shouldBe MatrixMessages.multilineElement(run.directive)
+    }
+
+    should("keep a rejected call's argument list verbatim by adding its span as a region") {
+        val run = matrixCall(directive2, plainArguments("a", "b", "c"))
+
+        run.ctx.formatRegions.all().map { it.start to it.end } shouldBe listOf(directive2.length + 2 to LIST_END)
+    }
+
+    should("add no region for an accepted call") {
+        matrixCall(directive2, plainArguments("a", "b", "c", "d")).ctx.formatRegions.isEmpty shouldBe true
+    }
+
+    should("ignore a directive lying inside a fmt:off region and lay the call out the ordinary way") {
+        val run = matrixCall("// wrasse matrix:abc", plainArguments("aa", "b"), regionOverDirective = true)
+
+        run.rendered shouldBe "table(aa, b)"
+        run.directive.failure shouldBe null
+    }
+
+    should("lay a matrix out from a call claimed by the directive in front of it only once") {
+        val run = matrixCall(directive2, plainArguments("a", "b", "c", "d"))
+
+        run.ctx.matrixDirectives.claim(directive2.length + 2) shouldBe null
+    }
+
+    should("leave a line comment that would turn into a directive when normalized exactly as written") {
+        fun renderComment(text: String): String {
+            val builder = DocBuilder(formatConfig())
+            val ctx = WContext(filePath = "test.kt")
+            builder.enterNode(ctx.apply { type = WNodeType.FILE })
+            leaf(builder, ctx, WNodeType.EOL_COMMENT, text)
+            builder.exitNode(ctx.apply { type = WNodeType.FILE })
+            return render(builder, ctx)
+        }
+
+        listOf(
+            "//wrasse matrix:2",
+            "//wrasse matrix:",
+            "//wrasse matrix:abc",
+            "//wrasse fmt:off",
+            "//wrasse fmt:on",
+        ).forEach { text -> renderComment(text) shouldBe text }
+    }
+
+    should("still normalize a line comment that does not turn into a directive") {
+        fun renderComment(text: String): String {
+            val builder = DocBuilder(formatConfig())
+            val ctx = WContext(filePath = "test.kt")
+            builder.enterNode(ctx.apply { type = WNodeType.FILE })
+            leaf(builder, ctx, WNodeType.EOL_COMMENT, text)
+            builder.exitNode(ctx.apply { type = WNodeType.FILE })
+            return render(builder, ctx)
+        }
+
+        renderComment("//wrasse matrixes") shouldBe "// wrasse matrixes"
+        renderComment("//wrasse fmt:off because") shouldBe "// wrasse fmt:off because"
+        renderComment("//wrasse  matrix:2") shouldBe "// wrasse  matrix:2"
+        renderComment("//Wrasse matrix:2") shouldBe "// Wrasse matrix:2"
+        renderComment("//wrasse matrix 2") shouldBe "// wrasse matrix 2"
+        renderComment("// wrasse matrix:2") shouldBe "// wrasse matrix:2"
     }
 
     should("preserve an existing trailing comma without inserting a duplicate break before the closing paren") {
@@ -2740,6 +3105,10 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "\"\"\"\n    line one\n    \"\"\".trimIndent()\n    .uppercase()"
     }
 })
+
+private const val LIST_END = 100
+
+private const val CALLEE_START = 50
 
 private val noopReporter = object : WReporter {
     override val reports = mutableListOf<ViolationReport>()

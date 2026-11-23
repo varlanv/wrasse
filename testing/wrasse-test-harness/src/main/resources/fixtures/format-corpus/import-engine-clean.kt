@@ -36,10 +36,7 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
  */
 class ImportEngine : WUninitializedRuleGroup {
     override val ids: Set<String> = setOf(
-        NO_UNUSED_IMPORTS_ID,
-        NO_WILDCARD_IMPORTS_ID,
-        IMPORT_ORDERING_ID,
-        NO_UNNECESSARY_FQN_ID,
+        NO_UNUSED_IMPORTS_ID, NO_WILDCARD_IMPORTS_ID, IMPORT_ORDERING_ID, NO_UNNECESSARY_FQN_ID,
     )
 
     override val canAutofix: Boolean = true

@@ -290,4 +290,66 @@ class EditPlanSpec : BaseSpec({
         edits shouldHaveSize 5_000
         plan.droppedEdits() shouldHaveSize 5_000
     }
+
+    should("drop every edit intersecting a format region together with the rest of its group") {
+        val regions = FormatRegions()
+        regions.add(FormatDirective.OFF, 20, 37)
+        regions.add(FormatDirective.ON, 40, 56)
+        val plan = EditPlan()
+        val outsideGroup = plan.newGroupId()
+        plan.add("outside", WEdit(2, 3, "a"), outsideGroup)
+        val straddlingGroup = plan.newGroupId()
+        plan.add("straddling", WEdit(5, 5, "open"), straddlingGroup, 2)
+        plan.add("straddling", WEdit(30, 30, "close"), straddlingGroup, 2)
+        val insideGroup = plan.newGroupId()
+        plan.add("inside", WEdit(25, 26, "b"), insideGroup)
+
+        plan.dropIntersecting(regions)
+        val edits = plan.finalEdits()
+
+        edits.map { it.replacement } shouldBe listOf("a")
+        plan.survivingGroupIds() shouldBe setOf(outsideGroup)
+        plan.droppedEdits().map { Triple(it.ruleId, it.startOffset, it.endOffset) } shouldBe
+            listOf(Triple("straddling", 5, 5), Triple("inside", 25, 26), Triple("straddling", 30, 30))
+    }
+
+    should("keep edits touching a format region only at its boundary") {
+        val regions = FormatRegions()
+        regions.add(FormatDirective.OFF, 20, 37)
+        regions.add(FormatDirective.ON, 40, 56)
+        val plan = EditPlan()
+        plan.add("before", WEdit(10, 20, "a"))
+        plan.add("after", WEdit(56, 60, "b"))
+        plan.add("insertion-after", WEdit(56, 56, "c"))
+
+        plan.dropIntersecting(regions)
+
+        plan.finalEdits().map { it.replacement } shouldBe listOf("a", "c", "b")
+        plan.droppedEdits().shouldBeEmpty()
+    }
+
+    should("no longer count a group merged into a dropped identical edit as surviving") {
+        val regions = FormatRegions()
+        regions.add(FormatDirective.OFF, 0, 17)
+        regions.add(FormatDirective.ON, 20, 36)
+        val plan = EditPlan()
+        val firstGroup = plan.newGroupId()
+        plan.add("first", WEdit(5, 6, "x"), firstGroup)
+        val secondGroup = plan.newGroupId()
+        plan.add("second", WEdit(5, 6, "x"), secondGroup)
+
+        plan.dropIntersecting(regions)
+
+        plan.finalEdits().shouldBeEmpty()
+        plan.survivingGroupIds() shouldBe emptySet()
+    }
+
+    should("leave the plan untouched when no format region exists") {
+        val plan = EditPlan()
+        plan.add("rule", WEdit(5, 6, "x"))
+
+        plan.dropIntersecting(FormatRegions())
+
+        plan.finalEdits().map { it.replacement } shouldBe listOf("x")
+    }
 })

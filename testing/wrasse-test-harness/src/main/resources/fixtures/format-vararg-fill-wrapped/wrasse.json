@@ -1,0 +1,6 @@
+{
+    "format": { "enabled": true, "maxLineLength": 40 },
+    "rules": {
+        "named-arguments": { "level": "error", "threshold": 99 }
+    }
+}

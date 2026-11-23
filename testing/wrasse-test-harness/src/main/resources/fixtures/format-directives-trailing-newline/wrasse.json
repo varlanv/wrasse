@@ -1,0 +1,6 @@
+{
+    "format": { "enabled": true },
+    "rules": {
+        "trailing-newline": { "level": "error" }
+    }
+}

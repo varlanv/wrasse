@@ -91,6 +91,7 @@ class EditPlan {
     private var lastSurvivingGroupIds: Set<Int> = emptySet()
     private var absorbedGroupIds: Set<Int> = emptySet()
     private val multiEditGroups = HashSet<Int>()
+    private val mergedInto = HashMap<Int, Int>()
 
     /** A fresh id for grouping every edit of one [WReporter.report] call under [add]'s [groupId] parameter. */
     fun newGroupId(): Int = nextGroupId++
@@ -122,6 +123,7 @@ class EditPlan {
                 (groupId !in multiEditGroups && existing.groupId !in multiEditGroups)
             if (safeToMerge && existing.edit.replacement == edit.replacement) {
                 absorbedGroupIds = absorbedGroupIds + groupId
+                mergedInto[groupId] = existing.groupId
                 return
             }
             probe++
@@ -143,6 +145,24 @@ class EditPlan {
     /** Puts back entries previously removed by [takeAll], verbatim, when a consumer declines them. */
     fun restore(taken: List<Entry>) {
         entries.addAll(taken)
+    }
+
+    /**
+     * Drops every collected edit whose span [FormatRegions.intersects] one of [regions], together
+     * with every other edit of its group — a group is never applied partially. The finding that
+     * produced a dropped edit stays reported; its group no longer counts as surviving.
+     */
+    fun dropIntersecting(regions: FormatRegions) {
+        if (regions.isEmpty) return
+        val doomed = entries
+            .filter { regions.intersects(it.edit.startOffset, it.edit.endOffset) }
+            .mapTo(HashSet()) { it.groupId }
+        if (doomed.isEmpty()) return
+        val (gone, kept) = entries.partition { it.groupId in doomed }
+        entries.clear()
+        entries.addAll(kept)
+        lastDropped = lastDropped + gone.map { Dropped(it.ruleId, it.edit.startOffset, it.edit.endOffset) }
+        absorbedGroupIds = absorbedGroupIds.filterNotTo(HashSet()) { mergedInto[it] in doomed }
     }
 
     /** Whether any collected edit lying within `[startOffset, endOffset]` inserts a line break. */

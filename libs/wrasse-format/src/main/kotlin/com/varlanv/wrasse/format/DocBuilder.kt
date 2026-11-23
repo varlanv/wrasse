@@ -7,6 +7,8 @@ import com.varlanv.wrasse.lang.containsChar
 import com.varlanv.wrasse.lang.indexOfChar
 import com.varlanv.wrasse.lang.lastIndexOfChar
 import com.varlanv.wrasse.model.EditPlan
+import com.varlanv.wrasse.model.FormatDirective
+import com.varlanv.wrasse.model.MatrixDirective
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFormatConfig
 import com.varlanv.wrasse.model.WNodeType
@@ -101,6 +103,23 @@ private val COLON_WANTS_SPACE_BOTH_SIDES = WNodeTypeSet.containing(
     WNodeType.TYPE_CONSTRAINT,
 )
 
+private enum class ArgumentForm {
+    PLAIN,
+    SPREAD,
+    NAMED,
+}
+
+private class MatrixList(
+    val directive: MatrixDirective,
+    val start: Int,
+    val end: Int,
+    val argumentCount: Int,
+    val unsupported: String?,
+    val columns: Int?,
+) {
+    var doc: Doc? = null
+}
+
 /**
  * The privileged stream consumer that turns the SAX walk into a [Doc] tree, one `when (ctx.type)`
  * decision at a time. Registered alongside ordinary rules so it rides the same single walk; never
@@ -128,6 +147,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     private var editPlan: EditPlan? = null
     private var templateEntryDepth = 0
     private var rootDoc: Doc = Doc.Concat(emptyList())
+    private var varargCalls = VarargCallIndex.EMPTY
 
     override fun visitLeaf(ctx: WContext, reporter: WReporter) {
         val text: CharSequence = ctx.leafText ?: ""
@@ -135,7 +155,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             WNodeType.WHITE_SPACE if text.containsChar('\n') -> ChildEntry.Ws(text, ctx.startOffset)
             WNodeType.EOL_COMMENT -> ChildEntry.Resolved(
                 ctx.type,
-                Doc.Text(normalizeEolCommentText(text), ctx.startOffset, ctx.endOffset),
+                Doc.Text(normalizeUnlessDirective(text), ctx.startOffset, ctx.endOffset),
             )
 
             WNodeType.KDOC, WNodeType.BLOCK_COMMENT -> ChildEntry.Resolved(
@@ -162,6 +182,13 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         text.startsWith("// ") -> text
         EOL_COMMENT_EXEMPT_PREFIXES.any { text.startsWith(it) } -> text
         else -> "// " + text.removePrefix("//")
+    }
+
+    private fun normalizeUnlessDirective(text: CharSequence): CharSequence {
+        val normalized = normalizeEolCommentText(text)
+        val becomesDirective = normalized !== text &&
+            (FormatDirective.parse(normalized) != null || MatrixDirective.isDirectiveText(normalized))
+        return if (becomesDirective) text else normalized
     }
 
     /** Width of the leading whitespace on the line [offset] sits on in [source]. */
@@ -227,8 +254,21 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     override fun enterNode(ctx: WContext) {
+        if (frames.isEmpty()) {
+            varargCalls = ctx.resolvedUsage?.let { VarargCallIndex.build(it.callSites) } ?: VarargCallIndex.EMPTY
+        }
         if (ctx.type == WNodeType.LONG_STRING_TEMPLATE_ENTRY) templateEntryDepth++
-        frames.addLast(Frame(ctx.type))
+        val frame = Frame(ctx.type)
+        if (ctx.type == WNodeType.VALUE_ARGUMENT_LIST && frames.lastOrNull()?.type == WNodeType.CALL_EXPRESSION) {
+            frame.matrixDirective = claimMatrixDirective(ctx)
+        }
+        frames.addLast(frame)
+    }
+
+    private fun claimMatrixDirective(ctx: WContext): MatrixDirective? {
+        if (ctx.matrixDirectives.isEmpty) return null
+        val directive = ctx.matrixDirectives.claim(ctx.startOffset) ?: return null
+        return directive.takeUnless { it.isInside(ctx.formatRegions) }
     }
 
     override fun exitNode(ctx: WContext) {
@@ -236,6 +276,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val frame = frames.removeLast()
         if (frame.type == WNodeType.LONG_STRING_TEMPLATE_ENTRY) templateEntryDepth--
         if (frame.type == WNodeType.BLOCK) frame.branchOfMultilineIf = isBranchOfMultilineIf(ctx)
+        if (frame.type == WNodeType.CALL_EXPRESSION) settleMatrix(frame, ctx)
         val parentType = frames.lastOrNull()?.type
         val doc = resolveFrame(frame, ctx.startOffset, ctx.endOffset, parentType)
         if (frames.isEmpty()) {
@@ -265,6 +306,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
                         carriesComment,
                         frame.binaryOperator,
                         frame.binaryChildren,
+                        frame.argumentForm,
+                        frame.matrixList,
+                        frame.anchorsMatrix,
                     ),
                 )
         }
@@ -303,7 +347,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         ctx.editPlan.recordDropped(dropped)
         ctx.editPlan.recordAbsorbed(kept.map { it.groupId })
         val renderStarted = if (perf.enabled) System.nanoTime() else 0L
-        val rendered = Layout.render(spliced, style)
+        val rendered = Layout.render(DocVerbatim.apply(spliced, ctx.formatRegions, original), style)
         if (perf.enabled) perf.record("phase:format-render", System.nanoTime() - renderStarted)
         if (rendered == original) return
         reporter.report(
@@ -711,7 +755,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         end: Int,
         eqIdx: Int,
     ): Doc {
-        if (valueAfterAnchorIsCallLike(children, eqIdx) || valueAfterAnchorHugs(children, eqIdx)) {
+        if ((valueAfterAnchorIsCallLike(children, eqIdx) && !valueAfterAnchorAnchorsMatrix(children, eqIdx)) ||
+            valueAfterAnchorHugs(children, eqIdx)
+        ) {
             return resolveFluidValueFrame(children, frameType, start, end, eqIdx)
         }
         val gapIdx = eqIdx + 1
@@ -799,6 +845,12 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val valueIdx = (anchorIdx + 1 until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
             ?: return false
         return isCallLikeEntry(children[valueIdx])
+    }
+
+    private fun valueAfterAnchorAnchorsMatrix(children: List<ChildEntry>, anchorIdx: Int): Boolean {
+        val valueIdx = (anchorIdx + 1 until children.size).firstOrNull { children[it].type != WNodeType.WHITE_SPACE }
+            ?: return false
+        return (children[valueIdx] as? ChildEntry.Resolved)?.anchorsMatrix == true
     }
 
     private fun valueAfterAnchorHugs(children: List<ChildEntry>, anchorIdx: Int): Boolean {
@@ -1470,6 +1522,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val receiverEntry = children.first { it.type != WNodeType.WHITE_SPACE }
         frame.endsWithCallWithArguments =
             isCallWithArgumentsEntry(children.lastOrNull { it.type != WNodeType.WHITE_SPACE })
+        frame.anchorsMatrix = receiverEntry is ChildEntry.Resolved && receiverEntry.anchorsMatrix
         frame.chainHeadIsRawString =
             receiverEntry.type == WNodeType.STRING_TEMPLATE ||
             (receiverEntry is ChildEntry.Resolved &&
@@ -1816,12 +1869,17 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (lparIdx < 0 || rparIdx < 0 || rparIdx <= lparIdx) {
             return Doc.Concat(children.map { resolveEntry(it) }, start, end)
         }
+        val argumentCount = (lparIdx + 1 until rparIdx).count { children[it].type == WNodeType.VALUE_ARGUMENT }
+        val matrixList = frame.matrixDirective?.let {
+            matrixListOf(it, children, lparIdx, rparIdx, argumentCount, start, end)
+        }
+        frame.matrixList = matrixList
         val hasContent = (lparIdx + 1 until rparIdx).any { !it.isWs(children) }
         if (!hasContent) {
+            matrixList?.doc = Doc.Concat(children.map { emptiedWhitespace(it) ?: resolveEntry(it) }, start, end)
             return Doc.Concat(children.map { resolveEntry(it) }, start, end)
         }
         frame.hasArguments = true
-        val argumentCount = (lparIdx + 1 until rparIdx).count { children[it].type == WNodeType.VALUE_ARGUMENT }
         val nestsCallWithArguments = style.wrapNestedCallArguments &&
             templateEntryDepth == 0 &&
             (lparIdx + 1 until rparIdx).any { (children[it] as? ChildEntry.Resolved)?.isCallWithArguments == true }
@@ -1829,6 +1887,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val lparDoc = resolveEntry(children[lparIdx])
         val rparDoc = resolveEntry(children[rparIdx])
         val trailingCommaIdx = trailingCommaIndex(children, lparIdx + 1, rparIdx)
+        val packed = isPackedArgumentList(children, lparIdx, rparIdx, argumentCount, start, end)
 
         val huggedArgument = soleHuggableLambdaArgument(children, lparIdx, rparIdx, trailingCommaIdx)
         if (huggedArgument != null) {
@@ -1873,7 +1932,15 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         } else {
             wsBreakAt(children, rparIdx - 1, rparDoc.start, flat = "")
         }
-        val interiorDoc = Doc.Concat(interior, interior.first().start, interior.last().end)
+        val matrixColumns = matrixList?.columns
+        if (matrixList != null && matrixColumns != null && matrixList.unsupported == null) {
+            matrixList.doc = matrixListDoc(matrixList, matrixColumns, lparDoc, interior, closingBreak, rparDoc)
+        }
+        val interiorDoc = if (packed) {
+            packedInterior(interior)
+        } else {
+            Doc.Concat(interior, interior.first().start, interior.last().end)
+        }
         return Doc.Group(
             Doc.Concat(listOf(lparDoc, Doc.Indent(interiorDoc), closingBreak, rparDoc), start, end),
             GroupKind.ARGUMENTS,
@@ -1884,6 +1951,175 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     private fun Int.isWs(children: List<ChildEntry>): Boolean = children[this].type == WNodeType.WHITE_SPACE
+
+    /**
+     * Whether the argument list spanning [start]..[end] packs its elements: FIR resolved its call to a
+     * callee whose only parameter is a `vararg` ([VarargCallIndex.matches]), and every argument is an
+     * unnamed, unspread expression with no layout choice of its own — no break opportunity, no
+     * newline — and no comment in or beside it.
+     */
+    private fun isPackedArgumentList(
+        children: List<ChildEntry>,
+        lparIdx: Int,
+        rparIdx: Int,
+        argumentCount: Int,
+        start: Int,
+        end: Int,
+    ): Boolean {
+        if (argumentCount < 2 || !varargCalls.matches(start, end, argumentCount)) return false
+        return (lparIdx + 1 until rparIdx).all { isPackableEntry(children[it]) }
+    }
+
+    private fun isPackableEntry(entry: ChildEntry): Boolean = when (entry.type) {
+        WNodeType.WHITE_SPACE, WNodeType.COMMA -> true
+        WNodeType.VALUE_ARGUMENT -> isPackableArgument(entry)
+        else -> false
+    }
+
+    private fun isPackableArgument(entry: ChildEntry): Boolean =
+        entry is ChildEntry.Resolved &&
+            entry.argumentForm == ArgumentForm.PLAIN &&
+            !entry.carriesComment &&
+            isPlainElement(entry.doc)
+
+    private fun isPlainElement(doc: Doc): Boolean = when (doc) {
+        is Doc.Text -> doc.firstNewline() < 0
+        is Doc.Concat -> doc.parts.all { isPlainElement(it) }
+        is Doc.Indent, is Doc.Group, is Doc.Break, is Doc.TrailingComma -> false
+    }
+
+    /**
+     * The interior of a packed argument list: the break after `(`, then every element, comma and
+     * separating break as one [GroupKind.PACKED] group, so [Layout] fills the elements line by line
+     * while the list is broken.
+     */
+    private fun packedInterior(interior: List<Doc>): Doc {
+        val elements = interior.subList(1, interior.size)
+        val packedBody = Doc.Concat(elements, elements.first().start, elements.last().end)
+        val packedGroup = Doc.Group(packedBody, GroupKind.PACKED)
+        return Doc.Concat(listOf(interior.first(), packedGroup), interior.first().start, interior.last().end)
+    }
+
+    private fun matrixListOf(
+        directive: MatrixDirective,
+        children: List<ChildEntry>,
+        lparIdx: Int,
+        rparIdx: Int,
+        argumentCount: Int,
+        start: Int,
+        end: Int,
+    ): MatrixList = MatrixList(
+        directive,
+        start,
+        end,
+        argumentCount,
+        unsupported = (lparIdx + 1 until rparIdx).firstNotNullOfOrNull { unsupportedInMatrix(directive, children[it]) },
+        columns = directive.size?.takeIf { it >= MatrixDirective.MIN_SIZE },
+    )
+
+    private fun unsupportedInMatrix(directive: MatrixDirective, entry: ChildEntry): String? {
+        if (carriesComment(entry)) return MatrixMessages.comment(directive)
+        if (entry !is ChildEntry.Resolved || entry.type != WNodeType.VALUE_ARGUMENT) return null
+        return when {
+            entry.argumentForm == ArgumentForm.SPREAD -> MatrixMessages.spreadArgument(directive)
+            entry.argumentForm == ArgumentForm.NAMED -> MatrixMessages.namedArgument(directive)
+            !canRenderFlat(entry.doc) -> MatrixMessages.multilineElement(directive)
+            else -> null
+        }
+    }
+
+    private fun canRenderFlat(doc: Doc): Boolean = when (doc) {
+        is Doc.Text -> doc.firstNewline() < 0
+        is Doc.Break -> doc.kind != BreakKind.HARD
+        is Doc.TrailingComma -> true
+        is Doc.Indent -> canRenderFlat(doc.body)
+        is Doc.Group -> !doc.forceBreak && canRenderFlat(doc.body)
+        is Doc.Concat -> doc.parts.all { canRenderFlat(it) }
+    }
+
+    private fun emptiedWhitespace(entry: ChildEntry): Doc? {
+        if (entry.type != WNodeType.WHITE_SPACE) return null
+        val (spanStart, spanEnd) = wsSpan(entry)
+        return Doc.Text("", spanStart, spanEnd)
+    }
+
+    /**
+     * The argument list of a matrix call: a hard break after `(`, the elements as one
+     * [GroupKind.MATRIX] group of [columns]-wide rows, and a hard break before `)`.
+     * [interior] is the ordinary interior — the opening break, then each element with its comma
+     * and the separator after it, then the trailing comma — whose separators become the group's.
+     */
+    private fun matrixListDoc(
+        list: MatrixList,
+        columns: Int,
+        lparDoc: Doc,
+        interior: List<Doc>,
+        closingBreak: Doc.Break,
+        rparDoc: Doc,
+    ): Doc {
+        val parts = ArrayList<Doc>()
+        var cell = ArrayList<Doc>()
+        for (doc in interior.subList(1, interior.size)) {
+            if (doc is Doc.Break) {
+                parts.add(cellOf(cell))
+                parts.add(doc)
+                cell = ArrayList()
+            } else {
+                cell.add(doc)
+            }
+        }
+        parts.add(cellOf(cell))
+        val cells = Doc.Concat(parts, parts.first().start, parts.last().end)
+        val matrix = Doc.Group(cells, GroupKind.MATRIX, columns = columns)
+        val opening = interior.first()
+        val body = Doc.Concat(listOf(hardened(opening), matrix), opening.start, matrix.end)
+        return Doc.Concat(listOf(lparDoc, Doc.Indent(body), hardened(closingBreak), rparDoc), list.start, list.end)
+    }
+
+    private fun cellOf(parts: List<Doc>): Doc = Doc.Concat(parts, parts.first().start, parts.last().end)
+
+    private fun hardened(doc: Doc): Doc.Break = Doc.Break(BreakKind.HARD, start = doc.start, end = doc.end)
+
+    private fun settleMatrix(frame: Frame, ctx: WContext) {
+        val index = frame.children.indexOfFirst { it is ChildEntry.Resolved && it.matrixList != null }
+        if (index < 0) return
+        val list = (frame.children[index] as ChildEntry.Resolved).matrixList ?: return
+        val directive = list.directive
+        val columns = list.columns
+        val failure = if (columns == null) {
+            MatrixMessages.sizeProblem(directive)
+        } else {
+            matrixCallFailure(frame, list, columns)
+        }
+        val doc = list.doc
+        if (failure == null && doc != null) {
+            frame.children[index] =
+                ChildEntry.Resolved(WNodeType.VALUE_ARGUMENT_LIST, doc, hasArguments = list.argumentCount > 0)
+            frame.anchorsMatrix = true
+            return
+        }
+        failure?.let { directive.fail(it) }
+        ctx.formatRegions.addSpan(list.start, list.end)
+    }
+
+    private fun matrixCallFailure(
+        frame: Frame,
+        list: MatrixList,
+        size: Int,
+    ): String? {
+        val directive = list.directive
+        if (frame.children.any { it.type == WNodeType.LAMBDA_ARGUMENT }) return MatrixMessages.trailingLambda(directive)
+        val site = varargCalls.callEndingAt(list.end) ?: return MatrixMessages.unresolvedCallee(directive)
+        if (!site.hasOnlyVarargParameter) return MatrixMessages.notSingleVarargCallee(directive, site.calleeName)
+        list.unsupported?.let { return it }
+        val count = list.argumentCount
+        return when {
+            count == 0 -> null
+            size > count -> MatrixMessages.sizeExceedsCount(directive, size, count)
+            count % size != 0 -> MatrixMessages.countNotDivisible(directive, size, count)
+            else -> null
+        }
+    }
 
     /**
      * The one [WNodeType.VALUE_ARGUMENT] between `(` and `)` when it is the list's only content
@@ -1937,6 +2173,11 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val children = frame.children
         val real = children.filter { it.type != WNodeType.WHITE_SPACE }
         frame.hugsLambdaArgument = real.size == 1 && real[0].type == WNodeType.LAMBDA_EXPRESSION
+        frame.argumentForm = when {
+            real.size == 1 -> ArgumentForm.PLAIN
+            real.firstOrNull()?.type == WNodeType.MUL -> ArgumentForm.SPREAD
+            else -> ArgumentForm.NAMED
+        }
         frame.isCallWithArguments = isCallWithArgumentsEntry(real.lastOrNull())
         val eqIdx = children.indexOfFirst { it.type == WNodeType.EQ }
         if (eqIdx < 0) return resolveBraceFrame(frame, start, end)
@@ -2658,6 +2899,10 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var hasChainComment = false
         var binaryOperator: String? = null
         var binaryChildren: List<ChildEntry>? = null
+        var argumentForm: ArgumentForm? = null
+        var matrixDirective: MatrixDirective? = null
+        var matrixList: MatrixList? = null
+        var anchorsMatrix = false
     }
 
     private sealed interface ChildEntry {
@@ -2680,6 +2925,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val carriesComment: Boolean = false,
             val binaryOperator: String? = null,
             val binaryChildren: List<ChildEntry>? = null,
+            val argumentForm: ArgumentForm? = null,
+            val matrixList: MatrixList? = null,
+            val anchorsMatrix: Boolean = false,
         ) : ChildEntry
 
         class Ws(val rawText: CharSequence, val start: Int) : ChildEntry {

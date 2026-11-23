@@ -83,8 +83,12 @@ object Layout {
 
         is Doc.Group -> if (doc.kind == GroupKind.BARRIER) {
             renderNode(sb, doc.body, indentDepth, column, mode, style, tail, forceArguments = false)
-        } else if (doc.kind == GroupKind.FILL) {
+        } else if (doc.kind == GroupKind.MATRIX) {
+            renderMatrix(sb, doc, indentDepth, column, style)
+        } else if (fillsParts(doc, mode, forceArguments)) {
             renderFill(sb, doc, indentDepth, column, style, tail)
+        } else if (doc.kind == GroupKind.PACKED) {
+            renderNode(sb, doc.body, indentDepth, column, mode, style, tail, forceArguments)
         } else {
             val forced = doc.kind == GroupKind.ARGUMENTS && (doc.forceBreak || (forceArguments && !doc.singleArgument))
             val chosenMode = if (!forced && groupFits(doc, indentDepth, column, style, tail)) Mode.FLAT else Mode.BROKEN
@@ -92,11 +96,81 @@ object Layout {
             val bodyForce = when (doc.kind) {
                 GroupKind.ARGUMENTS -> forced || (doc.forceNestedWhenBroken && chosenMode == Mode.BROKEN)
                 GroupKind.LAMBDA, GroupKind.CONTINUATION, GroupKind.CHAIN, GroupKind.TEMPLATE, GroupKind.FILL,
-                GroupKind.BARRIER -> false
+                GroupKind.PACKED, GroupKind.MATRIX, GroupKind.BARRIER -> false
 
                 GroupKind.DEFAULT, GroupKind.FLUID -> forceArguments
             }
             renderNode(sb, doc.body, bodyDepth, column, chosenMode, style, tail, bodyForce)
+        }
+    }
+
+    private fun fillsParts(
+        group: Doc.Group,
+        mode: Mode,
+        forceArguments: Boolean,
+    ): Boolean =
+        group.kind == GroupKind.FILL || (group.kind == GroupKind.PACKED && mode == Mode.BROKEN && !forceArguments)
+
+    /**
+     * Renders a [GroupKind.MATRIX] group at [indentDepth]: every cell flat, [Doc.Group.columns]
+     * cells to a line, each column but the last padded to its widest cell plus one space.
+     */
+    private fun renderMatrix(
+        sb: StringBuilder,
+        group: Doc.Group,
+        indentDepth: Int,
+        column: Int,
+        style: FormatStyle,
+    ): Int {
+        val body = group.body
+        val parts = if (body is Doc.Concat) body.parts else listOf(body)
+        val columns = group.columns
+        val cells = (0 until parts.size step 2).map { cellText(parts[it]) }
+        val widths = IntArray(columns)
+        for ((index, cell) in cells.withIndex()) {
+            val c = index % columns
+            if (c < columns - 1) widths[c] = maxOf(widths[c], cell.length)
+        }
+        var col = column
+        for ((index, cell) in cells.withIndex()) {
+            sb.append(cell)
+            col += cell.length
+            val c = index % columns
+            when {
+                index == cells.lastIndex -> {}
+                c == columns - 1 -> {
+                    sb.append('\n')
+                    col = appendIndent(sb, indentDepth, style)
+                }
+
+                else -> {
+                    val gap = widths[c] - cell.length + 1
+                    repeat(gap) { sb.append(' ') }
+                    col += gap
+                }
+            }
+        }
+        return col
+    }
+
+    private fun cellText(cell: Doc): String {
+        val sb = StringBuilder()
+        if (cell is Doc.Concat) {
+            for (part in cell.parts) if (part is Doc.TrailingComma) sb.append(',') else appendFlat(sb, part)
+        } else {
+            appendFlat(sb, cell)
+        }
+        return sb.toString()
+    }
+
+    private fun appendFlat(sb: StringBuilder, doc: Doc) {
+        when (doc) {
+            is Doc.Text -> appendText(sb, doc.value)
+            is Doc.Break -> sb.append(doc.flat)
+            is Doc.TrailingComma -> {}
+            is Doc.Indent -> appendFlat(sb, doc.body)
+            is Doc.Group -> appendFlat(sb, doc.body)
+            is Doc.Concat -> for (part in doc.parts) appendFlat(sb, part)
         }
     }
 
@@ -162,7 +236,7 @@ object Layout {
         while (i < parts.size) {
             val part = parts[i]
             if (part is Doc.Break && part.kind == BreakKind.SOFT) break
-            val partWidth = flatWidth(part)
+            val partWidth = if (part is Doc.TrailingComma) 1 else flatWidth(part)
             if (partWidth < 0) return false
             width += partWidth
             i++
@@ -198,7 +272,7 @@ object Layout {
     ): Boolean {
         val max = style.maxLineLength
         return when (group.kind) {
-            GroupKind.BARRIER, GroupKind.FILL -> true
+            GroupKind.BARRIER, GroupKind.FILL, GroupKind.PACKED, GroupKind.MATRIX -> true
 
             GroupKind.LAMBDA -> {
                 val width = flatWidth(group.body)

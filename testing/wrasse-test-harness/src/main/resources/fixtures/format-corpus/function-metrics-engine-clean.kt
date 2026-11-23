@@ -26,11 +26,7 @@ import com.varlanv.wrasse.model.isWhitespaceOrComment
  */
 class FunctionMetricsEngine : WUninitializedRuleGroup {
     override val ids: Set<String> = setOf(
-        RETURN_COUNT_ID,
-        THROWS_COUNT_ID,
-        NESTED_BLOCK_DEPTH_ID,
-        CYCLOMATIC_COMPLEXITY_ID,
-        LONG_METHOD_ID,
+        RETURN_COUNT_ID, THROWS_COUNT_ID, NESTED_BLOCK_DEPTH_ID, CYCLOMATIC_COMPLEXITY_ID, LONG_METHOD_ID,
     )
 
     override val optionSpecs: Map<String, List<WRuleOptionSpec>> = mapOf(

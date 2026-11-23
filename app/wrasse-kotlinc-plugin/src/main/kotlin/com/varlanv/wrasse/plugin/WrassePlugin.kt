@@ -2,8 +2,11 @@ package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
 import com.varlanv.wrasse.format.DocBuilder
+import com.varlanv.wrasse.format.FormatMatrixRule
 import com.varlanv.wrasse.lang.*
 import com.varlanv.wrasse.model.*
+import com.varlanv.wrasse.rules.FormatDirectiveCollectorRule
+import com.varlanv.wrasse.rules.MatrixDirectiveCollectorRule
 import com.varlanv.wrasse.rules.SuppressionCollectorRule
 import java.nio.file.Path
 import java.nio.file.PathMatcher
@@ -189,11 +192,13 @@ class WrassePlugin(
         resolvedUsage: ((collectQualifiedUsages: Boolean, collectCallSites: Boolean) -> WResolvedUsage)?,
     ): List<ViolationReport> {
         val suppressionCollector = SuppressionCollectorRule()
-        val alwaysOn = mutableListOf<WRule>(suppressionCollector)
+        val alwaysOn = mutableListOf<WRule>(suppressionCollector, FormatDirectiveCollectorRule())
         var docBuilder: DocBuilder? = null
         if (formatConfig != null && formatConfig.enabled) {
             docBuilder = DocBuilder(formatConfig)
+            alwaysOn.add(MatrixDirectiveCollectorRule())
             alwaysOn.add(docBuilder)
+            alwaysOn.add(FormatMatrixRule(formatConfig.ruleConfig))
         }
         val dispatch = timed("phase:rule-init") {
             ruleSet.dispatchForFile(
@@ -205,7 +210,7 @@ class WrassePlugin(
 
         val ctx = WContext(filePath = filePath.toString(), configRelativeFilePath = configRelativePath)
         val needsQualifiedUsages = dumpResolvedUsage || ruleSet.requiresQualifiedUsages
-        val needsCallSites = dumpResolvedUsage || ruleSet.requiresCallSites
+        val needsCallSites = dumpResolvedUsage || ruleSet.requiresCallSites || docBuilder != null
         if (resolvedUsage != null &&
             (dumpResolvedUsage || ruleSet.requiresResolution || needsQualifiedUsages || needsCallSites)
         ) {
@@ -250,6 +255,7 @@ class WrassePlugin(
             perf.add("count:bytes", ctx.sourceText.length.toLong())
             perf.add("count:lines", ctx.sourceText.count { it == '\n' }.toLong())
         }
+        ctx.editPlan.dropIntersecting(ctx.formatRegions)
         if (docBuilder != null) timed("phase:format-finish") { docBuilder.finish(ctx, reporter, perf) }
 
         val finalEdits = timed("phase:edit-plan") { ctx.editPlan.finalEdits() }

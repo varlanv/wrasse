@@ -29,6 +29,12 @@ class WContext(
     /** Per-file collector of attributed fix edits. Shares this context's per-file lifecycle. */
     val editPlan: EditPlan = EditPlan()
 
+    /** Per-file `fmt:off`/`fmt:on` regions, filled by the walk as the directives are met. */
+    val formatRegions: FormatRegions = FormatRegions()
+
+    /** Per-file `// wrasse matrix:<N>` directives, filled by the walk as the directives are met. */
+    val matrixDirectives: MatrixDirectives = MatrixDirectives()
+
     /**
      * File-level resolution facade, lazily collected by the compiler-plugin host only when a
      * rule needs it or dump mode is on. Null means "not collected for this file".

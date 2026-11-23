@@ -101,10 +101,20 @@ sealed interface Doc {
         val singleArgument: Boolean = false,
         val forceNestedWhenBroken: Boolean = false,
         val operand: Boolean = false,
+        val columns: Int = 0,
     ) : Doc {
         fun withBody(
             body: Doc,
-        ): Group = Group(body, kind, indentWhenBroken, forceBreak, singleArgument, forceNestedWhenBroken, operand)
+        ): Group = Group(
+            body,
+            kind,
+            indentWhenBroken,
+            forceBreak,
+            singleArgument,
+            forceNestedWhenBroken,
+            operand,
+            columns,
+        )
 
         override val start: Int get() = body.start
         override val end: Int get() = body.end
@@ -177,6 +187,14 @@ enum class BreakKind {
  *   that break stands at and the width of the segment following it, so one broken list still
  *   holds several elements per line. The last segment is measured together with the tail, which
  *   is how the `->` after a condition list moves down with the condition it follows.
+ * - [PACKED] — the elements of an argument list inside an [ARGUMENTS] group: fills like [FILL] while
+ *   that group renders broken and unforced, so a broken list holds several elements per line, a
+ *   trailing comma counting towards the width of the last one. Renders in the enclosing mode
+ *   otherwise: flat when the argument list fits, one element per line when it is forced.
+ * - [MATRIX] — the elements of a `// wrasse matrix:<N>` call, laid out in rows of [Doc.Group.columns]
+ *   columns. The body alternates a cell and the separator after it, ending in a cell; every cell is
+ *   rendered flat whatever its width, each row goes on its own line, and every column but the last
+ *   is padded so the cells after it line up. A cell holding a [Doc.TrailingComma] renders it as `,`.
  * - [BARRIER] — an `if`/`when`/`try`/object expression: makes no layout decision of its own
  *   (renders in the enclosing mode, at the ambient depth) and only stops the forcing an enclosing
  *   [ARGUMENTS] group would otherwise push into the argument lists written inside it.
@@ -190,5 +208,7 @@ enum class GroupKind {
     CONTINUATION,
     CHAIN,
     FILL,
+    PACKED,
+    MATRIX,
     BARRIER,
 }

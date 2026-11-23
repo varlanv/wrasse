@@ -37,6 +37,8 @@ class WCallSite(
      * never remove names from such a call; adding names is unaffected.
      */
     val positionalIsAmbiguous: Boolean = false,
+    /** True when the callee declares exactly one value parameter and it is a `vararg`. */
+    val hasOnlyVarargParameter: Boolean = false,
 )
 
 /**

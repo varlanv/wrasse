@@ -1,0 +1,7 @@
+{
+    "format": { "enabled": true },
+    "rules": {
+        "no-semicolons": { "level": "error" },
+        "class-naming": { "level": "error" }
+    }
+}

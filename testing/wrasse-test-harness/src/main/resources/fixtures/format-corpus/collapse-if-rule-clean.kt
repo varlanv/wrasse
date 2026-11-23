@@ -117,11 +117,7 @@ class CollapseIfRule : WUninitializedRule {
 
     private companion object {
         val TRIVIAL_TYPES = setOf(
-            WNodeType.LBRACE,
-            WNodeType.RBRACE,
-            WNodeType.WHITE_SPACE,
-            WNodeType.BLOCK_COMMENT,
-            WNodeType.EOL_COMMENT,
+            WNodeType.LBRACE, WNodeType.RBRACE, WNodeType.WHITE_SPACE, WNodeType.BLOCK_COMMENT, WNodeType.EOL_COMMENT,
         )
     }
 }

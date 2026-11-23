@@ -10,7 +10,7 @@ Early stage: a growing set of lint rules, autofixes and an opinionated formatter
 ```kotlin
 plugins {
     kotlin("jvm") version "2.4.21"
-    id("com.varlanv.wrasse") version "0.1.0"
+    id("com.varlanv.wrasse") version "0.1.1"
 }
 ```
 

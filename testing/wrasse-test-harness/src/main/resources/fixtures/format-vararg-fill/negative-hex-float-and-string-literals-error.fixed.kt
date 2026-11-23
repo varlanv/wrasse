@@ -1,0 +1,7 @@
+package sample
+
+val mixed = listOf<Any>(
+    -1, 0xFF, 1.0f, -2.5, 'c',
+    "text, with comma", "(paren",
+    1_000_000,
+)

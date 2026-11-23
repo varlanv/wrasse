@@ -1,0 +1,7 @@
+package sample
+
+val ys = 1 // wrasse matrix:2
+val xs = arrayOf(1, 2, 3, 4, 5)
+
+// fixture-option: trailing-newline
+// expect-clean

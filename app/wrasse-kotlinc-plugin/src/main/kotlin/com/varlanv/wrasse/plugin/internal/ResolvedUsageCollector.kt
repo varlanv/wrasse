@@ -189,6 +189,7 @@ object ResolvedUsageCollector {
                     parameterCount = parameterSymbols.size,
                     namingIsAmbiguous = ambiguity.namingIsAmbiguous,
                     positionalIsAmbiguous = ambiguity.positionalIsAmbiguous,
+                    hasOnlyVarargParameter = parameterSymbols.singleOrNull()?.isVararg == true,
                 ),
             )
         }
