@@ -113,7 +113,8 @@ object Layout {
 
     /**
      * Renders a [GroupKind.MATRIX] group at [indentDepth]: every cell flat, [Doc.Group.columns]
-     * cells to a line, each column but the last padded to its widest cell plus one space.
+     * cells to a line, each column but the last padded to its widest cell plus one space. The last
+     * cell of the group is never padded, so a short last row ends without trailing whitespace.
      */
     private fun renderMatrix(
         sb: StringBuilder,
@@ -126,7 +127,7 @@ object Layout {
         val parts = if (body is Doc.Concat) body.parts else listOf(body)
         val columns = group.columns
         val cells = (0 until parts.size step 2).map { cellText(parts[it]) }
-        val widths = IntArray(columns)
+        val widths = IntArray(minOf(columns, cells.size))
         for ((index, cell) in cells.withIndex()) {
             val c = index % columns
             if (c < columns - 1) widths[c] = maxOf(widths[c], cell.length)

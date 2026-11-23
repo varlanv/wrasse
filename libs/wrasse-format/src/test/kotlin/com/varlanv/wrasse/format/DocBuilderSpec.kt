@@ -2,6 +2,7 @@ package com.varlanv.wrasse.format
 
 import com.varlanv.wrasse.lang.WEdit
 import com.varlanv.wrasse.model.FormatStyle
+import com.varlanv.wrasse.model.LayoutDirectiveKind
 import com.varlanv.wrasse.model.RuleLevel
 import com.varlanv.wrasse.model.ViolationReport
 import com.varlanv.wrasse.model.WCallArgument
@@ -15,6 +16,7 @@ import com.varlanv.wrasse.model.WRule
 import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 
 /**
  * Drives [DocBuilder] with hand-built SAX events — no compiler, no parse — proving the Doc IR
@@ -517,8 +519,13 @@ class DocBuilderSpec : BaseSpec({
         hasOnlyVarargParameter = hasOnlyVarargParameter,
     )
 
-    class MatrixRun(val rendered: String, val ctx: WContext) {
-        val directive get() = ctx.matrixDirectives.all().single()
+    class MatrixRun(
+        val rendered: String,
+        val ctx: WContext,
+        val listStart: Int,
+    ) {
+        val directives get() = ctx.layoutDirectives.all()
+        val directive get() = directives.last()
     }
 
     fun plainArgument(
@@ -543,13 +550,19 @@ class DocBuilderSpec : BaseSpec({
         trailingCommas: Boolean = true,
         regionOverDirective: Boolean = false,
         separator: (DocBuilder, WContext) -> Unit = { _, _ -> },
+        above: List<String> = emptyList(),
     ): MatrixRun {
         val builder = DocBuilder(formatConfig(maxLineLength = 15, trailingCommas = trailingCommas))
         val ctx = WContext(filePath = "test.kt")
         ctx.resolvedUsage = site?.let { resolvedUsageOf(it) }
-        val listStart = (directiveText?.length ?: 0) + 2
-        if (directiveText != null) {
-            ctx.matrixDirectives.add(directiveText, 0, directiveText.length, 0, "$directiveText\ntable(x)")
+        val header = (above + listOfNotNull(directiveText)).joinToString("") { "$it\n" }
+        val listStart = header.length + 5
+        ctx.sourceText = header + "x".repeat(LIST_END - header.length)
+        var lineStart = 0
+        for (text in above + listOfNotNull(directiveText)) {
+            val kind = checkNotNull(LayoutDirectiveKind.ofText(text))
+            ctx.layoutDirectives.add(kind, text, lineStart, lineStart + text.length, lineStart, ctx.sourceText)
+            lineStart += text.length + 1
         }
         if (regionOverDirective) ctx.formatRegions.addSpan(0, 5)
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
@@ -591,10 +604,9 @@ class DocBuilderSpec : BaseSpec({
         }
         builder.exitNode(ctx.apply { type = WNodeType.CALL_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
-        ctx.sourceText = "x".repeat(LIST_END)
         val recorder = RecordingReporter()
         builder.finish(ctx, recorder)
-        return MatrixRun(recorder.lastEdit?.replacement ?: error("DocBuilder reported no edit"), ctx)
+        return MatrixRun(recorder.lastEdit?.replacement ?: error("DocBuilder reported no edit"), ctx, listStart)
     }
 
     val directive2 = "// wrasse matrix:2"
@@ -650,21 +662,28 @@ class DocBuilderSpec : BaseSpec({
             arguments: List<(DocBuilder, WContext) -> Unit>,
             site: WCallSite? = matrixSite(arguments.size),
             trailingLambda: Boolean = false,
-            directiveText: String = directive2,
-        ): String? = matrixCall(directiveText, arguments, site, trailingLambda).directive.failure
+        ): String? = matrixCall(directive2, arguments, site, trailingLambda).directive.failure
 
         val four = plainArguments("a", "b", "c", "d")
         val target = matrixCall(directive2, four).directive
 
-        failureOf(four, site = null) shouldBe MatrixMessages.unresolvedCallee(target)
+        failureOf(four, site = null) shouldBe LayoutDirectiveMessages.unresolvedCallee(target)
         failureOf(four, site = matrixSite(4, hasOnlyVarargParameter = false)) shouldBe
-            MatrixMessages.notSingleVarargCallee(target, "table")
-        failureOf(four, trailingLambda = true) shouldBe MatrixMessages.trailingLambda(target)
-        failureOf(four, site = matrixSite(4, callEnd = LIST_END + 5)) shouldBe MatrixMessages.unresolvedCallee(target)
-        failureOf(plainArguments("a", "b", "c")) shouldBe MatrixMessages.countNotDivisible(target, 2, 3)
-        failureOf(plainArguments("a")) shouldBe MatrixMessages.sizeExceedsCount(target, 2, 1)
-        failureOf(four, directiveText = "// wrasse matrix:abc") shouldBe
-            MatrixMessages.sizeProblem(matrixCall("// wrasse matrix:abc", four).directive)
+            LayoutDirectiveMessages.notSingleVarargCallee(target, "table")
+        failureOf(four, trailingLambda = true) shouldBe LayoutDirectiveMessages.trailingLambda(target)
+        failureOf(four, site = matrixSite(4, callEnd = LIST_END + 5)) shouldBe
+            LayoutDirectiveMessages.unresolvedCallee(target)
+        failureOf(plainArguments("a", "b", "c")) shouldBe LayoutDirectiveMessages.countNotDivisible(target, 2, 3)
+        failureOf(plainArguments("a")) shouldBe LayoutDirectiveMessages.sizeExceedsCount(target, 2, 1)
+    }
+
+    should("keep the call of an invalid size verbatim and leave the size problem to the rule") {
+        val run = matrixCall("// wrasse matrix:abc", plainArguments("a", "b", "c", "d"))
+
+        run.directive.failure shouldBe null
+        run.directive.claimed shouldBe true
+        LayoutDirectiveMessages.problemOf(run.directive) shouldBe LayoutDirectiveMessages.sizeProblem(run.directive)
+        run.ctx.formatRegions.all().map { it.start to it.end } shouldBe listOf(run.listStart to LIST_END)
     }
 
     should("reject a spread argument") {
@@ -676,7 +695,7 @@ class DocBuilderSpec : BaseSpec({
         }
         val run = matrixCall(directive2, listOf(spread) + plainArguments("b"))
 
-        run.directive.failure shouldBe MatrixMessages.spreadArgument(run.directive)
+        run.directive.failure shouldBe LayoutDirectiveMessages.spreadArgument(run.directive)
     }
 
     should("reject a named argument") {
@@ -689,7 +708,7 @@ class DocBuilderSpec : BaseSpec({
         }
         val run = matrixCall(directive2, listOf(named) + plainArguments("b"))
 
-        run.directive.failure shouldBe MatrixMessages.namedArgument(run.directive)
+        run.directive.failure shouldBe LayoutDirectiveMessages.namedArgument(run.directive)
     }
 
     should("reject a comment between the arguments") {
@@ -698,7 +717,7 @@ class DocBuilderSpec : BaseSpec({
         }
         val run = matrixCall(directive2, plainArguments("a") + comment + plainArguments("b"))
 
-        run.directive.failure shouldBe MatrixMessages.comment(run.directive)
+        run.directive.failure shouldBe LayoutDirectiveMessages.comment(run.directive)
     }
 
     should("reject an element that cannot be rendered on one line") {
@@ -713,17 +732,110 @@ class DocBuilderSpec : BaseSpec({
         }
         val run = matrixCall(directive2, listOf(multiline) + plainArguments("c"))
 
-        run.directive.failure shouldBe MatrixMessages.multilineElement(run.directive)
+        run.directive.failure shouldBe LayoutDirectiveMessages.multilineElement(run.directive)
     }
 
     should("keep a rejected call's argument list verbatim by adding its span as a region") {
         val run = matrixCall(directive2, plainArguments("a", "b", "c"))
 
-        run.ctx.formatRegions.all().map { it.start to it.end } shouldBe listOf(directive2.length + 2 to LIST_END)
+        run.ctx.formatRegions.all().map { it.start to it.end } shouldBe listOf(run.listStart to LIST_END)
     }
 
     should("add no region for an accepted call") {
         matrixCall(directive2, plainArguments("a", "b", "c", "d")).ctx.formatRegions.isEmpty shouldBe true
+    }
+
+    val columns3 = "// wrasse columns:3"
+
+    should("lay a columns call out in rows of the directive size ending on a short row") {
+        matrixCall(columns3, plainArguments("a", "bb", "c", "d", "e", "ff", "g", "h")).rendered shouldBe
+            "table(\n    a, bb, c,\n    d, e,  ff,\n    g, h,\n)"
+        matrixCall(columns3, plainArguments("a", "b", "c", "d", "e", "f", "g")).rendered shouldBe
+            "table(\n    a, b, c,\n    d, e, f,\n    g,\n)"
+    }
+
+    should("lay a columns call out as one short row when it has fewer elements than columns") {
+        matrixCall("// wrasse columns:5", plainArguments("a", "bb", "c")).rendered shouldBe "table(\n    a, bb, c,\n)"
+    }
+
+    should("lay a columns call of a single element out on its own line") {
+        matrixCall("// wrasse columns:2", plainArguments("a")).rendered shouldBe "table(\n    a,\n)"
+    }
+
+    should("lay a columns call out exactly as the matrix of the same size when the rows fill up") {
+        val arguments = plainArguments("aa", "b", "c", "ddd", "e", "f")
+
+        matrixCall(columns3, arguments).rendered shouldBe matrixCall("// wrasse matrix:3", arguments).rendered
+    }
+
+    should("end the last row of a columns call without a comma when trailing commas are off") {
+        matrixCall(columns3, plainArguments("a", "b", "c", "d"), trailingCommas = false).rendered shouldBe
+            "table(\n    a, b, c,\n    d\n)"
+    }
+
+    should("keep an empty argument list of a columns directive empty") {
+        val empty = matrixCall("// wrasse columns:9", emptyList(), site = matrixSite(0))
+
+        empty.rendered shouldBe "table()"
+        empty.directive.failure shouldBe null
+    }
+
+    should("accept every count for a columns directive that a matrix directive rejects") {
+        val three = plainArguments("a", "b", "c")
+
+        matrixCall("// wrasse columns:2", three).directive.failure shouldBe null
+        matrixCall("// wrasse columns:4", three).directive.failure shouldBe null
+        matrixCall("// wrasse matrix:2", three).directive.failure shouldNotBe null
+        matrixCall("// wrasse matrix:4", three).directive.failure shouldNotBe null
+    }
+
+    should("reject a columns call the way a matrix call is rejected, naming the columns directive") {
+        val four = plainArguments("a", "b", "c", "d")
+        val target = matrixCall(columns3, four).directive
+
+        matrixCall(columns3, four, site = null).directive.failure shouldBe
+            "'// wrasse columns:3' targets a call whose callee the compiler could not resolve"
+        matrixCall(columns3, four, trailingLambda = true).directive.failure shouldBe
+            LayoutDirectiveMessages.trailingLambda(target)
+        matrixCall(columns3, four, site = matrixSite(4, hasOnlyVarargParameter = false)).directive.failure shouldBe
+            LayoutDirectiveMessages.notSingleVarargCallee(target, "table")
+    }
+
+    should("fail every directive of a clash with one message and keep the call verbatim") {
+        val run = matrixCall(columns3, plainArguments("a", "b", "c", "d"), above = listOf("// wrasse matrix:2"))
+        val message = "'// wrasse matrix:2' (line 1) and '// wrasse columns:3' (line 2) both target the call below; " +
+            "keep only one"
+
+        run.directives.map { it.failure } shouldBe listOf(message, message)
+        run.directives.map { it.claimed } shouldBe listOf(true, true)
+        run.ctx.formatRegions.all().map { it.start to it.end } shouldBe listOf(run.listStart to LIST_END)
+    }
+
+    should("name all three directives of a stacked clash") {
+        val run = matrixCall(
+            "// wrasse matrix:3",
+            plainArguments("a", "b", "c"),
+            above = listOf("// wrasse columns:2", "// wrasse columns:4"),
+        )
+        val message = "'// wrasse columns:2' (line 1), '// wrasse columns:4' (line 2) and '// wrasse matrix:3' " +
+            "(line 3) all target the call below; keep only one"
+
+        run.directives.map { it.failure } shouldBe listOf(message, message, message)
+    }
+
+    should("lay the call out by the valid directive when an invalid one is stacked above it") {
+        val run = matrixCall(directive2, plainArguments("a", "b", "c", "d"), above = listOf("// wrasse columns:abc"))
+
+        run.rendered shouldBe "table(\n    a, b,\n    c, d,\n)"
+        run.directives.map { it.failure } shouldBe listOf(null, null)
+        run.ctx.formatRegions.isEmpty shouldBe true
+    }
+
+    should("keep the call verbatim when every stacked directive has an invalid size") {
+        val run = matrixCall("// wrasse matrix:1", plainArguments("a", "b"), above = listOf("// wrasse columns:abc"))
+
+        run.directives.map { it.failure } shouldBe listOf(null, null)
+        run.ctx.formatRegions.all().map { it.start to it.end } shouldBe listOf(run.listStart to LIST_END)
     }
 
     should("ignore a directive lying inside a fmt:off region and lay the call out the ordinary way") {
@@ -736,7 +848,7 @@ class DocBuilderSpec : BaseSpec({
     should("lay a matrix out from a call claimed by the directive in front of it only once") {
         val run = matrixCall(directive2, plainArguments("a", "b", "c", "d"))
 
-        run.ctx.matrixDirectives.claim(directive2.length + 2) shouldBe null
+        run.ctx.layoutDirectives.claim(run.listStart, run.ctx.sourceText, run.ctx.formatRegions) shouldBe null
     }
 
     should("leave a line comment that would turn into a directive when normalized exactly as written") {
@@ -753,6 +865,9 @@ class DocBuilderSpec : BaseSpec({
             "//wrasse matrix:2",
             "//wrasse matrix:",
             "//wrasse matrix:abc",
+            "//wrasse columns:2",
+            "//wrasse columns:",
+            "//wrasse columns:abc",
             "//wrasse fmt:off",
             "//wrasse fmt:on",
         ).forEach { text -> renderComment(text) shouldBe text }

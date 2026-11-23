@@ -46,7 +46,7 @@ private const val PATCH_DIR = "patch"
 private const val PATCH_FILE = "wrasse-fixes.txt"
 private const val REPORT_FILE = "wrasse-report.txt"
 private const val REQUEST_FILE = "format-request"
-private const val FORMAT_DIRECTIVE_MARKER = " wrasse: format-matrix: "
+private val FORMAT_DIRECTIVE_MARKERS = listOf(" wrasse: format-matrix: ", " wrasse: format-columns: ")
 private const val KAPT_STUB_TASK_CLASS = "org.jetbrains.kotlin.gradle.internal.KaptGenerateStubsTask"
 private const val KOTLIN_COMPILE_CLASS = "org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile"
 private val EXTENDS_ENTRY = Regex("\"extends\"\\s*:\\s*\"([^\"]+)\"")
@@ -334,7 +334,9 @@ abstract class WrasseFormatCoordinator :
             if (!apply.dir.isDirectory) continue
             deleteRequests(apply.dir)
             val lines = patchLines(apply.dir, apply.classpath, apply.projectDir)
-            val directiveErrors = lines.filter { it.startsWith("e: ") && FORMAT_DIRECTIVE_MARKER in it }
+            val directiveErrors = lines.filter { line ->
+                line.startsWith("e: ") && FORMAT_DIRECTIVE_MARKERS.any { it in line }
+            }
             for (line in lines.filterNot { it.startsWith("w: ") || it.startsWith("e: ") }) logger.lifecycle(line)
             for (line in directiveErrors) logger.lifecycle(line)
             rejectedDirectives += directiveErrors.size

@@ -1,0 +1,8 @@
+package sample
+
+class Bag {
+    // wrasse columns:2
+    constructor(vararg items: Int)
+}
+
+// expect-error 4:5 format-columns "'// wrasse columns:2' has no call to lay out: no call with a parenthesized argument list starts on the first line below it that is neither an annotation-only line nor another layout directive (a function, constructor or class declaration is not a call)"

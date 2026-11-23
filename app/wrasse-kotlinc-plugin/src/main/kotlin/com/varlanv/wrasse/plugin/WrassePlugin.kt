@@ -2,11 +2,12 @@ package com.varlanv.wrasse.plugin
 
 import com.varlanv.wrasse.adapter.LightTreeStreamAdapter
 import com.varlanv.wrasse.format.DocBuilder
-import com.varlanv.wrasse.format.FormatMatrixRule
+import com.varlanv.wrasse.format.FormatLayoutDirectiveRule
 import com.varlanv.wrasse.lang.*
 import com.varlanv.wrasse.model.*
+import com.varlanv.wrasse.rules.AnnotationSpanCollectorRule
 import com.varlanv.wrasse.rules.FormatDirectiveCollectorRule
-import com.varlanv.wrasse.rules.MatrixDirectiveCollectorRule
+import com.varlanv.wrasse.rules.LayoutDirectiveCollectorRule
 import com.varlanv.wrasse.rules.SuppressionCollectorRule
 import java.nio.file.Path
 import java.nio.file.PathMatcher
@@ -196,9 +197,10 @@ class WrassePlugin(
         var docBuilder: DocBuilder? = null
         if (formatConfig != null && formatConfig.enabled) {
             docBuilder = DocBuilder(formatConfig)
-            alwaysOn.add(MatrixDirectiveCollectorRule())
+            alwaysOn.add(LayoutDirectiveCollectorRule())
+            alwaysOn.add(AnnotationSpanCollectorRule())
             alwaysOn.add(docBuilder)
-            alwaysOn.add(FormatMatrixRule(formatConfig.ruleConfig))
+            LayoutDirectiveKind.entries.forEach { alwaysOn.add(FormatLayoutDirectiveRule(it, formatConfig.ruleConfig)) }
         }
         val dispatch = timed("phase:rule-init") {
             ruleSet.dispatchForFile(

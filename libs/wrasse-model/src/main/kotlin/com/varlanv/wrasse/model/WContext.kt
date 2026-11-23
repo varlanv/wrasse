@@ -32,8 +32,11 @@ class WContext(
     /** Per-file `fmt:off`/`fmt:on` regions, filled by the walk as the directives are met. */
     val formatRegions: FormatRegions = FormatRegions()
 
-    /** Per-file `// wrasse matrix:<N>` directives, filled by the walk as the directives are met. */
-    val matrixDirectives: MatrixDirectives = MatrixDirectives()
+    /** Per-file annotation entry spans, filled by the walk as the entries are met. */
+    val annotationSpans: AnnotationSpans = AnnotationSpans()
+
+    /** Per-file `// wrasse matrix:<N>` and `// wrasse columns:<N>` directives, filled by the walk as the directives are met. */
+    val layoutDirectives: LayoutDirectives = LayoutDirectives(annotationSpans)
 
     /**
      * File-level resolution facade, lazily collected by the compiler-plugin host only when a

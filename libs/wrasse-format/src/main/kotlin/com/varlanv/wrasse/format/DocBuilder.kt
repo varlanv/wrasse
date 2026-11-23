@@ -8,7 +8,8 @@ import com.varlanv.wrasse.lang.indexOfChar
 import com.varlanv.wrasse.lang.lastIndexOfChar
 import com.varlanv.wrasse.model.EditPlan
 import com.varlanv.wrasse.model.FormatDirective
-import com.varlanv.wrasse.model.MatrixDirective
+import com.varlanv.wrasse.model.LayoutClaim
+import com.varlanv.wrasse.model.LayoutDirective
 import com.varlanv.wrasse.model.WContext
 import com.varlanv.wrasse.model.WFormatConfig
 import com.varlanv.wrasse.model.WNodeType
@@ -110,12 +111,11 @@ private enum class ArgumentForm {
 }
 
 private class MatrixList(
-    val directive: MatrixDirective,
+    val claim: LayoutClaim,
     val start: Int,
     val end: Int,
     val argumentCount: Int,
     val unsupported: String?,
-    val columns: Int?,
 ) {
     var doc: Doc? = null
 }
@@ -187,7 +187,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     private fun normalizeUnlessDirective(text: CharSequence): CharSequence {
         val normalized = normalizeEolCommentText(text)
         val becomesDirective = normalized !== text &&
-            (FormatDirective.parse(normalized) != null || MatrixDirective.isDirectiveText(normalized))
+            (FormatDirective.parse(normalized) != null || LayoutDirective.isDirectiveText(normalized))
         return if (becomesDirective) text else normalized
     }
 
@@ -260,15 +260,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         if (ctx.type == WNodeType.LONG_STRING_TEMPLATE_ENTRY) templateEntryDepth++
         val frame = Frame(ctx.type)
         if (ctx.type == WNodeType.VALUE_ARGUMENT_LIST && frames.lastOrNull()?.type == WNodeType.CALL_EXPRESSION) {
-            frame.matrixDirective = claimMatrixDirective(ctx)
+            frame.layoutClaim = ctx.layoutDirectives.claim(ctx.startOffset, ctx.sourceText, ctx.formatRegions)
         }
         frames.addLast(frame)
-    }
-
-    private fun claimMatrixDirective(ctx: WContext): MatrixDirective? {
-        if (ctx.matrixDirectives.isEmpty) return null
-        val directive = ctx.matrixDirectives.claim(ctx.startOffset) ?: return null
-        return directive.takeUnless { it.isInside(ctx.formatRegions) }
     }
 
     override fun exitNode(ctx: WContext) {
@@ -1870,7 +1864,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             return Doc.Concat(children.map { resolveEntry(it) }, start, end)
         }
         val argumentCount = (lparIdx + 1 until rparIdx).count { children[it].type == WNodeType.VALUE_ARGUMENT }
-        val matrixList = frame.matrixDirective?.let {
+        val matrixList = frame.layoutClaim?.let {
             matrixListOf(it, children, lparIdx, rparIdx, argumentCount, start, end)
         }
         frame.matrixList = matrixList
@@ -1932,9 +1926,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         } else {
             wsBreakAt(children, rparIdx - 1, rparDoc.start, flat = "")
         }
-        val matrixColumns = matrixList?.columns
-        if (matrixList != null && matrixColumns != null && matrixList.unsupported == null) {
-            matrixList.doc = matrixListDoc(matrixList, matrixColumns, lparDoc, interior, closingBreak, rparDoc)
+        val single = matrixList?.claim as? LayoutClaim.Single
+        if (matrixList != null && single != null && matrixList.unsupported == null) {
+            matrixList.doc = matrixListDoc(matrixList, single.columns, lparDoc, interior, closingBreak, rparDoc)
         }
         val interiorDoc = if (packed) {
             packedInterior(interior)
@@ -2001,7 +1995,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     }
 
     private fun matrixListOf(
-        directive: MatrixDirective,
+        claim: LayoutClaim,
         children: List<ChildEntry>,
         lparIdx: Int,
         rparIdx: Int,
@@ -2009,21 +2003,22 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         start: Int,
         end: Int,
     ): MatrixList = MatrixList(
-        directive,
+        claim,
         start,
         end,
         argumentCount,
-        unsupported = (lparIdx + 1 until rparIdx).firstNotNullOfOrNull { unsupportedInMatrix(directive, children[it]) },
-        columns = directive.size?.takeIf { it >= MatrixDirective.MIN_SIZE },
+        unsupported = (claim as? LayoutClaim.Single)?.let { single ->
+            (lparIdx + 1 until rparIdx).firstNotNullOfOrNull { unsupportedInMatrix(single.directive, children[it]) }
+        },
     )
 
-    private fun unsupportedInMatrix(directive: MatrixDirective, entry: ChildEntry): String? {
-        if (carriesComment(entry)) return MatrixMessages.comment(directive)
+    private fun unsupportedInMatrix(directive: LayoutDirective, entry: ChildEntry): String? {
+        if (carriesComment(entry)) return LayoutDirectiveMessages.comment(directive)
         if (entry !is ChildEntry.Resolved || entry.type != WNodeType.VALUE_ARGUMENT) return null
         return when {
-            entry.argumentForm == ArgumentForm.SPREAD -> MatrixMessages.spreadArgument(directive)
-            entry.argumentForm == ArgumentForm.NAMED -> MatrixMessages.namedArgument(directive)
-            !canRenderFlat(entry.doc) -> MatrixMessages.multilineElement(directive)
+            entry.argumentForm == ArgumentForm.SPREAD -> LayoutDirectiveMessages.spreadArgument(directive)
+            entry.argumentForm == ArgumentForm.NAMED -> LayoutDirectiveMessages.namedArgument(directive)
+            !canRenderFlat(entry.doc) -> LayoutDirectiveMessages.multilineElement(directive)
             else -> null
         }
     }
@@ -2084,39 +2079,48 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val index = frame.children.indexOfFirst { it is ChildEntry.Resolved && it.matrixList != null }
         if (index < 0) return
         val list = (frame.children[index] as ChildEntry.Resolved).matrixList ?: return
-        val directive = list.directive
-        val columns = list.columns
-        val failure = if (columns == null) {
-            MatrixMessages.sizeProblem(directive)
-        } else {
-            matrixCallFailure(frame, list, columns)
+        when (val claim = list.claim) {
+            is LayoutClaim.Single -> {
+                val failure = matrixCallFailure(frame, list, claim)
+                val doc = list.doc
+                if (failure == null && doc != null) {
+                    frame.children[index] =
+                        ChildEntry.Resolved(WNodeType.VALUE_ARGUMENT_LIST, doc, hasArguments = list.argumentCount > 0)
+                    frame.anchorsMatrix = true
+                    return
+                }
+                failure?.let { claim.directive.fail(it) }
+            }
+
+            is LayoutClaim.Clash -> LayoutDirectiveMessages.clash(claim.directives).let { message ->
+                claim.directives.forEach { it.fail(message) }
+            }
+
+            LayoutClaim.Invalid -> Unit
         }
-        val doc = list.doc
-        if (failure == null && doc != null) {
-            frame.children[index] =
-                ChildEntry.Resolved(WNodeType.VALUE_ARGUMENT_LIST, doc, hasArguments = list.argumentCount > 0)
-            frame.anchorsMatrix = true
-            return
-        }
-        failure?.let { directive.fail(it) }
         ctx.formatRegions.addSpan(list.start, list.end)
     }
 
     private fun matrixCallFailure(
         frame: Frame,
         list: MatrixList,
-        size: Int,
+        claim: LayoutClaim.Single,
     ): String? {
-        val directive = list.directive
-        if (frame.children.any { it.type == WNodeType.LAMBDA_ARGUMENT }) return MatrixMessages.trailingLambda(directive)
-        val site = varargCalls.callEndingAt(list.end) ?: return MatrixMessages.unresolvedCallee(directive)
-        if (!site.hasOnlyVarargParameter) return MatrixMessages.notSingleVarargCallee(directive, site.calleeName)
+        val directive = claim.directive
+        if (frame.children.any { it.type == WNodeType.LAMBDA_ARGUMENT }) {
+            return LayoutDirectiveMessages.trailingLambda(directive)
+        }
+        val site = varargCalls.callEndingAt(list.end) ?: return LayoutDirectiveMessages.unresolvedCallee(directive)
+        if (!site.hasOnlyVarargParameter) {
+            return LayoutDirectiveMessages.notSingleVarargCallee(directive, site.calleeName)
+        }
         list.unsupported?.let { return it }
         val count = list.argumentCount
+        val size = claim.columns
         return when {
-            count == 0 -> null
-            size > count -> MatrixMessages.sizeExceedsCount(directive, size, count)
-            count % size != 0 -> MatrixMessages.countNotDivisible(directive, size, count)
+            count == 0 || !directive.kind.wholeRows -> null
+            size > count -> LayoutDirectiveMessages.sizeExceedsCount(directive, size, count)
+            count % size != 0 -> LayoutDirectiveMessages.countNotDivisible(directive, size, count)
             else -> null
         }
     }
@@ -2900,7 +2904,7 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         var binaryOperator: String? = null
         var binaryChildren: List<ChildEntry>? = null
         var argumentForm: ArgumentForm? = null
-        var matrixDirective: MatrixDirective? = null
+        var layoutClaim: LayoutClaim? = null
         var matrixList: MatrixList? = null
         var anchorsMatrix = false
     }

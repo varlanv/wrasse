@@ -1,0 +1,16 @@
+package sample
+
+fun use(a: IntArray, b: IntArray) = 1
+
+val n = use(
+    // wrasse columns:2
+    intArrayOf(
+        1, 2,
+        3, 4,
+    ),
+    intArrayOf(
+        5,
+        6,
+        7,
+    ),
+)

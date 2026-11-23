@@ -59,8 +59,8 @@ class MatrixDirectiveCrlfSpec : BaseSpec({
             "val xs = intArrayOf(1, 2, 3, 4)",
         ) shouldBe listOf(
             "3:1 wrasse: format-matrix: '// wrasse matrix:2' has no call to lay out: no call with a parenthesized " +
-                "argument list starts on the line directly below it (a function, constructor or class declaration " +
-                "is not a call)",
+                "argument list starts on the first line below it that is neither an annotation-only line nor " +
+                "another layout directive (a function, constructor or class declaration is not a call)",
         )
     }
 })

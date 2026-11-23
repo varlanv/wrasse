@@ -487,6 +487,40 @@ class LayoutSpec : BaseSpec({
         Layout.render(matrix(2, "1", "2", "3", "4", trailingComma = false), style) shouldBe "f(\n    1, 2,\n    3, 4\n)"
     }
 
+    should("end a MATRIX group on a short row when the cells do not fill the last one") {
+        Layout.render(matrix(3, "1", "2", "3", "4", "5"), style) shouldBe "f(\n    1, 2, 3,\n    4, 5,\n)"
+        Layout.render(matrix(3, "1", "2", "3", "4", "5", "6", "7"), style) shouldBe
+            "f(\n    1, 2, 3,\n    4, 5, 6,\n    7,\n)"
+    }
+
+    should("render a MATRIX group with fewer cells than columns as one short row") {
+        Layout.render(matrix(5, "1", "2", "3"), style) shouldBe "f(\n    1, 2, 3,\n)"
+        Layout.render(matrix(2, "1"), style) shouldBe "f(\n    1,\n)"
+    }
+
+    should("render a MATRIX group asking for more columns than any array holds as one row") {
+        Layout.render(matrix(Int.MAX_VALUE, "1", "2", "3"), style) shouldBe "f(\n    1, 2, 3,\n)"
+    }
+
+    should("omit the trailing comma after the last cell of a short row") {
+        Layout.render(matrix(3, "1", "2", "3", "4", trailingComma = false), style) shouldBe "f(\n    1, 2, 3,\n    4\n)"
+    }
+
+    should("size the columns of a MATRIX group over the cells of its short row too") {
+        val doc = matrix(3, "1", "2", "3", "44", "5", "6", "777")
+        Layout.render(doc, style) shouldBe "f(\n    1,   2, 3,\n    44,  5, 6,\n    777,\n)"
+    }
+
+    should("pad the cells of a short row that are followed by another cell and no others") {
+        val doc = matrix(4, "a", "bbbb", "c", "d", "eeeeee", "f")
+        Layout.render(doc, style) shouldBe "f(\n    a,      bbbb, c, d,\n    eeeeee, f,\n)"
+    }
+
+    should("leave no trailing whitespace on any row of a MATRIX group") {
+        val doc = matrix(3, "a", "bb", "ccc", "dddd", "e", "ff", "ggggg")
+        Layout.render(doc, style).lines().filter { it.endsWith(" ") } shouldBe emptyList()
+    }
+
     should("lay a MATRIX group out from the indent it stands at") {
         val nested = Doc.Concat(
             listOf(
