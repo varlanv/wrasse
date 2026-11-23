@@ -47,6 +47,8 @@ class WrassePlugin(
         }
         val configRelativePath = relativeToConfigDir(filePath)
         if (matchesAny(globalExclude, configRelativePath)) {
+            runCatching { patchStore?.clear(filePath.toString()) }
+            runCatching { reportStore?.clear(reportFilePath(filePath)) }
             return emptyList()
         }
         if (!perf.enabled) {

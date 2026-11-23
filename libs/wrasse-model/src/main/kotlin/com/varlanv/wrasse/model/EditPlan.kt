@@ -79,8 +79,8 @@ class EditPlan {
         private fun overlapsAny(edit: WEdit, keptIntervals: TreeMap<Int, Int>): Boolean {
             val floor = keptIntervals.floorEntry(edit.startOffset)
             if (floor != null && floor.key < edit.endOffset && edit.startOffset < floor.value) return true
-            val ceiling = keptIntervals.ceilingEntry(edit.startOffset)
-            return ceiling != null && ceiling.key < edit.endOffset && edit.startOffset < ceiling.value
+            val higher = keptIntervals.higherEntry(edit.startOffset)
+            return higher != null && higher.key < edit.endOffset && edit.startOffset < higher.value
         }
     }
 

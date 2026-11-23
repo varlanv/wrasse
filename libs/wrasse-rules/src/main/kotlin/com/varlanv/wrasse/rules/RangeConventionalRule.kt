@@ -17,6 +17,13 @@ private val TARGET_TYPES = setOf(
     WNodeType.PARENTHESIZED,
 )
 
+private val RANGE_TO_OPERAND_PARENTS = setOf(
+    WNodeType.DOT_QUALIFIED_EXPRESSION,
+    WNodeType.SAFE_ACCESS_EXPRESSION,
+    WNodeType.PREFIX_EXPRESSION,
+    WNodeType.POSTFIX_EXPRESSION,
+)
+
 /**
  * Two conventional range rewrites, fused behind one id since both are the same "prefer the
  * operator form" preference: a qualified `rangeTo` call becomes `..` (see
@@ -114,13 +121,14 @@ class RangeConventionalRule : WUninitializedRule {
                     argumentText,
                     hasComment,
                 )
+                val isOperand = ctx.ancestors.peekType() in RANGE_TO_OPERAND_PARENTS
                 reporter.report(
                     ruleId,
                     verdict.message,
                     verdict.reportStart,
                     verdict.reportEnd,
                     this,
-                    edits = verdict.edits,
+                    edits = if (isOperand) emptyList() else verdict.edits,
                 )
             }
 

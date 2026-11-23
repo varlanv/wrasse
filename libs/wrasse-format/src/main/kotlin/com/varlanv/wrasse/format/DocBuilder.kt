@@ -50,6 +50,7 @@ private val CONDITION_PAREN_TYPES = WNodeTypeSet.containing(WNodeType.IF, WNodeT
 
 private val OWN_LINE_FORCE_TYPES = WNodeTypeSet.containing(WNodeType.BLOCK, WNodeType.CLASS_BODY, WNodeType.WHEN)
 private val SEMICOLON_BREAK_SCOPE = WNodeTypeSet.containing(WNodeType.BLOCK, WNodeType.WHEN)
+private const val GLUING_UNARY_OPERATOR_CHARS = "+-!"
 private val HUGGING_VALUE_TYPES = WNodeTypeSet.containing(WNodeType.IF, WNodeType.WHEN, WNodeType.TRY)
 private val BLANK_LINE_BEFORE_DECLARATION_TYPES = WNodeTypeSet.containing(
     WNodeType.CLASS,
@@ -570,7 +571,8 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             val gapEntry = children.getOrNull(gapIdx)
             val nextReal = (gapIdx until
                 children.size).map { children[it] }.firstOrNull { it.type != WNodeType.WHITE_SPACE }
-            if (gapEntry is ChildEntry.Ws || nextReal == null || nextReal.type in COMMENT_TYPES) {
+            val opensBlockLiteral = nextReal is ChildEntry.Resolved && leadingChar(nextReal.doc) == '{'
+            if (gapEntry is ChildEntry.Ws || nextReal == null || nextReal.type in COMMENT_TYPES || opensBlockLiteral) {
                 out.add(entry)
                 i++
                 continue
@@ -991,15 +993,23 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         end: Int,
     ): Doc {
         frame.wrapsCallLike = frame.children.any { isCallLikeEntry(it) }
-        val parts = frame.children.map { entry ->
+        val children = frame.children
+        val parts = children.mapIndexed { index, entry ->
             if (isPlainWhitespace(entry)) {
                 val ws = (entry as ChildEntry.Resolved).doc
-                Doc.Text("", ws.start, ws.end)
+                Doc.Text(if (gluesIntoOtherToken(children, index)) " " else "", ws.start, ws.end)
             } else {
                 resolveEntry(entry)
             }
         }
         return Doc.Concat(parts, start, end)
+    }
+
+    private fun gluesIntoOtherToken(children: List<ChildEntry>, whitespaceIndex: Int): Boolean {
+        val before = children.getOrNull(whitespaceIndex - 1) as? ChildEntry.Resolved ?: return false
+        val after = children.getOrNull(whitespaceIndex + 1) as? ChildEntry.Resolved ?: return false
+        val left = flatText(before.doc).lastOrNull() ?: return false
+        return left in GLUING_UNARY_OPERATOR_CHARS && left == leadingChar(after.doc)
     }
 
     /**
@@ -2603,6 +2613,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
     private fun wsSpan(entry: ChildEntry): Pair<Int, Int> = when (entry) {
         is ChildEntry.Ws -> entry.start to entry.start + entry.rawText.length
         is ChildEntry.Resolved -> entry.doc.start to entry.doc.end
+    }
+
+    private fun leadingChar(doc: Doc): Char? = when (doc) {
+        is Doc.Text -> doc.value.firstOrNull()
+        is Doc.Concat -> doc.parts.firstNotNullOfOrNull { leadingChar(it) }
+        is Doc.Indent -> leadingChar(doc.body)
+        is Doc.Group -> leadingChar(doc.body)
+        else -> null
     }
 
     private fun flatText(doc: Doc): String = when (doc) {

@@ -325,7 +325,10 @@ private fun loadConfig(
             throw IllegalStateException("wrasse: invalid config in $configPath: ${e.message}", e)
         }
     }
-    error("wrasse: config file not found. Searched upward from source roots: $sourceRoots for: $Static.configFileNames")
+    error(
+        "wrasse: config file not found. Searched upward from source roots: $sourceRoots " +
+            "for: ${Static.configFileNames}",
+    )
 }
 
 /** Resolves each `"extends"` link's path against the directory of the file that named it, not the leaf config's. */
