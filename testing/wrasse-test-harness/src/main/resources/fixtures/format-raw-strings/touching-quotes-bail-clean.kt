@@ -3,15 +3,15 @@ package sample
 fun openTouch(): String {
     val a = """content on first line
     more content
-    """
-        .trimIndent()
+    """.trimIndent()
     return a
 }
 
 fun closeTouch(): String {
     val b = """
     more content
-    content on last line"""
-        .trimIndent()
+    content on last line""".trimIndent()
     return b
 }
+
+// expect-clean

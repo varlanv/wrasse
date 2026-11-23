@@ -11,11 +11,7 @@ class RequestCleanupSpec : ShouldSpec({
     should("delete a request no compile consumed, so the next plain compile still fails on the finding") {
         val playground = Playground.create("request-cleanup")
         try {
-            playground.module(
-                "app",
-                mapOf("sample/Sample.kt" to SEMICOLON_SOURCE),
-                extension = "warnOnly.set(false)",
-            )
+            playground.module("app", mapOf("sample/Sample.kt" to SEMICOLON_SOURCE), extension = "warnOnly.set(false)")
             playground.settings()
             playground.config(ERROR_CONFIG)
             val finding = "e: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 " +

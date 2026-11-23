@@ -183,8 +183,7 @@ class ConfigValueJsoncSpec : BaseSpec({
         }
 
         should("parse an object with multiple value types") {
-            val result = ConfigValueJsonc
-                .parse("""{"s": "hello", "n": 42, "b": true, "d": 1.5, "nil": null}""")
+            val result = ConfigValueJsonc.parse("""{"s": "hello", "n": 42, "b": true, "d": 1.5, "nil": null}""")
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             val props = result.value
             props.get("s", ConfigValue.Str::class.java) shouldBe Property.Val(ConfigValue.Str("hello"))
@@ -303,51 +302,47 @@ class ConfigValueJsoncSpec : BaseSpec({
 
     context("JSONC features") {
         should("skip single-line comments before a value") {
-            val result = ConfigValueJsonc
-                .parse(
-                    """
+            val result = ConfigValueJsonc.parse(
+                """
                     // this is a comment
                     "hello"
                     """
-                        .trimIndent(),
-                )
+                    .trimIndent(),
+            )
             result shouldBe ConfigValue.Str("hello")
         }
 
         should("skip single-line comments after a value in objects") {
-            val result = ConfigValueJsonc
-                .parse(
-                    """
+            val result = ConfigValueJsonc.parse(
+                """
                     {
                       // comment before key
                       "a": 1, // inline comment
                       "b": 2
                     }
                     """
-                        .trimIndent(),
-                )
+                    .trimIndent(),
+            )
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
             result.value.get("b", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(2))
         }
 
         should("skip block comments") {
-            val result = ConfigValueJsonc
-                .parse(
-                    """
+            val result = ConfigValueJsonc.parse(
+                """
                     /* block comment */
                     {"key": /* inline */ "value"}
                     """
-                        .trimIndent(),
-                )
+                    .trimIndent(),
+            )
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("key", ConfigValue.Str::class.java) shouldBe Property.Val(ConfigValue.Str("value"))
         }
 
         should("skip multi-line block comments") {
-            val result = ConfigValueJsonc
-                .parse(
-                    """
+            val result = ConfigValueJsonc.parse(
+                """
                     {
                       /*
                        * multi-line
@@ -356,8 +351,8 @@ class ConfigValueJsoncSpec : BaseSpec({
                       "a": 1
                     }
                     """
-                        .trimIndent(),
-                )
+                    .trimIndent(),
+            )
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             result.value.get("a", ConfigValue.Num::class.java) shouldBe Property.Val(ConfigValue.Num(1))
         }

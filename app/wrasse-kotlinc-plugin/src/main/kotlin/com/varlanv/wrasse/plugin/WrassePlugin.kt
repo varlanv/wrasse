@@ -5,13 +5,13 @@ import com.varlanv.wrasse.format.DocBuilder
 import com.varlanv.wrasse.lang.*
 import com.varlanv.wrasse.model.*
 import com.varlanv.wrasse.rules.SuppressionCollectorRule
+import java.nio.file.Path
+import java.nio.file.PathMatcher
+import java.nio.file.Paths
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import java.nio.file.Path
-import java.nio.file.PathMatcher
-import java.nio.file.Paths
 
 private const val NO_AUTOFIX_MARKER = " (no autofix for this shape)"
 

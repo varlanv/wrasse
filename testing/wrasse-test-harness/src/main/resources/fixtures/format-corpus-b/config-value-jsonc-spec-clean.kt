@@ -309,8 +309,7 @@ class ConfigValueJsoncSpec : BaseSpec({
                     """
                     // this is a comment
                     "hello"
-                    """
-                        .trimIndent(),
+                    """.trimIndent(),
                 )
                 .getOrThrow()
             result shouldBe ConfigValue.Str("hello")
@@ -325,8 +324,7 @@ class ConfigValueJsoncSpec : BaseSpec({
                       "a": 1, // inline comment
                       "b": 2
                     }
-                    """
-                        .trimIndent(),
+                    """.trimIndent(),
                 )
                 .getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
@@ -340,8 +338,7 @@ class ConfigValueJsoncSpec : BaseSpec({
                     """
                     /* block comment */
                     {"key": /* inline */ "value"}
-                    """
-                        .trimIndent(),
+                    """.trimIndent(),
                 )
                 .getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
@@ -359,8 +356,7 @@ class ConfigValueJsoncSpec : BaseSpec({
                        */
                       "a": 1
                     }
-                    """
-                        .trimIndent(),
+                    """.trimIndent(),
                 )
                 .getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
@@ -425,8 +421,7 @@ class ConfigValueJsoncSpec : BaseSpec({
             shouldThrow<IllegalArgumentException> {
                 ConfigValueJsonc.parse(json).getOrThrow()
             }.message shouldBe
-                "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH * 5 +
-                    1})"
+                "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH * 5 + 1})"
         }
 
         should("reject arrays nested beyond the maximum depth") {
@@ -434,8 +429,7 @@ class ConfigValueJsoncSpec : BaseSpec({
             shouldThrow<IllegalArgumentException> {
                 ConfigValueJsonc.parse(json).getOrThrow()
             }.message shouldBe
-                "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH +
-                    1})"
+                "Nesting exceeds ${ConfigValueJsonc.MAX_DEPTH} levels (line 1, column ${ConfigValueJsonc.MAX_DEPTH + 1})"
         }
 
         should("track depth independently for parallel branches") {
@@ -471,8 +465,7 @@ class ConfigValueJsoncSpec : BaseSpec({
                     "outputDir": ".wrasse-format"
                   }
                 }
-                """
-                .trimIndent()
+                """.trimIndent()
             val result = ConfigValueJsonc.parse(json).getOrThrow()
             result.shouldBeInstanceOf<ConfigValue.Obj>()
             val root = result.value

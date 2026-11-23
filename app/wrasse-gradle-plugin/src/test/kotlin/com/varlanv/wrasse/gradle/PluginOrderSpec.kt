@@ -16,7 +16,8 @@ class PluginOrderSpec : ShouldSpec({
                     id("com.varlanv.wrasse")
                     kotlin("jvm") version "$KOTLIN_VERSION"
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             playground.source("app", "sample/Sample.kt", SEMICOLON_SOURCE)
             playground.settings()
@@ -46,7 +47,8 @@ class PluginOrderSpec : ShouldSpec({
                 project.afterEvaluate {
                     apply(plugin = "com.varlanv.wrasse")
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             playground.source("app", "sample/Sample.kt", SEMICOLON_SOURCE)
             playground.settings()

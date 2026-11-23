@@ -1,7 +1,6 @@
 package com.varlanv.gradle.plugin
 
 import org.gradle.api.Plugin
-import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.jvm.toolchain.JavaLanguageVersion
@@ -11,8 +10,6 @@ import org.gradle.plugins.ide.idea.model.IdeaModel
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
-private val compileTaskNamePattern = Regex("^compile(.*)Kotlin$")
 
 class InternalConventionPlugin : Plugin<Project> {
 
@@ -44,8 +41,6 @@ class InternalConventionPlugin : Plugin<Project> {
                 configureKotlin()
                 configureCommonDependencies()
                 configureTests()
-                configureWrasse()
-                configureWrasseApply()
                 configurePublishing()
             }
         }
@@ -140,95 +135,9 @@ class InternalConventionPlugin : Plugin<Project> {
                 }
             }
         }
-
-        fun configureWrasseApply() {
-            val wrasseApplyClasspath = project.configurations.create("wrasseApplyClasspath") { config ->
-                config.isCanBeConsumed = false
-                config.isCanBeResolved = true
-            }
-            dependencies.add(wrasseApplyClasspath.name, internalCatalog.getLib("wrasse-compiler-plugin"))
-
-            val applierClasspath = project.files(wrasseApplyClasspath)
-            val wrasseDirFile = project.layout.buildDirectory.dir("wrasse").get().asFile
-            tasks.register("wrasseApply") { task ->
-                task.group = "verification"
-                task.description = "Applies the wrasse patch journals of this project in-process"
-                task.onlyIf { wrasseDirFile.exists() }
-                task.doLast { applyWrassePatches(wrasseDirFile, applierClasspath.files) }
-            }
-
-            val pattern = compileTaskNamePattern
-            val wrasseDir = project.layout.buildDirectory.dir("wrasse").get().asFile
-            val requestDirs = project.provider {
-                tasks.withType(KotlinCompile::class.java).names.mapNotNull { name ->
-                    pattern.matchEntire(name)?.groupValues?.get(1)?.replaceFirstChar { it.lowercaseChar() }?.ifEmpty { "main" }
-                }.map { java.io.File(wrasseDir, it) }
-            }
-            val debugPerformance = providers.gradleProperty("wrasseDebugPerformance").isPresent
-            val formatRequest = tasks.register("wrasseFormatRequest") { task ->
-                task.group = "verification"
-                task.description = "Marks the next wrasse check compile of this project as a format run"
-                task.doLast {
-                    val content = "timestamp=${System.currentTimeMillis()}\nformatting=true\n" +
-                        (if (debugPerformance) "debugPerformance=true\n" else "")
-                    for (dir in requestDirs.get()) {
-                        dir.mkdirs()
-                        java.io.File(dir, "format-request").writeText(content)
-                    }
-                }
-            }
-            tasks.withType(KotlinCompile::class.java).configureEach { it.mustRunAfter(formatRequest) }
-        }
-
-        fun configureWrasse() {
-            if (!providers.gradleProperty("wrasseCheck").isPresent) {
-                return
-            }
-            val wrasseLib = internalCatalog.getLib("wrasse-compiler-plugin")
-            dependencies.add("kotlinCompilerPluginClasspath", wrasseLib)
-
-            tasks.withType(KotlinCompile::class.java) { kotlinCompile ->
-                val compilationName = compilationNameFor(kotlinCompile.name) ?: return@withType
-                val fixOutputDir = project.layout.buildDirectory.dir("wrasse/$compilationName").get().asFile.absolutePath
-                kotlinCompile.outputs.dir(java.io.File(fixOutputDir, "patch")).withPropertyName("wrassePatch")
-                wrasseConfigFile(project.projectDir)?.let {
-                    kotlinCompile.inputs.file(it).withPathSensitivity(PathSensitivity.NONE).withPropertyName("wrasseConfig")
-                }
-                kotlinCompile.compilerOptions {
-                    freeCompilerArgs.addAll(
-                        "-P", "plugin:com.varlanv.wrasse:fixOutputDir=$fixOutputDir",
-                    )
-                }
-            }
-        }
-
-        private fun compilationNameFor(compileTaskName: String): String? {
-            val match = compileTaskNamePattern.matchEntire(compileTaskName) ?: return null
-            return match.groupValues[1].replaceFirstChar { it.lowercaseChar() }.ifEmpty { "main" }
-        }
     }
 
     override fun apply(target: Project) {
         Impl(target).run()
-    }
-}
-
-private fun wrasseConfigFile(start: java.io.File): java.io.File? =
-    generateSequence(start) { it.parentFile }
-        .flatMap { dir -> sequenceOf(java.io.File(dir, "wrasse.json"), java.io.File(dir, "wrasse.jsonc")) }
-        .firstOrNull { it.isFile }
-
-private fun applyWrassePatches(wrasseDir: java.io.File, classpath: Set<java.io.File>) {
-    val files = wrasseDir.walkTopDown().filter { it.isFile }.toList()
-    val hasEntries = files.any { f -> f.name == "wrasse-fixes.txt" && f.useLines { lines -> lines.any { it.startsWith("file:") } } }
-    if (!hasEntries) {
-        files.filter { it.name == "format-request" }.forEach { it.delete() }
-        return
-    }
-    val urls = classpath.map { it.toURI().toURL() }.toTypedArray()
-    java.net.URLClassLoader(urls, ClassLoader.getPlatformClassLoader()).use { loader ->
-        val entry = Class.forName("com.varlanv.wrasse.lang.WPatchApplierKt", true, loader)
-        val exitCode = entry.getMethod("runApplier", List::class.java).invoke(null, listOf(wrasseDir.absolutePath)) as Int
-        if (exitCode != 0) throw org.gradle.api.GradleException("wrasseApply failed for ${wrasseDir.absolutePath}")
     }
 }

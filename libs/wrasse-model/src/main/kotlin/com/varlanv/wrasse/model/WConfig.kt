@@ -157,7 +157,9 @@ class WConfig(
             val format = buildFormatConfig(raw.format, warnOnly, explicitApiActive, wrapNestedCallArguments(raw))
             val ruleIdToConfig = mutableMapOf<String, WrasseRuleConfig>()
             if (isOn(raw, FUNCTION_EXPRESSION_BODY_RULE_ID) && isOn(raw, FORBIDDEN_EXPRESSION_BODY_RULE_ID)) {
-                error("Rules '$FUNCTION_EXPRESSION_BODY_RULE_ID' and '$FORBIDDEN_EXPRESSION_BODY_RULE_ID' cannot both be on")
+                error(
+                    "Rules '$FUNCTION_EXPRESSION_BODY_RULE_ID' and '$FORBIDDEN_EXPRESSION_BODY_RULE_ID' cannot both be on",
+                )
             }
 
             for (ruleId in ruleIds) {
@@ -165,11 +167,7 @@ class WConfig(
                 val level = rawRule.level ?: RuleLevel.OFF
                 if (level == RuleLevel.OFF) continue
                 val effectiveLevel = if (warnOnly && level == RuleLevel.ERROR) RuleLevel.WARN else level
-                val options = buildRuleOptions(
-                    ruleId,
-                    rawRule.options,
-                    ruleOptionSpecs[ruleId] ?: emptyList(),
-                )
+                val options = buildRuleOptions(ruleId, rawRule.options, ruleOptionSpecs[ruleId] ?: emptyList())
                 ruleIdToConfig[ruleId] =
                     WrasseRuleConfig(
                         level = level,
@@ -182,10 +180,10 @@ class WConfig(
             }
 
             return WConfig(
-                    exclude = globalExclude,
-                    rulesConfigs = WrasseRulesConfig(idToConfig = ruleIdToConfig),
-                    configDir = configDir,
-                    format = format,
+                exclude = globalExclude,
+                rulesConfigs = WrasseRulesConfig(idToConfig = ruleIdToConfig),
+                configDir = configDir,
+                format = format,
             )
         }
 
@@ -207,21 +205,25 @@ class WConfig(
                 val rawValue = raw[spec.name]
                 if (rawValue == null) {
                     when (spec) {
-                        is WRuleOptionSpec.Required -> error("Missing required option '${spec.name}' for rule '$ruleId'")
+                        is WRuleOptionSpec.Required -> error(
+                            "Missing required option '${spec.name}' for rule '$ruleId'",
+                        )
 
                         is WRuleOptionSpec.Optional -> spec.default?.let { values[spec.name] = it }
                     }
                     continue
                 }
                 val value = convertOptionValue(spec.type, rawValue)
-                    ?: error("Option '${spec.name}' for rule '$ruleId' must be a ${spec.type.jsonName}, got ${rawValue.typeName()}")
+                    ?: error(
+                        "Option '${spec.name}' for rule '$ruleId' must be a ${spec.type.jsonName}, got ${rawValue.typeName()}",
+                    )
                 val minimum = spec.minimum
                 if (minimum != null && value is WRuleOptionValue.Num && value.value < minimum) {
-                    error( "Option '${spec.name}' for rule '$ruleId' must be at least $minimum, got ${value.value}")
+                    error("Option '${spec.name}' for rule '$ruleId' must be at least $minimum, got ${value.value}")
                 }
                 val maximum = spec.maximum
                 if (maximum != null && value is WRuleOptionValue.Num && value.value > maximum) {
-                   error("Option '${spec.name}' for rule '$ruleId' must be at most $maximum, got ${value.value}")
+                    error("Option '${spec.name}' for rule '$ruleId' must be at most $maximum, got ${value.value}")
                 }
                 values[spec.name] = value
             }
@@ -333,11 +335,13 @@ class WConfig(
 
             val multilineSignatureThreshold = when (
                 val prop = formatObj.get("multilineSignatureThreshold", ConfigValue.Num::class.java)
-            ) {
+                ) {
                 is Property.Val -> prop.value.value.toInt()
                 is Property.Missing -> null
                 is Property.TypeMismatch -> {
-                    error("Property 'multilineSignatureThreshold' for 'format' must be a number, got ${prop.actual.typeName()}")
+                    error(
+                        "Property 'multilineSignatureThreshold' for 'format' must be a number, got ${prop.actual.typeName()}",
+                    )
                 }
             }
 

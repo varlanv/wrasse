@@ -31,7 +31,7 @@ class ConfigDiscoverySpec : ShouldSpec({
 
             result.output shouldContain
                 "wrasse: the Kotlin compiler splits plugin options on ',', so wrasse cannot run from a path " +
-                "containing one: ${playground.dir.resolve("app")}"
+                    "containing one: ${playground.dir.resolve("app")}"
         } finally {
             playground.delete()
         }

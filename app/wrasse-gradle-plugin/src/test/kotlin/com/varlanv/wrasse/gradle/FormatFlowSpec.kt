@@ -51,7 +51,8 @@ class FormatFlowSpec : ShouldSpec({
             val failed = playground.runAndFail("wrasseFormat")
             failed.output shouldContain "> Task :app:compileKotlin FAILED"
             failed.output shouldNotContain "> Task :app:wrasseApply"
-            Files.readString(playground.dir.resolve("app/build/wrasse/main/patch/wrasse-fixes.txt")) shouldContain "Sample.kt"
+            Files.readString(playground.dir.resolve("app/build/wrasse/main/patch/wrasse-fixes.txt")) shouldContain
+                "Sample.kt"
             Files.readString(sample) shouldBe SEMICOLON_SOURCE
 
             playground.source("app", "sample/Bad.kt", "package sample\n\nval bad: Int = 1\n")

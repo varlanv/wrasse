@@ -57,10 +57,7 @@ object WReportReplay {
         projectDir: Path? = null,
     ): String {
         val prefix = if (diagnostic.isError) "e" else "w"
-        return "$prefix: ${resolvePath(
-            file.filePath,
-            projectDir,
-        ).toUri()}:${diagnostic.line}:${diagnostic.column} wrasse: ${diagnostic.message}"
+        return "$prefix: ${resolvePath(file.filePath, projectDir).toUri()}:${diagnostic.line}:${diagnostic.column} wrasse: ${diagnostic.message}"
     }
 
     /**

@@ -49,8 +49,11 @@ private const val REQUEST_FILE = "format-request"
 private const val KAPT_STUB_TASK_CLASS = "org.jetbrains.kotlin.gradle.internal.KaptGenerateStubsTask"
 private const val KOTLIN_COMPILE_CLASS = "org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile"
 private val EXTENDS_ENTRY = Regex("\"extends\"\\s*:\\s*\"([^\"]+)\"")
-private val KOTLIN_PLUGIN_IDS =
-    arrayOf("org.jetbrains.kotlin.jvm", "org.jetbrains.kotlin.multiplatform", "org.jetbrains.kotlin.android")
+private val KOTLIN_PLUGIN_IDS = arrayOf(
+    "org.jetbrains.kotlin.jvm",
+    "org.jetbrains.kotlin.multiplatform",
+    "org.jetbrains.kotlin.android",
+)
 
 /**
  * `wrasse { }`: [enabled] runs the compiler plugin in every Kotlin compile (default true);
@@ -73,9 +76,7 @@ abstract class WrasseExtension {
  * a request file and print findings from the report afterwards, so the output is the same whether
  * the compile ran or not.
  */
-class WrasseGradlePlugin @Inject constructor(
-    private val listeners: BuildEventsListenerRegistry,
-) : Plugin<Project> {
+class WrasseGradlePlugin @Inject constructor(private val listeners: BuildEventsListenerRegistry) : Plugin<Project> {
     override fun apply(project: Project) {
         val extension = project.extensions.create("wrasse", WrasseExtension::class.java)
         extension.enabled.convention(true)
@@ -87,14 +88,18 @@ class WrasseGradlePlugin @Inject constructor(
             task.description = "Unpacks the bundled wrasse compiler plugin into the shared Gradle user home cache"
             task.sha256.set(BundledCompilerPlugin.SHA256)
             task.target.set(
-                File(project.gradle.gradleUserHomeDir, "caches/wrasse/${BundledCompilerPlugin.SHA256}/wrasse-compiler-plugin.jar"),
+                File(
+                    project.gradle.gradleUserHomeDir,
+                    "caches/wrasse/${BundledCompilerPlugin.SHA256}/wrasse-compiler-plugin.jar",
+                ),
             )
         }
         val toolClasspath = project.files(extract.flatMap { it.target }).builtBy(extract)
         val wrasseDir = project.layout.buildDirectory.dir(WRASSE_DIR)
         var wiredCompiles: TaskCollection<out Task>? = null
         val compilationDirs = wrasseDir.map { dir ->
-            (wiredCompiles?.filterNot(::isKaptStub) ?: emptyList()).map { compile -> File(dir.asFile, compilationName(compile.name)) }
+            (wiredCompiles?.filterNot(::isKaptStub)
+                ?: emptyList()).map { compile -> File(dir.asFile, compilationName(compile.name)) }
         }
         val debugPerformance = project.providers.gradleProperty("wrasseDebugPerformance").map { true }.orElse(false)
 
@@ -109,16 +114,27 @@ class WrasseGradlePlugin @Inject constructor(
         ) {}
         listeners.onTaskCompletion(formatCoordinator)
 
-        fun request(name: String, formatting: Boolean, description: String) =
-            project.tasks.register(name, WrasseRequestTask::class.java) { task ->
-                task.group = GROUP
-                task.description = description
-                task.compilationDirs.set(compilationDirs)
-                task.formatting.set(formatting)
-                task.debugPerformance.set(debugPerformance)
-            }
-        val formatRequest = request("wrasseFormatRequest", true, "Marks the next wrasse compiles of this project as a format run")
-        val lintRequest = request("wrasseLintRequest", false, "Marks the next wrasse compiles of this project as a lint run")
+        fun request(
+            name: String,
+            formatting: Boolean,
+            description: String,
+        ) = project.tasks.register(name, WrasseRequestTask::class.java) { task ->
+            task.group = GROUP
+            task.description = description
+            task.compilationDirs.set(compilationDirs)
+            task.formatting.set(formatting)
+            task.debugPerformance.set(debugPerformance)
+        }
+        val formatRequest = request(
+            "wrasseFormatRequest",
+            true,
+            "Marks the next wrasse compiles of this project as a format run",
+        )
+        val lintRequest = request(
+            "wrasseLintRequest",
+            false,
+            "Marks the next wrasse compiles of this project as a lint run",
+        )
         formatRequest.configure { it.mustRunAfter(lintRequest) }
         fun applyTask(name: String) = project.tasks.register(name, WrasseApplyTask::class.java) { task ->
             task.group = GROUP
@@ -190,10 +206,7 @@ class WrasseGradlePlugin @Inject constructor(
             compile.outputs
                 .dir(wrasseDir.map { File(File(it.asFile, compilationName(compile.name)), PATCH_DIR) })
                 .withPropertyName("wrassePatch")
-            compile.inputs
-                .files(configChain)
-                .withPathSensitivity(PathSensitivity.NONE)
-                .withPropertyName("wrasseConfig")
+            compile.inputs.files(configChain).withPathSensitivity(PathSensitivity.NONE).withPropertyName("wrasseConfig")
         }
         whenEvaluated(project) {
             if (extension.enabled.get() && extension.configFile.orNull == null) {
@@ -204,7 +217,10 @@ class WrasseGradlePlugin @Inject constructor(
             requireCommaFree(project.projectDir.absolutePath)
             compiles.configureEach { compile ->
                 if (isKaptStub(compile)) {
-                    appendFreeCompilerArgs(compile, project.provider { listOf("-P", "plugin:$PLUGIN_ID:enabled=false") })
+                    appendFreeCompilerArgs(
+                        compile,
+                        project.provider { listOf("-P", "plugin:$PLUGIN_ID:enabled=false") },
+                    )
                     return@configureEach
                 }
                 appendFreeCompilerArgs(
@@ -215,11 +231,16 @@ class WrasseGradlePlugin @Inject constructor(
                         requireCommaFree(excludedRoot)
                         val fixOutputDir = File(File(buildDir, WRASSE_DIR), compilationName(compile.name)).absolutePath
                         listOf(
-                            "-P", "plugin:$PLUGIN_ID:enabled=${extension.enabled.get()}",
-                            "-P", "plugin:$PLUGIN_ID:warnOnly=${extension.warnOnly.get()}",
-                            "-P", "plugin:$PLUGIN_ID:fixOutputDir=$fixOutputDir",
-                            "-P", "plugin:$PLUGIN_ID:excludedRoot=$excludedRoot",
-                            "-P", "plugin:$PLUGIN_ID:projectDir=${project.projectDir.absolutePath}",
+                            "-P",
+                            "plugin:$PLUGIN_ID:enabled=${extension.enabled.get()}",
+                            "-P",
+                            "plugin:$PLUGIN_ID:warnOnly=${extension.warnOnly.get()}",
+                            "-P",
+                            "plugin:$PLUGIN_ID:fixOutputDir=$fixOutputDir",
+                            "-P",
+                            "plugin:$PLUGIN_ID:excludedRoot=$excludedRoot",
+                            "-P",
+                            "plugin:$PLUGIN_ID:projectDir=${project.projectDir.absolutePath}",
                         )
                     },
                 )
@@ -241,7 +262,9 @@ abstract class WrasseExtractTask : DefaultTask() {
         val file = target.get()
         if (file.isFile) return
         val resource = WrasseExtractTask::class.java.getResourceAsStream(BUNDLED_RESOURCE)
-            ?: throw GradleException("wrasse: bundled compiler plugin $BUNDLED_RESOURCE is missing from the Gradle plugin jar")
+            ?: throw GradleException(
+                "wrasse: bundled compiler plugin $BUNDLED_RESOURCE is missing from the Gradle plugin jar",
+            )
         file.parentFile.mkdirs()
         val temp = Files.createTempFile(file.parentFile.toPath(), "wrasse-compiler-plugin", ".tmp")
         try {
@@ -279,13 +302,21 @@ abstract class WrasseFormatCoordinator :
     BuildService<BuildServiceParameters.None>,
     OperationCompletionListener,
     AutoCloseable {
-    private data class PendingApply(val dir: File, val classpath: Set<File>, val projectDir: File)
+    private data class PendingApply(
+        val dir: File,
+        val classpath: Set<File>,
+        val projectDir: File,
+    )
 
     private val pending = mutableListOf<PendingApply>()
     private var failed = false
 
     @Synchronized
-    fun enqueue(dir: File, classpath: Set<File>, projectDir: File) {
+    fun enqueue(
+        dir: File,
+        classpath: Set<File>,
+        projectDir: File,
+    ) {
         pending.add(PendingApply(dir, classpath, projectDir))
     }
 
@@ -370,7 +401,11 @@ abstract class WrasseApplyTask : DefaultTask() {
     }
 }
 
-private fun patchLines(dir: File, classpath: Set<File>, projectDir: File): List<String> = when {
+private fun patchLines(
+    dir: File,
+    classpath: Set<File>,
+    projectDir: File,
+): List<String> = when {
     hasEntries(dir, PATCH_FILE, "file:") -> applyAndReplay(dir, classpath, projectDir)
     hasEntries(dir, REPORT_FILE, "diag:") -> replay(dir, classpath, projectDir)
     else -> emptyList()
@@ -400,8 +435,11 @@ abstract class WrasseLintTask : DefaultTask() {
         deleteRequests(dir)
         if (!hasEntries(dir, REPORT_FILE, "diag:")) return
         val sources = compileSources.files.mapTo(HashSet()) { it.toPath().normalize() }
-        val lines = replay(dir, toolClasspath.files, projectDir.get().asFile)
-            .filter { line -> reportedPath(line)?.let { it in sources } ?: false }
+        val lines = replay(
+            dir,
+            toolClasspath.files,
+            projectDir.get().asFile,
+        ).filter { line -> reportedPath(line)?.let { it in sources } ?: false }
         for (line in lines) logger.lifecycle(line)
         val errors = lines.count { it.startsWith("e: ") }
         if (errors > 0) throw GradleException("wrasse found $errors error-level violation(s) in ${projectPath.get()}")
@@ -426,10 +464,9 @@ private fun requireCommaFree(path: String) {
     }
 }
 
-private fun discoverConfig(start: File): File? =
-    generateSequence(start) { it.parentFile }
-        .flatMap { dir -> sequenceOf(File(dir, "wrasse.json"), File(dir, "wrasse.jsonc")) }
-        .firstOrNull { it.isFile }
+private fun discoverConfig(start: File): File? = generateSequence(start) { it.parentFile }
+    .flatMap { dir -> sequenceOf(File(dir, "wrasse.json"), File(dir, "wrasse.jsonc")) }
+    .firstOrNull { it.isFile }
 
 private fun configChain(config: File?): List<File> {
     val chain = LinkedHashSet<File>()
@@ -437,11 +474,12 @@ private fun configChain(config: File?): List<File> {
     while (true) {
         val current = next ?: break
         if (!current.isFile || !chain.add(current)) break
-        next = EXTENDS_ENTRY
-            .find(stripJsonComments(current.readText()))
-            ?.groupValues
-            ?.get(1)
-            ?.let { File(current.parentFile, it).normalize() }
+        next =
+            EXTENDS_ENTRY
+                .find(stripJsonComments(current.readText()))
+                ?.groupValues
+                ?.get(1)
+                ?.let { File(current.parentFile, it).normalize() }
     }
     return chain.toList()
 }
@@ -486,18 +524,18 @@ private fun stripJsonComments(text: String): String {
 
 private fun kotlinCompileClass(project: Project, pluginId: String): Class<out Task>? {
     val plugin = project.plugins.findPlugin(pluginId) ?: return null
-    val loaded = runCatching { plugin.javaClass.classLoader.loadClass(KOTLIN_COMPILE_CLASS) }
-        .getOrElse {
-            throw GradleException(
-                "wrasse: could not load $KOTLIN_COMPILE_CLASS from the '$pluginId' plugin's classloader (${it.message})",
-            )
-        }
+    val loaded = runCatching { plugin.javaClass.classLoader.loadClass(KOTLIN_COMPILE_CLASS) }.getOrElse {
+        throw GradleException(
+            "wrasse: could not load $KOTLIN_COMPILE_CLASS from the '$pluginId' plugin's classloader (${it.message})",
+        )
+    }
     return loaded.asSubclass(Task::class.java)
 }
 
 private fun warnOnUnsupportedKotlin(project: Project, pluginId: String) {
     val plugin = project.plugins.findPlugin(pluginId) ?: return
-    val found = runCatching { plugin.javaClass.getMethod("getPluginVersion").invoke(plugin) as? String }.getOrNull() ?: return
+    val found = runCatching { plugin.javaClass.getMethod("getPluginVersion").invoke(plugin) as? String }.getOrNull()
+        ?: return
     if (found == BundledCompilerPlugin.KOTLIN_VERSION) return
     project.logger.warn(
         "wrasse is built for Kotlin ${BundledCompilerPlugin.KOTLIN_VERSION}, but project '${project.path}' uses Kotlin $found. " +
@@ -505,8 +543,9 @@ private fun warnOnUnsupportedKotlin(project: Project, pluginId: String) {
     )
 }
 
-private fun isKaptStub(task: Task): Boolean =
-    generateSequence<Class<*>>(task.javaClass) { it.superclass }.any { it.name == KAPT_STUB_TASK_CLASS }
+private fun isKaptStub(
+    task: Task,
+): Boolean = generateSequence<Class<*>>(task.javaClass) { it.superclass }.any { it.name == KAPT_STUB_TASK_CLASS }
 
 /** Lazily appends [args] to a compile task's `compilerOptions.freeCompilerArgs` via `ListProperty.appendAll`, preserving any value only conventioned onto it; fails if that API is unavailable. */
 private fun appendFreeCompilerArgs(task: Task, args: Provider<List<String>>) {
@@ -525,10 +564,17 @@ private fun freeCompilerArgs(task: Task): ListProperty<String> {
     return options.javaClass.getMethod("getFreeCompilerArgs").invoke(options) as ListProperty<String>
 }
 
-private fun sourcesOf(task: Task): FileCollection = task.javaClass.getMethod("getSources").invoke(task) as FileCollection
+private fun sourcesOf(
+    task: Task,
+): FileCollection = task.javaClass.getMethod("getSources").invoke(task) as FileCollection
 
-private fun hasEntries(dir: File, fileName: String, linePrefix: String): Boolean =
-    dir.walkTopDown().any { f -> f.isFile && f.name == fileName && f.useLines { lines -> lines.any { it.startsWith(linePrefix) } } }
+private fun hasEntries(
+    dir: File,
+    fileName: String,
+    linePrefix: String,
+): Boolean = dir
+    .walkTopDown()
+    .any { f -> f.isFile && f.name == fileName && f.useLines { lines -> lines.any { it.startsWith(linePrefix) } } }
 
 private fun deleteRequests(dir: File) {
     dir.walkTopDown().filter { it.isFile && it.name == REQUEST_FILE }.forEach { it.delete() }
@@ -537,23 +583,38 @@ private fun deleteRequests(dir: File) {
 private fun reportedPath(line: String): Path? {
     val start = line.indexOf(": ")
     val end = line.indexOf(" wrasse: ")
-    if (start !in 0..<end) return null
+    if (start !in 0..< end) return null
     val uri = line.substring(start + 2, end).substringBeforeLast(':').substringBeforeLast(':')
     return runCatching { Path.of(URI(uri)).normalize() }.getOrNull()
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun replay(dir: File, classpath: Set<File>, projectDir: File): List<String> =
+private fun replay(
+    dir: File,
+    classpath: Set<File>,
+    projectDir: File,
+): List<String> =
     withTool(classpath, "WReportReplayKt", "replayReports", dir, projectDir) as List<String>
 
 @Suppress("UNCHECKED_CAST")
-private fun applyAndReplay(dir: File, classpath: Set<File>, projectDir: File): List<String> =
+private fun applyAndReplay(
+    dir: File,
+    classpath: Set<File>,
+    projectDir: File,
+): List<String> =
     withTool(classpath, "WPatchApplierKt", "applyAndReplay", dir, projectDir) as List<String>
 
-private fun withTool(classpath: Set<File>, className: String, method: String, dir: File, projectDir: File): Any {
+private fun withTool(
+    classpath: Set<File>,
+    className: String,
+    method: String,
+    dir: File,
+    projectDir: File,
+): Any {
     val urls = classpath.map { it.toURI().toURL() }.toTypedArray()
     return URLClassLoader(urls, ClassLoader.getPlatformClassLoader()).use { loader ->
-        Class.forName("com.varlanv.wrasse.lang.$className", true, loader)
+        Class
+            .forName("com.varlanv.wrasse.lang.$className", true, loader)
             .getMethod(method, List::class.java, Path::class.java)
             .invoke(null, listOf(dir.absolutePath), projectDir.toPath())
     }

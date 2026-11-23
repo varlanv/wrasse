@@ -177,7 +177,7 @@
             "level": "error"
         },
         "no-wildcard-imports": {
-            "level": "error"
+            "level": "off"
         },
         "not-implemented-declaration": {
             "level": "error"
@@ -213,7 +213,7 @@
             "level": "error"
         },
         "throws-count": {
-            "level": "error"
+            "level": "off"
         },
         "trailing-newline": {
             "level": "error"

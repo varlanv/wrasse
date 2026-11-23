@@ -21,7 +21,8 @@ class MultiplatformSpec : ShouldSpec({
                 kotlin {
                     jvm()
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             val sourceRoot = "src/jvmMain/kotlin"
             playground.source("app", "sample/Sample.kt", SEMICOLON_SOURCE, sourceRoot)

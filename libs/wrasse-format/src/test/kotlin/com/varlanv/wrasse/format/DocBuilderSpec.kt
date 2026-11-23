@@ -363,7 +363,9 @@ class DocBuilderSpec : BaseSpec({
         render(builder, ctx) shouldBe "aaaaaaaaaaaaaaaaaaaa\n    ?: b"
     }
 
-    should("wrapRoot: a chain whose receiver is a raw multi-line string indents the continuation one level, not zero") {
+    should(
+        "wrapRoot: a chain whose receiver is a raw multi-line string keeps its first link on the closing quotes' line",
+    ) {
         val builder = DocBuilder(formatConfig())
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
@@ -386,7 +388,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    line two\n\"\"\"\n    .trimIndent()"
+        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    line two\n\"\"\".trimIndent()"
     }
 
     should("keep a short argument list flat") {
@@ -2326,7 +2328,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.PROPERTY_ACCESSOR })
     }
 
-    should("force a blank line before an annotated property accessor following another accessor") {
+    should("never force a blank line before an annotated property accessor following another accessor") {
         val builder = DocBuilder(formatConfig())
         val ctx = WContext(filePath = "test.kt")
         builder.enterNode(ctx.apply { type = WNodeType.FILE })
@@ -2347,7 +2349,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.PROPERTY })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "var value = 0\n    get() = field\n\n    @Ann\n    set() = field"
+        render(builder, ctx) shouldBe "var value = 0\n    get() = field\n    @Ann\n    set() = field"
     }
 
     should("never force a blank line before an annotated property accessor that is itself the first one") {
@@ -2593,7 +2595,7 @@ class DocBuilderSpec : BaseSpec({
         trimIndentReceiver(builder, ctx, listOf("  line one", "  line two"), "  ")
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    line two\n    \"\"\"\n    .trimIndent()"
+        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    line two\n    \"\"\".trimIndent()"
     }
 
     should("leave a trimIndent() raw string containing a whitespace-only interior line untouched") {
@@ -2603,7 +2605,7 @@ class DocBuilderSpec : BaseSpec({
         trimIndentReceiver(builder, ctx, listOf("  line one", "      ", "  line two"), "  ")
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\n  line one\n      \n  line two\n  \"\"\"\n    .trimIndent()"
+        render(builder, ctx) shouldBe "\"\"\"\n  line one\n      \n  line two\n  \"\"\".trimIndent()"
     }
 
     should(
@@ -2629,7 +2631,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\n    line one\n\n\n    line two\n    \"\"\"\n    .trimIndent()"
+        render(builder, ctx) shouldBe "\"\"\"\n    line one\n\n\n    line two\n    \"\"\".trimIndent()"
     }
 
     should("leave a standalone multiline raw string with no trimIndent() call untouched") {
@@ -2665,7 +2667,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\n  hello \$name\n  \"\"\"\n    .trimIndent()"
+        render(builder, ctx) shouldBe "\"\"\"\n  hello \$name\n  \"\"\".trimIndent()"
     }
 
     should("leave a trimMargin() raw string untouched") {
@@ -2675,7 +2677,7 @@ class DocBuilderSpec : BaseSpec({
         trimIndentReceiver(builder, ctx, listOf("  |line one", "  |line two"), "  ", methodName = "trimMargin")
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\n  |line one\n  |line two\n  \"\"\"\n    .trimMargin()"
+        render(builder, ctx) shouldBe "\"\"\"\n  |line one\n  |line two\n  \"\"\".trimMargin()"
     }
 
     should("leave a trimIndent() raw string whose content touches the opening quotes untouched") {
@@ -2694,7 +2696,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"line one\n  \"\"\"\n    .trimIndent()"
+        render(builder, ctx) shouldBe "\"\"\"line one\n  \"\"\".trimIndent()"
     }
 
     should("leave a trimIndent() raw string whose content touches the closing quotes untouched") {
@@ -2712,7 +2714,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\n  line one\"\"\"\n    .trimIndent()"
+        render(builder, ctx) shouldBe "\"\"\"\n  line one\"\"\".trimIndent()"
     }
 
     should("leave a trimIndent() raw string with zero common indent untouched") {
@@ -2722,7 +2724,7 @@ class DocBuilderSpec : BaseSpec({
         trimIndentReceiver(builder, ctx, listOf("line one", "  line two"), "  ")
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\nline one\n  line two\n  \"\"\"\n    .trimIndent()"
+        render(builder, ctx) shouldBe "\"\"\"\nline one\n  line two\n  \"\"\".trimIndent()"
     }
 
     should("compose reindentation with a further chain link after trimIndent()") {
@@ -2735,7 +2737,7 @@ class DocBuilderSpec : BaseSpec({
         builder.exitNode(ctx.apply { type = WNodeType.DOT_QUALIFIED_EXPRESSION })
         builder.exitNode(ctx.apply { type = WNodeType.FILE })
 
-        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    \"\"\"\n    .trimIndent()\n    .uppercase()"
+        render(builder, ctx) shouldBe "\"\"\"\n    line one\n    \"\"\".trimIndent()\n    .uppercase()"
     }
 })
 

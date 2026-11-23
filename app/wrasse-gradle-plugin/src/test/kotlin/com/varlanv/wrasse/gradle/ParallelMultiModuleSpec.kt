@@ -38,7 +38,10 @@ class ParallelMultiModuleSpec : ShouldSpec({
 
             val result = playground.runAndFail("wrasseLint", "--continue")
             for (name in listOf("one", "two", "three")) {
-                result.output.countOf("e: ${playground.sourceUri(name, "sample/$name.kt")}:3:${"val $name = 1".length + 1} wrasse: no-semicolons: Unnecessary semicolon") shouldBe 1
+                result.output.countOf(
+                    "e: ${playground.sourceUri(name, "sample/$name.kt")}:3:${"val $name = 1".length +
+                        1} wrasse: no-semicolons: Unnecessary semicolon",
+                ) shouldBe 1
                 result.output shouldContain "wrasse found 1 error-level violation(s) in :$name"
             }
         } finally {

@@ -20,7 +20,8 @@ class KaptSpec : ShouldSpec({
                     kotlin("kapt") version "$KOTLIN_VERSION"
                     id("com.varlanv.wrasse")
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             playground.source("app", "sample/Sample.kt", SEMICOLON_SOURCE)
             playground.settings("org.gradle.caching=true\n")
@@ -35,8 +36,11 @@ class KaptSpec : ShouldSpec({
             lint.output shouldContain "Build cache key for task ':app:compileKotlin'"
             lint.output shouldNotContain "Caching disabled for task ':app:compileKotlin'"
             Files.exists(playground.dir.resolve("app/build/wrasse/kaptGenerateStubsKotlin")) shouldBe false
-            val stubArgLines = lint.output.lineSequence()
-                .filter { it.contains("Kotlin compiler args:") && it.contains("plugin:com.varlanv.wrasse:enabled=false") }
+            val stubArgLines = lint.output
+                .lineSequence()
+                .filter {
+                    it.contains("Kotlin compiler args:") && it.contains("plugin:com.varlanv.wrasse:enabled=false")
+                }
                 .toList()
             stubArgLines shouldHaveSize 1
             stubArgLines[0] shouldContain "kapt3"

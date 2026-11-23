@@ -4,8 +4,7 @@ fun shout(): String {
     val text = """
         hello
         world
-        """
-        .trimIndent()
+        """.trimIndent()
         .uppercase()
     return text
 }

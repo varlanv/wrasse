@@ -5,7 +5,8 @@ import java.nio.file.Path
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 
-internal val KOTLIN_VERSION: String = System.getProperty("wrasse.kotlinVersion") ?: error("wrasse.kotlinVersion not set")
+internal val KOTLIN_VERSION: String = System.getProperty("wrasse.kotlinVersion")
+    ?: error("wrasse.kotlinVersion not set")
 
 internal const val SEMICOLON_SOURCE = "package sample\n\nval answer = 42;\n"
 internal const val CLEAN_SOURCE = "package sample\n\nval answer = 42\n"
@@ -34,13 +35,11 @@ internal class Playground(val dir: Path) {
             }
             rootProject.name = "playground"
             include(${modules.joinToString { "\"$it\"" }})
-            """.trimIndent(),
+            """
+                .trimIndent(),
         )
         Files.writeString(dir.resolve("build.gradle.kts"), "")
-        Files.writeString(
-            dir.resolve("gradle.properties"),
-            "org.gradle.jvmargs=-Xmx1g\n$extraProperties",
-        )
+        Files.writeString(dir.resolve("gradle.properties"), "org.gradle.jvmargs=-Xmx1g\n$extraProperties")
     }
 
     fun config(json: String) {
@@ -66,7 +65,8 @@ internal class Playground(val dir: Path) {
             }
 
             $afterExtension
-            """.trimIndent(),
+            """
+                .trimIndent(),
         )
         for ((path, content) in sources) source(name, path, content)
         return moduleDir
@@ -115,7 +115,10 @@ internal class Playground(val dir: Path) {
         return file
     }
 
-    fun runner(vararg args: String): GradleRunner = GradleRunner.create()
+    fun runner(
+        vararg args: String,
+    ): GradleRunner = GradleRunner
+        .create()
         .withPluginClasspath()
         .withProjectDir(dir.toFile())
         .withArguments(*args, "--stacktrace")

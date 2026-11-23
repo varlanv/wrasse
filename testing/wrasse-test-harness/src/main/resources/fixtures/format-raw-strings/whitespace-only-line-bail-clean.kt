@@ -5,8 +5,7 @@ fun payloadWithBlankPaddedLines(): String {
         header
                                     
         body
-        """
-        .trimIndent()
+        """.trimIndent()
     return text
 }
 

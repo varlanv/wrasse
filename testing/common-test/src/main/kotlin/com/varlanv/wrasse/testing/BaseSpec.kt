@@ -12,6 +12,7 @@ abstract class BaseSpec(body: ShouldSpec.() -> Unit) : ShouldSpec({
     body()
 })
 
+@Suppress("BlockingMethodInNonBlockingContext")
 suspend fun useTempDir(block: suspend (Path) -> Unit) {
     val dir = Files.createTempDirectory("wrasse-test-")
     val file = dir.toFile()

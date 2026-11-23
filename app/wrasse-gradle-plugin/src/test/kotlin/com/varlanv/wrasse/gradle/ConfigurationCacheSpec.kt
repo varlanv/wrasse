@@ -15,7 +15,10 @@ class ConfigurationCacheSpec : ShouldSpec({
             playground.module("lib", mapOf("sample/Lib.kt" to "package sample\n\nval lib = 1;\n"))
             playground.settings("org.gradle.configuration-cache=true\norg.gradle.configuration-cache.problems=fail\n")
             playground.config(WARN_CONFIG)
-            val finding = "w: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+            val finding = "w: ${playground.sourceUri(
+                "app",
+                "sample/Sample.kt",
+            )}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
 
             val first = playground.run("wrasseLint")
             first.output shouldContain "Configuration cache entry stored."
@@ -29,7 +32,8 @@ class ConfigurationCacheSpec : ShouldSpec({
             format.output shouldContain "Configuration cache entry stored."
             format.output shouldNotContain "no-semicolons"
             Files.readString(playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")) shouldBe CLEAN_SOURCE
-            Files.readString(playground.dir.resolve("lib/src/main/kotlin/sample/Lib.kt")) shouldBe "package sample\n\nval lib = 1\n"
+            Files.readString(playground.dir.resolve("lib/src/main/kotlin/sample/Lib.kt")) shouldBe
+                "package sample\n\nval lib = 1\n"
 
             val formatAgain = playground.run("wrasseFormat")
             formatAgain.output shouldContain "Reusing configuration cache."
@@ -41,13 +45,18 @@ class ConfigurationCacheSpec : ShouldSpec({
         }
     }
 
-    should("fail on error-level findings from a reused configuration cache entry without configuration cache problems") {
+    should(
+        "fail on error-level findings from a reused configuration cache entry without configuration cache problems",
+    ) {
         val playground = Playground.create("config-cache-errors")
         try {
             playground.module("app", mapOf("sample/Sample.kt" to SEMICOLON_SOURCE))
             playground.settings("org.gradle.configuration-cache=true\norg.gradle.configuration-cache.problems=fail\n")
             playground.config(ERROR_CONFIG)
-            val finding = "e: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+            val finding = "e: ${playground.sourceUri(
+                "app",
+                "sample/Sample.kt",
+            )}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
 
             val first = playground.runAndFail("wrasseLint")
             first.output shouldContain "Configuration cache entry stored."

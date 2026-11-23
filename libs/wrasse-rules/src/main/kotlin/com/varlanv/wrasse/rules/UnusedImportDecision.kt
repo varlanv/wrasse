@@ -55,8 +55,12 @@ object UnusedImportDecision {
         kdocSpans: List<IntRange>,
     ): Boolean {
         return kdocSpans.any { span ->
-            span.first >= 0 && span.first + 2 <= span.last && span.last < sourceText.length &&
-                sourceText[span.first] == '/' && sourceText[span.first + 1] == '*' && sourceText[span.first + 2] == '*' &&
+            span.first >= 0 &&
+                span.first + 2 <= span.last &&
+                span.last < sourceText.length &&
+                sourceText[span.first] == '/' &&
+                sourceText[span.first + 1] == '*' &&
+                sourceText[span.first + 2] == '*' &&
                 WordScan.containsWord(StringSlice(sourceText, span.first, span.last + 1), name)
         }
     }

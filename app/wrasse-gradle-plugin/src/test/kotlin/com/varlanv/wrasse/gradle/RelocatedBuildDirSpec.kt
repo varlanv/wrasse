@@ -23,7 +23,8 @@ class RelocatedBuildDirSpec : ShouldSpec({
             val lint = playground.run("wrasseLint")
 
             lint.output.countOf(finding) shouldBe 1
-            Files.readString(playground.dir.resolve("app/out/wrasse/main/patch/wrasse-fixes.txt")) shouldContain "Sample.kt"
+            Files.readString(playground.dir.resolve("app/out/wrasse/main/patch/wrasse-fixes.txt")) shouldContain
+                "Sample.kt"
             Files.exists(playground.dir.resolve("app/build")) shouldBe false
 
             val format = playground.run("wrasseFormat")
@@ -44,7 +45,8 @@ class RelocatedBuildDirSpec : ShouldSpec({
                 afterEvaluate {
                     layout.buildDirectory.set(layout.projectDirectory.dir("out"))
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             playground.settings()
             playground.config(WARN_CONFIG)
@@ -54,7 +56,8 @@ class RelocatedBuildDirSpec : ShouldSpec({
             val lint = playground.run("wrasseLint")
 
             lint.output.countOf(finding) shouldBe 1
-            Files.readString(playground.dir.resolve("app/out/wrasse/main/patch/wrasse-fixes.txt")) shouldContain "Sample.kt"
+            Files.readString(playground.dir.resolve("app/out/wrasse/main/patch/wrasse-fixes.txt")) shouldContain
+                "Sample.kt"
             Files.exists(playground.dir.resolve("app/build")) shouldBe false
         } finally {
             playground.delete()

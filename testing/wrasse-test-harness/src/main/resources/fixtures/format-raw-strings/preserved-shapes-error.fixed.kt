@@ -3,8 +3,7 @@ package sample
 fun withInterpolation(name: String): String {
     val greeting = """
   hello $name
-  """
-        .trimIndent()
+  """.trimIndent()
     return greeting
 }
 
@@ -12,8 +11,7 @@ fun withMargin(): String {
     val text = """
     |line one
     |line two
-    """
-        .trimMargin()
+    """.trimMargin()
     return text
 }
 

@@ -1,15 +1,117 @@
 package com.varlanv.wrasse.plugin
 
-import com.varlanv.wrasse.lang.*
-import com.varlanv.wrasse.model.*
-import com.varlanv.wrasse.rules.*
+import com.varlanv.wrasse.lang.ConfigValueJsonc
+import com.varlanv.wrasse.lang.FileWalkUp
+import com.varlanv.wrasse.lang.FormatRequest
+import com.varlanv.wrasse.lang.RunRequest
+import com.varlanv.wrasse.lang.WPerf
+import com.varlanv.wrasse.model.ExtendsResolution
+import com.varlanv.wrasse.model.ExtendsResolver
+import com.varlanv.wrasse.model.WConfig
+import com.varlanv.wrasse.model.WRuleOptionSpec
+import com.varlanv.wrasse.model.WRuleSet
+import com.varlanv.wrasse.model.WUninitializedRule
+import com.varlanv.wrasse.model.WUninitializedRuleGroup
+import com.varlanv.wrasse.model.WrasseRuleConfig
+import com.varlanv.wrasse.rules.AlsoCouldBeApplyRule
+import com.varlanv.wrasse.rules.BackingPropertyNamingRule
+import com.varlanv.wrasse.rules.BooleanExpressionsRule
+import com.varlanv.wrasse.rules.ClassMetricsEngine
+import com.varlanv.wrasse.rules.ClassNamingRule
+import com.varlanv.wrasse.rules.CollapseIfRule
+import com.varlanv.wrasse.rules.CommentOverPrivateDeclarationRule
+import com.varlanv.wrasse.rules.CommentPositionEngine
+import com.varlanv.wrasse.rules.ComplexConditionRule
+import com.varlanv.wrasse.rules.ConstructorParameterNamingRule
+import com.varlanv.wrasse.rules.CustomLabelRule
+import com.varlanv.wrasse.rules.DebugPrintRule
+import com.varlanv.wrasse.rules.DestructuringTooManyEntriesRule
+import com.varlanv.wrasse.rules.DoubleNegativeRule
+import com.varlanv.wrasse.rules.EmptyBlockEngine
+import com.varlanv.wrasse.rules.EmptyCatchBlockRule
+import com.varlanv.wrasse.rules.EmptyDefaultConstructorRule
+import com.varlanv.wrasse.rules.EmptyFunctionBlockRule
+import com.varlanv.wrasse.rules.EmptyKotlinFileRule
+import com.varlanv.wrasse.rules.EmptyWhenBlockRule
+import com.varlanv.wrasse.rules.EnumEntryNamingRule
+import com.varlanv.wrasse.rules.EqualsNullCallRule
+import com.varlanv.wrasse.rules.ExceptionRaisedInUnexpectedLocationRule
+import com.varlanv.wrasse.rules.ExplicitItLambdaMultipleParametersRule
+import com.varlanv.wrasse.rules.ExplicitItLambdaParameterRule
+import com.varlanv.wrasse.rules.ExtensionFunctionsSameNameRule
+import com.varlanv.wrasse.rules.FileNamingRule
+import com.varlanv.wrasse.rules.FileSizeRule
+import com.varlanv.wrasse.rules.ForbiddenCallsRule
+import com.varlanv.wrasse.rules.ForbiddenCommentRule
+import com.varlanv.wrasse.rules.ForbiddenExpressionBodyFunctionsRule
+import com.varlanv.wrasse.rules.FunctionExpressionBodyRule
+import com.varlanv.wrasse.rules.FunctionMetricsEngine
+import com.varlanv.wrasse.rules.FunctionNameLengthEngine
+import com.varlanv.wrasse.rules.FunctionNamingRule
+import com.varlanv.wrasse.rules.FunctionOnlyReturningConstantRule
+import com.varlanv.wrasse.rules.FunctionParameterNamingRule
+import com.varlanv.wrasse.rules.GetterSetterFieldsRule
+import com.varlanv.wrasse.rules.GlobalCoroutineUsageRule
+import com.varlanv.wrasse.rules.IfElseBracingRule
+import com.varlanv.wrasse.rules.ImportEngine
+import com.varlanv.wrasse.rules.InstanceOfCheckForExceptionRule
+import com.varlanv.wrasse.rules.InvalidRangeRule
+import com.varlanv.wrasse.rules.KdocDeprecatedTagRule
+import com.varlanv.wrasse.rules.KdocEngine
+import com.varlanv.wrasse.rules.KdocReferencesNonPublicPropertyRule
+import com.varlanv.wrasse.rules.LambdaParameterNamingRule
+import com.varlanv.wrasse.rules.LambdaReturnRule
+import com.varlanv.wrasse.rules.LongNumericalValuesRule
+import com.varlanv.wrasse.rules.LongParameterListRule
+import com.varlanv.wrasse.rules.LoopWithTooManyJumpStatementsRule
+import com.varlanv.wrasse.rules.MagicNumberRule
+import com.varlanv.wrasse.rules.MayBeConstantRule
+import com.varlanv.wrasse.rules.MissingPackageDeclarationRule
+import com.varlanv.wrasse.rules.MixedConditionOperatorsRule
+import com.varlanv.wrasse.rules.ModifierEngine
+import com.varlanv.wrasse.rules.NamedArgumentsRule
+import com.varlanv.wrasse.rules.NestedClassesVisibilityRule
+import com.varlanv.wrasse.rules.NoConsecutiveCommentsRule
+import com.varlanv.wrasse.rules.NoEmptyClassBodyRule
+import com.varlanv.wrasse.rules.NoEmptyParensBeforeTrailingLambdaRule
+import com.varlanv.wrasse.rules.NoSemicolonsRule
+import com.varlanv.wrasse.rules.NoSingleLineBlockCommentRule
+import com.varlanv.wrasse.rules.NoUnitReturnRule
+import com.varlanv.wrasse.rules.NotImplementedDeclarationRule
+import com.varlanv.wrasse.rules.PackageNamingRule
+import com.varlanv.wrasse.rules.PrintStackTraceRule
+import com.varlanv.wrasse.rules.PropertyNamingRule
+import com.varlanv.wrasse.rules.RangeConventionalRule
+import com.varlanv.wrasse.rules.RedundantConstructorKeywordRule
+import com.varlanv.wrasse.rules.RedundantToStringInTemplateRule
+import com.varlanv.wrasse.rules.RethrowCaughtExceptionRule
+import com.varlanv.wrasse.rules.SafeCastRule
+import com.varlanv.wrasse.rules.StringConcatenationRule
+import com.varlanv.wrasse.rules.StringShouldBeRawStringRule
+import com.varlanv.wrasse.rules.SwallowedExceptionRule
+import com.varlanv.wrasse.rules.SyncInAsyncRule
+import com.varlanv.wrasse.rules.ThrowingExceptionInMainRule
+import com.varlanv.wrasse.rules.TooGenericExceptionCaughtRule
+import com.varlanv.wrasse.rules.TooGenericExceptionThrownRule
+import com.varlanv.wrasse.rules.TrailingNewlineRule
+import com.varlanv.wrasse.rules.TrimMultilineRawStringRule
+import com.varlanv.wrasse.rules.TrivialAccessorsRule
+import com.varlanv.wrasse.rules.UnconditionalJumpStatementInLoopRule
+import com.varlanv.wrasse.rules.UnnecessaryBacktickRule
+import com.varlanv.wrasse.rules.UnnecessaryInheritanceRule
+import com.varlanv.wrasse.rules.UnnecessaryPartOfBinaryExpressionRule
+import com.varlanv.wrasse.rules.UnusedParameterRule
+import com.varlanv.wrasse.rules.UnusedPrivateClassRule
+import com.varlanv.wrasse.rules.UseLetRule
+import com.varlanv.wrasse.rules.UselessPostfixExpressionRule
+import com.varlanv.wrasse.rules.VariableNameMaxLengthRule
+import com.varlanv.wrasse.rules.WhenEntryBracingRule
+import com.varlanv.wrasse.rules.WhenMustHaveElseRule
+import java.nio.file.Path
 import org.jetbrains.kotlin.backend.common.push
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import java.nio.file.Path
 
 internal object Static {
-
-
     internal val configFileNames = setOf("wrasse.jsonc", "wrasse.json")
 
     /** Every single-id rule wrasse ships. See [registeredRuleGroups] for fused multi-id engines. */
@@ -131,11 +233,14 @@ internal object Static {
     internal val uninitializedRules = registeredRules.associateBy { it.id }
     internal val allRuleIds = uninitializedRules.keys + registeredRuleGroups.flatMap { it.ids }
 
-    internal val ruleOptionSpecs: Map<String, List<WRuleOptionSpec>> = HashMap<String, List<WRuleOptionSpec>>(256).apply {
-        for ((ruleId, rule) in uninitializedRules) put(ruleId, rule.options)
-        for (group in registeredRuleGroups) for (ruleId in group.ids) put(ruleId, group.optionSpecs[ruleId] ?: emptyList())
-    }
-
+    internal val ruleOptionSpecs: Map<String, List<WRuleOptionSpec>> = HashMap<String, List<WRuleOptionSpec>>(256)
+        .apply {
+            for ((ruleId, rule) in uninitializedRules) put(ruleId, rule.options)
+            for (group in registeredRuleGroups) for (ruleId in group.ids) put(
+                ruleId,
+                group.optionSpecs[ruleId] ?: emptyList(),
+            )
+        }
 }
 
 fun wrasseMain(
@@ -203,10 +308,7 @@ private fun loadConfig(
         val configVal = try {
             ConfigValueJsonc.parse(input = text)
         } catch (e: Exception) {
-            throw IllegalStateException(
-                "wrasse: failed to parse $configPath: ${e.message}",
-                e
-            )
+            throw IllegalStateException("wrasse: failed to parse $configPath: ${e.message}", e)
         }
         val resolveExtends = resolveExtendsFrom(configDir)
         return try {
@@ -234,8 +336,7 @@ private fun resolveExtendsFrom(baseDir: Path): ExtendsResolver = ExtendsResolver
     } else {
         val text = resolved.toFile().readText()
         try {
-            val res = ConfigValueJsonc
-                .parse(input = text)
+            val res = ConfigValueJsonc.parse(input = text)
             ExtendsResolution(res, resolveExtendsFrom(resolved.parent))
         } catch (e: Exception) {
             throw IllegalStateException("wrasse: failed to parse $resolved: ${e.message}", e)

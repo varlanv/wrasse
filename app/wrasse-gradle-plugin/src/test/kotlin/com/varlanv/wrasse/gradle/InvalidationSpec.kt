@@ -59,7 +59,8 @@ class InvalidationSpec : ShouldSpec({
                     // "extends": "wrong-base.json",
                     "extends": "base.json"
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             val sourceUri = playground.sourceUri("app", "sample/Sample.kt")
 
@@ -118,7 +119,10 @@ class InvalidationSpec : ShouldSpec({
             Files.writeString(buildFile, Files.readString(buildFile).replace("enabled.set(false)", "enabled.set(true)"))
             val enabled = playground.runAndFail("wrasseLint")
             enabled.output shouldContain
-                "e: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+                "e: ${playground.sourceUri(
+                    "app",
+                    "sample/Sample.kt",
+                )}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
         } finally {
             playground.delete()
         }

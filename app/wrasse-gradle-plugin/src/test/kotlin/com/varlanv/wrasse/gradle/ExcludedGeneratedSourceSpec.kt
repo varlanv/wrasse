@@ -9,12 +9,16 @@ import org.gradle.testkit.runner.GradleRunner
 
 class ExcludedGeneratedSourceSpec : ShouldSpec({
 
-    should("skip a hand-made file under the build directory for both lint and format, while a normal source is still checked") {
+    should(
+        "skip a hand-made file under the build directory for both lint and format, while a normal source is still checked",
+    ) {
         val playground = Playground.create("excluded-generated")
         try {
             playground.module(
                 "app",
-                mapOf("sample/Sample.kt" to "package sample\n\nimport generated.GENERATED\n\nval answer = GENERATED;\n"),
+                mapOf(
+                    "sample/Sample.kt" to "package sample\n\nimport generated.GENERATED\n\nval answer = GENERATED;\n",
+                ),
                 afterExtension = """
                 kotlin {
                     sourceSets {
@@ -23,7 +27,8 @@ class ExcludedGeneratedSourceSpec : ShouldSpec({
                         }
                     }
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             val generatedContent = "package generated\n\nconst val GENERATED = 1;\n"
             val generatedPath = "build/generated/src/main/kotlin/generated/Generated.kt"
@@ -55,7 +60,9 @@ class ExcludedGeneratedSourceSpec : ShouldSpec({
         try {
             playground.module(
                 "app",
-                mapOf("sample/Sample.kt" to "package sample\n\nimport generated.GENERATED\n\nval answer = GENERATED;\n"),
+                mapOf(
+                    "sample/Sample.kt" to "package sample\n\nimport generated.GENERATED\n\nval answer = GENERATED;\n",
+                ),
                 afterExtension = """
                 kotlin {
                     sourceSets {
@@ -64,7 +71,8 @@ class ExcludedGeneratedSourceSpec : ShouldSpec({
                         }
                     }
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             val generatedContent = "package generated\n\nconst val GENERATED = 1;\n"
             val generatedPath = "build/generated/src/main/kotlin/generated/Generated.kt"
@@ -74,7 +82,8 @@ class ExcludedGeneratedSourceSpec : ShouldSpec({
             Files.createSymbolicLink(link, playground.dir)
             val sourceUri = playground.sourceUri("app", "sample/Sample.kt")
 
-            val lint = GradleRunner.create()
+            val lint = GradleRunner
+                .create()
                 .withPluginClasspath()
                 .withProjectDir(link.toFile())
                 .withArguments("wrasseLint", "--stacktrace")

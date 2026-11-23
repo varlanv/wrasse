@@ -30,9 +30,15 @@ class MultiplatformFormatSpec : ShouldSpec({
                 afterEvaluate {
                     pluginManager.apply("com.varlanv.wrasse")
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
-            playground.source("app", "sample/Common.kt", "package sample\n\nfun common()  =  1\n", "src/commonMain/kotlin")
+            playground.source(
+                "app",
+                "sample/Common.kt",
+                "package sample\n\nfun common()  =  1\n",
+                "src/commonMain/kotlin",
+            )
             playground.source("app", "sample/Jvm.kt", "package sample\n\nfun jvm()  =  2\n", "src/jvmMain/kotlin")
             playground.settings()
             playground.config("""{"format":{"enabled":true}}""")
@@ -69,9 +75,15 @@ class MultiplatformFormatSpec : ShouldSpec({
                 tasks.register("format") {
                     dependsOn("wrasseFormat")
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
-            playground.source("lang", "sample/Common.kt", "package sample\n\nfun common()  =  1\n", "src/commonMain/kotlin")
+            playground.source(
+                "lang",
+                "sample/Common.kt",
+                "package sample\n\nfun common()  =  1\n",
+                "src/commonMain/kotlin",
+            )
             playground.source("lang", "sample/Jvm.kt", "package sample\n\nfun jvm()  =  2\n", "src/jvmMain/kotlin")
             playground.settings("group=com.varlanv.wrasse\nversion=0.1.0\n")
             playground.config("""{"format":{"enabled":true}}""")
@@ -106,9 +118,15 @@ class MultiplatformFormatSpec : ShouldSpec({
                 tasks.register("format") {
                     dependsOn("wrasseFormat")
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
-            playground.source("app", "sample/Common.kt", "package sample\n\nfun common()  =  1\n", "src/commonMain/kotlin")
+            playground.source(
+                "app",
+                "sample/Common.kt",
+                "package sample\n\nfun common()  =  1\n",
+                "src/commonMain/kotlin",
+            )
             playground.source("app", "sample/Jvm.kt", "package sample\n\nfun jvm()  =  2\n", "src/jvmMain/kotlin")
             playground.source("app", "sample/Js.kt", "package sample\n\nfun js()  =  3\n", "src/jsMain/kotlin")
             playground.settings()

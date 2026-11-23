@@ -3,16 +3,14 @@ package sample
 fun openingTouch(): String {
     val text = """Roses are red
         Violets are blue
-        """
-        .trimIndent()
+        """.trimIndent()
     return text
 }
 
 fun closingTouch(): String {
     val text = """
         Roses are red
-        Violets are blue"""
-        .trimIndent()
+        Violets are blue""".trimIndent()
     return text
 }
 

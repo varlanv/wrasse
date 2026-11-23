@@ -18,7 +18,6 @@ kotlin-kotest-assertions = { module = "io.kotest:kotest-assertions-core-jvm", ve
 kotlin-kotest-junit5Runner = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotestVersion" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlinVersion" }
 org-json = "org.json:json:20260814"
-wrasse-compiler-plugin = { module = "com.varlanv.wrasse:compiler-plugin", version.ref = "wrasseVersion" }
 
 [plugins]
 pluginPublish = { id = "com.gradle.plugin-publish", version.ref = "pluginPublishVersion" }
@@ -27,3 +26,4 @@ internalConvention = { id = "com.varlanv.wrasse.gradle.internal-gradle-conventio
 jmhPlugin = { id = "me.champeau.jmh", version.ref = "jmhPluginVersion" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinVersion" }
 versionCatalogPlugin = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogPluginVersion" }
+wrasse = { id = "com.varlanv.wrasse", version.ref = "wrasseVersion" }

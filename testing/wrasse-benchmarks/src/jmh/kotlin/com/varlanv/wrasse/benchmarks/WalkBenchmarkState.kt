@@ -1,4 +1,4 @@
-@file:OptIn(org.jetbrains.kotlin.K1Deprecation::class, org.jetbrains.kotlin.config.CompilerConfiguration.Internals::class)
+@file:OptIn(CompilerConfiguration.Internals::class, CoreEnvironmentDeprecation::class)
 
 package com.varlanv.wrasse.benchmarks
 
@@ -24,6 +24,7 @@ import com.varlanv.wrasse.rules.RedundantToStringInTemplateRule
 import com.varlanv.wrasse.rules.TrailingNewlineRule
 import com.varlanv.wrasse.rules.UseLetRule
 import com.varlanv.wrasse.rules.WhenEntryBracingRule
+import org.jetbrains.kotlin.CoreEnvironmentDeprecation
 import org.jetbrains.kotlin.KtInMemoryTextSourceFile
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
@@ -44,7 +45,6 @@ class CorpusSource(val fileName: String, val lightSource: KtLightSourceElement)
 
 @State(Scope.Benchmark)
 open class WalkBenchmarkState {
-
     lateinit var corpus: List<CorpusSource>
     private lateinit var disposable: Disposable
     private lateinit var uninitializedRules: List<WUninitializedRule>
@@ -76,20 +76,21 @@ open class WalkBenchmarkState {
             )
         }
         uninitializedRules = listOf(NoSemicolonsRule(), TrailingNewlineRule())
-        bufferedRules = listOf(
-            BooleanExpressionsRule(),
-            ClassNamingRule(),
-            CollapseIfRule(),
-            EqualsNullCallRule(),
-            FunctionExpressionBodyRule(),
-            MayBeConstantRule(),
-            NoEmptyParensBeforeTrailingLambdaRule(),
-            PropertyNamingRule(),
-            RangeConventionalRule(),
-            RedundantToStringInTemplateRule(),
-            UseLetRule(),
-            WhenEntryBracingRule(),
-        )
+        bufferedRules =
+            listOf(
+                BooleanExpressionsRule(),
+                ClassNamingRule(),
+                CollapseIfRule(),
+                EqualsNullCallRule(),
+                FunctionExpressionBodyRule(),
+                MayBeConstantRule(),
+                NoEmptyParensBeforeTrailingLambdaRule(),
+                PropertyNamingRule(),
+                RangeConventionalRule(),
+                RedundantToStringInTemplateRule(),
+                UseLetRule(),
+                WhenEntryBracingRule(),
+            )
     }
 
     @TearDown(Level.Trial)
@@ -112,7 +113,9 @@ open class WalkBenchmarkState {
 
     fun bufferedRuleDispatch(): StreamDispatch {
         val config = WrasseRuleConfig(RuleLevel.ERROR, emptyList(), RuleLevel.ERROR)
-        return StreamDispatch(uninitializedRules.map { it.initRule(config) } + bufferedRules.map { it.initRule(config) })
+        return StreamDispatch(
+            uninitializedRules.map { it.initRule(config) } + bufferedRules.map { it.initRule(config) },
+        )
     }
 
     fun formatDispatch(): StreamDispatch {

@@ -6,7 +6,9 @@ import io.kotest.matchers.string.shouldContain
 
 class FreeCompilerArgsSpec : ShouldSpec({
 
-    should("keep reporting findings and keep the consumer's own free compiler arg when the build script overwrites freeCompilerArgs after applying wrasse") {
+    should(
+        "keep reporting findings and keep the consumer's own free compiler arg when the build script overwrites freeCompilerArgs after applying wrasse",
+    ) {
         val playground = Playground.create("free-compiler-args")
         try {
             playground.module(
@@ -16,7 +18,8 @@ class FreeCompilerArgsSpec : ShouldSpec({
                 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
                     compilerOptions.freeCompilerArgs.set(listOf("-Xcontext-parameters"))
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             playground.settings()
             playground.config(WARN_CONFIG)
@@ -43,7 +46,8 @@ class FreeCompilerArgsSpec : ShouldSpec({
                 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
                     compilerOptions.freeCompilerArgs.set(listOf("-Xcontext-parameters"))
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             playground.settings()
             playground.config(WARN_CONFIG)

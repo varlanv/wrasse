@@ -52,7 +52,8 @@ class FormatRemainingFindingsSpec : ShouldSpec({
             first.output.countOf("Fixed: $fixedFile (1 edits)") shouldBe 1
             first.output shouldNotContain "wrasse: magic-number"
             first.output shouldNotContain "no-semicolons"
-            Files.readString(fixedFile) shouldBe "package sample\n\nfun main() {\n    println(42)\n    println(\"hi\")\n}\n"
+            Files.readString(fixedFile) shouldBe
+                "package sample\n\nfun main() {\n    println(42)\n    println(\"hi\")\n}\n"
 
             val lint = playground.run("wrasseLint")
             lint.output.countOf(exactFinding) shouldBe 1

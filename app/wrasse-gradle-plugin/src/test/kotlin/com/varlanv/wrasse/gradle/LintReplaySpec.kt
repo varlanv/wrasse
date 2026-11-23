@@ -8,13 +8,18 @@ import java.nio.file.Files
 
 class LintReplaySpec : ShouldSpec({
 
-    should("print each finding exactly once, replay it while the compile is up to date or restored from the cache, and stop once the source is fixed") {
+    should(
+        "print each finding exactly once, replay it while the compile is up to date or restored from the cache, and stop once the source is fixed",
+    ) {
         val playground = Playground.create("lint-replay")
         try {
             playground.module("app", mapOf("sample/Sample.kt" to SEMICOLON_SOURCE))
             playground.settings("org.gradle.caching=true\n")
             playground.config(ERROR_CONFIG)
-            val finding = "e: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+            val finding = "e: ${playground.sourceUri(
+                "app",
+                "sample/Sample.kt",
+            )}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
 
             val first = playground.runAndFail("wrasseLint")
             first.output.countOf(finding) shouldBe 1
@@ -54,12 +59,16 @@ class LintReplaySpec : ShouldSpec({
                         }
                     }
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             playground.settings()
             playground.config(ERROR_CONFIG)
             playground.rawFile("app", "extra/sample/Extra.kt", "package sample\n\nval extra = 1;\n")
-            val sampleFinding = "e: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+            val sampleFinding = "e: ${playground.sourceUri(
+                "app",
+                "sample/Sample.kt",
+            )}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
             val extraUri = playground.dir.resolve("app/extra/sample/Extra.kt").toUri().toString()
             val extraFinding = "e: $extraUri:3:14 wrasse: no-semicolons: Unnecessary semicolon"
 
@@ -86,7 +95,12 @@ class LintReplaySpec : ShouldSpec({
             playground.config(WARN_CONFIG)
 
             val result = playground.run("wrasseLint")
-            result.output.countOf("w: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon") shouldBe 1
+            result.output.countOf(
+                "w: ${playground.sourceUri(
+                    "app",
+                    "sample/Sample.kt",
+                )}:3:16 wrasse: no-semicolons: Unnecessary semicolon",
+            ) shouldBe 1
         } finally {
             playground.delete()
         }
@@ -100,14 +114,24 @@ class LintReplaySpec : ShouldSpec({
             playground.config(ERROR_CONFIG)
 
             val failed = playground.runAndFail("compileKotlin")
-            failed.output shouldContain "e: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+            failed.output shouldContain
+                "e: ${playground.sourceUri(
+                    "app",
+                    "sample/Sample.kt",
+                )}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
 
             Files.writeString(
                 playground.dir.resolve("app/build.gradle.kts"),
-                Files.readString(playground.dir.resolve("app/build.gradle.kts")).replace("warnOnly.set(false)", "warnOnly.set(true)"),
+                Files
+                    .readString(playground.dir.resolve("app/build.gradle.kts"))
+                    .replace("warnOnly.set(false)", "warnOnly.set(true)"),
             )
             val passed = playground.run("compileKotlin")
-            passed.output shouldContain "w: ${playground.sourceUri("app", "sample/Sample.kt")}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
+            passed.output shouldContain
+                "w: ${playground.sourceUri(
+                    "app",
+                    "sample/Sample.kt",
+                )}:3:16 wrasse: no-semicolons: Unnecessary semicolon"
         } finally {
             playground.delete()
         }

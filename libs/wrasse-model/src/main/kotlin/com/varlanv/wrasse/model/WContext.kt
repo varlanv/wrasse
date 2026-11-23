@@ -57,6 +57,7 @@ class WContext(
             if (!isLeaf) return null
             return leafTextCache ?: StringSlice(sourceText, startOffset, endOffset).also { leafTextCache = it }
         }
+
         @JvmSynthetic set(value) {
             leafTextCache = value
             isLeaf = value != null

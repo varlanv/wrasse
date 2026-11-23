@@ -51,7 +51,6 @@ open class PatchIoState {
 }
 
 open class PatchIoBenchmark {
-
     @Benchmark
     fun storeRewriteWholeFilePerChange(state: PatchIoState, blackhole: Blackhole) {
         val patchDir = state.dir.resolve("rewrite")
@@ -60,8 +59,15 @@ open class PatchIoBenchmark {
             current = current + entry
             Files.createDirectories(patchDir)
             val tmp = patchDir.resolve("wrasse-fixes.txt.tmp")
-            Files.newBufferedWriter(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING).use { WPatchWriter.writeAll(it, current) }
-            Files.move(tmp, patchDir.resolve("wrasse-fixes.txt"), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            Files
+                .newBufferedWriter(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+                .use { WPatchWriter.writeAll(it, current) }
+            Files.move(
+                tmp,
+                patchDir.resolve("wrasse-fixes.txt"),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING,
+            )
         }
         blackhole.consume(current.size)
     }
@@ -81,7 +87,11 @@ open class PatchIoBenchmark {
             val content = Files.readString(path)
             if (Sha256.ofText(content) != entry.sourceHash) continue
             val sb = StringBuilder(content)
-            for (edit in entry.edits.sortedByDescending { it.startOffset }) sb.replace(edit.startOffset, edit.endOffset, edit.replacement)
+            for (edit in entry.edits.sortedByDescending { it.startOffset }) sb.replace(
+                edit.startOffset,
+                edit.endOffset,
+                edit.replacement,
+            )
             val tmp = path.resolveSibling(path.fileName.toString() + ".tmp")
             Files.writeString(tmp, sb.toString())
             Files.move(tmp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)

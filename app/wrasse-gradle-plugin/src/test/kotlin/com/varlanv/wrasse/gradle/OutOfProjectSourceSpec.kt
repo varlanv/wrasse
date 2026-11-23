@@ -19,7 +19,8 @@ class OutOfProjectSourceSpec : ShouldSpec({
                         }
                     }
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
             )
             val sharedFile = playground.rootFile("shared/src/Extra.kt", SEMICOLON_SOURCE)
             playground.settings()

@@ -359,7 +359,7 @@ class WConfig(
 
             val multilineSignatureThreshold = when (
                 val prop = formatObj.get("multilineSignatureThreshold", ConfigValue.Num::class.java)
-                ) {
+            ) {
                 is Property.Val -> prop.value.value.toInt()
                 is Property.Missing -> null
                 is Property.TypeMismatch -> {

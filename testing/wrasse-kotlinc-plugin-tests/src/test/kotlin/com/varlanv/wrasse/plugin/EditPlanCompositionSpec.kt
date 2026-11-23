@@ -18,8 +18,8 @@ import com.varlanv.wrasse.model.WrasseRuleConfig
 import com.varlanv.wrasse.testing.BaseSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.CoreEnvironmentDeprecation
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.KtLightSourceElement
 import org.jetbrains.kotlin.cli.create
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles

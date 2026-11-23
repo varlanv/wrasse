@@ -2196,6 +2196,16 @@ information. Statuses: Accepted · Rejected · Superseded.
   from the bundled `KOTLIN_VERSION`, logs one warning at configuration time and continues
   unchanged. Supersedes the version-matrix parts of D14 and §10/§11 history below.
 
+- **D31 — Four printer outputs reversed · Accepted 2026-11-23.** (1) An annotated property accessor
+  after another accessor no longer forces a blank line; an existing one is kept. (2) A multi-line
+  `when (subject)` header indents the subject one level and leaves a line-leading `)` at the
+  `when`'s own depth; the entries' indent starts at `{`. (3) A multi-line raw-string receiver keeps
+  its first call (`.trimIndent()`, `.trimMargin()`) on the closing quotes' line; later chain links
+  still break onto their own lines. (4) A `${...}` template entry with no hard break inside is
+  printed on one line and never wrapped. Locked by `format-declaration-blank-lines/property-accessor-*`,
+  `format-conditions/when-subject-*`, `format-raw-strings/trimindent-glued-*`,
+  `format-string-templates/`, the updated `format-corpus*` files and `DocBuilderSpec`.
+
 ### Build & distribution
 
 - **D14 — JVM 8 bytecode, single JAR · Accepted.** §10 (the Kotlin range was narrowed to one version by D30).

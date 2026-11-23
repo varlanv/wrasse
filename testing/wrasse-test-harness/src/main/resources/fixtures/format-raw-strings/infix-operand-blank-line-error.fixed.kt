@@ -5,7 +5,6 @@ fun crashing(): Pair<String, String> {
         package sample
 
         private val marker = 0
-        """
-        .trimIndent()
+        """.trimIndent()
     return crashingSource
 }

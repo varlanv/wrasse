@@ -27,7 +27,6 @@ private class CountingReporter : WReporter {
 }
 
 open class WalkThroughputBenchmark {
-
     @Benchmark
     fun walkWithShippedRules(state: WalkBenchmarkState, blackhole: Blackhole) {
         blackhole.consume(walkCorpus(state.corpus, { state.shippedRuleDispatch() }))

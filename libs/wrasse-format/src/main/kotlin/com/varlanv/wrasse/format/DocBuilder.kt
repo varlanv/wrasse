@@ -353,7 +353,9 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         WNodeType.CALL_EXPRESSION -> resolveCallExpressionFrame(frame, start, end)
 
-        WNodeType.LONG_STRING_TEMPLATE_ENTRY -> Doc.Group(resolveBraceFrame(frame, start, end), GroupKind.TEMPLATE)
+        WNodeType.LONG_STRING_TEMPLATE_ENTRY -> resolveBraceFrame(frame, start, end).let { entry ->
+            if (spansMultipleLines(entry)) Doc.Group(entry, GroupKind.TEMPLATE) else flattenDoc(entry)
+        }
 
         WNodeType.IF, WNodeType.WHEN, WNodeType.TRY, WNodeType.OBJECT_LITERAL -> Doc.Group(
             resolveBraceFrame(frame, start, end),
@@ -428,8 +430,17 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val hasDedent = dedentIndex >= 0 && children[dedentIndex] is ChildEntry.Ws
 
         val innerCount = if (hasDedent) dedentIndex else lastIndex
+        val parts = mutableListOf<Doc>()
+        var bodyFrom = 0
+        if (frame.type == WNodeType.WHEN) {
+            val lbraceIdx = children.subList(0, innerCount).indexOfFirst { it.type == WNodeType.LBRACE }
+            if (lbraceIdx > 0) {
+                parts.addAll(resolveWhenHead(children.subList(0, lbraceIdx + 1), suppressSuperTypeListLeadGap))
+                bodyFrom = lbraceIdx + 1
+            }
+        }
         val innerParts = normalizeChildren(
-            children.subList(0, innerCount),
+            children.subList(bodyFrom, innerCount),
             frame.type,
             ancestorHasFun(frame.type),
             suppressSuperTypeListLeadGap,
@@ -437,13 +448,36 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
 
         val innerStart = innerParts.firstOrNull()?.start ?: start
         val innerEnd = innerParts.lastOrNull()?.end ?: start
-        val parts = mutableListOf<Doc>(Doc.Indent(Doc.Concat(innerParts, innerStart, innerEnd)))
+        parts.add(Doc.Indent(Doc.Concat(innerParts, innerStart, innerEnd)))
         if (hasDedent) {
             parts.add(clampWs(children[dedentIndex] as ChildEntry.Ws, newlineCount = 1))
         }
         parts.add(resolveEntry(children[lastIndex]))
         return Doc.Concat(parts, start, end)
     }
+
+    /**
+     * A [WNodeType.WHEN]'s own header up to and including `{`: the subject between the parentheses is
+     * indented one level, while a newline before `)` stays at the `when`'s own depth. The indent
+     * scope of the entries starts only after `{`.
+     */
+    private fun resolveWhenHead(head: List<ChildEntry>, suppressSuperTypeListLeadGap: Boolean): List<Doc> {
+        val lparIdx = head.indexOfFirst { it.type == WNodeType.LPAR }
+        val rparIdx = head.indexOfLast { it.type == WNodeType.RPAR }
+        if (lparIdx < 0 || rparIdx <= lparIdx) return normalizeWhenHead(head, suppressSuperTypeListLeadGap)
+        val closeIdx = if (head[rparIdx - 1] is ChildEntry.Ws) rparIdx - 1 else rparIdx
+        val before = normalizeWhenHead(head.subList(0, lparIdx + 1), suppressSuperTypeListLeadGap)
+        val subject = normalizeWhenHead(head.subList(lparIdx + 1, closeIdx), suppressSuperTypeListLeadGap)
+        val after = normalizeWhenHead(head.subList(closeIdx, head.size), suppressSuperTypeListLeadGap)
+        val subjectStart = subject.firstOrNull()?.start ?: before.last().end
+        val subjectEnd = subject.lastOrNull()?.end ?: subjectStart
+        return before + Doc.Indent(Doc.Concat(subject, subjectStart, subjectEnd)) + after
+    }
+
+    private fun normalizeWhenHead(
+        entries: List<ChildEntry>,
+        suppressSuperTypeListLeadGap: Boolean,
+    ): List<Doc> = normalizeChildren(entries, WNodeType.WHEN, ancestorHasFun = false, suppressSuperTypeListLeadGap)
 
     /**
      * Collapses `(`, an `if`/`while` condition and `)` into one [Doc.Group] whenever the author
@@ -1214,15 +1248,14 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         .firstOrNull { it.type != WNodeType.WHITE_SPACE && it.type !in COMMENT_TYPES }
 
     /**
-     * Whether the gap right before [nextEntry] must carry at least one blank line, folding three
+     * Whether the gap right before [nextEntry] must carry at least one blank line, folding two
      * concerns into the one gap decision every [ChildEntry.Ws] already goes through: a
      * [WNodeType.CLASS]/[WNodeType.CLASS_INITIALIZER]/[WNodeType.FUN]/[WNodeType.OBJECT_DECLARATION]/
      * [WNodeType.PROPERTY] preceded by another declaration ([BLANK_LINE_BEFORE_DECLARATION_TYPES]);
      * any [DECLARATION_SPACING_TYPES] member carrying its own leading annotation or leading comment
      * ([ChildEntry.Resolved.hasLeadingAnnotation]/[ChildEntry.Resolved.hasLeadingComment]) — a wider
      * type set, with none of the base rule's own carve-outs below — when it follows another
-     * [DECLARATION_SPACING_TYPES] member; and, inside a [WNodeType.PROPERTY]'s own frame, a leading-
-     * annotated [WNodeType.PROPERTY_ACCESSOR] that follows another accessor.
+     * [DECLARATION_SPACING_TYPES] member. A [WNodeType.PROPERTY_ACCESSOR] never forces one.
      *
      * The first two only ever apply inside [DECLARATION_GAP_CONTAINER_TYPES] — a container without a
      * preceding sibling declaration (the very first member, or the very first file declaration) never
@@ -1252,11 +1285,6 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
         val next = nextEntry as? ChildEntry.Resolved ?: return false
         val prevType = (prevEntry as? ChildEntry.Resolved)?.type
 
-        if (frameType == WNodeType.PROPERTY) {
-            return next.type == WNodeType.PROPERTY_ACCESSOR &&
-                next.hasLeadingAnnotation &&
-                prevType == WNodeType.PROPERTY_ACCESSOR
-        }
         if (frameType !in DECLARATION_GAP_CONTAINER_TYPES) return false
 
         if (next.type in DECLARATION_SPACING_TYPES &&
@@ -1460,18 +1488,33 @@ class DocBuilder(formatConfig: WFormatConfig) : WStreamRule {
             }
         }
 
-        val parts = spliceBreak(
+        val spliced = spliceBreak(
             children,
             anchorIndex = opIdx,
             breakBefore = true,
             flat = "",
             spreadTypes = CHAIN_LINK_TYPES,
         )
+        val parts = if (receiverEntry.type == WNodeType.STRING_TEMPLATE &&
+            receiverEntry is ChildEntry.Resolved &&
+            spansMultipleLines(receiverEntry.doc)
+        ) {
+            glueFirstLink(spliced)
+        } else {
+            spliced
+        }
         return if (isRoot) {
             wrapRoot(parts, start, end, foldHead = frame.chainHeadIsRawString, kind = GroupKind.CHAIN)
         } else {
             Doc.Concat(parts, start, end)
         }
+    }
+
+    private fun glueFirstLink(parts: List<Doc>): List<Doc> {
+        val breakIdx = parts.indexOfFirst { it is Doc.Break }
+        if (breakIdx < 0) return parts
+        val gap = parts[breakIdx]
+        return parts.toMutableList().also { it[breakIdx] = Doc.Text("", gap.start, gap.end) }
     }
 
     private fun receiverHasMethodCall(children: List<ChildEntry>, opIdx: Int): Boolean {

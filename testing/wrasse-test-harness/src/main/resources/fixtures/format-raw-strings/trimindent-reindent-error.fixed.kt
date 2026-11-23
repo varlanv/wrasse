@@ -4,7 +4,6 @@ fun poem(): String {
     val text = """
         Roses are red
         Violets are blue
-        """
-        .trimIndent()
+        """.trimIndent()
     return text
 }

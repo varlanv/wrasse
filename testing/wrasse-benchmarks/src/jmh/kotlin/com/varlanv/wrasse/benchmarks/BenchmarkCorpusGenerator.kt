@@ -12,10 +12,9 @@ import kotlin.random.Random
  * than silently misleading.
  */
 object BenchmarkCorpusGenerator {
-
     const val CORPUS_VERSION = 1
 
-    private const val SEED = 20260719L
+    private const val SEED = 20_260_719L
     private const val FILE_COUNT = 100
 
     class GeneratedFile(val fileName: String, val content: String)
@@ -46,8 +45,16 @@ object BenchmarkCorpusGenerator {
     )
 
     private val classNamePool = listOf(
-        "Widget", "Processor", "Registry", "Handler", "Builder",
-        "Manager", "Coordinator", "Resolver", "Adapter", "Pipeline",
+        "Widget",
+        "Processor",
+        "Registry",
+        "Handler",
+        "Builder",
+        "Manager",
+        "Coordinator",
+        "Resolver",
+        "Adapter",
+        "Pipeline",
     )
 
     fun generate(fileCount: Int = FILE_COUNT): Corpus {
@@ -74,7 +81,11 @@ object BenchmarkCorpusGenerator {
         return GeneratedFile("Fixture$index.kt", sb.toString())
     }
 
-    private fun appendImports(sb: StringBuilder, importMode: Int, explicitImports: List<String>) {
+    private fun appendImports(
+        sb: StringBuilder,
+        importMode: Int,
+        explicitImports: List<String>,
+    ) {
         val ordered = if (importMode == 0) explicitImports.sorted() else explicitImports
         for (importPath in ordered) {
             sb.appendLine("import $importPath")
@@ -86,7 +97,11 @@ object BenchmarkCorpusGenerator {
         }
     }
 
-    private fun appendClass(sb: StringBuilder, index: Int, className: String) {
+    private fun appendClass(
+        sb: StringBuilder,
+        index: Int,
+        className: String,
+    ) {
         sb.appendLine("/**")
         sb.appendLine(" * $className synthetic benchmark fixture #$index.")
         sb.appendLine(" *")
