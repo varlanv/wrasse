@@ -9,8 +9,8 @@ import java.nio.file.Files
 class ColumnsDirectiveSpec : ShouldSpec({
 
     val config = """{"format":{"enabled":true}}"""
-    val rejectedSource = "package sample\n\n// wrasse columns:1\nval xs = arrayOf(1, 2, 3, 4)\n"
-    val rejection = "size 1 in '// wrasse columns:1' is below the minimum of 2: a row needs at least 2 elements"
+    val rejectedSource = "package sample\n\n// wrasse columns:0\nval xs = arrayOf(1, 2, 3, 4)\n"
+    val rejection = "size 0 in '// wrasse columns:0' is below the minimum of 1: a row needs at least 1 element"
     val acceptedSource = "package sample\n\n// wrasse columns:3\nval xs = arrayOf(1, 2, 3, 4)\n"
     val acceptedLayout = "package sample\n\n// wrasse columns:3\nval xs = arrayOf(\n    1, 2, 3,\n    4,\n)\n"
     val clashSource = "package sample\n\n// wrasse matrix:2\n// wrasse columns:2\nval xs = arrayOf(1, 2, 3, 4)\n"
@@ -115,7 +115,7 @@ class ColumnsDirectiveSpec : ShouldSpec({
     should("format the valid columns call of a file and still fail for its rejected one") {
         val playground = Playground.create("columns-format-mixed")
         try {
-            val mixed = "$acceptedSource\n// wrasse columns:1\nval ys = arrayOf(1, 2, 3, 4)\n"
+            val mixed = "$acceptedSource\n// wrasse columns:0\nval ys = arrayOf(1, 2, 3, 4)\n"
             playground.module("app", mapOf("sample/Sample.kt" to mixed))
             playground.settings()
             playground.config(config)
@@ -124,8 +124,57 @@ class ColumnsDirectiveSpec : ShouldSpec({
 
             val formatted = playground.runAndFail("wrasseFormat")
 
-            Files.readString(sample) shouldBe "$acceptedLayout\n// wrasse columns:1\nval ys = arrayOf(1, 2, 3, 4)\n"
+            Files.readString(sample) shouldBe "$acceptedLayout\n// wrasse columns:0\nval ys = arrayOf(1, 2, 3, 4)\n"
             findingLines(formatted.output) shouldBe listOf("e: $location:9:1 wrasse: format-columns: $rejection")
+            formatted.output shouldContain "wrasse could not format: 1 format directive(s) were rejected"
+        } finally {
+            playground.delete()
+        }
+    }
+
+    should("lay a columns call of size one out as one element per row and be a no-op the second time") {
+        val playground = Playground.create("columns-one-format")
+        try {
+            val oneSource = "package sample\n\n// wrasse columns:1\nval xs = arrayOf(1, 22, 3)\n"
+            val oneLayout = "package sample\n\n// wrasse columns:1\nval xs = arrayOf(\n    1,\n    22,\n    3,\n)\n"
+            playground.module("app", mapOf("sample/Sample.kt" to oneSource))
+            playground.settings()
+            playground.config(config)
+            val sample = playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")
+
+            playground.run("wrasseFormat").output shouldContain "Fixed: "
+            Files.readString(sample) shouldBe oneLayout
+
+            val second = playground.run("wrasseFormat")
+            second.output shouldNotContain "Fixed: "
+            Files.readString(sample) shouldBe oneLayout
+            playground.run("wrasseLint").output shouldContain "BUILD SUCCESSFUL"
+        } finally {
+            playground.delete()
+        }
+    }
+
+    should("lay a columns call of size one out while still rejecting a matrix directive of size one") {
+        val playground = Playground.create("columns-one-and-matrix-one")
+        try {
+            val both = "package sample\n\n// wrasse columns:1\nval xs = arrayOf(1, 2)\n\n" +
+                "// wrasse matrix:1\nval ys = arrayOf(1, 2)\n"
+            val laidOut = "package sample\n\n// wrasse columns:1\nval xs = arrayOf(\n    1,\n    2,\n)\n\n" +
+                "// wrasse matrix:1\nval ys = arrayOf(1, 2)\n"
+            playground.module("app", mapOf("sample/Sample.kt" to both))
+            playground.settings()
+            playground.config(config)
+            val sample = playground.dir.resolve("app/src/main/kotlin/sample/Sample.kt")
+            val location = playground.sourceUri("app", "sample/Sample.kt")
+
+            val formatted = playground.runAndFail("wrasseFormat")
+
+            Files.readString(sample) shouldBe laidOut
+            findingLines(formatted.output) shouldBe
+                listOf(
+                    "e: $location:9:1 wrasse: format-matrix: size 1 in '// wrasse matrix:1' is below the minimum " +
+                        "of 2: a row needs at least 2 elements",
+                )
             formatted.output shouldContain "wrasse could not format: 1 format directive(s) were rejected"
         } finally {
             playground.delete()
@@ -220,7 +269,7 @@ class ColumnsDirectiveSpec : ShouldSpec({
         val playground = Playground.create("columns-and-matrix-format-rejected")
         try {
             val both = "package sample\n\n// wrasse matrix:3\nval xs = arrayOf(1, 2, 3, 4)\n\n" +
-                "// wrasse columns:1\nval ys = arrayOf(1, 2, 3, 4)\n"
+                "// wrasse columns:0\nval ys = arrayOf(1, 2, 3, 4)\n"
             playground.module("app", mapOf("sample/Sample.kt" to both))
             playground.settings()
             playground.config(config)

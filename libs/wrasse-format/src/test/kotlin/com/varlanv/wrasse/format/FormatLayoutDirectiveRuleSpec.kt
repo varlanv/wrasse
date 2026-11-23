@@ -123,6 +123,28 @@ class FormatLayoutDirectiveRuleSpec : BaseSpec({
             listOf("invalid size 'abc' in '// wrasse matrix:abc': the size must be a whole number of at least 2")
     }
 
+    should("report a size problem with the minimum of the kind of the directive") {
+        val source = "// wrasse columns:0\n// wrasse matrix:1\nval x = f(1)\n"
+        val claimed: (WContext) -> Unit = { claimCall(it, "f(1)") }
+
+        visit(source, LayoutDirectiveKind.COLUMNS, prepare = claimed).map { it.message } shouldBe
+            listOf("size 0 in '// wrasse columns:0' is below the minimum of 1: a row needs at least 1 element")
+        visit(source, LayoutDirectiveKind.MATRIX, prepare = claimed).map { it.message } shouldBe
+            listOf("size 1 in '// wrasse matrix:1' is below the minimum of 2: a row needs at least 2 elements")
+    }
+
+    should("report an invalid columns size with the minimum of one") {
+        val source = "// wrasse columns:abc\nval x = f(1)\n"
+
+        visit(source, LayoutDirectiveKind.COLUMNS) { claimCall(it, "f(1)") }.map { it.message } shouldBe
+            listOf("invalid size 'abc' in '// wrasse columns:abc': the size must be a whole number of at least 1")
+    }
+
+    should("report nothing for a claimed columns directive of size one") {
+        visit("// wrasse columns:1\nval x = f(1)\n", LayoutDirectiveKind.COLUMNS) { claimCall(it, "f(1)") } shouldBe
+            emptyList()
+    }
+
     should("report the failure the printer recorded on a claimed directive") {
         val source = "// wrasse matrix:2\nval x = f(1)\n"
 

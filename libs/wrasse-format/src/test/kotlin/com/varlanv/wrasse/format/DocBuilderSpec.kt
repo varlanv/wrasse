@@ -773,6 +773,47 @@ class DocBuilderSpec : BaseSpec({
             "table(\n    a, b, c,\n    d\n)"
     }
 
+    should("lay a columns call of size one out with one element per row") {
+        matrixCall("// wrasse columns:1", plainArguments("a", "bb", "c")).rendered shouldBe
+            "table(\n    a,\n    bb,\n    c,\n)"
+        matrixCall("// wrasse columns:1", plainArguments("a")).rendered shouldBe "table(\n    a,\n)"
+        matrixCall("// wrasse columns:1", plainArguments("a", "b"), trailingCommas = false).rendered shouldBe
+            "table(\n    a,\n    b\n)"
+    }
+
+    should("keep an empty argument list of a columns directive of size one empty") {
+        val empty = matrixCall("// wrasse columns:1", emptyList(), site = matrixSite(0))
+
+        empty.rendered shouldBe "table()"
+        empty.directive.failure shouldBe null
+        empty.ctx.formatRegions.isEmpty shouldBe true
+    }
+
+    should("keep the call of a columns directive of size zero verbatim and a matrix directive of size one too") {
+        for (text in listOf("// wrasse columns:0", "// wrasse columns:-1", "// wrasse matrix:1")) {
+            val run = matrixCall(text, plainArguments("a", "b", "c", "d"))
+
+            run.directive.failure shouldBe null
+            LayoutDirectiveMessages.problemOf(run.directive) shouldBe LayoutDirectiveMessages.sizeProblem(run.directive)
+            run.ctx.formatRegions.all().map { it.start to it.end } shouldBe listOf(run.listStart to LIST_END)
+        }
+    }
+
+    should("lay the call out by a columns directive of size one when a matrix directive of size one is stacked above") {
+        val run = matrixCall("// wrasse columns:1", plainArguments("a", "b"), above = listOf("// wrasse matrix:1"))
+
+        run.rendered shouldBe "table(\n    a,\n    b,\n)"
+        run.directives.map { it.failure } shouldBe listOf(null, null)
+    }
+
+    should("fail a clash of a columns directive of size one and a matrix directive") {
+        val run = matrixCall("// wrasse columns:1", plainArguments("a", "b"), above = listOf("// wrasse matrix:2"))
+        val message = "'// wrasse matrix:2' (line 1) and '// wrasse columns:1' (line 2) both target the call below; " +
+            "keep only one"
+
+        run.directives.map { it.failure } shouldBe listOf(message, message)
+    }
+
     should("keep an empty argument list of a columns directive empty") {
         val empty = matrixCall("// wrasse columns:9", emptyList(), site = matrixSite(0))
 

@@ -2,17 +2,18 @@ package com.varlanv.wrasse.model
 
 /**
  * The kinds of `// wrasse <keyword>:<N>` layout directive. [prefix] is the exact start of a
- * directive comment, [ruleId] the rule id its rejection is reported under, and [wholeRows] whether
- * the call must hold a whole number of `N`-wide rows: a [MATRIX] call does, a [COLUMNS] call may
- * end on a shorter row.
+ * directive comment, [ruleId] the rule id its rejection is reported under, [wholeRows] whether
+ * the call must hold a whole number of `N`-wide rows (a [MATRIX] call does, a [COLUMNS] call may
+ * end on a shorter row) and [minSize] the smallest `N` the kind accepts.
  */
 enum class LayoutDirectiveKind(
     val keyword: String,
     val ruleId: String,
     val wholeRows: Boolean,
+    val minSize: Int,
 ) {
-    MATRIX("matrix", "format-matrix", wholeRows = true),
-    COLUMNS("columns", "format-columns", wholeRows = false),
+    MATRIX("matrix", "format-matrix", wholeRows = true, minSize = 2),
+    COLUMNS("columns", "format-columns", wholeRows = false, minSize = 1),
     ;
 
     val prefix: String = "// wrasse $keyword:"
@@ -26,7 +27,7 @@ enum class LayoutDirectiveKind(
  * A layout directive: an end-of-line comment alone on its line whose [text] starts with its
  * [kind]'s prefix. [sizeText] is what follows the prefix and [size] its value, `null` unless it is
  * a whole number written as `-?[0-9]+` that fits an [Int]; [columns] is [size] when it is at least
- * [MIN_SIZE], else `null`. [line] is the 1-based line of the comment. [claimed] is set once a
+ * the [kind]'s [LayoutDirectiveKind.minSize], else `null`. [line] is the 1-based line of the comment. [claimed] is set once a
  * call's argument list is matched to it, [failure] once the printer rejects that call.
  */
 class LayoutDirective internal constructor(
@@ -39,7 +40,7 @@ class LayoutDirective internal constructor(
 ) {
     val sizeText: String = text.substring(kind.prefix.length)
     val size: Int? = parseSize(sizeText)
-    val columns: Int? = size?.takeIf { it >= MIN_SIZE }
+    val columns: Int? = size?.takeIf { it >= kind.minSize }
 
     var claimed: Boolean = false
         private set
@@ -56,8 +57,6 @@ class LayoutDirective internal constructor(
     }
 
     companion object {
-        const val MIN_SIZE: Int = 2
-
         fun isDirectiveText(text: CharSequence): Boolean = LayoutDirectiveKind.ofText(text) != null
 
         private fun parseSize(text: String): Int? {

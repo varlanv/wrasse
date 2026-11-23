@@ -44,12 +44,46 @@ class LayoutDirectiveCrlfSpec : BaseSpec({
             "package sample",
             "",
             "fun main() {",
-            "    // wrasse columns:1",
+            "    // wrasse columns:0",
             "    val xs = intArrayOf(1, 2, 3, 4)",
             "}",
         ) shouldBe listOf(
-            "4:5 wrasse: format-columns: size 1 in '// wrasse columns:1' is below the minimum of 2: a row needs " +
-                "at least 2 elements",
+            "4:5 wrasse: format-columns: size 0 in '// wrasse columns:0' is below the minimum of 1: a row needs " +
+                "at least 1 element",
+        )
+    }
+
+    should("lay a columns call of size one out as one element per row and report it as clean") {
+        compile(
+            "package sample",
+            "",
+            "// wrasse columns:1",
+            "val xs = intArrayOf(",
+            "    1,",
+            "    22,",
+            "    333,",
+            ")",
+        ).shouldBeEmpty()
+    }
+
+    should("report a CRLF file whose columns call of size one is not laid out yet") {
+        compile(
+            "package sample",
+            "",
+            "// wrasse columns:1",
+            "val xs = intArrayOf(1, 22, 333)",
+        ) shouldBe listOf("1:1 wrasse: format: File is not wrasse-formatted")
+    }
+
+    should("keep the minimum of a matrix directive of size one in a CRLF file") {
+        compile(
+            "package sample",
+            "",
+            "// wrasse matrix:1",
+            "val xs = intArrayOf(1, 22, 333)",
+        ) shouldBe listOf(
+            "3:1 wrasse: format-matrix: size 1 in '// wrasse matrix:1' is below the minimum of 2: a row needs at " +
+                "least 2 elements",
         )
     }
 

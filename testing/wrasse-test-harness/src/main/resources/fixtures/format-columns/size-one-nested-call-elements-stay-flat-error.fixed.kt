@@ -1,0 +1,10 @@
+package sample
+
+class Vec(val x: Int, val y: Int)
+
+// wrasse columns:1
+val points = listOf(
+    Vec(1, 2),
+    Vec(30, 4),
+    Vec(5, 60),
+)

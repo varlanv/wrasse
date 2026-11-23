@@ -6,5 +6,5 @@ val xs = arrayOf(
     3, 4,
 )
 
-// wrasse columns:1
+// wrasse columns:0
 val ys = arrayOf(1,2, 3, 4)

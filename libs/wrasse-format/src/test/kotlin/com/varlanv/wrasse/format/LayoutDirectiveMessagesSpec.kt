@@ -43,9 +43,22 @@ class LayoutDirectiveMessagesSpec : BaseSpec({
         val kind = LayoutDirectiveKind.COLUMNS
 
         LayoutDirectiveMessages.sizeProblem(directive("abc", kind)) shouldBe
-            "invalid size 'abc' in '// wrasse columns:abc': the size must be a whole number of at least 2"
-        LayoutDirectiveMessages.sizeProblem(directive("1", kind)) shouldBe
-            "size 1 in '// wrasse columns:1' is below the minimum of 2: a row needs at least 2 elements"
+            "invalid size 'abc' in '// wrasse columns:abc': the size must be a whole number of at least 1"
+        LayoutDirectiveMessages.sizeProblem(directive("", kind)) shouldBe
+            "invalid size '' in '// wrasse columns:': the size must be a whole number of at least 1"
+        LayoutDirectiveMessages.sizeProblem(directive("2147483648", kind)) shouldBe
+            "invalid size '2147483648' in '// wrasse columns:2147483648': the size must be a whole number of at " +
+                "least 1"
+        LayoutDirectiveMessages.sizeProblem(directive("0", kind)) shouldBe
+            "size 0 in '// wrasse columns:0' is below the minimum of 1: a row needs at least 1 element"
+        LayoutDirectiveMessages.sizeProblem(directive("-1", kind)) shouldBe
+            "size -1 in '// wrasse columns:-1' is below the minimum of 1: a row needs at least 1 element"
+        LayoutDirectiveMessages.sizeProblem(directive("-0", kind)) shouldBe
+            "size 0 in '// wrasse columns:-0' is below the minimum of 1: a row needs at least 1 element"
+    }
+
+    should("report no size problem for a columns size of one") {
+        LayoutDirectiveMessages.sizeProblem(directive("1", LayoutDirectiveKind.COLUMNS)) shouldBe null
     }
 
     should("name the size and the minimum for a size below two") {
@@ -53,6 +66,16 @@ class LayoutDirectiveMessagesSpec : BaseSpec({
             "size -1 in '// wrasse matrix:-1' is below the minimum of 2: a row needs at least 2 elements"
         LayoutDirectiveMessages.sizeProblem(directive("1")) shouldBe
             "size 1 in '// wrasse matrix:1' is below the minimum of 2: a row needs at least 2 elements"
+    }
+
+    should("keep the minimum of two in every matrix size problem") {
+        LayoutDirectiveMessages.sizeProblem(directive("0")) shouldBe
+            "size 0 in '// wrasse matrix:0' is below the minimum of 2: a row needs at least 2 elements"
+        LayoutDirectiveMessages.sizeProblem(directive("-2147483648")) shouldBe
+            "size -2147483648 in '// wrasse matrix:-2147483648' is below the minimum of 2: a row needs at least 2 " +
+                "elements"
+        LayoutDirectiveMessages.sizeProblem(directive("1.5")) shouldBe
+            "invalid size '1.5' in '// wrasse matrix:1.5': the size must be a whole number of at least 2"
     }
 
     should("report no size problem for a size of two or more") {

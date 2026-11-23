@@ -9,12 +9,13 @@ internal object LayoutDirectiveMessages {
 
     fun sizeProblem(directive: LayoutDirective): String? {
         val size = directive.size
+        val minimum = directive.kind.minSize
         return when {
             size == null -> "invalid size '${directive.sizeText}' in '${directive.text}': " +
-                "the size must be a whole number of at least ${LayoutDirective.MIN_SIZE}"
+                "the size must be a whole number of at least $minimum"
 
-            size < LayoutDirective.MIN_SIZE -> "size $size in '${directive.text}' is below the minimum of " +
-                "${LayoutDirective.MIN_SIZE}: a row needs at least ${LayoutDirective.MIN_SIZE} elements"
+            size < minimum -> "size $size in '${directive.text}' is below the minimum of $minimum: " +
+                "a row needs at least $minimum ${if (minimum == 1) "element" else "elements"}"
 
             else -> null
         }

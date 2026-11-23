@@ -40,13 +40,15 @@ class LayoutDirectiveSpec : BaseSpec({
         regions: FormatRegions = FormatRegions(),
     ): LayoutClaim? = directives.claim(source.indexOf(call) + call.indexOf('('), source, regions)
 
-    should("name each kind by its keyword, prefix and rule id") {
+    should("name each kind by its keyword, prefix, rule id and minimum size") {
         LayoutDirectiveKind.MATRIX.prefix shouldBe "// wrasse matrix:"
         LayoutDirectiveKind.MATRIX.ruleId shouldBe "format-matrix"
         LayoutDirectiveKind.MATRIX.wholeRows shouldBe true
+        LayoutDirectiveKind.MATRIX.minSize shouldBe 2
         LayoutDirectiveKind.COLUMNS.prefix shouldBe "// wrasse columns:"
         LayoutDirectiveKind.COLUMNS.ruleId shouldBe "format-columns"
         LayoutDirectiveKind.COLUMNS.wholeRows shouldBe false
+        LayoutDirectiveKind.COLUMNS.minSize shouldBe 1
     }
 
     should("recognise a comment starting with exactly the prefix of a kind") {
@@ -107,11 +109,21 @@ class LayoutDirectiveSpec : BaseSpec({
         directive("// wrasse columns:abc").sizeText shouldBe "abc"
     }
 
-    should("offer a column count only for a size of at least two") {
+    should("offer a matrix column count only for a size of at least two") {
         directive("// wrasse matrix:2").columns shouldBe 2
+        directive("// wrasse matrix:9").columns shouldBe 9
+        directive("// wrasse matrix:1").columns shouldBe null
+        directive("// wrasse matrix:0").columns shouldBe null
+        directive("// wrasse matrix:-3").columns shouldBe null
+        directive("// wrasse matrix:abc").columns shouldBe null
+    }
+
+    should("offer a columns column count for a size of at least one") {
+        directive("// wrasse columns:1").columns shouldBe 1
+        directive("// wrasse columns:2").columns shouldBe 2
         directive("// wrasse columns:9").columns shouldBe 9
-        directive("// wrasse columns:1").columns shouldBe null
         directive("// wrasse columns:0").columns shouldBe null
+        directive("// wrasse columns:-0").columns shouldBe null
         directive("// wrasse columns:-3").columns shouldBe null
         directive("// wrasse columns:abc").columns shouldBe null
     }
@@ -378,11 +390,30 @@ class LayoutDirectiveSpec : BaseSpec({
     }
 
     should("claim as invalid when every directive above the call has an invalid size") {
-        val source = "// wrasse matrix:abc\n// wrasse columns:1\nval x = f(1)\n"
+        val source = "// wrasse matrix:abc\n// wrasse columns:0\n// wrasse matrix:1\nval x = f(1)\n"
         val directives = directivesOf(source)
 
         claimCall(directives, source, "f(1)") shouldBe LayoutClaim.Invalid
-        directives.all().map { it.claimed } shouldBe listOf(true, true)
+        directives.all().map { it.claimed } shouldBe listOf(true, true, true)
+    }
+
+    should("claim a columns directive of size one as usable and a matrix directive of size one as invalid") {
+        val source = "// wrasse matrix:1\n// wrasse columns:1\nval x = f(1)\n"
+        val directives = directivesOf(source)
+
+        val claim = claimCall(directives, source, "f(1)") as LayoutClaim.Single
+
+        claim.directive shouldBe directives.all()[1]
+        claim.columns shouldBe 1
+    }
+
+    should("claim a clash of a columns directive of size one and a matrix directive") {
+        val source = "// wrasse columns:1\n// wrasse matrix:2\nval x = f(1)\n"
+        val directives = directivesOf(source)
+
+        val claim = claimCall(directives, source, "f(1)") as LayoutClaim.Clash
+
+        claim.directives shouldBe directives.all()
     }
 
     should("keep directives of different calls apart") {

@@ -498,6 +498,13 @@ class LayoutSpec : BaseSpec({
         Layout.render(matrix(2, "1"), style) shouldBe "f(\n    1,\n)"
     }
 
+    should("render a MATRIX group of one column with one cell per row and no padding") {
+        Layout.render(matrix(1, "1", "22", "333"), style) shouldBe "f(\n    1,\n    22,\n    333,\n)"
+        Layout.render(matrix(1, "1", "22", "333", trailingComma = false), style) shouldBe
+            "f(\n    1,\n    22,\n    333\n)"
+        Layout.render(matrix(1, "1"), style) shouldBe "f(\n    1,\n)"
+    }
+
     should("render a MATRIX group asking for more columns than any array holds as one row") {
         Layout.render(matrix(Int.MAX_VALUE, "1", "2", "3"), style) shouldBe "f(\n    1, 2, 3,\n)"
     }
