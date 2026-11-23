@@ -156,6 +156,7 @@ class WrasseGradlePlugin @Inject constructor(
                 if (wired) return@withPlugin
                 val compileClass = kotlinCompileClass(project, pluginId) ?: return@withPlugin
                 wired = true
+                warnOnUnsupportedKotlin(project, pluginId)
                 val compiles = project.tasks.withType(compileClass)
                 wiredCompiles = compiles
                 wireCompiles(project, extension, wrasseDir, compiles, toolClasspath)
@@ -492,6 +493,16 @@ private fun kotlinCompileClass(project: Project, pluginId: String): Class<out Ta
             )
         }
     return loaded.asSubclass(Task::class.java)
+}
+
+private fun warnOnUnsupportedKotlin(project: Project, pluginId: String) {
+    val plugin = project.plugins.findPlugin(pluginId) ?: return
+    val found = runCatching { plugin.javaClass.getMethod("getPluginVersion").invoke(plugin) as? String }.getOrNull() ?: return
+    if (found == BundledCompilerPlugin.KOTLIN_VERSION) return
+    project.logger.warn(
+        "wrasse is built for Kotlin ${BundledCompilerPlugin.KOTLIN_VERSION}, but project '${project.path}' uses Kotlin $found. " +
+            "Continuing; the wrasse compiler plugin may fail or report nothing.",
+    )
 }
 
 private fun isKaptStub(task: Task): Boolean =

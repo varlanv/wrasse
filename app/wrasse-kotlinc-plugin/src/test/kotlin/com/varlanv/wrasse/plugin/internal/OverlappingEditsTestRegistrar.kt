@@ -15,6 +15,7 @@ import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.CompilerConfigurationKey
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 
 const val OVERLAPPING_EDITS_TEST_PLUGIN_ID = "com.varlanv.wrasse.test.overlap"
 const val OVERLAPPING_EDITS_FIX_OUTPUT_DIR_OPTION = "fixOutputDir"
@@ -38,7 +39,7 @@ class OverlappingEditsTestRegistrar : CompilerPluginRegistrar() {
         val fixOutputDir = configuration[KEY_OVERLAPPING_EDITS_FIX_OUTPUT_DIR]?.let(Paths::get)
         val activeRules = listOf(RangeConventionalRule() to errorConfig(), LongNumericalValuesRule() to errorConfig())
         val plugin = WrassePlugin(ruleSet = WRuleSet(activeRules), fixOutputDir = fixOutputDir)
-        K22Registrar.register(this, plugin)
+        FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar(plugin))
     }
 
     private fun errorConfig(): WrasseRuleConfig = WrasseRuleConfig(

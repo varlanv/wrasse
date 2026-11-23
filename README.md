@@ -3,13 +3,13 @@
 A Kotlin linter and formatter that runs inside the Kotlin compiler.
 Reads the syntax tree `kotlinc` has already built, so linting adds no extra parse pass to your build.
 
-Early stage: a growing set of lint rules, autofixes and an opinionated formatter. Supports Kotlin 2.1 – 2.4.
+Early stage: a growing set of lint rules, autofixes and an opinionated formatter. Supports Kotlin 2.4.21; other versions get a warning from the Gradle plugin.
 
 ## Usage
 
 ```kotlin
 plugins {
-    kotlin("jvm") version "2.4.20"
+    kotlin("jvm") version "2.4.21"
     id("com.varlanv.wrasse") version "0.1.0"
 }
 ```

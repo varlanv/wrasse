@@ -47,11 +47,8 @@ source root exactly as under Gradle.
 
 - The wrasse artifacts in `~/.m2` (`./gradlew publishToMavenLocal` in this repo); the module lists
   `mavenLocal` as a repository.
-- Any Kotlin the toolchain can run and wrasse supports (2.1 to 2.4); verified with the toolchain
-  default and with `version: 2.2.21` (which needs `settings.jvm.jdk.version: 21`, the 2.2 compiler
-  rejects JDK 25).
+- Kotlin 2.4.21, the version wrasse is built for.
 
 ## Observed while writing this
 
-- The toolchain renders the diagnostics with source excerpts on Kotlin 2.4 and as plain `WARN`
-  lines on 2.2.
+- The toolchain renders the diagnostics with source excerpts.

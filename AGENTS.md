@@ -24,9 +24,7 @@ Build/test via the Gradle wrapper only (`./gradlew`, never a bare `gradle`).
 ```
 ./gradlew build                     # compile everything
 ./gradlew test                      # unit tests in libs/* (kotest, JUnit platform)
-./gradlew testMinorHarness           # fixture tests against all supported Kotlin minors (2.1–2.4)
-./gradlew testPatchHarness           # fixture tests against all tracked Kotlin patch versions
-./gradlew :testing:wrasse-kotlinc-plugin-tests-2-4-x:test   # fixture tests for one Kotlin minor
+./gradlew :testing:wrasse-kotlinc-plugin-tests:test   # fixture + real-compile safety tests
 ./gradlew wrasseLint                 # self-lint: republish plugin, then compile this repo with wrasse checks on
 ./gradlew wrasseFix                  # self-fix: the same check compile as wrasseLint (-PwrasseCheck, UP-TO-DATE
                                       # if check just ran), then apply the emitted patch (wrasseApply)
@@ -55,9 +53,6 @@ Build/test via the Gradle wrapper only (`./gradlew`, never a bare `gradle`).
   recompilation, before trusting the patch.
 - There is no per-test CLI filter for a single fixture (Kotest generates one dynamic test per fixture,
   named `"handle spec - ${ruleId} -> ${fixtureId}"`). To add a test, **add a fixture file** — see below.
-  To scope a Gradle run to one Kotlin minor, target that submodule's `test`/`testMinor` task directly.
-- Per-patch-version tasks are `testPatch_<version>` (e.g. `testPatch_2_4_0`) inside each
-  `testing:wrasse-kotlinc-plugin-tests-<minor>-x` module.
 
 ### Adding a test = adding a fixture file
 
@@ -72,8 +67,7 @@ expectations (see `FixtureParser`):
   (`multi-pass-fix` lets a fixture whose fix needs a further apply round, because an overlapping edit was dropped,
   converge in up to five rounds; every other fixture must reach its fixed point in one)
 
-The same fixture set runs against every supported Kotlin minor (2.1–2.4) via the per-minor test
-modules — fixtures are Kotlin-version-agnostic by construction.
+The fixture set runs in `testing/wrasse-kotlinc-plugin-tests` against the single supported Kotlin version.
 
 ## Architecture
 
@@ -104,7 +98,6 @@ libs/
 app/
   wrasse-kotlinc-plugin/    WrassePlugin (dispatch entry point), wrasseMain(); internal/ = pure kotlinc
                             glue (FIR checkers, registrars, CommandLineProcessor) — zero wrasse rule logic
-  wrasse-kotlinc-internal-k20 / -k22   version-specific FIR registrar shells, selected at runtime
   wrasse-gradle-plugin/     the Gradle plugin consumers apply (id `com.varlanv.wrasse`, artifact
                             `wrasse-gradle-plugin`): ONE Kotlin file, per-project only (parallel, configuration
                             cache and isolated projects safe), embeds the compiler-plugin shadow jar as a resource and unpacks it once per machine into
@@ -142,8 +135,7 @@ testing/
   wrasse-realworld-bench/               generator for synthetic 5k/50k/1M-LOC Gradle projects + bench.sh
                                         runner comparing wrasse with ktlint/ktfmt/detekt (doc/benchmarks/)
   wrasse-test-harness/                  FixtureLoader/Parser, WrasseTestHarness, and the fixtures/ resources
-  wrasse-kotlinc-plugin-tests-base/     WrasseFixtureSpec — iterates all fixtures, one `should` per fixture
-  wrasse-kotlinc-plugin-tests-2-{1,2,3,4}-x/   thin subclasses that run the base spec against each Kotlin minor
+  wrasse-kotlinc-plugin-tests/          WrasseFixtureSpec — iterates all fixtures, one `should` per fixture — and the real-compile safety specs
 ```
 
 `wrasse-model` and `wrasse-rules` have **zero dependency on kotlinc** — rules are unit-testable
@@ -216,15 +208,13 @@ hand-rolled JSONC reader in `wrasse-lang`. Per-rule `"level": "off" | "warn" | "
 error). `wrasse-schema.json` is the editor-autocomplete schema referenced by `$schema` in
 `wrasse.json`. This repo lints itself (`wrasseLint`/`wrasseFix`) using its own `wrasse.json`.
 
-### Kotlin version matrix
+### Kotlin version
 
-The plugin ships as a single JAR compiled against the latest supported Kotlin (2.4, see
-`gradle/libs.versions.toml`), targeting JVM 8 bytecode so it loads into the kotlinc daemon
-classloader like any bundled compiler plugin. Cross-version FIR API differences are absorbed by
-runtime-selected registrar shells (`app/wrasse-kotlinc-internal-k20`, `-k22`) plus the adapter layer
-— rule code and `wrasse-model` never see version-specific kotlinc APIs directly. The same fixture set
-is replayed against each supported minor via the `testing/wrasse-kotlinc-plugin-tests-<minor>-x`
-modules and their `testMinor`/`testPatch_*` tasks.
+The plugin ships as a single JAR compiled against and tested on one Kotlin version (`kotlinVersion` in
+`gradle/libs.versions.toml`, currently 2.4.21), targeting JVM 8 bytecode so it loads into the kotlinc daemon
+classloader like any bundled compiler plugin. There are no per-version registrar shells; the compiler
+plugin registers its FIR extension directly. The Gradle plugin logs a warning when a project's Kotlin
+differs from the bundled `KOTLIN_VERSION` and continues unchanged (D30).
 
 ### Build conventions
 

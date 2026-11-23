@@ -57,13 +57,14 @@ val generateBundledCompilerPlugin = tasks.register("generateBundledCompilerPlugi
     val jars = compilerPluginJar
     val outDir = layout.buildDirectory.dir("generated/wrasse-bundled")
     inputs.files(jars)
+    inputs.property("kotlinVersion", kotlinVersion)
     outputs.dir(outDir)
     doLast {
         val digest = MessageDigest.getInstance("SHA-256").digest(jars.singleFile.readBytes())
         val sha256 = digest.joinToString("") { byte -> "%02x".format(byte) }
         val file = outDir.get().file("com/varlanv/wrasse/gradle/BundledCompilerPlugin.kt").asFile
         file.parentFile.mkdirs()
-        file.writeText("package com.varlanv.wrasse.gradle\n\ninternal object BundledCompilerPlugin {\n    const val SHA256 = \"$sha256\"\n}\n")
+        file.writeText("package com.varlanv.wrasse.gradle\n\ninternal object BundledCompilerPlugin {\n    const val SHA256 = \"$sha256\"\n    const val KOTLIN_VERSION = \"$kotlinVersion\"\n}\n")
     }
 }
 kotlin.sourceSets.named("main") { kotlin.srcDir(generateBundledCompilerPlugin) }

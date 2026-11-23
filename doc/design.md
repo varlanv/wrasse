@@ -161,12 +161,10 @@ libs/
                            zero kotlinc deps; rides Host A's compile, no standalone entry point (D16)
 app/
   wrasse-kotlinc-plugin/   WrassePlugin (dispatch entry), wrasseMain(); internal/ = pure kotlinc glue
-  wrasse-kotlinc-internal-k20 / -k22   version-specific FIR registrar shells, selected at runtime
 testing/
   common-test/                          BaseSpec (kotest ShouldSpec base), useTempDir
   wrasse-test-harness/                  FixtureLoader/Parser, WrasseTestHarness, fixtures/ resources
-  wrasse-kotlinc-plugin-tests-base/     WrasseFixtureSpec — one dynamic test per fixture
-  wrasse-kotlinc-plugin-tests-2-{1,2,3,4}-x/   thin subclasses running the base spec per Kotlin minor
+  wrasse-kotlinc-plugin-tests/          WrasseFixtureSpec — one dynamic test per fixture — and the real-compile safety specs
 ```
 
 `wrasse-model`, `wrasse-rules`, and `wrasse-format` have **zero dependency on kotlinc** — rules
@@ -202,8 +200,8 @@ so the whole architecture could be tested before committing to a 200+ rule catal
 - **Diagnostics:** violations reported as `KtDiagnostic`s (`WRASSE_ERROR`/`WRASSE_WARNING`
   factories, severity from `rule.config.effectiveLevel`), visible inline in IntelliJ with the
   "Kotlin External FIR Support" plugin.
-- **Version matrix:** single JAR compiled against Kotlin 2.4, JVM 8 bytecode, runtime-selected
-  registrar shells (`k20`/`k22`); the same fixture set replays against Kotlin 2.1–2.4.
+- **Kotlin version:** single JAR compiled against and tested on one Kotlin version (D30), JVM 8
+  bytecode; the Gradle plugin warns when a project uses a different Kotlin.
 
 Known divergences between this state and the target are catalogued in §13 (Phase A.5) and §14 —
 including several real bugs found in the 2026-07 design review. **Do not build Phase B on top of
@@ -1857,28 +1855,18 @@ above; smoke numbers for this pass are in the A.5 roadmap entry below.
 
 - **JVM 8 bytecode**, single JAR — loads into the kotlinc daemon classloader like any bundled
   compiler plugin (D14).
-- Compiled against the latest supported Kotlin (2.4, `gradle/libs.versions.toml`); cross-version
-  FIR API differences absorbed by runtime-selected registrar shells
-  (`wrasse-kotlinc-internal-k20`/`-k22`) + the adapter. Rule code and `wrasse-model` never see
-  version-specific kotlinc APIs.
-- The same fixture set replays against every supported minor (2.1–2.4) via the per-minor test
-  modules — the primary mitigation against FIR API instability. Per-patch tasks
-  (`testPatch_<version>`) extend coverage.
+- Compiled against and tested on exactly one Kotlin version (`kotlinVersion` in
+  `gradle/libs.versions.toml`, D30). Rule code and `wrasse-model` never see version-specific kotlinc
+  APIs. The Gradle plugin warns at configuration time when a project's Kotlin differs and then
+  continues unchanged.
 - **Known fragile surfaces** (mitigate with tests, §13/§14): `WNodeTypeMapping`'s direct
   `KtTokens.*`/`KtNodeTypes.*` constant references (a rename breaks compile or silently maps to
-  `UNKNOWN` — rules just stop firing); registrar selection probes internal compiler class names;
-  the three near-identical checker shells must be edited in triplicate on signature changes. Add
-  the next Kotlin EAP to the patch harness early — breakage appears there first.
-- **Test-harness classpath skew is a real failure mode, not just a plugin one**: kotlinc's own
-  `GroupingMessageCollector` drops every WARNING-severity diagnostic from a compile that has *any*
-  ERROR (regardless of source), unless `-Xreport-all-warnings` is passed — a stock CLI behavior,
-  not a wrasse bug. Per-minor test modules must resolve a `kotlin-stdlib` matching the forced
-  `kotlin-compiler-embeddable` version for the sources under compilation; letting Gradle's default
-  "highest version wins" conflict resolution hand the fixture compile a newer toolchain stdlib
-  produces a real "incompatible metadata version" error that then silently swallows unrelated
-  WARN-level assertions. Any future per-minor/per-patch harness wiring must keep the compiled
-  sources' library classpath pinned to the same minor as the compiler, separately from the test
-  JVM's own classpath (which does need the toolchain's stdlib for kotest/JUnit to run at all).
+  `UNKNOWN` — rules just stop firing); every bump of `kotlinVersion` is the check for FIR API changes.
+- **Test-harness classpath skew is a real failure mode**: kotlinc's own `GroupingMessageCollector`
+  drops every WARNING-severity diagnostic from a compile that has *any* ERROR (regardless of
+  source), unless `-Xreport-all-warnings` is passed — a stock CLI behavior, not a wrasse bug. The
+  fixture compile's `kotlin-stdlib` must match the `kotlin-compiler-embeddable` version, or a real
+  "incompatible metadata version" error silently swallows unrelated WARN-level assertions.
 
 Kotlinc surface (adapter-only; rule code never imports these): LightTree
 (`KtLightSourceElement`, `FlyweightCapableTreeStructure<LighterASTNode>`, `LighterASTNode`,
@@ -1902,13 +1890,9 @@ Kotlinc surface (adapter-only; rule code never imports these): LightTree
   explicitly excludes `aux/` so a companion source can never be mistaken for its own fixture.
   Locks cross-file resolution axes (e.g. `no-unused-imports`' classifier/callable FQN-prefix
   matching) that a single-file fixture cannot exercise under `noJdk`.
-- **Version matrix:** the same fixtures run against Kotlin 2.1–2.4 (fixtures are
-  version-agnostic by construction). Per-minor task wiring (patch-config resolution, `testMinor`,
-  `testPatch_<version>`, stdlib pinning, fixture-dir system property) is centralized in
-  `internal-convention-plugin` behind the `wrasseKotlinMinorMatrix { minor.set(...);
-  patches.set(listOf(...)) }` extension — adding a new supported minor is now: create a module with
-  a two-line matrix declaration, add it to `settings.gradle.kts`, and add it to the root
-  `testMinorHarness`/`testPatchHarness` aggregate tasks.
+- **Kotlin version:** fixtures run against the single Kotlin version of `kotlinVersion` (D30) in
+  the one `testing:wrasse-kotlinc-plugin-tests` module; the convention plugin only sets the
+  fixture-dir system property and worker headroom for it.
 - **Idempotence invariant (D19, Phase A.5):** for every autofix fixture — apply → re-lint →
   zero diagnostics → second fix emits zero edits. Phase C: `format(format(x)) == format(x)`;
   formatted fixtures re-format to themselves.
@@ -2202,9 +2186,19 @@ information. Statuses: Accepted · Rejected · Superseded.
   whole tail (so `fun f(a, b) = x && y` keeps exploding the signature rather than the body). Locked
   by `format-binary-operands/` and the reformatted `format-corpus/` files.
 
+- **D30 — One supported Kotlin version, warn on mismatch · Accepted 2026-11-23.** The 2.1–2.4
+  matrix is gone: the two version-specific registrar shells (`wrasse-kotlinc-internal-k20`/`-k22`),
+  the runtime class-probing registrar selection, the four per-minor test modules and the
+  `wrasseKotlinMinorMatrix` convention-plugin extension (`testMinor`/`testPatch_*`/
+  `testMinorHarness`/`testPatchHarness`) were removed. The plugin is compiled against and tested on
+  `kotlinVersion` (2.4.21) only, and the registrar registers `WrasseFirExtensionRegistrar`
+  directly. The Gradle plugin reads the Kotlin plugin version reflectively and, when it differs
+  from the bundled `KOTLIN_VERSION`, logs one warning at configuration time and continues
+  unchanged. Supersedes the version-matrix parts of D14 and §10/§11 history below.
+
 ### Build & distribution
 
-- **D14 — JVM 8 bytecode, single JAR across a Kotlin range · Accepted.** §10.
+- **D14 — JVM 8 bytecode, single JAR · Accepted.** §10 (the Kotlin range was narrowed to one version by D30).
 
 ### Rejected outright
 

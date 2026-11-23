@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.ExplicitApiMode
 import org.jetbrains.kotlin.config.MessageCollectorAccess
 import org.jetbrains.kotlin.config.languageVersionSettings
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 
 @OptIn(ExperimentalCompilerApi::class, MessageCollectorAccess::class)
 class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
@@ -56,49 +57,6 @@ class WrasseCompilerPluginRegistrar : CompilerPluginRegistrar() {
             messageCollector = messageCollector,
         )
 
-        val cl = this::class.java.classLoader
-        when {
-            classExists(cl, "org.jetbrains.kotlin.extensions.ExtensionPointDescriptor") -> {
-                K22Registrar.register(this, plugin)
-            }
-
-            classExists(cl, "org.jetbrains.kotlin.diagnostics.KtDiagnosticsContainer") -> {
-                delegateToRegistrar(
-                    "com.varlanv.wrasse.plugin.k22.WrasseCompilerPluginRegistrar22",
-                    configuration,
-                    plugin,
-                )
-            }
-
-            else -> {
-                delegateToRegistrar(
-                    "com.varlanv.wrasse.plugin.k20.WrasseCompilerPluginRegistrar20",
-                    configuration,
-                    plugin,
-                )
-            }
-        }
-    }
-
-    private fun ExtensionStorage.delegateToRegistrar(
-        className: String,
-        configuration: CompilerConfiguration,
-        plugin: WrassePlugin,
-    ) {
-        val registrar =
-            Class
-                .forName(className)
-                .getDeclaredConstructor(WrassePlugin::class.java)
-                .newInstance(plugin) as CompilerPluginRegistrar
-        with(registrar) { this@delegateToRegistrar.registerExtensions(configuration) }
-    }
-
-    private fun classExists(cl: ClassLoader, name: String): Boolean {
-        return try {
-            cl.loadClass(name)
-            true
-        } catch (_: ClassNotFoundException) {
-            false
-        }
+        FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar(plugin))
     }
 }

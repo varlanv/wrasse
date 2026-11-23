@@ -31,7 +31,6 @@ class WrasseTestHarness(
         }
 
         private val kotlinStdlibPath: String? by lazy {
-            System.getProperty("wrasse.harness.stdlibPath")?.let { return@lazy it }
             val marker = Unit::class.java
             val location = marker.protectionDomain?.codeSource?.location ?: return@lazy null
             File(location.toURI()).absolutePath

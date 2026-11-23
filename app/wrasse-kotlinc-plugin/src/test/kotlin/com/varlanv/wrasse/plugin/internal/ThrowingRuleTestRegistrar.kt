@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.CompilerConfigurationKey
 import org.jetbrains.kotlin.config.MessageCollectorAccess
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 
 const val THROWING_TEST_RULE_CRASH_MARKER = "wrasseCrashTestMarker"
 const val THROWING_TEST_RULE_CRASH_MESSAGE = "boom from throwing test rule"
@@ -35,7 +36,7 @@ private val KEY_WITH_EDITING_RULE = CompilerConfigurationKey<Boolean>(WITH_EDITI
  * Real-compile probe support for [InternalFailureIsolationSpec]: a rule that throws on a magic
  * identifier, wired into a live `K2JVMCompiler` run via [ThrowingRuleTestRegistrar] rather than
  * any production hook — [WrassePlugin] and the internal FIR-registrar glue it rides
- * ([K22Registrar], [WrasseFirExtensionRegistrar], [FirSyntacticChecker]) already accept an
+ * ([WrasseFirExtensionRegistrar], [FirSyntacticChecker]) already accept an
  * arbitrary [WRuleSet], so this is test-only wiring on top of an existing seam.
  */
 class ThrowingTestRule : WUninitializedRule {
@@ -85,7 +86,7 @@ class ThrowingRuleTestRegistrar : CompilerPluginRegistrar() {
             fixOutputDir = fixOutputDir,
             messageCollector = messageCollector,
         )
-        K22Registrar.register(this, plugin)
+        FirExtensionRegistrarAdapter.registerExtension(WrasseFirExtensionRegistrar(plugin))
     }
 
     /**

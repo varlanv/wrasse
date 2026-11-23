@@ -4,8 +4,6 @@ import org.gradle.api.Plugin
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
-import org.gradle.api.tasks.SourceSetContainer
-import org.gradle.api.tasks.testing.Test
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.gradle.plugins.ide.idea.IdeaPlugin
@@ -32,9 +30,6 @@ class InternalConventionPlugin : Plugin<Project> {
         private val internalConventionExtension =
             extensions.findByName(InternalConventionExtension.NAME) as InternalConventionExtension?
                 ?: extensions.create(InternalConventionExtension.NAME, InternalConventionExtension::class.java)
-        private val kotlinMinorMatrixExtension =
-            extensions.findByName(KotlinMinorMatrixExtension.NAME) as KotlinMinorMatrixExtension?
-                ?: extensions.create(KotlinMinorMatrixExtension.NAME, KotlinMinorMatrixExtension::class.java)
         private val javaToolchainVersion = internalCatalog.getVersion("javaToolchainVersion")
         private val javaTargetVersion = internalCatalog.getVersion("javaTargetVersion")
         private val kotlinVersion = internalCatalog.getVersion("kotlinVersion")
@@ -49,7 +44,6 @@ class InternalConventionPlugin : Plugin<Project> {
                 configureKotlin()
                 configureCommonDependencies()
                 configureTests()
-                configureKotlinMinorMatrix()
                 configureWrasse()
                 configureWrasseApply()
                 configurePublishing()
@@ -120,7 +114,9 @@ class InternalConventionPlugin : Plugin<Project> {
         }
 
         fun configureTests() {
-            val isFixtureModule = project.path.startsWith(":testing:wrasse-kotlinc-plugin-tests-")
+            val isFixtureModule = project.path == ":testing:wrasse-kotlinc-plugin-tests"
+            val fixturesDir =
+                project.rootProject.file("testing/wrasse-test-harness/src/main/resources/fixtures").absolutePath
             tasks.withType(org.gradle.api.tasks.testing.Test::class.java).configureEach { test ->
                 test.useJUnitPlatform()
                 test.testLogging { logging ->
@@ -128,94 +124,9 @@ class InternalConventionPlugin : Plugin<Project> {
                     logging.showStackTraces = true
                 }
                 if (isFixtureModule) {
+                    test.systemProperty("wrasse.fixtures.dir", fixturesDir)
                     test.maxHeapSize = "2g"
                     test.jvmArgs("-Xss8m", "-XX:MaxMetaspaceSize=1g")
-                }
-            }
-        }
-
-        fun configureKotlinMinorMatrix() {
-            if (!kotlinMinorMatrixExtension.minor.isPresent) {
-                return
-            }
-            val minor = kotlinMinorMatrixExtension.minor.get()
-            val patchVersions = kotlinMinorMatrixExtension.patches.get()
-            val latestMinor = patchVersions.last()
-            val isCurrentKotlin = latestMinor == kotlinVersion
-
-            dependencies.add(
-                "testImplementation",
-                dependencies.project(mapOf("path" to ":testing:wrasse-kotlinc-plugin-tests-base"))
-            )
-
-            if (!isCurrentKotlin) {
-                project.configurations.named("testRuntimeClasspath").configure { config ->
-                    config.resolutionStrategy.force("org.jetbrains.kotlin:kotlin-compiler-embeddable:$latestMinor")
-                }
-            }
-
-            val targetStdlibConfigs = (patchVersions + latestMinor).distinct().associateWith { version ->
-                project.configurations.create("targetStdlib_${version.replace('.', '_')}") { config ->
-                    config.isCanBeConsumed = false
-                    config.isCanBeResolved = true
-                }
-            }
-            for ((version, config) in targetStdlibConfigs) {
-                dependencies.add(config.name, "org.jetbrains.kotlin:kotlin-stdlib:$version")
-            }
-            fun stdlibJarPath(version: String): String =
-                targetStdlibConfigs.getValue(version).filter { it.name.startsWith("kotlin-stdlib-") }.singleFile.absolutePath
-
-            val fixturesDir =
-                project.rootProject.file("testing/wrasse-test-harness/src/main/resources/fixtures").absolutePath
-            tasks.withType(Test::class.java).configureEach { it.systemProperty("wrasse.fixtures.dir", fixturesDir) }
-
-            val testTask = tasks.named("test", Test::class.java)
-            if (!isCurrentKotlin) {
-                testTask.configure { it.enabled = false }
-            }
-
-            val sourceSets = extensions.getByType(SourceSetContainer::class.java)
-
-            if (isCurrentKotlin) {
-                tasks.register("testMinor") { task ->
-                    task.group = "verification"
-                    task.description = "Run fixture tests against Kotlin $latestMinor"
-                    task.dependsOn(testTask)
-                }
-            } else {
-                tasks.register("testMinor", Test::class.java) { task ->
-                    task.group = "verification"
-                    task.description = "Run fixture tests against Kotlin $latestMinor"
-                    task.testClassesDirs = sourceSets.getByName("test").output.classesDirs
-                    task.classpath = sourceSets.getByName("test").runtimeClasspath
-                    task.doFirst { task.systemProperty("wrasse.harness.stdlibPath", stdlibJarPath(latestMinor)) }
-                }
-            }
-
-            for (version in patchVersions) {
-                val safeName = version.replace('.', '_')
-                val patchConfig = project.configurations.create("kotlincPatch_$safeName") { config ->
-                    config.isCanBeConsumed = false
-                    config.isCanBeResolved = true
-                }
-                dependencies.add(patchConfig.name, "org.jetbrains.kotlin:kotlin-compiler-embeddable:$version")
-                tasks.register("testPatch_$safeName", Test::class.java) { task ->
-                    task.group = "verification"
-                    task.description = "Run fixture tests against Kotlin $version"
-                    task.testClassesDirs = sourceSets.getByName("test").output.classesDirs
-                    task.classpath = project.files(patchConfig) + sourceSets.getByName("test").runtimeClasspath.filter {
-                        !it.name.startsWith("kotlin-compiler-embeddable")
-                    }
-                    task.doFirst { task.systemProperty("wrasse.harness.stdlibPath", stdlibJarPath(version)) }
-                }
-            }
-
-            tasks.register("testPatchHarness") { task ->
-                task.group = "verification"
-                task.description = "Run fixture tests against all Kotlin $minor.x patch versions"
-                for (version in patchVersions) {
-                    task.dependsOn(tasks.named("testPatch_${version.replace('.', '_')}"))
                 }
             }
         }
