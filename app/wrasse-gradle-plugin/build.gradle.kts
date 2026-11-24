@@ -53,7 +53,9 @@ val compilerPluginJar = configurations.create("compilerPluginJar") {
     isCanBeResolved = true
 }
 
+// The compiler plugin ships inside this plugin's jar, so its hash and Kotlin version are baked in as constants.
 val generateBundledCompilerPlugin = tasks.register("generateBundledCompilerPlugin") {
+    description = "Generates BundledCompilerPlugin with the SHA-256 of the embedded compiler-plugin jar and its Kotlin version"
     val jars = compilerPluginJar
     val outDir = layout.buildDirectory.dir("generated/wrasse-bundled")
     inputs.files(jars)

@@ -1,3 +1,4 @@
+@file:Suppress("BlockingMethodInNonBlockingContext")
 package com.varlanv.wrasse.gradle
 
 import io.kotest.core.spec.style.ShouldSpec
